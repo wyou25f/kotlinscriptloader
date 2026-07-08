@@ -1,0 +1,32 @@
+# --- [ Build Tools & ShadowJar ] ---
+.gradle/
+build/
+# Игнорируем все готовые jar-ники, чтобы случайно не запушить собранный плагин
+# (ShadowJar собирает их в build/libs/, но бережёного бог бережёт)
+*.jar
+!**/src/**/*.jar
+
+# Исключения для Gradle Wrapper (они ДОЛЖНЫ быть в Git)
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+# --- [ Kotlin / Java / IDE ] ---
+*.class
+*.log
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+.jetbrains/
+
+# --- [ Тестовая среда сервера ] ---
+# Если ты используешь task вроде 'runServer' от RunPaper / Task в Gradle,
+# сервер обычно запускается в этих директориях:
+/run/
+/server/
+/test-server/
+
+# --- [ Системный мусор ] ---
+.DS_Store
+Thumbs.db
