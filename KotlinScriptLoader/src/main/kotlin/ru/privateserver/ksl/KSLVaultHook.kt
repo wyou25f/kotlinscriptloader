@@ -14,24 +14,27 @@ class KSLVaultHook {
     val hasEconomy get() = economy != null
     val hasPermissions get() = permission != null
 
-    fun balance(player: OfflinePlayer): Double? = economy?.getBalance(player)
+    fun balance(player: OfflinePlayer): Double? =
+        KSLErrors.hookSafe("Vault", null) { economy?.getBalance(player) }
 
     fun deposit(player: OfflinePlayer, amount: Double): Boolean =
-        economy?.depositPlayer(player, amount)?.transactionSuccess() ?: false
+        KSLErrors.hookSafe("Vault", false) { economy?.depositPlayer(player, amount)?.transactionSuccess() ?: false }
 
     fun withdraw(player: OfflinePlayer, amount: Double): Boolean =
-        economy?.withdrawPlayer(player, amount)?.transactionSuccess() ?: false
+        KSLErrors.hookSafe("Vault", false) { economy?.withdrawPlayer(player, amount)?.transactionSuccess() ?: false }
 
     fun has(player: OfflinePlayer, amount: Double): Boolean =
-        economy?.has(player, amount) ?: false
+        KSLErrors.hookSafe("Vault", false) { economy?.has(player, amount) ?: false }
 
-    fun format(amount: Double): String = economy?.format(amount) ?: amount.toString()
+    fun format(amount: Double): String =
+        KSLErrors.hookSafe("Vault", amount.toString()) { economy?.format(amount) ?: amount.toString() }
 
     fun hasPermission(player: Player, node: String): Boolean =
-        permission?.playerHas(player, node) ?: player.hasPermission(node)
+        KSLErrors.hookSafe("Vault", player.hasPermission(node)) { permission?.playerHas(player, node) ?: player.hasPermission(node) }
 
-    fun playerGroup(player: Player): String? = permission?.getPrimaryGroup(player)
+    fun playerGroup(player: Player): String? =
+        KSLErrors.hookSafe("Vault", null) { permission?.getPrimaryGroup(player) }
 
     fun playerInGroup(player: Player, group: String): Boolean =
-        permission?.playerInGroup(player, group) ?: false
+        KSLErrors.hookSafe("Vault", false) { permission?.playerInGroup(player, group) ?: false }
 }

@@ -16,6 +16,10 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
     private val host = BasicJvmScriptingHost()
     private val pluginClassLoader = plugin::class.java.classLoader
 
+    companion object {
+        private const val SLOW_LOAD_THRESHOLD_MS = 2000
+    }
+
     private val sandboxForbidden = listOf(
         "java.lang.Runtime",
         "Runtime.getRuntime",
@@ -43,6 +47,7 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
 
     fun loadScript(file: File): Boolean {
         val scriptName = file.nameWithoutExtension
+        val startedAt = System.nanoTime()
         return try {
             if (!checkSandbox(file, scriptName)) return false
 
@@ -61,7 +66,7 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
                 .filter { it.severity == ScriptDiagnostic.Severity.WARNING }
                 .forEach { plugin.logger.warning("[$scriptName] ⚠ ${formatDiagnostic(it)}") }
 
-            when (result) {
+            val ok = when (result) {
                 is ResultWithDiagnostics.Failure -> {
                     plugin.logger.severe("[$scriptName] ❌ Ошибки компиляции:")
                     result.reports
@@ -72,7 +77,7 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
                 is ResultWithDiagnostics.Success -> {
                     val rv = result.value.returnValue
                     if (rv is ResultValue.Error) {
-                        logScriptException(scriptName, file.name, rv.error)
+                        KSLErrors.log(plugin, scriptName, "загрузка скрипта", rv.error)
                         false
                     } else {
                         plugin.logger.info("[$scriptName] ✅ загружен")
@@ -80,9 +85,45 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
                     }
                 }
             }
+
+            val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000
+            if (elapsedMs > SLOW_LOAD_THRESHOLD_MS) {
+                plugin.logger.warning("[$scriptName] ⏱ Загрузка заняла ${elapsedMs}мс — это дольше обычного, проверь скрипт на тяжёлые операции в top-level коде (сеть, БД синхронно и т.п.)")
+            }
+
+            ok
         } catch (ex: Throwable) {
-            plugin.logger.severe("[$scriptName] ❌ ${ex::class.simpleName}: ${ex.message}")
+            KSLErrors.log(plugin, scriptName, "загрузка скрипта", ex)
             false
+        }
+    }
+
+    fun selfTestCompiler(): Pair<Boolean, String> {
+        return try {
+            val context = BukkitScriptContext(plugin, "__selftest__")
+            val compilationConfig = buildScriptCompilationConfig(plugin.addonManager)
+            val evalConfig = ScriptEvaluationConfiguration {
+                implicitReceivers(context)
+                jvm { baseClassLoader(pluginClassLoader) }
+            }
+            val source = "6 * 7".toScriptSource("ksl_selftest.kts")
+            val result = host.eval(source, compilationConfig, evalConfig)
+            when (result) {
+                is ResultWithDiagnostics.Failure -> {
+                    val reason = result.reports.joinToString("; ") { formatDiagnostic(it) }
+                    false to "компиляция не удалась: $reason"
+                }
+                is ResultWithDiagnostics.Success -> {
+                    val rv = result.value.returnValue
+                    when {
+                        rv is ResultValue.Error -> false to "выполнение упало: ${rv.error.message}"
+                        rv is ResultValue.Value && rv.value == 42 -> true to "OK (6 * 7 = 42)"
+                        else -> false to "неожиданный результат: $rv"
+                    }
+                }
+            }
+        } catch (ex: Throwable) {
+            false to "${ex::class.simpleName}: ${ex.message}"
         }
     }
 
@@ -105,24 +146,5 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
     private fun formatDiagnostic(d: ScriptDiagnostic): String {
         val loc = d.location
         return if (loc != null) "строка ${loc.start.line}: ${d.message}" else d.message
-    }
-
-    private fun logScriptException(scriptName: String, fileName: String, ex: Throwable) {
-        val cause = ex.cause ?: ex
-        plugin.logger.severe("[$scriptName] ❌ ${cause::class.simpleName}: ${cause.message}")
-        val relevant = cause.stackTrace.filter { frame ->
-            frame.fileName?.endsWith(".kts") == true ||
-                frame.className.contains(scriptName, ignoreCase = true)
-        }
-        if (relevant.isNotEmpty()) {
-            relevant.take(5).forEach { frame ->
-                val line = if (frame.lineNumber > 0) "строка ${frame.lineNumber}" else "строка ?"
-                plugin.logger.severe("  → $fileName, $line")
-            }
-        } else {
-            cause.stackTrace.firstOrNull()?.let {
-                plugin.logger.severe("  → ${it.className}.${it.methodName}(${it.fileName}:${it.lineNumber})")
-            }
-        }
     }
 }

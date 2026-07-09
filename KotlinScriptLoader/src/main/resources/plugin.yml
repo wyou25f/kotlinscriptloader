@@ -4,11 +4,11 @@ main: ru.privateserver.ksl.KotlinScriptLoaderPlugin
 api-version: '1.21'
 author: PrivateServer
 description: Приватный hot-reload загрузчик .kts скриптов
-softdepend: [PlaceholderAPI, LuckPerms, Essentials, Vault, SkinsRestorer]
+softdepend: [PlaceholderAPI, LuckPerms, Essentials, Vault, SkinsRestorer, WorldEdit, WorldGuard]
 commands:
   ksl:
     description: Управление KotlinScriptLoader
-    usage: /ksl [reload|addons|services|discord|sandbox]
+    usage: /ksl [reload|addons|services|libraries|discord|sandbox|errors|doctor]
     permission: ksl.admin
 permissions:
   ksl.admin:

@@ -9,19 +9,19 @@ class KSLSkinHook {
 
     private val api: SkinsRestorer = SkinsRestorerProvider.get()
 
-    fun setSkin(player: Player, skinName: String): Boolean {
-        val result = api.skinStorage.findOrCreateSkinData(skinName).orElse(null) ?: return false
+    fun setSkin(player: Player, skinName: String): Boolean = KSLErrors.hookSafe("SkinsRestorer", false) {
+        val result = api.skinStorage.findOrCreateSkinData(skinName).orElse(null) ?: return@hookSafe false
         api.playerStorage.setSkinIdOfPlayer(player.uniqueId, result.identifier)
         api.getSkinApplier(Player::class.java).applySkin(player)
-        return true
+        true
     }
 
-    fun setSkinRaw(player: Player, value: String, signature: String): Boolean {
+    fun setSkinRaw(player: Player, value: String, signature: String): Boolean = KSLErrors.hookSafe("SkinsRestorer", false) {
         val property = SkinProperty.of(value, signature)
         api.getSkinApplier(Player::class.java).applySkin(player, property)
-        return true
+        true
     }
 
     fun currentSkin(player: Player): SkinProperty? =
-        api.playerStorage.getSkinForPlayer(player.uniqueId, player.name).orElse(null)
+        KSLErrors.hookSafe("SkinsRestorer", null) { api.playerStorage.getSkinForPlayer(player.uniqueId, player.name).orElse(null) }
 }

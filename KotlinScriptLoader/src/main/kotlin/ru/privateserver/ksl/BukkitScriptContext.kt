@@ -106,13 +106,21 @@ open class BukkitScriptContext(
         crossinline action: T.() -> Unit
     ) {
         val listener = object : Listener {}
-        val executor = EventExecutor { _, event -> if (event is T) event.action() }
+        val executor = EventExecutor { _, event ->
+            if (event is T) {
+                try {
+                    event.action()
+                } catch (ex: Throwable) {
+                    KSLErrors.log(plugin, scriptName, "onEvent<${T::class.simpleName}>", ex)
+                }
+            }
+        }
         Bukkit.getPluginManager().registerEvent(T::class.java, listener, priority, executor, plugin)
         plugin.trackListener(scriptName, listener)
     }
 
     fun registerCommand(name: String, aliases: List<String> = emptyList(), action: (Player, Array<String>) -> Unit) {
-        val command = DynamicCommand(name, aliases, scriptName, action)
+        val command = DynamicCommand(name, aliases, scriptName, plugin, action)
         Bukkit.getCommandMap().register(plugin.name.lowercase(), command)
         plugin.trackCommand(scriptName, command)
     }
@@ -181,6 +189,17 @@ open class BukkitScriptContext(
     fun setBalance(player: Player, amount: Double) { plugin.essentials?.setBalance(player, amount) }
     fun isAfk(player: Player): Boolean = plugin.essentials?.isAfk(player) ?: false
 
+    fun weSelection(player: Player): Pair<org.bukkit.Location, org.bukkit.Location>? = plugin.worldEdit?.selection(player)
+    fun weSelectionVolume(player: Player): Long? = plugin.worldEdit?.selectionVolume(player)
+    fun weFillSelection(player: Player, material: org.bukkit.Material): Int? = plugin.worldEdit?.fillSelection(player, material)
+    fun weHasClipboard(player: Player): Boolean = plugin.worldEdit?.hasClipboard(player) ?: false
+
+    fun wgRegionsAt(location: org.bukkit.Location): List<String> = plugin.worldGuard?.regionsAt(location) ?: emptyList()
+    fun wgIsInRegion(location: org.bukkit.Location, regionId: String): Boolean = plugin.worldGuard?.isInRegion(location, regionId) ?: false
+    fun wgCanBuild(player: Player, location: org.bukkit.Location): Boolean = plugin.worldGuard?.canBuild(player, location) ?: true
+    fun wgCanPvp(player: Player, location: org.bukkit.Location): Boolean = plugin.worldGuard?.canPvp(player, location) ?: true
+    fun wgFlag(location: org.bukkit.Location, flagName: String, player: Player? = null): String? = plugin.worldGuard?.flagValue(location, flagName, player)
+
     fun vaultBalance(player: OfflinePlayer): Double? = plugin.vault?.balance(player)
     fun vaultDeposit(player: OfflinePlayer, amount: Double): Boolean = plugin.vault?.deposit(player, amount) ?: false
     fun vaultWithdraw(player: OfflinePlayer, amount: Double): Boolean = plugin.vault?.withdraw(player, amount) ?: false
@@ -194,8 +213,26 @@ open class BukkitScriptContext(
     fun setSkinRaw(player: Player, value: String, signature: String): Boolean =
         plugin.skinRestorer?.setSkinRaw(player, value, signature) ?: false
 
+    fun cooldown(player: Player, key: String, seconds: Long): Boolean =
+        plugin.cooldownStore.tryUse("$scriptName:$key:${player.uniqueId}", seconds)
+
+    fun cooldownRemaining(player: Player, key: String, seconds: Long): Long =
+        plugin.cooldownStore.remaining("$scriptName:$key:${player.uniqueId}", seconds)
+
+    fun resetCooldown(player: Player, key: String) =
+        plugin.cooldownStore.reset("$scriptName:$key:${player.uniqueId}")
+
+    fun export(key: String, value: Any) {
+        plugin.libraryRegistry.export(scriptName, key, value)
+    }
+
+    inline fun <reified T : Any> library(key: String): T? = plugin.libraryRegistry.get(key) as? T
+
+    inline fun <reified T : Any> requireLibrary(key: String): T =
+        library<T>(key) ?: error("Библиотека '$key' не найдена — проверь, что скрипт с export(\"$key\", ...) загружен раньше (см. @requires)")
+
     fun gui(title: String, rows: Int = 3, builder: KSLGuiInstance.() -> Unit): KSLGuiInstance {
-        val instance = KSLGuiInstance(scriptName, rows, title)
+        val instance = KSLGuiInstance(scriptName, plugin, rows, title)
         plugin.trackGui(scriptName)
         instance.builder()
         return instance

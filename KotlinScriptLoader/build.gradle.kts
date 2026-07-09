@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "ru.privateserver"
-version = "1.0.0"
+version = "1.1.0"
 
 repositories {
     mavenCentral()
@@ -13,6 +13,7 @@ repositories {
     maven("https://repo.essentialsx.net/releases/")
     maven("https://repo.codemc.org/repository/maven-public/")
     maven("https://jitpack.io")
+    maven("https://maven.enginehub.org/repo/")
 }
 
 val kotlinScriptingVersion = "2.0.21"
@@ -24,6 +25,12 @@ dependencies {
     compileOnly("net.essentialsx:EssentialsX:2.21.2")
     compileOnly("net.skinsrestorer:skinsrestorer-api:15.5.2")
     compileOnly("com.github.MilkBowl:VaultAPI:1.7") {
+        exclude(group = "org.bukkit", module = "bukkit")
+    }
+    compileOnly("com.sk89q.worldedit:worldedit-bukkit:7.2.15") {
+        exclude(group = "org.bukkit", module = "bukkit")
+    }
+    compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.9") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
 

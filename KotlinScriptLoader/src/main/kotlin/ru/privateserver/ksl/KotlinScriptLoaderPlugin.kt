@@ -26,6 +26,11 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     lateinit var guiManager: KSLGuiManager
         private set
 
+    lateinit var libraryRegistry: KSLLibraryRegistry
+        private set
+
+    val cooldownStore = KSLCooldownStore()
+
     var sandboxEnabled = false
         private set
 
@@ -42,6 +47,12 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         private set
 
     var skinRestorer: KSLSkinHook? = null
+        private set
+
+    var worldEdit: KSLWorldEditHook? = null
+        private set
+
+    var worldGuard: KSLWorldGuardHook? = null
         private set
 
     var discord: KSLDiscordHook? = null
@@ -71,6 +82,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     override fun onEnable() {
         dataFolder.mkdirs()
         saveDefaultConfig()
+        KSLErrors.reset()
 
         addonManager   = KSLAddonManager(this)
         sandboxEnabled = config.getBoolean("sandbox", false)
@@ -86,6 +98,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         persistStore = KSLPersistStore(this)
         guiManager = KSLGuiManager(this)
         guiManager.register()
+        libraryRegistry = KSLLibraryRegistry(this)
         setupIntegrations()
         discord = KSLDiscordHook(this).takeIf { it.channels().isNotEmpty() }
         generateAutocompleteStub()
@@ -121,6 +134,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         logger.info("$c9${bold}║$r ${c7}EssentialsX     : ${flag(essentials != null)}")
         logger.info("$c9${bold}║$r ${c7}Vault           : ${flag(vault != null)}")
         logger.info("$c9${bold}║$r ${c7}SkinsRestorer   : ${flag(skinRestorer != null)}")
+        logger.info("$c9${bold}║$r ${c7}WorldEdit       : ${flag(worldEdit != null)}")
+        logger.info("$c9${bold}║$r ${c7}WorldGuard      : ${flag(worldGuard != null)}")
         logger.info("$c9${bold}║$r ${c7}Discord         : ${if (discord != null) "${cg}✔ ${discord!!.channels().size} канал(ов)$r" else "${ce}○ не настроен$r"}")
         logger.info("$c9${bold}║$r ${c7}Аддоны          : ${if (addonsCount > 0) "${cg}✔ $addonsCount загружено$r" else "${ce}○ нет$r"}")
         logger.info("$c9${bold}║$r ${c7}Сервисы         : ${if (servicesCount > 0) "${cg}✔ $servicesCount зарегистрировано$r" else "${ce}○ нет$r"}")
@@ -166,6 +181,14 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         if (Bukkit.getPluginManager().getPlugin("SkinsRestorer") != null)
             runCatching { skinRestorer = KSLSkinHook() }
                 .onFailure { logger.warning("SkinsRestorer: инициализация хука не удалась: ${it.message}") }
+
+        if (Bukkit.getPluginManager().getPlugin("WorldEdit") != null)
+            runCatching { worldEdit = KSLWorldEditHook() }
+                .onFailure { logger.warning("WorldEdit: инициализация хука не удалась: ${it.message}") }
+
+        if (Bukkit.getPluginManager().getPlugin("WorldGuard") != null)
+            runCatching { worldGuard = KSLWorldGuardHook() }
+                .onFailure { logger.warning("WorldGuard: инициализация хука не удалась: ${it.message}") }
     }
 
     private fun generateAutocompleteStub() {
@@ -259,6 +282,17 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 appendLine("fun ItemStack.getTag(key: String): String? = null")
                 appendLine("fun ItemStack.hasTag(key: String): Boolean = false")
                 appendLine()
+                appendLine("fun weSelection(player: Player): Pair<org.bukkit.Location, org.bukkit.Location>? = null")
+                appendLine("fun weSelectionVolume(player: Player): Long? = null")
+                appendLine("fun weFillSelection(player: Player, material: org.bukkit.Material): Int? = null")
+                appendLine("fun weHasClipboard(player: Player): Boolean = false")
+                appendLine()
+                appendLine("fun wgRegionsAt(location: org.bukkit.Location): List<String> = emptyList()")
+                appendLine("fun wgIsInRegion(location: org.bukkit.Location, regionId: String): Boolean = false")
+                appendLine("fun wgCanBuild(player: Player, location: org.bukkit.Location): Boolean = true")
+                appendLine("fun wgCanPvp(player: Player, location: org.bukkit.Location): Boolean = true")
+                appendLine("fun wgFlag(location: org.bukkit.Location, flagName: String, player: Player? = null): String? = null")
+                appendLine()
                 appendLine("fun executeConsole(command: String) = Unit")
                 appendLine()
                 appendLine("class KSLGuiInstance { fun set(slot: Int, item: ItemStack, onClick: ((Player, org.bukkit.event.inventory.InventoryClickEvent) -> Unit)? = null) = Unit; fun clear(slot: Int) = Unit; fun fill(item: ItemStack) = Unit; fun border(item: ItemStack) = Unit; fun allowItemMovement(slot: Int) = Unit; fun onClose(handler: (Player) -> Unit) = Unit; fun <T : Any> paginate(items: List<T>, slots: List<Int>, prevSlot: Int = -1, nextSlot: Int = -1, render: (T) -> ItemStack, onClick: (Player, T) -> Unit) = Unit; fun open(player: Player) = Unit }")
@@ -268,6 +302,14 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 appendLine("fun <T> persist(key: String, persistent: Boolean = false, default: () -> T): KSLPersistProperty<T> = KSLPersistProperty(default())")
                 appendLine()
                 appendLine("inline fun <reified T : Any> service(key: String): T? = null")
+                appendLine()
+                appendLine("fun cooldown(player: Player, key: String, seconds: Long): Boolean = true")
+                appendLine("fun cooldownRemaining(player: Player, key: String, seconds: Long): Long = 0L")
+                appendLine("fun resetCooldown(player: Player, key: String) = Unit")
+                appendLine()
+                appendLine("fun export(key: String, value: Any) = Unit")
+                appendLine("inline fun <reified T : Any> library(key: String): T? = null")
+                appendLine("inline fun <reified T : Any> requireLibrary(key: String): T = throw UnsupportedOperationException()")
                 appendLine()
                 appendLine("fun discordSend(channel: String, message: String) = Unit")
                 appendLine("fun discordEmbed(channel: String, title: String, description: String = \"\", color: Int = 0x5865F2, footer: String = \"\") = Unit")
@@ -280,13 +322,14 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         val files = scriptsFolder.listFiles { f ->
             f.isFile && f.extension == "kts" && !f.name.startsWith(".")
         } ?: emptyArray()
+        val ordered = KSLScriptOrder.sort(files, logger)
         var loaded = 0; var failed = 0
-        files.forEach { if (scriptRunner.loadScript(it)) loaded++ else failed++ }
+        ordered.forEach { if (scriptRunner.loadScript(it)) loaded++ else failed++ }
         return loaded to failed
     }
 
     fun unloadAllScripts() {
-        val loadedScripts = (tasksByScript.keys + listenersByScript.keys + commandsByScript.keys + scriptsWithGuis).toSet()
+        val loadedScripts = (tasksByScript.keys + listenersByScript.keys + commandsByScript.keys + scriptsWithGuis + libraryRegistry.scriptNames()).toSet()
 
         runCatching {
             tasksByScript.values.flatten().forEach { Bukkit.getScheduler().cancelTask(it) }
@@ -315,6 +358,10 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             loadedScripts.forEach { guiManager.closeGuisForScript(it) }
         }.onFailure { logger.warning("Не удалось закрыть открытые GUI: ${it.message}") }
         scriptsWithGuis.clear()
+
+        runCatching {
+            loadedScripts.forEach { libraryRegistry.clearScript(it) }
+        }.onFailure { logger.warning("Не удалось очистить библиотечные экспорты: ${it.message}") }
     }
 
     private fun unregisterScriptCommands() {
@@ -346,6 +393,49 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         unloadAllScripts()
         generateAutocompleteStub()
         return loadAllScripts()
+    }
+
+    data class DiagnosticLine(val label: String, val ok: Boolean, val detail: String)
+
+    fun runDiagnostics(): List<DiagnosticLine> {
+        val lines = mutableListOf<DiagnosticLine>()
+
+        val dbOk = runCatching {
+            database.connection.use { it.isValid(2) }
+        }.getOrDefault(false)
+        lines += DiagnosticLine("База данных", dbOk, if (dbOk) "соединение живое" else "не отвечает — проверь ksl.db")
+
+        val scriptsWritable = runCatching { scriptsFolder.canWrite() }.getOrDefault(false)
+        lines += DiagnosticLine("Папка scripts/", scriptsWritable, scriptsFolder.absolutePath)
+
+        val (compilerOk, compilerDetail) = scriptRunner.selfTestCompiler()
+        lines += DiagnosticLine("Компилятор скриптов", compilerOk, compilerDetail)
+
+        val commandOk = Bukkit.getCommandMap().getCommand("ksl") != null
+        lines += DiagnosticLine("Команда /ksl", commandOk, if (commandOk) "зарегистрирована" else "не найдена в commandMap")
+
+        listOf(
+            "PlaceholderAPI" to papiEnabled,
+            "LuckPerms" to (luckPerms != null),
+            "EssentialsX" to (essentials != null),
+            "Vault" to (vault != null),
+            "SkinsRestorer" to (skinRestorer != null),
+            "WorldEdit" to (worldEdit != null),
+            "WorldGuard" to (worldGuard != null)
+        ).forEach { (name, present) ->
+            val installed = Bukkit.getPluginManager().getPlugin(name) != null
+            val detail = when {
+                present -> "подключен"
+                installed -> "плагин найден, но хук не инициализировался — смотри лог при старте"
+                else -> "не установлен (опционально)"
+            }
+            lines += DiagnosticLine(name, present || !installed, detail)
+        }
+
+        val errorCount = KSLErrors.totalCount()
+        lines += DiagnosticLine("Ошибки скриптов", errorCount == 0, if (errorCount == 0) "не зафиксировано" else "$errorCount с последнего старта — см. /ksl errors")
+
+        return lines
     }
 
     fun trackTask(scriptName: String, taskId: Int) {

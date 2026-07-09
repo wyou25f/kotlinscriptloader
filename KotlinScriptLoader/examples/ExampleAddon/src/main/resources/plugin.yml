@@ -1,5 +1,0 @@
-name: ExampleKSLAddon
-version: ${version}
-main: ru.example.ExampleAddonPlugin
-api-version: '1.21'
-depend: [KotlinScriptLoader]

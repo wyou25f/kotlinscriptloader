@@ -1,5 +1,6 @@
 package ru.privateserver.ksl
 
+import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.MiniMessage
 import org.bukkit.Bukkit
 import org.bukkit.Material
@@ -10,6 +11,7 @@ import org.bukkit.inventory.ItemStack
 
 class KSLGuiInstance(
     val scriptName: String,
+    private val plugin: KotlinScriptLoaderPlugin,
     val rows: Int,
     title: String
 ) {
@@ -30,7 +32,19 @@ class KSLGuiInstance(
     private var nextSlot = -1
 
     init {
-        inventory = Bukkit.createInventory(holder, size, MiniMessage.miniMessage().deserialize(title))
+        if (!Bukkit.isPrimaryThread()) {
+            throw IllegalStateException(
+                "gui() вызван не из основного потока сервера — Bukkit Inventory можно создавать только на main thread. " +
+                    "Если ты вызываешь gui() внутри runAsync/delayAsync, оберни это в runSync { gui(...) ... }."
+            )
+        }
+        val component = try {
+            MiniMessage.miniMessage().deserialize(title)
+        } catch (ex: Throwable) {
+            plugin.logger.warning("[$scriptName] Не удалось разобрать MiniMessage-заголовок GUI ('$title'): ${ex.message} — использую как обычный текст")
+            Component.text(title)
+        }
+        inventory = Bukkit.createInventory(holder, size, component)
         holder.bind(inventory)
     }
 
@@ -89,22 +103,26 @@ class KSLGuiInstance(
 
     private fun renderPage() {
         val render = pageRender ?: return
-        val perPage = pageSlots.size
-        val from = pageIndex * perPage
-        pageSlots.forEach { slot -> clear(slot) }
-        for (i in pageSlots.indices) {
-            val itemIndex = from + i
-            if (itemIndex >= pageItems.size) break
-            val entry = pageItems[itemIndex]
-            set(pageSlots[i], render(entry)) { player, _ -> pageClick?.invoke(player, entry) }
-        }
-        if (prevSlot >= 0) {
-            if (pageIndex > 0) set(prevSlot, ItemStack(Material.ARROW)) { player, _ -> prevPage() }
-            else clear(prevSlot)
-        }
-        if (nextSlot >= 0) {
-            if (from + perPage < pageItems.size) set(nextSlot, ItemStack(Material.ARROW)) { player, _ -> nextPage() }
-            else clear(nextSlot)
+        try {
+            val perPage = pageSlots.size
+            val from = pageIndex * perPage
+            pageSlots.forEach { slot -> clear(slot) }
+            for (i in pageSlots.indices) {
+                val itemIndex = from + i
+                if (itemIndex >= pageItems.size) break
+                val entry = pageItems[itemIndex]
+                set(pageSlots[i], render(entry)) { player, _ -> pageClick?.invoke(player, entry) }
+            }
+            if (prevSlot >= 0) {
+                if (pageIndex > 0) set(prevSlot, ItemStack(Material.ARROW)) { _, _ -> prevPage() }
+                else clear(prevSlot)
+            }
+            if (nextSlot >= 0) {
+                if (from + perPage < pageItems.size) set(nextSlot, ItemStack(Material.ARROW)) { _, _ -> nextPage() }
+                else clear(nextSlot)
+            }
+        } catch (ex: Throwable) {
+            KSLErrors.log(plugin, scriptName, "gui paginate render", ex)
         }
     }
 
@@ -128,10 +146,18 @@ class KSLGuiInstance(
         if (!allowedMovement[slot]) event.isCancelled = true
         val handler = clickHandlers[slot] ?: return
         val player = event.whoClicked as? Player ?: return
-        handler(player, event)
+        try {
+            handler(player, event)
+        } catch (ex: Throwable) {
+            KSLErrors.log(plugin, scriptName, "gui click slot $slot", ex)
+        }
     }
 
     internal fun handleClose(player: Player) {
-        closeHandler?.invoke(player)
+        try {
+            closeHandler?.invoke(player)
+        } catch (ex: Throwable) {
+            KSLErrors.log(plugin, scriptName, "gui onClose", ex)
+        }
     }
 }

@@ -54,6 +54,47 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                 }
             }
 
+            "libraries" -> {
+                val keys = plugin.libraryRegistry.exportedKeys()
+                if (keys.isEmpty()) {
+                    sender.sendMessage("§eKSL: нет экспортированных библиотек.")
+                } else {
+                    sender.sendMessage("§aKSL Библиотеки §7(${keys.size}):")
+                    keys.sorted().forEach { key ->
+                        val owner = plugin.libraryRegistry.ownerOf(key) ?: "?"
+                        sender.sendMessage("  §f$key §7— из '$owner'")
+                    }
+                }
+            }
+
+            "errors" -> {
+                val total = KSLErrors.totalCount()
+                val last = KSLErrors.lastError()
+                sender.sendMessage("§aKSL Ошибки §7— всего с последнего старта: §f$total")
+                if (last != null) {
+                    val ago = (System.currentTimeMillis() - last.timestamp) / 1000
+                    sender.sendMessage("§7Последняя: §f[${last.scriptName}] ${last.where} §8(${ago}с назад)")
+                    sender.sendMessage("§7${last.message}")
+                } else {
+                    sender.sendMessage("§7Ошибок не зафиксировано.")
+                }
+            }
+
+            "doctor" -> {
+                sender.sendMessage("§9§l▶ KSL Диагностика")
+                val lines = plugin.runDiagnostics()
+                lines.forEach { line ->
+                    val mark = if (line.ok) "§a✔" else "§c✘"
+                    sender.sendMessage("$mark §f${line.label}§7: ${line.detail}")
+                }
+                val failedCount = lines.count { !it.ok }
+                if (failedCount == 0) {
+                    sender.sendMessage("§a§lВсё в порядке.")
+                } else {
+                    sender.sendMessage("§e§l$failedCount пункт(ов) требуют внимания — см. выше.")
+                }
+            }
+
             "sandbox" -> {
                 sender.sendMessage("§aKSL Sandbox: §f${if (plugin.sandboxEnabled) "§aвключён" else "§eвыключен"}")
                 if (plugin.sandboxEnabled) {
@@ -61,7 +102,7 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                 }
             }
 
-            else -> sender.sendMessage("§cИспользование: /ksl [reload|addons|services|discord|sandbox]")
+            else -> sender.sendMessage("§cИспользование: /ksl [reload|addons|services|libraries|discord|sandbox|errors|doctor]")
         }
         return true
     }
@@ -71,7 +112,7 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
     ): List<String> {
         if (!sender.hasPermission("ksl.admin")) return emptyList()
         if (args.size == 1)
-            return listOf("reload", "addons", "services", "discord", "sandbox")
+            return listOf("reload", "addons", "services", "libraries", "discord", "sandbox", "errors", "doctor")
                 .filter { it.startsWith(args[0].lowercase()) }
         return emptyList()
     }

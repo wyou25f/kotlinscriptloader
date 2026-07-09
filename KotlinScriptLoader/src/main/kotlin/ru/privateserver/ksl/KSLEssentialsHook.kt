@@ -11,12 +11,12 @@ class KSLEssentialsHook {
         Bukkit.getPluginManager().getPlugin("Essentials") as Essentials
 
     fun balance(player: Player): Double? =
-        essentials.getUser(player)?.money?.toDouble()
+        KSLErrors.hookSafe("EssentialsX", null) { essentials.getUser(player)?.money?.toDouble() }
 
     fun setBalance(player: Player, amount: Double) {
-        essentials.getUser(player)?.setMoney(BigDecimal.valueOf(amount))
+        KSLErrors.hookSafe("EssentialsX", Unit) { essentials.getUser(player)?.setMoney(BigDecimal.valueOf(amount)) }
     }
 
     fun isAfk(player: Player): Boolean =
-        essentials.getUser(player)?.isAfk ?: false
+        KSLErrors.hookSafe("EssentialsX", false) { essentials.getUser(player)?.isAfk ?: false }
 }

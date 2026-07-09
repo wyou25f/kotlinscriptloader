@@ -52,16 +52,20 @@ class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
             plugin.logger.warning("[persist] Тип ${value?.let { it::class.simpleName }} не поддерживается для persistent = true у ключа '$key' — поддерживаются только String, Int, Long, Double, Boolean")
             return
         }
-        plugin.database.connection.use { conn: Connection ->
-            conn.prepareStatement(
-                "INSERT INTO ksl_persist (script_name, key, value) VALUES (?, ?, ?) " +
-                    "ON CONFLICT(script_name, key) DO UPDATE SET value = excluded.value"
-            ).use { ps ->
-                ps.setString(1, scriptName)
-                ps.setString(2, key)
-                ps.setString(3, encoded)
-                ps.executeUpdate()
+        try {
+            plugin.database.connection.use { conn: Connection ->
+                conn.prepareStatement(
+                    "INSERT INTO ksl_persist (script_name, key, value) VALUES (?, ?, ?) " +
+                        "ON CONFLICT(script_name, key) DO UPDATE SET value = excluded.value"
+                ).use { ps ->
+                    ps.setString(1, scriptName)
+                    ps.setString(2, key)
+                    ps.setString(3, encoded)
+                    ps.executeUpdate()
+                }
             }
+        } catch (ex: Exception) {
+            plugin.logger.warning("[persist] Не удалось сохранить '$fullKey' в БД: ${ex.message} — значение осталось только в памяти до следующего рестарта")
         }
     }
 
@@ -71,30 +75,9 @@ class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
         return fullKey.substring(0, idx) to fullKey.substring(idx + 1)
     }
 
-    private fun encode(value: Any?): String? = when (value) {
-        null -> "n:"
-        is String -> "s:$value"
-        is Int -> "i:$value"
-        is Long -> "l:$value"
-        is Double -> "d:$value"
-        is Boolean -> "b:$value"
-        else -> null
-    }
+    private fun encode(value: Any?): String? = KSLPersistCodec.encode(value)
 
-    private fun decode(raw: String?): Any? {
-        if (raw == null || raw.length < 2) return null
-        val type = raw[0]
-        val body = raw.substring(2)
-        return when (type) {
-            'n' -> null
-            's' -> body
-            'i' -> body.toIntOrNull()
-            'l' -> body.toLongOrNull()
-            'd' -> body.toDoubleOrNull()
-            'b' -> body.toBooleanStrictOrNull()
-            else -> null
-        }
-    }
+    private fun decode(raw: String?): Any? = KSLPersistCodec.decode(raw)
 }
 
 class KSLPersistProperty<T>(
