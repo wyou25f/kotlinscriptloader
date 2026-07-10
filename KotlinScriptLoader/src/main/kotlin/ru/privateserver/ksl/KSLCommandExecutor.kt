@@ -30,6 +30,12 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                     addons.forEach { addon ->
                         val desc = if (addon.addonDescription.isNotBlank()) " §8— ${addon.addonDescription}" else ""
                         sender.sendMessage("  §f${addon.addonId} §7v${addon.addonVersion}$desc")
+                        if (addon.dependsOn.isNotEmpty()) {
+                            val deps = addon.dependsOn.joinToString(", ") { dep ->
+                                if (plugin.addonManager.isAddonLoaded(dep)) "§a$dep§7" else "§c$dep (нет)§7"
+                            }
+                            sender.sendMessage("    §7зависит от: $deps")
+                        }
                     }
                 }
             }

@@ -13,4 +13,6 @@ interface KSLAPI {
     fun registerContextExtension(extension: KSLContextExtension)
     fun unregisterContextExtension(extensionId: String)
     fun registeredAddons(): List<KSLAddon>
+    fun isAddonLoaded(addonId: String): Boolean
+    fun onAddonReady(addonId: String, callback: (KSLAddon) -> Unit)
 }

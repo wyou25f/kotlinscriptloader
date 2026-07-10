@@ -110,6 +110,7 @@ interface KSLAddon {
     val addonId: String
     val addonVersion: String
     val addonDescription: String get() = ""
+    val dependsOn: List<String> get() = emptyList()
     fun onLoad(api: KSLAPI)
     fun onUnload()
 }
@@ -118,6 +119,7 @@ interface KSLAddon {
 - `addonId` — уникальный ключ, под которым аддон виден в `/ksl addons`. Используй kebab-case: `my-addon`, а не название плагина с большой буквы.
 - `addonVersion` — просто для отображения в логах и `/ksl addons`.
 - `addonDescription` — опционально, тоже только для отображения.
+- `dependsOn` — список `addonId` других KSL-аддонов, от сервисов которых ты зависишь. Не блокирует загрузку и не влияет на порядок — это просто информация: если зависимость ещё не загружена на момент твоего `onLoad`, в лог уйдёт явный warning с подсказкой, что делать. Для реальной безопасной привязки используй `onAddonReady` (раздел 4).
 - `onLoad(api)` — вызывается один раз при регистрации. Здесь регистрируй сервисы, импорты, расширения контекста.
 - `onUnload()` — вызывается при `unregisterAddon`. Обычно вызывается из твоего же `onDisable()`.
 
@@ -139,6 +141,8 @@ interface KSLAPI {
     fun registerContextExtension(extension: KSLContextExtension)
     fun unregisterContextExtension(extensionId: String)
     fun registeredAddons(): List<KSLAddon>
+    fun isAddonLoaded(addonId: String): Boolean
+    fun onAddonReady(addonId: String, callback: (KSLAddon) -> Unit)
 }
 ```
 
@@ -154,9 +158,45 @@ interface KSLAPI {
 
 Регистрирует хук, который получает уведомление при создании и уничтожении контекста каждого скрипта — полезно, если твоему сервису нужно держать состояние на скрипт (например, свою мини-БД для конкретного `.kts` файла).
 
+### `onAddonReady(addonId, callback)` — привязка к другому аддону
+
+Самый безопасный способ зависеть от сервиса другого KSL-аддона. Bukkit сам решает,
+в каком порядке загружать плагины (даже с `depend`/`softdepend` в plugin.yml это
+не всегда даёт то, что ожидаешь, особенно если оба аддона — softdepend друг у
+друга). `onAddonReady` снимает эту проблему полностью:
+
+```kotlin
+override fun onLoad(api: KSLAPI) {
+    api.onAddonReady("example-addon") { addon ->
+        coins = api.getService("coins") as? CoinService
+    }
+}
+```
+
+Если `"example-addon"` уже загружен на момент вызова — callback выполнится
+немедленно, синхронно. Если ещё не загружен — callback просто запомнится и
+выполнится автоматически в момент, когда тот аддон зарегистрируется, в каком
+бы порядке Bukkit ни грузил сами плагины. Тебе никогда не нужно гадать
+"а точно ли тот аддон уже загрузился к этому моменту".
+
+### `isAddonLoaded(addonId)`
+
+Простая синхронная проверка, если тебе не нужен callback, а нужно просто
+одноразово узнать: `if (api.isAddonLoaded("example-addon")) { ... }`.
+
 ### `getService` / `unregisterService` / `unregisterAddon` / `registeredAddons`
 
 Симметричные операции — обычно нужны только если ты пишешь что-то вроде мета-аддона, который сам работает с другими аддонами.
+
+### Автоматическая очистка при выгрузке
+
+Всё, что зарегистрировано внутри `onLoad` (сервисы, импорты, расширения
+контекста), автоматически снимается при `unregisterAddon`, даже если ты
+забыл явно отписать это в своём `onUnload()`. Так другой аддон/скрипт не
+получит `service<T>("твой-ключ")`, указывающий на давно выгруженный объект.
+`onUnload()` по-прежнему стоит использовать для закрытия своих собственных
+ресурсов (соединения, потоки, файлы) — автоочистка касается только того, что
+регистрировалось именно через `KSLAPI`.
 
 ---
 
@@ -273,6 +313,69 @@ registerCommand("coins") { player, args ->
 
 Если ты вызвал `addDefaultImports("com.example.CoinService")` в `onLoad`, то в скрипте можно писать просто `service<CoinService>("coins")` без полного пути.
 
+### Пример: аддон, зависящий от другого аддона
+
+Допустим, ты пишешь второй аддон, который выдаёт бонусные монеты при входе на
+сервер — но только если установлен `coins-addon` из примера выше. Порядок,
+в котором Bukkit загрузит два ЭТИХ плагина, заранее не известен (зависит от
+`depend`/`softdepend` в plugin.yml каждого, и от того, как их назвал автор
+сервера в `plugins/`). `dependsOn` + `onAddonReady` решают это без гаданий:
+
+```kotlin
+package com.example.bonus
+
+import org.bukkit.entity.Player
+import org.bukkit.event.EventHandler
+import org.bukkit.event.Listener
+import org.bukkit.event.player.PlayerJoinEvent
+import org.bukkit.plugin.java.JavaPlugin
+import com.example.CoinService
+import ru.privateserver.ksl.KSL
+import ru.privateserver.ksl.KSLAPI
+import ru.privateserver.ksl.KSLAddon
+
+class BonusAddonPlugin : JavaPlugin(), KSLAddon, Listener {
+
+    override val addonId = "bonus-addon"
+    override val addonVersion = "1.0.0"
+    override val dependsOn = listOf("example-addon")
+
+    private var coins: CoinService? = null
+
+    override fun onEnable() {
+        if (!KSL.isAvailable) { isEnabled = false; return }
+        KSL.api.registerAddon(this)
+        server.pluginManager.registerEvents(this, this)
+    }
+
+    override fun onDisable() {
+        if (KSL.isAvailable) KSL.api.unregisterAddon(addonId)
+    }
+
+    override fun onLoad(api: KSLAPI) {
+        api.onAddonReady("example-addon") { addon ->
+            coins = api.getService("coins") as? CoinService
+        }
+    }
+
+    override fun onUnload() {
+        coins = null
+    }
+
+    @EventHandler
+    fun onJoin(event: PlayerJoinEvent) {
+        coins?.give(event.player, 10L)
+    }
+}
+```
+
+Работает одинаково надёжно в обоих случаях: если `ExampleAddon` загрузился
+раньше `BonusAddon` — `onAddonReady` вызовет колбэк сразу же внутри `onLoad`.
+Если позже — колбэк просто подождёт и сработает автоматически в момент, когда
+`ExampleAddon` зарегистрируется. `BonusAddon` при этом не падает и не блокирует
+собственную загрузку, если `ExampleAddon` вообще не установлен — `coins`
+остаётся `null`, и `onJoin` просто ничего не выдаёт.
+
 ---
 
 ## 6. `KSLContextExtension` — состояние на каждый скрипт
@@ -367,6 +470,12 @@ override fun onLoad(api: KSLAPI) {
 
 **`ClassNotFoundException` на классы твоего сервиса при выполнении скрипта**
 Обычно значит, что твой jar не оказался в classpath, из которого KSL собирает скрипты. Проверь, что твой плагин действительно загружен (`/plugins`) и что `addDefaultImports` указывает реальный путь к классу.
+
+**Warning "объявил зависимость от [...], но он ещё не загружен" в логе при старте**
+Это не ошибка, а просто диагностическое сообщение от `dependsOn` — твой аддон
+всё равно загрузился. Если тебе реально нужно дождаться другого аддона перед
+тем, как начать его использовать — заверни это в `api.onAddonReady(id) { }`
+вместо того, чтобы читать `api.getService(...)` сразу в `onLoad`.
 
 ---
 
