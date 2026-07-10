@@ -20,31 +20,6 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
         private const val SLOW_LOAD_THRESHOLD_MS = 2000
     }
 
-    private val sandboxForbidden = listOf(
-        "java.lang.Runtime",
-        "Runtime.getRuntime",
-        "Runtime.exec",
-        "java.lang.ProcessBuilder",
-        "ProcessBuilder(",
-        "java.lang.reflect.",
-        "Class.forName",
-        ".getDeclaredMethod",
-        ".getDeclaredField",
-        ".getDeclaredConstructor",
-        "ClassLoader",
-        "System.exit",
-        "System.halt",
-        "sun.misc.Unsafe",
-        "jdk.internal.misc.Unsafe",
-        "java.rmi.",
-        "java.net.Socket",
-        "java.net.ServerSocket",
-        "javax.script.",
-        "org.objectweb.asm.",
-        "javassist.",
-        "net.bytebuddy."
-    )
-
     fun loadScript(file: File): Boolean {
         val scriptName = file.nameWithoutExtension
         val startedAt = System.nanoTime()
@@ -129,16 +104,10 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
 
     private fun checkSandbox(file: File, scriptName: String): Boolean {
         if (!plugin.sandboxEnabled) return true
-        val lines = file.readLines()
-        for ((index, line) in lines.withIndex()) {
-            val trimmed = line.trimStart()
-            if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) continue
-            for (pattern in sandboxForbidden) {
-                if (line.contains(pattern)) {
-                    plugin.logger.severe("[$scriptName] 🚫 Sandbox нарушение строка ${index + 1}: запрещённый паттерн '$pattern'")
-                    return false
-                }
-            }
+        val violations = KSLSandboxRules.scan(file)
+        violations.firstOrNull()?.let {
+            plugin.logger.severe("[$scriptName] 🚫 Sandbox нарушение строка ${it.line}: запрещённый паттерн '${it.pattern}'")
+            return false
         }
         return true
     }

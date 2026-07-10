@@ -17,6 +17,10 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     lateinit var database: HikariDataSource
         private set
 
+    val dbExecutor: java.util.concurrent.ExecutorService = java.util.concurrent.Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "KSL-DB").apply { isDaemon = true }
+    }
+
     lateinit var addonManager: KSLAddonManager
         private set
 
@@ -113,6 +117,12 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             .onFailure { logger.warning("Ошибка при выгрузке скриптов: ${it.message}") }
         runCatching { addonManager.shutdown() }
             .onFailure { logger.warning("Ошибка при выгрузке аддонов: ${it.message}") }
+        runCatching {
+            dbExecutor.shutdown()
+            if (!dbExecutor.awaitTermination(3, java.util.concurrent.TimeUnit.SECONDS)) {
+                dbExecutor.shutdownNow()
+            }
+        }.onFailure { logger.warning("Не удалось корректно остановить DB-очередь: ${it.message}") }
         runCatching { if (::database.isInitialized) database.close() }
             .onFailure { logger.warning("Ошибка при закрытии базы данных: ${it.message}") }
         KSL.shutdown()
@@ -318,6 +328,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         }.onFailure { logger.warning("Не удалось сгенерировать .autocomplete.kts: ${it.message}") }
     }
 
+    var lastLoadStats: Pair<Int, Int> = 0 to 0
+        private set
+
     fun loadAllScripts(): Pair<Int, Int> {
         val files = scriptsFolder.listFiles { f ->
             f.isFile && f.extension == "kts" && !f.name.startsWith(".")
@@ -325,7 +338,37 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         val ordered = KSLScriptOrder.sort(files, logger)
         var loaded = 0; var failed = 0
         ordered.forEach { if (scriptRunner.loadScript(it)) loaded++ else failed++ }
+        lastLoadStats = loaded to failed
         return loaded to failed
+    }
+
+    fun validateAllScripts(): Map<String, List<String>> {
+        val files = scriptsFolder.listFiles { f ->
+            f.isFile && f.extension == "kts" && !f.name.startsWith(".")
+        } ?: emptyArray()
+        val validator = ScriptValidator(this)
+        return files.associate { it.nameWithoutExtension to validator.validate(it) }
+    }
+
+    fun verifyTrackedCommands(): List<String> {
+        val broken = mutableListOf<String>()
+        commandsByScript.values.flatten().forEach { cmd ->
+            val bare = Bukkit.getCommandMap().getCommand(cmd.name)
+            val prefixed = Bukkit.getCommandMap().getCommand("${name.lowercase()}:${cmd.name}")
+            if (bare !== cmd && prefixed !== cmd) broken.add(cmd.name)
+        }
+        return broken
+    }
+
+    fun checkDatabaseTables(): Boolean = try {
+        database.connection.use { conn ->
+            conn.createStatement().use { it.executeQuery("SELECT COUNT(*) FROM ksl_scripts").close() }
+            conn.createStatement().use { it.executeQuery("SELECT COUNT(*) FROM ksl_persist").close() }
+        }
+        true
+    } catch (ex: Exception) {
+        logger.warning("[doctor] Проверка таблиц БД не удалась: ${ex.message}")
+        false
     }
 
     fun unloadAllScripts() {
@@ -404,6 +447,16 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             database.connection.use { it.isValid(2) }
         }.getOrDefault(false)
         lines += DiagnosticLine("База данных", dbOk, if (dbOk) "соединение живое" else "не отвечает — проверь ksl.db")
+
+        val tablesOk = checkDatabaseTables()
+        lines += DiagnosticLine("Таблицы БД", tablesOk, if (tablesOk) "ksl_scripts, ksl_persist на месте" else "миграции не применились корректно")
+
+        val brokenCommands = verifyTrackedCommands()
+        lines += DiagnosticLine(
+            "Команды скриптов",
+            brokenCommands.isEmpty(),
+            if (brokenCommands.isEmpty()) "все зарегистрированы корректно" else "перехвачены другим плагином: ${brokenCommands.joinToString(", ")}"
+        )
 
         val scriptsWritable = runCatching { scriptsFolder.canWrite() }.getOrDefault(false)
         lines += DiagnosticLine("Папка scripts/", scriptsWritable, scriptsFolder.absolutePath)

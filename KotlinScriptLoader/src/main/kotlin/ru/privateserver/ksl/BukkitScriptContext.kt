@@ -51,26 +51,34 @@ open class BukkitScriptContext(
 
     val database: HikariDataSource get() = plugin.database
 
-    fun dbExecute(sql: String, vararg args: Any?) = runAsync {
-        try {
-            database.connection.use { conn ->
-                conn.prepareStatement(sql).use { ps ->
-                    args.forEachIndexed { i, arg -> ps.setObject(i + 1, arg) }
-                    ps.executeUpdate()
+    fun dbExecute(sql: String, vararg args: Any?) {
+        plugin.dbExecutor.submit {
+            try {
+                database.connection.use { conn ->
+                    conn.prepareStatement(sql).use { ps ->
+                        args.forEachIndexed { i, arg -> ps.setObject(i + 1, arg) }
+                        ps.executeUpdate()
+                    }
                 }
+            } catch (ex: Exception) {
+                plugin.logger.warning("[$scriptName] dbExecute: ${ex.message}")
             }
-        } catch (ex: Exception) { plugin.logger.warning("[$scriptName] dbExecute: ${ex.message}") }
+        }
     }
 
-    fun dbQuery(sql: String, vararg args: Any?, block: (ResultSet) -> Unit) = runAsync {
-        try {
-            database.connection.use { conn ->
-                conn.prepareStatement(sql).use { ps ->
-                    args.forEachIndexed { i, arg -> ps.setObject(i + 1, arg) }
-                    ps.executeQuery().use(block)
+    fun dbQuery(sql: String, vararg args: Any?, block: (ResultSet) -> Unit) {
+        plugin.dbExecutor.submit {
+            try {
+                database.connection.use { conn ->
+                    conn.prepareStatement(sql).use { ps ->
+                        args.forEachIndexed { i, arg -> ps.setObject(i + 1, arg) }
+                        ps.executeQuery().use(block)
+                    }
                 }
+            } catch (ex: Exception) {
+                plugin.logger.warning("[$scriptName] dbQuery: ${ex.message}")
             }
-        } catch (ex: Exception) { plugin.logger.warning("[$scriptName] dbQuery: ${ex.message}") }
+        }
     }
 
     fun runAsync(block: () -> Unit) {

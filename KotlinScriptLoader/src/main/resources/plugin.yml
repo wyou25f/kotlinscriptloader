@@ -8,7 +8,7 @@ softdepend: [PlaceholderAPI, LuckPerms, Essentials, Vault, SkinsRestorer, WorldE
 commands:
   ksl:
     description: Управление KotlinScriptLoader
-    usage: /ksl [reload|addons|services|libraries|discord|sandbox|errors|doctor]
+    usage: /ksl [reload|addons|services|libraries|discord|sandbox|errors|doctor|validate]
     permission: ksl.admin
 permissions:
   ksl.admin:

@@ -23,7 +23,7 @@ class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
 
     fun <T> set(fullKey: String, value: T, persistent: Boolean) {
         memory[fullKey] = value
-        if (persistent) saveToDb(fullKey, value)
+        if (persistent) plugin.dbExecutor.submit { saveToDb(fullKey, value) }
     }
 
     fun clearScript(scriptName: String) {

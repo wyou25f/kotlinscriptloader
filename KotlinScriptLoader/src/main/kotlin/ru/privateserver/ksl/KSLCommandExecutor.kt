@@ -80,6 +80,21 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                 }
             }
 
+            "validate" -> {
+                sender.sendMessage("§7Проверяю скрипты без загрузки (dry-run)...")
+                val results = plugin.validateAllScripts()
+                val broken = results.filterValues { it.isNotEmpty() }
+                if (broken.isEmpty()) {
+                    sender.sendMessage("§a✔ Все скрипты (${results.size}) компилируются без ошибок.")
+                } else {
+                    sender.sendMessage("§c${broken.size} из ${results.size} скриптов с проблемами:")
+                    broken.forEach { (scriptName, issues) ->
+                        sender.sendMessage("  §f$scriptName§7:")
+                        issues.forEach { sender.sendMessage("    §c$it") }
+                    }
+                }
+            }
+
             "doctor" -> {
                 sender.sendMessage("§9§l▶ KSL Диагностика")
                 val lines = plugin.runDiagnostics()
@@ -102,7 +117,7 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                 }
             }
 
-            else -> sender.sendMessage("§cИспользование: /ksl [reload|addons|services|libraries|discord|sandbox|errors|doctor]")
+            else -> sender.sendMessage("§cИспользование: /ksl [reload|addons|services|libraries|discord|sandbox|errors|doctor|validate]")
         }
         return true
     }
@@ -112,7 +127,7 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
     ): List<String> {
         if (!sender.hasPermission("ksl.admin")) return emptyList()
         if (args.size == 1)
-            return listOf("reload", "addons", "services", "libraries", "discord", "sandbox", "errors", "doctor")
+            return listOf("reload", "addons", "services", "libraries", "discord", "sandbox", "errors", "doctor", "validate")
                 .filter { it.startsWith(args[0].lowercase()) }
         return emptyList()
     }
