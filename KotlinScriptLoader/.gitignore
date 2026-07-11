@@ -1,0 +1,43 @@
+### Gradle ###
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+### Kotlin ###
+*.kotlin_module
+
+### IntelliJ IDEA ###
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+### Eclipse ###
+.project
+.classpath
+.settings/
+bin/
+
+### VS Code ###
+.vscode/
+
+### OS ###
+.DS_Store
+Thumbs.db
+desktop.ini
+*~
+
+### Сгенерировано плагином при запуске — не должно попадать в репозиторий ###
+.autocomplete.kts
+ksl.db
+ksl.db-journal
+ksl.db-wal
+ksl.db-shm
+
+### Локальный тестовый Paper-сервер рядом с проектом (если запускаешь для отладки) ###
+run/
+server/
+*.log
+logs/
