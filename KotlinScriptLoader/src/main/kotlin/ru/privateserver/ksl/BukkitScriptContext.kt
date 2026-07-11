@@ -49,25 +49,65 @@ open class BukkitScriptContext(
         return YamlConfiguration.loadConfiguration(file)
     }
 
-    fun YamlConfiguration.message(path: String, vararg replacements: Pair<String, Any?>): String {
-        var text = getString(path) ?: return path
-        replacements.forEach { (key, value) -> text = text.replace("@$key@", value.toString()) }
-        return text.replace('&', '§')
+    private val warnedPlaceholders = mutableSetOf<String>()
+    private val unmatchedPlaceholderRegex = Regex("""@[a-zA-Z0-9_]+@""")
+
+    private fun formatPlaceholderValue(value: Any?): String = when (value) {
+        null -> ""
+        is Double -> if (value == value.toLong().toDouble()) value.toLong().toString() else "%.2f".format(value)
+        else -> value.toString()
     }
 
-    fun YamlConfiguration.messageList(path: String, vararg replacements: Pair<String, Any?>): List<String> {
-        return getStringList(path).map { line ->
-            var text = line
-            replacements.forEach { (key, value) -> text = text.replace("@$key@", value.toString()) }
-            text.replace('&', '§')
+    private fun substitute(path: String, raw: String, player: Player?, replacements: Array<out Pair<String, Any?>>): String {
+        var text = raw
+
+        if (player != null) {
+            text = text
+                .replace("@player@", player.name)
+                .replace("@world@", player.world.name)
+                .replace("@online@", Bukkit.getOnlinePlayers().size.toString())
+                .replace("@maxplayers@", Bukkit.getMaxPlayers().toString())
+                .replace("@health@", formatPlaceholderValue(player.health))
+                .replace("@ping@", player.ping.toString())
         }
+
+        replacements.forEach { (key, value) -> text = text.replace("@$key@", formatPlaceholderValue(value)) }
+
+        if (player != null && plugin.papiEnabled) {
+            text = KSLPapiResolver.resolve(player, text)
+        }
+
+        unmatchedPlaceholderRegex.findAll(text).forEach { match ->
+            val warnKey = "$path:${match.value}"
+            if (warnedPlaceholders.add(warnKey)) {
+                plugin.logger.warning("[$scriptName] В '$path' остался незаменённый плейсхолдер ${match.value} — проверь имя ключа в message()/messageList()/richMessage()")
+            }
+        }
+
+        return text
     }
 
-    fun YamlConfiguration.richMessage(path: String, vararg replacements: Pair<String, Any?>): Component {
-        var text = getString(path) ?: path
-        replacements.forEach { (key, value) -> text = text.replace("@$key@", value.toString()) }
-        return parseMM(text)
+    fun YamlConfiguration.message(path: String, vararg replacements: Pair<String, Any?>): String {
+        val raw = getString(path) ?: return path
+        return substitute(path, raw, null, replacements).replace('&', '§')
     }
+
+    fun YamlConfiguration.message(path: String, player: Player, vararg replacements: Pair<String, Any?>): String {
+        val raw = getString(path) ?: return path
+        return substitute(path, raw, player, replacements).replace('&', '§')
+    }
+
+    fun YamlConfiguration.messageList(path: String, vararg replacements: Pair<String, Any?>): List<String> =
+        getStringList(path).map { substitute(path, it, null, replacements).replace('&', '§') }
+
+    fun YamlConfiguration.messageList(path: String, player: Player, vararg replacements: Pair<String, Any?>): List<String> =
+        getStringList(path).map { substitute(path, it, player, replacements).replace('&', '§') }
+
+    fun YamlConfiguration.richMessage(path: String, vararg replacements: Pair<String, Any?>): Component =
+        parseMM(substitute(path, getString(path) ?: path, null, replacements))
+
+    fun YamlConfiguration.richMessage(path: String, player: Player, vararg replacements: Pair<String, Any?>): Component =
+        parseMM(substitute(path, getString(path) ?: path, player, replacements))
 
     inline fun <reified T> YamlConfiguration.getOrSetDefault(path: String, default: T): T {
         if (!contains(path)) {

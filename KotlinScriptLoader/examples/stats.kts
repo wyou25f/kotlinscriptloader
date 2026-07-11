@@ -4,12 +4,11 @@ val minKillsForVip = config.getOrSetDefault("min-kills-for-vip", 10)
 
 onEvent<org.bukkit.event.player.PlayerJoinEvent> {
     val rank = if (kills.getInt(player.uniqueId.toString(), "kills") >= minKillsForVip) "VIP" else "игрок"
-    broadcast(config.message("welcome", "player" to player.name, "rank" to rank))
+    broadcast(config.message("welcome", player, "rank" to rank))
 }
 
 onEvent<org.bukkit.event.player.PlayerQuitEvent> {
-    val online = org.bukkit.Bukkit.getOnlinePlayers().size - 1
-    config.messageList("farewell-list", "player" to player.name, "online" to online)
+    config.messageList("farewell-list", player)
         .forEach { line -> broadcast(line) }
 }
 
