@@ -49,6 +49,36 @@ open class BukkitScriptContext(
         return YamlConfiguration.loadConfiguration(file)
     }
 
+    fun YamlConfiguration.message(path: String, vararg replacements: Pair<String, Any?>): String {
+        var text = getString(path) ?: return path
+        replacements.forEach { (key, value) -> text = text.replace("@$key@", value.toString()) }
+        return text.replace('&', '§')
+    }
+
+    fun YamlConfiguration.messageList(path: String, vararg replacements: Pair<String, Any?>): List<String> {
+        return getStringList(path).map { line ->
+            var text = line
+            replacements.forEach { (key, value) -> text = text.replace("@$key@", value.toString()) }
+            text.replace('&', '§')
+        }
+    }
+
+    fun YamlConfiguration.richMessage(path: String, vararg replacements: Pair<String, Any?>): Component {
+        var text = getString(path) ?: path
+        replacements.forEach { (key, value) -> text = text.replace("@$key@", value.toString()) }
+        return parseMM(text)
+    }
+
+    inline fun <reified T> YamlConfiguration.getOrSetDefault(path: String, default: T): T {
+        if (!contains(path)) {
+            set(path, default)
+            if (this === config) saveConfig()
+        }
+        return get(path) as? T ?: default
+    }
+
+    fun table(name: String): KSLQuickTable = plugin.tableStore.table(name)
+
     val database: HikariDataSource get() = plugin.database
 
     fun dbExecute(sql: String, vararg args: Any?) {

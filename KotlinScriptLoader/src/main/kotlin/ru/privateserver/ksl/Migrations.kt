@@ -18,6 +18,13 @@ object Migrations {
                     "CREATE TABLE IF NOT EXISTS ksl_persist (script_name TEXT NOT NULL, key TEXT NOT NULL, value TEXT, PRIMARY KEY (script_name, key))"
                 )
             }
+        },
+        { conn ->
+            conn.createStatement().use {
+                it.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS ksl_table (table_name TEXT NOT NULL, row_key TEXT NOT NULL, column_key TEXT NOT NULL, value TEXT, PRIMARY KEY (table_name, row_key, column_key))"
+                )
+            }
         }
     )
 

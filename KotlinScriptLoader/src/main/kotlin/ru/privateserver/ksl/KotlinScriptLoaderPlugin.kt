@@ -27,6 +27,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     lateinit var persistStore: KSLPersistStore
         private set
 
+    lateinit var tableStore: KSLTableStore
+        private set
+
     lateinit var guiManager: KSLGuiManager
         private set
 
@@ -100,6 +103,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
         val dbOk = initDatabase()
         persistStore = KSLPersistStore(this)
+        tableStore = KSLTableStore(this)
         guiManager = KSLGuiManager(this)
         guiManager.register()
         libraryRegistry = KSLLibraryRegistry(this)
@@ -238,6 +242,13 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 appendLine("val config: YamlConfiguration get() = YamlConfiguration()")
                 appendLine("fun saveConfig() = Unit")
                 appendLine("fun loadYaml(fileName: String): YamlConfiguration = YamlConfiguration()")
+                appendLine("fun YamlConfiguration.message(path: String, vararg replacements: Pair<String, Any?>): String = \"\"")
+                appendLine("fun YamlConfiguration.messageList(path: String, vararg replacements: Pair<String, Any?>): List<String> = emptyList()")
+                appendLine("fun YamlConfiguration.richMessage(path: String, vararg replacements: Pair<String, Any?>): Component = Component.empty()")
+                appendLine("fun <T> YamlConfiguration.getOrSetDefault(path: String, default: T): T = default")
+                appendLine()
+                appendLine("class KSLQuickTable { fun set(rowKey: String, columnKey: String, value: Any?) = Unit; fun get(rowKey: String, columnKey: String): String? = null; fun getInt(rowKey: String, columnKey: String, default: Int = 0): Int = default; fun getLong(rowKey: String, columnKey: String, default: Long = 0L): Long = default; fun getDouble(rowKey: String, columnKey: String, default: Double = 0.0): Double = default; fun getBoolean(rowKey: String, columnKey: String, default: Boolean = false): Boolean = default; fun increment(rowKey: String, columnKey: String, amount: Long = 1L): Long = 0L; fun delete(rowKey: String, columnKey: String? = null) = Unit; fun row(rowKey: String): Map<String, Any?> = emptyMap() }")
+                appendLine("fun table(name: String): KSLQuickTable = KSLQuickTable()")
                 appendLine()
                 appendLine("fun dbExecute(sql: String, vararg args: Any?) = Unit")
                 appendLine("fun dbQuery(sql: String, vararg args: Any?, block: (ResultSet) -> Unit) = Unit")

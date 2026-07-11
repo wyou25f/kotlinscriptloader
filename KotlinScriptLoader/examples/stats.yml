@@ -1,0 +1,4 @@
+welcome: "&aДобро пожаловать, &f@player@&a! Ты &e@rank@&a на сервере."
+farewell-list:
+  - "&7@player@ &fпокинул сервер."
+  - "&8Онлайн сейчас: &f@online@"
