@@ -1,7 +1,0 @@
-sandbox: false
-
-discord:
-  webhooks:
-    general: ""
-    admin: ""
-    logs: ""
