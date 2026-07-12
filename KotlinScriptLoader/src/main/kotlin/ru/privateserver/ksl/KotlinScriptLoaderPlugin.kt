@@ -33,6 +33,12 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     lateinit var guiManager: KSLGuiManager
         private set
 
+    lateinit var effectManager: KSLEffectManager
+        private set
+
+    lateinit var entityManager: KSLEntityManager
+        private set
+
     lateinit var libraryRegistry: KSLLibraryRegistry
         private set
 
@@ -106,6 +112,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         tableStore = KSLTableStore(this)
         guiManager = KSLGuiManager(this)
         guiManager.register()
+        effectManager = KSLEffectManager(this)
+        entityManager = KSLEntityManager(this)
+        entityManager.register()
         libraryRegistry = KSLLibraryRegistry(this)
         setupIntegrations()
         discord = KSLDiscordHook(this).takeIf { it.channels().isNotEmpty() }
@@ -337,6 +346,16 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 appendLine()
                 appendLine("fun discordSend(channel: String, message: String) = Unit")
                 appendLine("fun discordEmbed(channel: String, title: String, description: String = \"\", color: Int = 0x5865F2, footer: String = \"\") = Unit")
+                appendLine()
+                appendLine("class KSLEffectSpec { var count: Int = 1; var offsetX: Double = 0.0; var offsetY: Double = 0.0; var offsetZ: Double = 0.0; var extra: Double = 0.0; var durationTicks: Long = 100L; var intervalTicks: Long = 2L; fun circle(radius: Double, stepDegrees: Double = 15.0) = Unit; fun helix(radius: Double, turns: Double = 3.0, height: Double = 3.0) = Unit; fun lineTo(target: () -> org.bukkit.Location, points: Int = 20) = Unit }")
+                appendLine("fun org.bukkit.Location.playEffect(particle: org.bukkit.Particle, builder: KSLEffectSpec.() -> Unit): Int = 0")
+                appendLine("fun org.bukkit.entity.Entity.playEffect(particle: org.bukkit.Particle, follow: Boolean = false, builder: KSLEffectSpec.() -> Unit): Int = 0")
+                appendLine("fun stopEffect(taskId: Int) = Unit")
+                appendLine()
+                appendLine("class KSLEntityBuilder { fun equip(template: String) = Unit }")
+                appendLine("class KSLEntityBehaviorBuilder { fun onTick(period: Long, initialDelay: Long = 0L, block: (org.bukkit.entity.LivingEntity) -> Unit) = Unit; fun onDeath(block: (org.bukkit.entity.LivingEntity, Player?) -> Unit) = Unit }")
+                appendLine("fun spawnCustomEntity(location: org.bukkit.Location, template: String, removeOnReload: Boolean = true, builder: KSLEntityBuilder.() -> Unit = {}): org.bukkit.entity.LivingEntity = throw UnsupportedOperationException()")
+                appendLine("fun org.bukkit.entity.LivingEntity.behavior(builder: KSLEntityBehaviorBuilder.() -> Unit) = Unit")
             })
             logger.info("Сгенерирован .autocomplete.kts для IDE-подсказок")
         }.onFailure { logger.warning("Не удалось сгенерировать .autocomplete.kts: ${it.message}") }
@@ -417,6 +436,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
         runCatching { libraryRegistry.clearScript(scriptName) }
             .onFailure { logger.warning("[$scriptName] Не удалось очистить библиотечные экспорты: ${it.message}") }
+
+        runCatching { entityManager.cleanupForScript(scriptName) }
+            .onFailure { logger.warning("[$scriptName] Не удалось убрать кастомных сущностей скрипта: ${it.message}") }
     }
 
     private fun unregisterCommands(commands: Set<Command>) {

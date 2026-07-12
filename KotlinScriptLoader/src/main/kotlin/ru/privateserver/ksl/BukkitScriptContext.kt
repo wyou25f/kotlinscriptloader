@@ -5,9 +5,16 @@ import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.title.Title
 import org.bukkit.Bukkit
+import org.bukkit.Location
 import org.bukkit.NamespacedKey
 import org.bukkit.OfflinePlayer
+import org.bukkit.Particle
+import org.bukkit.attribute.Attribute
 import org.bukkit.configuration.file.YamlConfiguration
+import org.bukkit.entity.Ageable
+import org.bukkit.entity.Entity
+import org.bukkit.entity.EntityType
+import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Player
 import org.bukkit.event.Event
 import org.bukkit.event.EventPriority
@@ -350,5 +357,62 @@ open class BukkitScriptContext(
     ) {
         plugin.discord?.sendEmbed(channel, title, description, color, footer)
             ?: plugin.logger.warning("[$scriptName] discordEmbed: Discord не настроен в config.yml")
+    }
+
+    fun Location.playEffect(particle: Particle, builder: KSLEffectSpec.() -> Unit): Int {
+        val frozen = this.clone()
+        val spec = KSLEffectSpec(particle) { frozen }
+        spec.builder()
+        return plugin.effectManager.play(scriptName, spec)
+    }
+
+    fun Entity.playEffect(particle: Particle, follow: Boolean = false, builder: KSLEffectSpec.() -> Unit): Int {
+        val entity = this
+        val supplier: () -> Location = if (follow) {
+            { entity.location }
+        } else {
+            val frozen = entity.location.clone()
+            ({ frozen })
+        }
+        val spec = KSLEffectSpec(particle, supplier)
+        if (follow) spec.stopCondition = { !entity.isValid }
+        spec.builder()
+        return plugin.effectManager.play(scriptName, spec)
+    }
+
+    fun stopEffect(taskId: Int) = Bukkit.getScheduler().cancelTask(taskId)
+
+    fun spawnCustomEntity(
+        location: Location,
+        template: String,
+        removeOnReload: Boolean = true,
+        builder: KSLEntityBuilder.() -> Unit = {}
+    ): LivingEntity {
+        val attrs = KSLTemplateParser.parse(template)
+        val type = attrs["TYPE"]?.let { runCatching { EntityType.valueOf(it.uppercase()) }.getOrNull() } ?: EntityType.ZOMBIE
+        val world = location.world ?: error("spawnCustomEntity: у локации нет мира")
+        val entity = world.spawnEntity(location, type) as LivingEntity
+
+        attrs["NAME"]?.let { name ->
+            entity.customName(parseMM(name))
+            entity.isCustomNameVisible = true
+        }
+        attrs["HP"]?.toDoubleOrNull()?.let { hp ->
+            entity.getAttribute(Attribute.GENERIC_MAX_HEALTH)?.baseValue = hp
+            entity.health = hp.coerceAtMost(entity.getAttribute(Attribute.GENERIC_MAX_HEALTH)?.value ?: hp)
+        }
+        attrs["AI"]?.toBooleanStrictOrNull()?.let { entity.setAI(it) }
+        if (entity is Ageable) {
+            attrs["BABY"]?.toBooleanStrictOrNull()?.let { isBaby -> if (isBaby) entity.setBaby() else entity.setAdult() }
+        }
+
+        plugin.entityManager.trackSpawn(scriptName, entity, removeOnReload)
+
+        KSLEntityBuilder(entity).builder()
+        return entity
+    }
+
+    fun LivingEntity.behavior(builder: KSLEntityBehaviorBuilder.() -> Unit) {
+        KSLEntityBehaviorBuilder(plugin, scriptName, this).builder()
     }
 }

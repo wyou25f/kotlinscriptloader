@@ -12,6 +12,7 @@ import kotlin.script.experimental.jvm.jvm
 private val BASE_IMPORTS = arrayOf(
     "org.bukkit.Bukkit",
     "org.bukkit.Material",
+    "org.bukkit.Particle",
     "org.bukkit.Location",
     "org.bukkit.ChatColor",
     "org.bukkit.OfflinePlayer",
