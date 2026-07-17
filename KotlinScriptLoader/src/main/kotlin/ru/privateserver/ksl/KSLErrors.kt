@@ -5,6 +5,12 @@ import java.util.concurrent.atomic.AtomicInteger
 
 object KSLErrors {
 
+    fun validPeriod(plugin: KotlinScriptLoaderPlugin, scriptName: String, where: String, requested: Long): Long {
+        if (requested >= 1) return requested
+        plugin.logger.warning("[$scriptName] $where: period/interval должен быть >= 1 тик, получено $requested — использую 1")
+        return 1L
+    }
+
     inline fun <T> hookSafe(hookName: String, default: T, block: () -> T): T {
         return try {
             block()

@@ -9,7 +9,6 @@ import org.bukkit.Location
 import org.bukkit.NamespacedKey
 import org.bukkit.OfflinePlayer
 import org.bukkit.Particle
-import org.bukkit.attribute.Attribute
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.entity.Ageable
 import org.bukkit.entity.Entity
@@ -172,7 +171,8 @@ open class BukkitScriptContext(
     }
 
     fun every(ticks: Long, initialDelay: Long = 0L, block: () -> Unit): Int {
-        val task = Bukkit.getScheduler().runTaskTimer(plugin, Runnable(block), initialDelay, ticks)
+        val period = KSLErrors.validPeriod(plugin, scriptName, "every", ticks)
+        val task = Bukkit.getScheduler().runTaskTimer(plugin, Runnable(block), initialDelay, period)
         plugin.trackTask(scriptName, task.taskId); return task.taskId
     }
 
@@ -182,7 +182,8 @@ open class BukkitScriptContext(
     }
 
     fun everyAsync(ticks: Long, initialDelay: Long = 0L, block: () -> Unit): Int {
-        val task = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, Runnable(block), initialDelay, ticks)
+        val period = KSLErrors.validPeriod(plugin, scriptName, "everyAsync", ticks)
+        val task = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, Runnable(block), initialDelay, period)
         plugin.trackTask(scriptName, task.taskId); return task.taskId
     }
 
@@ -391,15 +392,20 @@ open class BukkitScriptContext(
         val attrs = KSLTemplateParser.parse(template)
         val type = attrs["TYPE"]?.let { runCatching { EntityType.valueOf(it.uppercase()) }.getOrNull() } ?: EntityType.ZOMBIE
         val world = location.world ?: error("spawnCustomEntity: у локации нет мира")
-        val entity = world.spawnEntity(location, type) as LivingEntity
+        val spawned = world.spawnEntity(location, type)
+        val entity = spawned as? LivingEntity ?: run {
+            spawned.remove()
+            error("spawnCustomEntity: TYPE:${type.name} — не LivingEntity (нужен живой моб вроде ZOMBIE/SKELETON/COW), заспавненная сущность удалена")
+        }
 
         attrs["NAME"]?.let { name ->
             entity.customName(parseMM(name))
             entity.isCustomNameVisible = true
         }
         attrs["HP"]?.toDoubleOrNull()?.let { hp ->
-            entity.getAttribute(Attribute.GENERIC_MAX_HEALTH)?.baseValue = hp
-            entity.health = hp.coerceAtMost(entity.getAttribute(Attribute.GENERIC_MAX_HEALTH)?.value ?: hp)
+            @Suppress("DEPRECATION")
+            entity.setMaxHealth(hp)
+            entity.health = hp
         }
         attrs["AI"]?.toBooleanStrictOrNull()?.let { entity.setAI(it) }
         if (entity is Ageable) {

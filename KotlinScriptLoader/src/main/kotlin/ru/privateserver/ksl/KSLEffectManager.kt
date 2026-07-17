@@ -9,9 +9,10 @@ class KSLEffectManager(private val plugin: KotlinScriptLoaderPlugin) {
         val shape = spec.buildShape()
         var tick = 0L
         lateinit var task: BukkitTask
+        val interval = KSLErrors.validPeriod(plugin, scriptName, "playEffect", spec.intervalTicks)
 
         task = Bukkit.getScheduler().runTaskTimer(plugin, Runnable {
-            if (spec.durationTicks in 0..tick || spec.stopCondition?.invoke() == true) {
+            if (tick >= spec.durationTicks || spec.stopCondition?.invoke() == true) {
                 task.cancel()
                 return@Runnable
             }
@@ -28,8 +29,8 @@ class KSLEffectManager(private val plugin: KotlinScriptLoaderPlugin) {
                 KSLErrors.log(plugin, scriptName, "playEffect tick", ex)
                 task.cancel()
             }
-            tick += spec.intervalTicks
-        }, 0L, spec.intervalTicks)
+            tick += interval
+        }, 0L, interval)
 
         plugin.trackTask(scriptName, task.taskId)
         return task.taskId

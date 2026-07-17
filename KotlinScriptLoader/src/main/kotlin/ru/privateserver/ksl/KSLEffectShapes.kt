@@ -11,10 +11,13 @@ fun interface KSLEffectShape {
 
 object KSLEffectShapes {
 
+    private const val MAX_POINTS = 360
+
     fun circle(radius: Double, stepDegrees: Double): KSLEffectShape {
-        val pointCount = maxOf(4, (360.0 / stepDegrees).toInt())
+        val safeStep = if (stepDegrees > 0.0) stepDegrees else 15.0
+        val pointCount = (360.0 / safeStep).toInt().coerceIn(4, MAX_POINTS)
         return KSLEffectShape { tick, _ ->
-            val phase = Math.toRadians(tick * stepDegrees)
+            val phase = Math.toRadians(tick * safeStep)
             (0 until pointCount).map { i ->
                 val angle = phase + Math.toRadians(i * (360.0 / pointCount))
                 Vector(cos(angle) * radius, 0.0, sin(angle) * radius)
@@ -36,7 +39,7 @@ object KSLEffectShapes {
     }
 
     fun line(target: () -> Location, points: Int): KSLEffectShape {
-        val steps = maxOf(1, points)
+        val steps = points.coerceIn(1, MAX_POINTS)
         return KSLEffectShape { _, center ->
             val to = target()
             if (to.world != center.world) return@KSLEffectShape emptyList()

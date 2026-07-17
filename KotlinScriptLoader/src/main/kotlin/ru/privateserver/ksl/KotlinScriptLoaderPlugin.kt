@@ -439,6 +439,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
         runCatching { entityManager.cleanupForScript(scriptName) }
             .onFailure { logger.warning("[$scriptName] Не удалось убрать кастомных сущностей скрипта: ${it.message}") }
+
+        runCatching { cooldownStore.clearScript(scriptName) }
+            .onFailure { logger.warning("[$scriptName] Не удалось очистить кулдауны скрипта: ${it.message}") }
     }
 
     private fun unregisterCommands(commands: Set<Command>) {

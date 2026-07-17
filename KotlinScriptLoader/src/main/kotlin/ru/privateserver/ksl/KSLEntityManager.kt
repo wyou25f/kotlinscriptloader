@@ -7,6 +7,7 @@ import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.entity.EntityDeathEvent
+import org.bukkit.event.entity.EntityRemoveEvent
 import org.bukkit.persistence.PersistentDataType
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -38,16 +39,31 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
 
     @EventHandler
     fun onDeath(event: EntityDeathEvent) {
-        val uuid = event.entity.uniqueId
-        removeOnReload.remove(uuid)
-
-        val callback = deathCallbacks.remove(uuid) ?: return
+        val callback = deathCallbacks.remove(event.entity.uniqueId) ?: return
         val owner = ownerOf(event.entity) ?: "unknown"
         try {
             callback(event.entity, event.entity.killer)
         } catch (ex: Throwable) {
             KSLErrors.log(plugin, owner, "entity onDeath", ex)
         }
+    }
+
+    // Ловит вообще любую причину удаления сущности (смерть, /kill, деспавн по
+    // расстоянию, снятие другим плагином) — не только выгрузку скрипта.
+    // Без этого entitiesByScript рос бы бесконечно на сервере, где мобы
+    // спавнятся и умирают естественным образом, а не только через reload.
+    // ВАЖНО: не трогаем саму сущность (никакого .remove()) внутри этого
+    // обработчика — Paper явно предупреждает, что это может уронить сервер
+    // через ConcurrentModificationException, если удаление происходит
+    // прямо во время итерации по списку сущностей мира.
+    @EventHandler
+    fun onRemove(event: EntityRemoveEvent) {
+        val entity = event.entity as? LivingEntity ?: return
+        val uuid = entity.uniqueId
+        val owner = ownerOf(entity) ?: return
+        entitiesByScript[owner]?.remove(uuid)
+        removeOnReload.remove(uuid)
+        deathCallbacks.remove(uuid)
     }
 
     fun cleanupForScript(scriptName: String) {

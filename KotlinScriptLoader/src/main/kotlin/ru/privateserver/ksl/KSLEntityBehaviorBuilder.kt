@@ -12,6 +12,7 @@ class KSLEntityBehaviorBuilder(
 ) {
 
     fun onTick(period: Long, initialDelay: Long = 0L, block: (LivingEntity) -> Unit) {
+        val validPeriod = KSLErrors.validPeriod(plugin, scriptName, "entity onTick", period)
         lateinit var task: BukkitTask
         task = Bukkit.getScheduler().runTaskTimer(plugin, Runnable {
             if (!entity.isValid || entity.isDead) {
@@ -23,7 +24,7 @@ class KSLEntityBehaviorBuilder(
             } catch (ex: Throwable) {
                 KSLErrors.log(plugin, scriptName, "entity onTick", ex)
             }
-        }, initialDelay, period)
+        }, initialDelay, validPeriod)
         plugin.trackTask(scriptName, task.taskId)
     }
 

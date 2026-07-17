@@ -23,4 +23,8 @@ class KSLCooldownStore {
     fun reset(fullKey: String) {
         lastUse.remove(fullKey)
     }
+
+    fun clearScript(scriptName: String) {
+        lastUse.keys.removeIf { it.startsWith("$scriptName:") }
+    }
 }
