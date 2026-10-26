@@ -1,0 +1,473 @@
+package ru.privateserver.ksl
+
+import com.zaxxer.hikari.HikariDataSource
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.minimessage.MiniMessage
+import net.kyori.adventure.title.Title
+import org.bukkit.Bukkit
+import org.bukkit.Location
+import org.bukkit.NamespacedKey
+import org.bukkit.OfflinePlayer
+import org.bukkit.Particle
+import org.bukkit.configuration.InvalidConfigurationException
+import org.bukkit.configuration.file.YamlConfiguration
+import org.bukkit.entity.Ageable
+import org.bukkit.entity.Entity
+import org.bukkit.entity.EntityType
+import org.bukkit.entity.LivingEntity
+import org.bukkit.entity.Player
+import org.bukkit.event.Event
+import org.bukkit.event.EventPriority
+import org.bukkit.event.Listener
+import org.bukkit.inventory.ItemStack
+import org.bukkit.persistence.PersistentDataType
+import org.bukkit.plugin.EventExecutor
+import java.io.File
+import java.io.IOException
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.sql.ResultSet
+import java.time.Duration
+
+open class BukkitScriptContext(
+    val plugin: KotlinScriptLoaderPlugin,
+    val scriptName: String
+) {
+
+    private val mm: MiniMessage = MiniMessage.miniMessage()
+
+    private val configFile: File
+        get() = File(plugin.dataFolder, "$scriptName.yml")
+
+    val config: YamlConfiguration by lazy { loadYamlFile(configFile) }
+
+    // Synchronized: the DSL is reachable from async tasks and YamlConfiguration is not thread-safe.
+    @Synchronized
+    fun saveConfig() {
+        try { writeAtomically(config, configFile) }
+        catch (ex: IOException) { plugin.logger.warning("[$scriptName] Не удалось сохранить $scriptName.yml: ${ex.message}") }
+    }
+
+    fun loadYaml(fileName: String): YamlConfiguration {
+        val root = plugin.scriptsFolder.canonicalFile
+        val file = File(root, fileName).canonicalFile
+        // Without this check '../..' lets a script create or read files anywhere the server can write.
+        require(file.toPath() != root.toPath() && file.toPath().startsWith(root.toPath())) {
+            "loadYaml: '$fileName' выходит за пределы scripts/"
+        }
+        return loadYamlFile(file)
+    }
+
+    private fun loadYamlFile(file: File): YamlConfiguration {
+        if (!file.exists()) { file.parentFile?.mkdirs(); file.createNewFile() }
+        val yaml = YamlConfiguration()
+        try {
+            yaml.load(file)
+        } catch (ex: InvalidConfigurationException) {
+            // YamlConfiguration.loadConfiguration() swallows this and returns an empty config;
+            // the next save would then overwrite the user's file with defaults.
+            val backup = File(file.parentFile, "${file.name}.broken-${System.currentTimeMillis()}")
+            val saved = runCatching { file.copyTo(backup) }.isSuccess
+            plugin.logger.severe(
+                "[$scriptName] ${file.name} содержит ошибку YAML (${ex.message?.lineSequence()?.firstOrNull()}). " +
+                    if (saved) "Копия: ${backup.name}, используется пустой конфиг." else "Копию сделать не удалось, используется пустой конфиг."
+            )
+        } catch (ex: IOException) {
+            plugin.logger.severe("[$scriptName] Не удалось прочитать ${file.name}: ${ex.message}")
+        }
+        return yaml
+    }
+
+    // A crash mid-write must not leave a truncated yml behind.
+    private fun writeAtomically(yaml: YamlConfiguration, target: File) {
+        val tmp = File(target.absoluteFile.parentFile, "${target.name}.tmp")
+        yaml.save(tmp)
+        try {
+            Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+        } catch (ex: AtomicMoveNotSupportedException) {
+            Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        }
+    }
+
+    private val warnedPlaceholders = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private val unmatchedPlaceholderRegex = Regex("""@[a-zA-Z0-9_]+@""")
+
+    private fun formatPlaceholderValue(value: Any?): String = when (value) {
+        null -> ""
+        is Double -> if (value == value.toLong().toDouble()) value.toLong().toString() else "%.2f".format(value)
+        else -> value.toString()
+    }
+
+    private fun substitute(path: String, raw: String, player: Player?, replacements: Array<out Pair<String, Any?>>): String {
+        var text = raw
+
+        if (player != null) {
+            text = text
+                .replace("@player@", player.name)
+                .replace("@world@", player.world.name)
+                .replace("@online@", Bukkit.getOnlinePlayers().size.toString())
+                .replace("@maxplayers@", Bukkit.getMaxPlayers().toString())
+                .replace("@health@", formatPlaceholderValue(player.health))
+                .replace("@ping@", player.ping.toString())
+        }
+
+        replacements.forEach { (key, value) -> text = text.replace("@$key@", formatPlaceholderValue(value)) }
+
+        if (player != null && plugin.papiEnabled) {
+            text = KSLPapiResolver.resolve(player, text)
+        }
+
+        unmatchedPlaceholderRegex.findAll(text).forEach { match ->
+            val warnKey = "$path:${match.value}"
+            if (warnedPlaceholders.add(warnKey)) {
+                plugin.logger.warning("[$scriptName] В '$path' остался незаменённый плейсхолдер ${match.value} — проверь имя ключа в message()/messageList()/richMessage()")
+            }
+        }
+
+        return text
+    }
+
+    fun YamlConfiguration.message(path: String, vararg replacements: Pair<String, Any?>): String {
+        val raw = getString(path) ?: return path
+        return substitute(path, raw, null, replacements).replace('&', '§')
+    }
+
+    fun YamlConfiguration.message(path: String, player: Player, vararg replacements: Pair<String, Any?>): String {
+        val raw = getString(path) ?: return path
+        return substitute(path, raw, player, replacements).replace('&', '§')
+    }
+
+    fun YamlConfiguration.messageList(path: String, vararg replacements: Pair<String, Any?>): List<String> =
+        getStringList(path).map { substitute(path, it, null, replacements).replace('&', '§') }
+
+    fun YamlConfiguration.messageList(path: String, player: Player, vararg replacements: Pair<String, Any?>): List<String> =
+        getStringList(path).map { substitute(path, it, player, replacements).replace('&', '§') }
+
+    fun YamlConfiguration.richMessage(path: String, vararg replacements: Pair<String, Any?>): Component =
+        parseMM(substitute(path, getString(path) ?: path, null, replacements))
+
+    fun YamlConfiguration.richMessage(path: String, player: Player, vararg replacements: Pair<String, Any?>): Component =
+        parseMM(substitute(path, getString(path) ?: path, player, replacements))
+
+    inline fun <reified T> YamlConfiguration.getOrSetDefault(path: String, default: T): T {
+        if (!contains(path)) {
+            set(path, default)
+            if (this === config) saveConfig()
+        }
+        return get(path) as? T ?: default
+    }
+
+    fun table(name: String): KSLQuickTable = plugin.tableStore.table(name)
+
+    val database: HikariDataSource get() = plugin.database
+
+    fun dbExecute(sql: String, vararg args: Any?) {
+        plugin.dbExecutor.submit {
+            try {
+                database.connection.use { conn ->
+                    conn.prepareStatement(sql).use { ps ->
+                        args.forEachIndexed { i, arg -> ps.setObject(i + 1, arg) }
+                        ps.executeUpdate()
+                    }
+                }
+            } catch (ex: Exception) {
+                plugin.logger.warning("[$scriptName] dbExecute: ${ex.message}")
+            }
+        }
+    }
+
+    fun dbQuery(sql: String, vararg args: Any?, block: (ResultSet) -> Unit) {
+        plugin.dbExecutor.submit {
+            try {
+                database.connection.use { conn ->
+                    conn.prepareStatement(sql).use { ps ->
+                        args.forEachIndexed { i, arg -> ps.setObject(i + 1, arg) }
+                        ps.executeQuery().use(block)
+                    }
+                }
+            } catch (ex: Exception) {
+                plugin.logger.warning("[$scriptName] dbQuery: ${ex.message}")
+            }
+        }
+    }
+
+    fun runAsync(block: () -> Unit) {
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, Runnable(block))
+    }
+
+    fun runSync(block: () -> Unit) {
+        Bukkit.getScheduler().runTask(plugin, Runnable(block))
+    }
+
+    fun delay(ticks: Long, block: () -> Unit): Int {
+        val task = Bukkit.getScheduler().runTaskLater(plugin, Runnable(block), ticks)
+        plugin.trackTask(scriptName, task.taskId); return task.taskId
+    }
+
+    fun every(ticks: Long, initialDelay: Long = 0L, block: () -> Unit): Int {
+        val period = KSLErrors.validPeriod(plugin, scriptName, "every", ticks)
+        val task = Bukkit.getScheduler().runTaskTimer(plugin, Runnable(block), initialDelay, period)
+        plugin.trackTask(scriptName, task.taskId); return task.taskId
+    }
+
+    fun delayAsync(ticks: Long, block: () -> Unit): Int {
+        val task = Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, Runnable(block), ticks)
+        plugin.trackTask(scriptName, task.taskId); return task.taskId
+    }
+
+    fun everyAsync(ticks: Long, initialDelay: Long = 0L, block: () -> Unit): Int {
+        val period = KSLErrors.validPeriod(plugin, scriptName, "everyAsync", ticks)
+        val task = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, Runnable(block), initialDelay, period)
+        plugin.trackTask(scriptName, task.taskId); return task.taskId
+    }
+
+    inline fun <reified T : Event> onEvent(
+        priority: EventPriority = EventPriority.NORMAL,
+        crossinline action: T.() -> Unit
+    ) {
+        val listener = object : Listener {}
+        val executor = EventExecutor { _, event ->
+            if (event is T) {
+                try {
+                    event.action()
+                } catch (ex: Throwable) {
+                    KSLErrors.log(plugin, scriptName, "onEvent<${T::class.simpleName}>", ex)
+                }
+            }
+        }
+        Bukkit.getPluginManager().registerEvent(T::class.java, listener, priority, executor, plugin)
+        plugin.trackListener(scriptName, listener)
+    }
+
+    fun registerCommand(
+        name: String,
+        aliases: List<String> = emptyList(),
+        permission: String? = null,
+        tabComplete: ((Player, Array<String>) -> List<String>)? = null,
+        action: (Player, Array<String>) -> Unit
+    ) {
+        val command = DynamicCommand(name, aliases, scriptName, plugin, permission, tabComplete, action)
+        Bukkit.getCommandMap().register(plugin.name.lowercase(), command)
+        plugin.trackCommand(scriptName, command)
+    }
+
+    fun parseMM(text: String): Component = mm.deserialize(text)
+
+    fun broadcastMM(text: String) = Bukkit.getServer().broadcast(parseMM(text))
+
+    fun broadcast(message: String) =
+        Bukkit.getOnlinePlayers().forEach { it.sendMessage(message.replace('&', '§')) }
+
+    fun Player.sendRichMessage(text: String) = sendMessage(parseMM(text))
+
+    fun Player.sendActionBarMessage(text: String) = sendActionBar(parseMM(text))
+
+    fun Player.showRichTitle(
+        title: String,
+        subtitle: String = "",
+        fadeIn: Int = 10,
+        stay: Int = 70,
+        fadeOut: Int = 20
+    ) {
+        val times = Title.Times.times(
+            Duration.ofMillis(fadeIn * 50L),
+            Duration.ofMillis(stay * 50L),
+            Duration.ofMillis(fadeOut * 50L)
+        )
+        showTitle(Title.title(parseMM(title), parseMM(subtitle), times))
+    }
+
+    var Player.balance: Double?
+        get() = plugin.essentials?.balance(this)
+        set(value) { if (value != null) plugin.essentials?.setBalance(this, value) }
+
+    val Player.group: String?
+        get() = plugin.luckPerms?.primaryGroup(this)
+
+    val Player.prefix: String?
+        get() = plugin.luckPerms?.prefix(this)
+
+    fun ItemStack.setTag(key: String, value: String) {
+        val meta = itemMeta ?: return
+        meta.persistentDataContainer.set(NamespacedKey(plugin, key), PersistentDataType.STRING, value)
+        itemMeta = meta
+    }
+
+    fun ItemStack.getTag(key: String): String? =
+        itemMeta?.persistentDataContainer?.get(NamespacedKey(plugin, key), PersistentDataType.STRING)
+
+    fun ItemStack.hasTag(key: String): Boolean =
+        itemMeta?.persistentDataContainer?.has(NamespacedKey(plugin, key), PersistentDataType.STRING) == true
+
+    fun registerPlaceholder(key: String, resolver: (OfflinePlayer) -> String?) {
+        if (!plugin.papiEnabled) {
+            plugin.logger.warning("[$scriptName] PlaceholderAPI не найден — плейсхолдер '$key' пропущен"); return
+        }
+        plugin.registerPlaceholder(scriptName, key, resolver)
+    }
+
+    fun luckPermsGroup(player: Player): String? = plugin.luckPerms?.primaryGroup(player)
+    fun luckPermsPrefix(player: Player): String? = plugin.luckPerms?.prefix(player)
+    fun luckPermsSuffix(player: Player): String? = plugin.luckPerms?.suffix(player)
+    fun hasGroup(player: Player, group: String): Boolean = plugin.luckPerms?.isInGroup(player, group) ?: false
+
+    fun balance(player: Player): Double? = plugin.essentials?.balance(player)
+    fun setBalance(player: Player, amount: Double) { plugin.essentials?.setBalance(player, amount) }
+    fun isAfk(player: Player): Boolean = plugin.essentials?.isAfk(player) ?: false
+
+    fun weSelection(player: Player): Pair<org.bukkit.Location, org.bukkit.Location>? = plugin.worldEdit?.selection(player)
+    fun weSelectionVolume(player: Player): Long? = plugin.worldEdit?.selectionVolume(player)
+    fun weFillSelection(player: Player, material: org.bukkit.Material): Int? = plugin.worldEdit?.fillSelection(player, material)
+    fun weHasClipboard(player: Player): Boolean = plugin.worldEdit?.hasClipboard(player) ?: false
+
+    fun wgRegionsAt(location: org.bukkit.Location): List<String> = plugin.worldGuard?.regionsAt(location) ?: emptyList()
+    fun wgIsInRegion(location: org.bukkit.Location, regionId: String): Boolean = plugin.worldGuard?.isInRegion(location, regionId) ?: false
+    fun wgCanBuild(player: Player, location: org.bukkit.Location): Boolean = plugin.worldGuard?.canBuild(player, location) ?: true
+    fun wgCanPvp(player: Player, location: org.bukkit.Location): Boolean = plugin.worldGuard?.canPvp(player, location) ?: true
+    fun wgFlag(location: org.bukkit.Location, flagName: String, player: Player? = null): String? = plugin.worldGuard?.flagValue(location, flagName, player)
+
+    fun vaultBalance(player: OfflinePlayer): Double? = plugin.vault?.balance(player)
+    fun vaultDeposit(player: OfflinePlayer, amount: Double): Boolean = plugin.vault?.deposit(player, amount) ?: false
+    fun vaultWithdraw(player: OfflinePlayer, amount: Double): Boolean = plugin.vault?.withdraw(player, amount) ?: false
+    fun vaultHas(player: OfflinePlayer, amount: Double): Boolean = plugin.vault?.has(player, amount) ?: false
+    fun vaultFormat(amount: Double): String = plugin.vault?.format(amount) ?: amount.toString()
+    fun vaultHasPermission(player: Player, node: String): Boolean = plugin.vault?.hasPermission(player, node) ?: player.hasPermission(node)
+    fun vaultGroup(player: Player): String? = plugin.vault?.playerGroup(player)
+    fun vaultInGroup(player: Player, group: String): Boolean = plugin.vault?.playerInGroup(player, group) ?: false
+
+    fun setSkin(player: Player, skinName: String): Boolean = plugin.skinRestorer?.setSkin(player, skinName) ?: false
+    fun setSkinRaw(player: Player, value: String, signature: String): Boolean =
+        plugin.skinRestorer?.setSkinRaw(player, value, signature) ?: false
+
+    fun cooldown(player: Player, key: String, seconds: Long): Boolean =
+        plugin.cooldownStore.tryUse("$scriptName:$key:${player.uniqueId}", seconds)
+
+    fun cooldownRemaining(player: Player, key: String, seconds: Long): Long =
+        plugin.cooldownStore.remaining("$scriptName:$key:${player.uniqueId}", seconds)
+
+    fun resetCooldown(player: Player, key: String) =
+        plugin.cooldownStore.reset("$scriptName:$key:${player.uniqueId}")
+
+    fun export(key: String, value: Any) {
+        plugin.libraryRegistry.export(scriptName, key, value)
+    }
+
+    inline fun <reified T : Any> library(key: String): T? = plugin.libraryRegistry.get(key) as? T
+
+    inline fun <reified T : Any> requireLibrary(key: String): T =
+        library<T>(key) ?: error("Библиотека '$key' не найдена — проверь, что скрипт с export(\"$key\", ...) загружен раньше (см. @requires)")
+
+    fun gui(title: String, rows: Int = 3, builder: KSLGuiInstance.() -> Unit): KSLGuiInstance {
+        val instance = KSLGuiInstance(scriptName, plugin, rows, title)
+        plugin.trackGui(scriptName)
+        instance.builder()
+        return instance
+    }
+
+    fun <T> persist(key: String, persistent: Boolean = false, default: () -> T): KSLPersistProperty<T> =
+        plugin.persistStore.property(scriptName, key, persistent, default)
+
+    fun executeConsole(command: String) {
+        plugin.logger.info("[KSL] Скрипт '$scriptName' выполняет консольную команду: $command")
+        if (org.bukkit.Bukkit.isPrimaryThread()) {
+            org.bukkit.Bukkit.dispatchCommand(org.bukkit.Bukkit.getConsoleSender(), command)
+        } else {
+            runSync { org.bukkit.Bukkit.dispatchCommand(org.bukkit.Bukkit.getConsoleSender(), command) }
+        }
+    }
+
+    inline fun <reified T : Any> service(key: String): T? = plugin.addonManager.getService(key) as? T
+
+    fun discordSend(channel: String, message: String) {
+        plugin.discord?.send(channel, message)
+            ?: plugin.logger.warning("[$scriptName] discordSend: Discord не настроен в config.yml")
+    }
+
+    fun discordEmbed(
+        channel: String,
+        title: String,
+        description: String = "",
+        color: Int = 0x5865F2,
+        footer: String = ""
+    ) {
+        plugin.discord?.sendEmbed(channel, title, description, color, footer)
+            ?: plugin.logger.warning("[$scriptName] discordEmbed: Discord не настроен в config.yml")
+    }
+
+    fun Location.playEffect(particle: Particle, builder: KSLEffectSpec.() -> Unit): Int {
+        val frozen = this.clone()
+        val spec = KSLEffectSpec(particle) { frozen }
+        spec.builder()
+        return plugin.effectManager.play(scriptName, spec)
+    }
+
+    fun Entity.playEffect(particle: Particle, follow: Boolean = false, builder: KSLEffectSpec.() -> Unit): Int {
+        val entity = this
+        val supplier: () -> Location = if (follow) {
+            { entity.location }
+        } else {
+            val frozen = entity.location.clone()
+            ({ frozen })
+        }
+        val spec = KSLEffectSpec(particle, supplier)
+        if (follow) spec.stopCondition = { !entity.isValid }
+        spec.builder()
+        return plugin.effectManager.play(scriptName, spec)
+    }
+
+    fun stopEffect(taskId: Int) = Bukkit.getScheduler().cancelTask(taskId)
+
+    fun spawnCustomEntity(
+        location: Location,
+        template: String,
+        removeOnReload: Boolean = true,
+        builder: KSLEntityBuilder.() -> Unit = {}
+    ): LivingEntity {
+        val attrs = KSLTemplateParser.parse(template)
+        val typeName = attrs["TYPE"]
+        val type = typeName?.let { runCatching { EntityType.valueOf(it.uppercase()) }.getOrNull() }
+            ?: EntityType.ZOMBIE.also {
+                if (typeName != null) plugin.logger.warning("[$scriptName] spawnCustomEntity: неизвестный TYPE:$typeName — использую ZOMBIE")
+            }
+        val world = location.world ?: error("spawnCustomEntity: у локации нет мира")
+        val spawned = world.spawnEntity(location, type)
+        val entity = spawned as? LivingEntity ?: run {
+            spawned.remove()
+            error("spawnCustomEntity: TYPE:${type.name} — не LivingEntity (нужен живой моб вроде ZOMBIE/SKELETON/COW), заспавненная сущность удалена")
+        }
+
+        plugin.entityManager.trackSpawn(scriptName, entity, removeOnReload)
+        try {
+            attrs["NAME"]?.let { name ->
+                entity.customName(parseMM(name))
+                entity.isCustomNameVisible = true
+            }
+            attrs["HP"]?.toDoubleOrNull()?.let { hp ->
+                // Bukkit throws outside (0, 1024]; after the spawn that would leave an untouched mob behind.
+                if (hp > 0.0 && hp <= 1024.0) {
+                    @Suppress("DEPRECATION")
+                    entity.setMaxHealth(hp)
+                    entity.health = hp
+                } else {
+                    plugin.logger.warning("[$scriptName] spawnCustomEntity: HP:$hp вне (0, 1024] — игнорирую")
+                }
+            }
+            attrs["AI"]?.toBooleanStrictOrNull()?.let { entity.setAI(it) }
+            if (entity is Ageable) {
+                attrs["BABY"]?.toBooleanStrictOrNull()?.let { isBaby -> if (isBaby) entity.setBaby() else entity.setAdult() }
+            }
+            KSLEntityBuilder(entity).builder()
+        } catch (ex: Throwable) {
+            // Do not leave a half-initialised mob in the world.
+            plugin.entityManager.forget(scriptName, entity)
+            entity.remove()
+            throw ex
+        }
+        return entity
+    }
+
+    fun LivingEntity.behavior(builder: KSLEntityBehaviorBuilder.() -> Unit) {
+        KSLEntityBehaviorBuilder(plugin, scriptName, this).builder()
+    }
+}

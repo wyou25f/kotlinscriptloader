@@ -1,0 +1,6 @@
+name: BonusAddon
+version: ${version}
+main: ru.example.bonus.BonusAddonPlugin
+api-version: '1.21'
+depend: [KotlinScriptLoader]
+softdepend: [ExampleAddon]
