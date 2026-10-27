@@ -10,8 +10,9 @@ class DynamicCommand(
     val scriptName: String,
     private val plugin: KotlinScriptLoaderPlugin,
     private val requiredPermission: String?,
-    private val tabCompleter: ((Player, Array<String>) -> List<String>)?,
-    private val action: (Player, Array<String>) -> Unit
+    private val tabCompleter: ((CommandSender, Array<String>) -> List<String>)?,
+    private val playersOnly: Boolean,
+    private val action: (CommandSender, Array<String>) -> Unit
 ) : Command(name) {
 
     init {
@@ -21,7 +22,7 @@ class DynamicCommand(
     }
 
     override fun execute(sender: CommandSender, commandLabel: String, args: Array<String>): Boolean {
-        if (sender !is Player) {
+        if (playersOnly && sender !is Player) {
             sender.sendMessage("Эта команда доступна только игрокам.")
             return true
         }
@@ -40,10 +41,10 @@ class DynamicCommand(
 
     override fun tabComplete(sender: CommandSender, alias: String, args: Array<String>): List<String> {
         val completer = tabCompleter ?: return super.tabComplete(sender, alias, args)
-        val player = sender as? Player ?: return emptyList()
+        if (playersOnly && sender !is Player) return emptyList()
         if (requiredPermission != null && !sender.hasPermission(requiredPermission)) return emptyList()
         return try {
-            completer(player, args)
+            completer(sender, args)
         } catch (ex: Throwable) {
             KSLErrors.log(plugin, scriptName, "tabComplete '/$alias'", ex)
             emptyList()

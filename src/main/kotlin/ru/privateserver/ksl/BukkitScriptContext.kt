@@ -9,6 +9,7 @@ import org.bukkit.Location
 import org.bukkit.NamespacedKey
 import org.bukkit.OfflinePlayer
 import org.bukkit.Particle
+import org.bukkit.command.CommandSender
 import org.bukkit.configuration.InvalidConfigurationException
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.entity.Ageable
@@ -22,6 +23,7 @@ import org.bukkit.event.Listener
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
 import org.bukkit.plugin.EventExecutor
+import org.bukkit.scheduler.BukkitTask
 import java.io.File
 import java.io.IOException
 import java.nio.file.AtomicMoveNotSupportedException
@@ -192,38 +194,51 @@ open class BukkitScriptContext(
         }
     }
 
-    fun runAsync(block: () -> Unit) {
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, Runnable(block))
+    // Scheduler tasks swallow nothing: an uncaught exception would print a raw Bukkit trace every period.
+    private fun guarded(where: String, block: () -> Unit) = Runnable {
+        try {
+            block()
+        } catch (ex: Throwable) {
+            KSLErrors.log(plugin, scriptName, where, ex)
+        }
     }
 
-    fun runSync(block: () -> Unit) {
-        Bukkit.getScheduler().runTask(plugin, Runnable(block))
+    private fun track(task: BukkitTask): Int {
+        plugin.trackTask(scriptName, task.taskId)
+        return task.taskId
     }
 
-    fun delay(ticks: Long, block: () -> Unit): Int {
-        val task = Bukkit.getScheduler().runTaskLater(plugin, Runnable(block), ticks)
-        plugin.trackTask(scriptName, task.taskId); return task.taskId
-    }
+    fun runAsync(block: () -> Unit): Int =
+        track(Bukkit.getScheduler().runTaskAsynchronously(plugin, guarded("runAsync", block)))
+
+    fun runSync(block: () -> Unit): Int =
+        track(Bukkit.getScheduler().runTask(plugin, guarded("runSync", block)))
+
+    fun delay(ticks: Long, block: () -> Unit): Int =
+        track(Bukkit.getScheduler().runTaskLater(plugin, guarded("delay", block), ticks))
 
     fun every(ticks: Long, initialDelay: Long = 0L, block: () -> Unit): Int {
         val period = KSLErrors.validPeriod(plugin, scriptName, "every", ticks)
-        val task = Bukkit.getScheduler().runTaskTimer(plugin, Runnable(block), initialDelay, period)
-        plugin.trackTask(scriptName, task.taskId); return task.taskId
+        return track(Bukkit.getScheduler().runTaskTimer(plugin, guarded("every", block), initialDelay, period))
     }
 
-    fun delayAsync(ticks: Long, block: () -> Unit): Int {
-        val task = Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, Runnable(block), ticks)
-        plugin.trackTask(scriptName, task.taskId); return task.taskId
-    }
+    fun delayAsync(ticks: Long, block: () -> Unit): Int =
+        track(Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, guarded("delayAsync", block), ticks))
 
     fun everyAsync(ticks: Long, initialDelay: Long = 0L, block: () -> Unit): Int {
         val period = KSLErrors.validPeriod(plugin, scriptName, "everyAsync", ticks)
-        val task = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, Runnable(block), initialDelay, period)
-        plugin.trackTask(scriptName, task.taskId); return task.taskId
+        return track(Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, guarded("everyAsync", block), initialDelay, period))
+    }
+
+    // Works for any id returned by delay/every/runSync/...; stopEffect is the same call for effects.
+    fun cancelTask(taskId: Int) {
+        Bukkit.getScheduler().cancelTask(taskId)
+        plugin.untrackTask(scriptName, taskId)
     }
 
     inline fun <reified T : Event> onEvent(
         priority: EventPriority = EventPriority.NORMAL,
+        ignoreCancelled: Boolean = false,
         crossinline action: T.() -> Unit
     ) {
         val listener = object : Listener {}
@@ -236,7 +251,7 @@ open class BukkitScriptContext(
                 }
             }
         }
-        Bukkit.getPluginManager().registerEvent(T::class.java, listener, priority, executor, plugin)
+        Bukkit.getPluginManager().registerEvent(T::class.java, listener, priority, executor, plugin, ignoreCancelled)
         plugin.trackListener(scriptName, listener)
     }
 
@@ -247,10 +262,35 @@ open class BukkitScriptContext(
         tabComplete: ((Player, Array<String>) -> List<String>)? = null,
         action: (Player, Array<String>) -> Unit
     ) {
-        val command = DynamicCommand(name, aliases, scriptName, plugin, permission, tabComplete, action)
+        val completer: ((CommandSender, Array<String>) -> List<String>)? = tabComplete?.let { tab ->
+            { sender: CommandSender, args: Array<String> -> if (sender is Player) tab(sender, args) else emptyList() }
+        }
+        addCommand(DynamicCommand(name, aliases, scriptName, plugin, permission, completer, true) { sender, args ->
+            action(sender as Player, args)
+        })
+    }
+
+    // Like registerCommand, but console and command blocks may run it too.
+    fun registerCommandAny(
+        name: String,
+        aliases: List<String> = emptyList(),
+        permission: String? = null,
+        tabComplete: ((CommandSender, Array<String>) -> List<String>)? = null,
+        action: (CommandSender, Array<String>) -> Unit
+    ) {
+        addCommand(DynamicCommand(name, aliases, scriptName, plugin, permission, tabComplete, false, action))
+    }
+
+    private fun addCommand(command: DynamicCommand) {
         Bukkit.getCommandMap().register(plugin.name.lowercase(), command)
         plugin.trackCommand(scriptName, command)
     }
+
+    // Subscriptions are dropped automatically when the script unloads.
+    fun subscribe(topic: String, handler: (Any?) -> Unit): AutoCloseable =
+        plugin.addonManager.subscribeFromScript(scriptName, topic, handler)
+
+    fun publish(topic: String, payload: Any? = null): Int = plugin.addonManager.publish(topic, payload)
 
     fun parseMM(text: String): Component = mm.deserialize(text)
 

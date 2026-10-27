@@ -19,7 +19,6 @@ out/
 .classpath
 .settings/
 bin/
-.kotlin
 
 ### VS Code ###
 .vscode/

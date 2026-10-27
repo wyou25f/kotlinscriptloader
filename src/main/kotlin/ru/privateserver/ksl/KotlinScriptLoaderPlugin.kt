@@ -283,15 +283,41 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 appendLine("fun dbExecute(sql: String, vararg args: Any?) = Unit")
                 appendLine("fun dbQuery(sql: String, vararg args: Any?, block: (ResultSet) -> Unit) = Unit")
                 appendLine()
-                appendLine("fun runAsync(block: () -> Unit) = Unit")
-                appendLine("fun runSync(block: () -> Unit) = Unit")
+                appendLine("fun runAsync(block: () -> Unit): Int = 0")
+                appendLine("fun runSync(block: () -> Unit): Int = 0")
+                appendLine("fun cancelTask(taskId: Int) = Unit")
                 appendLine("fun delay(ticks: Long, block: () -> Unit): Int = 0")
                 appendLine("fun every(ticks: Long, initialDelay: Long = 0L, block: () -> Unit): Int = 0")
                 appendLine("fun delayAsync(ticks: Long, block: () -> Unit): Int = 0")
                 appendLine("fun everyAsync(ticks: Long, initialDelay: Long = 0L, block: () -> Unit): Int = 0")
                 appendLine()
-                appendLine("inline fun <reified T : Event> onEvent(priority: EventPriority = EventPriority.NORMAL, crossinline action: T.() -> Unit) = Unit")
+                appendLine("inline fun <reified T : Event> onEvent(priority: EventPriority = EventPriority.NORMAL, ignoreCancelled: Boolean = false, crossinline action: T.() -> Unit) = Unit")
                 appendLine("fun registerCommand(name: String, aliases: List<String> = emptyList(), permission: String? = null, tabComplete: ((Player, Array<String>) -> List<String>)? = null, action: (Player, Array<String>) -> Unit) = Unit")
+                appendLine("fun registerCommandAny(name: String, aliases: List<String> = emptyList(), permission: String? = null, tabComplete: ((org.bukkit.command.CommandSender, Array<String>) -> List<String>)? = null, action: (org.bukkit.command.CommandSender, Array<String>) -> Unit) = Unit")
+                appendLine("fun subscribe(topic: String, handler: (Any?) -> Unit): AutoCloseable = AutoCloseable { }")
+                appendLine("fun publish(topic: String, payload: Any? = null): Int = 0")
+                appendLine("// ---- ru.privateserver.ksl.dsl (aliases, imported automatically) ----")
+                appendLine("val Int.sec: Long get() = 0L")
+                appendLine("val Long.sec: Long get() = 0L")
+                appendLine("val Int.mins: Long get() = 0L")
+                appendLine("fun org.bukkit.command.CommandSender.msg(text: String) = Unit")
+                appendLine("fun Player.actionBar(text: String) = Unit")
+                appendLine("val online: Collection<Player> get() = emptyList()")
+                appendLine("fun playerNamed(name: String): Player? = null")
+                appendLine("fun chance(percent: Double): Boolean = false")
+                appendLine("fun item(material: org.bukkit.Material, name: String? = null, lore: List<String> = emptyList(), amount: Int = 1): ItemStack = ItemStack(material)")
+                appendLine("fun Player.giveItem(stack: ItemStack): Boolean = true")
+                appendLine("fun log(message: String) = Unit")
+                appendLine("fun logWarn(message: String) = Unit")
+                appendLine("fun logError(message: String) = Unit")
+                appendLine("fun later(ticks: Long, block: () -> Unit): Int = 0")
+                appendLine("fun laterAsync(ticks: Long, block: () -> Unit): Int = 0")
+                appendLine("fun sync(block: () -> Unit): Int = 0")
+                appendLine("fun async(block: () -> Unit): Int = 0")
+                appendLine("inline fun <reified T : Event> on(priority: EventPriority = EventPriority.NORMAL, ignoreCancelled: Boolean = false, crossinline action: T.() -> Unit) = Unit")
+                appendLine("fun command(name: String, aliases: List<String> = emptyList(), permission: String? = null, tabComplete: ((Player, Array<String>) -> List<String>)? = null, action: (Player, Array<String>) -> Unit) = Unit")
+                appendLine("fun commandAny(name: String, aliases: List<String> = emptyList(), permission: String? = null, tabComplete: ((org.bukkit.command.CommandSender, Array<String>) -> List<String>)? = null, action: (org.bukkit.command.CommandSender, Array<String>) -> Unit) = Unit")
+                appendLine("fun <T> cfg(path: String, default: T): T = default")
                 appendLine()
                 appendLine("fun parseMM(text: String): Component = Component.empty()")
                 appendLine("fun broadcastMM(text: String) = Unit")
@@ -466,6 +492,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     private fun unregisterCommands(commands: Set<Command>) {
         if (commands.isEmpty()) return
+        scheduleCommandSync()
         val viaApi = runCatching { removeOurCommands(Bukkit.getCommandMap().knownCommands, commands) }
         if (viaApi.isSuccess) return
         val viaReflection = runCatching { removeOurCommands(reflectKnownCommands(), commands) }
@@ -580,8 +607,25 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         listenersByScript.computeIfAbsent(scriptName) { mutableListOf() }.add(listener)
     }
 
+    private val commandSyncQueued = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    // Clients keep their own command tree: without a resend, removed commands stay visible and new ones lack tab-complete.
+    // Coalesced into one pass per tick; skipped while disabling because the scheduler refuses new tasks then.
+    private fun scheduleCommandSync() {
+        if (!isEnabled || !commandSyncQueued.compareAndSet(false, true)) return
+        try {
+            Bukkit.getScheduler().runTask(this, Runnable {
+                commandSyncQueued.set(false)
+                Bukkit.getOnlinePlayers().forEach { runCatching { it.updateCommands() } }
+            })
+        } catch (ex: Exception) {
+            commandSyncQueued.set(false)
+        }
+    }
+
     fun trackCommand(scriptName: String, command: DynamicCommand) {
         commandsByScript.computeIfAbsent(scriptName) { mutableListOf() }.add(command)
+        scheduleCommandSync()
         if (Bukkit.getCommandMap().getCommand(command.name) !== command)
             logger.warning("Команда '/${command.name}' из '${command.scriptName}' конфликтует — " +
                 "доступна как '/${name.lowercase()}:${command.name}'.")

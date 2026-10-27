@@ -1,5 +1,7 @@
 package ru.privateserver.ksl
 
+import ru.privateserver.ksl.dsl.mins
+import ru.privateserver.ksl.dsl.sec
 import java.io.File
 import java.util.logging.Logger
 
@@ -74,6 +76,33 @@ private fun testSandboxRules() {
     check("violation reports the right line", line == 3)
 }
 
+private fun testEventBus() {
+    println("KSLEventBus")
+    val errors = mutableListOf<String>()
+    val bus = KSLEventBus { topic, _ -> errors += topic }
+    val seen = mutableListOf<Any?>()
+
+    check("publish without subscribers delivers 0", bus.publish("none", 1) == 0)
+    val sub = bus.subscribe("addon-a", "t") { seen += it }
+    check("subscriber receives payload", bus.publish("t", "x") == 1 && seen == listOf<Any?>("x"))
+    bus.subscribe("addon-b", "t") { throw IllegalStateException("boom") }
+    check("a throwing handler does not block the others", bus.publish("t", "y") == 1 && seen.size == 2 && errors == listOf("t"))
+    sub.close()
+    bus.publish("t", "z")
+    check("closed subscription gets nothing", seen.size == 2)
+    bus.clearOwner("addon-b")
+    check("clearOwner removes that owner's handlers", bus.publish("t", "w") == 0)
+    bus.subscribe(null, "u") { seen += it }
+    bus.clearOwner("addon-a")
+    check("ownerless subscription survives clearOwner", bus.publish("u", 1) == 1)
+}
+
+private fun testDslTime() {
+    println("dsl time helpers")
+    check("5.sec is 100 ticks", 5.sec == 100L)
+    check("2.mins is 2400 ticks", 2.mins == 2400L)
+}
+
 private fun testScriptOrder() {
     println("KSLScriptOrder")
     val logger = Logger.getLogger("test")
@@ -128,6 +157,8 @@ fun main() {
     testPersistCodec()
     testCooldownStore()
     testSandboxRules()
+    testEventBus()
+    testDslTime()
     testScriptOrder()
     println()
     println("TOTAL: $passed passed, $failed failed")

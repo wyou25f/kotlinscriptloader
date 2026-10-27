@@ -53,6 +53,7 @@ private val BASE_IMPORTS = arrayOf(
     "io.papermc.paper.event.player.*",
     "io.papermc.paper.event.block.*",
     "io.papermc.paper.event.entity.*",
+    "ru.privateserver.ksl.dsl.*",
     "java.util.UUID",
     "java.time.*",
     "java.util.concurrent.*"

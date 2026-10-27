@@ -187,3 +187,30 @@ loadAllScripts()
 Каждый из этих шагов обёрнут в `runCatching` **по отдельности** — ошибка на любом из них не мешает выполнить остальные.
 
 ---
+
+---
+
+## Приложение: алиасы и упрощения для скриптов
+
+Импортируются автоматически (`ru.privateserver.ksl.dsl.*`), ничего подключать не нужно. Это тонкие обёртки над
+публичным API, старые имена продолжают работать.
+
+| Алиас | Что делает |
+|---|---|
+| `on<Event> { }` | то же, что `onEvent<Event> { }`; опционально `priority`, `ignoreCancelled` |
+| `command("name") { player, args -> }` | `registerCommand`, только игроки |
+| `commandAny("name") { sender, args -> }` | команда, доступная и консоли |
+| `later(20) { }`, `laterAsync(20) { }` | `delay`, `delayAsync` |
+| `sync { }`, `async { }` | `runSync`, `runAsync` (возвращают id задачи) |
+| `cancelTask(id)` | отмена любой задачи по id из `delay`/`every`/`sync`/... |
+| `5.sec`, `2.mins` | секунды и минуты в тиках (`100L`, `2400L`) |
+| `sender.msg("<green>текст")` | MiniMessage-сообщение игроку или консоли |
+| `player.actionBar("...")` | MiniMessage в action bar |
+| `item(Material.DIAMOND, "<aqua>Имя", listOf("<gray>строка"), 3)` | предмет с MiniMessage-именем и лором без курсива |
+| `player.giveItem(stack)` | выдаёт предмет, остаток падает под ноги; `true`, если всё поместилось |
+| `online`, `playerNamed("Steve")` | онлайн-игроки, поиск по точному нику |
+| `chance(25.0)` | `true` с вероятностью 25% |
+| `cfg("path", default)` | `config.getOrSetDefault(path, default)` |
+| `log(..)`, `logWarn(..)`, `logError(..)` | запись в консоль с префиксом `[скрипт]` |
+| `gui { button(slot, item) { player -> } }` | `set(slot, item) { player, _ -> }` |
+| `subscribe(topic) { }`, `publish(topic, payload)` | шина событий между скриптами и аддонами |
