@@ -6,9 +6,12 @@ import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
+import org.bukkit.event.entity.EntityDamageByEntityEvent
+import org.bukkit.event.entity.EntityDamageEvent
 import org.bukkit.event.entity.EntityDeathEvent
 import org.bukkit.event.entity.EntityRemoveEvent
 import org.bukkit.event.world.EntitiesLoadEvent
+import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -17,20 +20,30 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
 
     // Keyed by entity, but owned by a script: the script name is needed to drop the hook on unload,
     // otherwise a stale lambda keeps the old script classloader alive and still fires after reload.
-    private class DeathHook(val scriptName: String, val callback: (LivingEntity, Player?) -> Unit)
+    private class Hook<T>(val scriptName: String, val callback: T)
+
+    private class DropSpec(val scriptName: String, val items: List<ItemStack>, val exp: Int?, val keepDefault: Boolean)
 
     private val ownerKey = NamespacedKey(plugin, "ksl_owner")
     private val ephemeralKey = NamespacedKey(plugin, "ksl_ephemeral")
 
     private val entitiesByScript = ConcurrentHashMap<String, MutableSet<UUID>>()
     private val removeOnReload = ConcurrentHashMap<UUID, Boolean>()
-    private val deathCallbacks = ConcurrentHashMap<UUID, DeathHook>()
+
+    private val deathHooks = ConcurrentHashMap<UUID, Hook<(LivingEntity, Player?) -> Unit>>()
+    private val damagedHooks = ConcurrentHashMap<UUID, Hook<(LivingEntity, EntityDamageEvent) -> Unit>>()
+    private val attackHooks = ConcurrentHashMap<UUID, Hook<(LivingEntity, EntityDamageByEntityEvent) -> Unit>>()
+    private val dropSpecs = ConcurrentHashMap<UUID, DropSpec>()
 
     fun register() {
         Bukkit.getPluginManager().registerEvents(this, plugin)
     }
 
-    fun scriptNames(): Set<String> = entitiesByScript.keys + deathCallbacks.values.map { it.scriptName }
+    fun scriptNames(): Set<String> = entitiesByScript.keys +
+        deathHooks.values.map { it.scriptName } +
+        damagedHooks.values.map { it.scriptName } +
+        attackHooks.values.map { it.scriptName } +
+        dropSpecs.values.map { it.scriptName }
 
     fun trackSpawn(scriptName: String, entity: LivingEntity, removeEntityOnReload: Boolean) {
         val pdc = entity.persistentDataContainer
@@ -46,24 +59,70 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
         val uuid = entity.uniqueId
         entitiesByScript[scriptName]?.remove(uuid)
         removeOnReload.remove(uuid)
-        deathCallbacks.remove(uuid)
+        dropHooks(uuid)
+    }
+
+    private fun dropHooks(uuid: UUID) {
+        deathHooks.remove(uuid)
+        damagedHooks.remove(uuid)
+        attackHooks.remove(uuid)
+        dropSpecs.remove(uuid)
     }
 
     fun setDeathCallback(scriptName: String, entity: LivingEntity, callback: (LivingEntity, Player?) -> Unit) {
-        deathCallbacks[entity.uniqueId] = DeathHook(scriptName, callback)
+        deathHooks[entity.uniqueId] = Hook(scriptName, callback)
+    }
+
+    fun setDamagedCallback(scriptName: String, entity: LivingEntity, callback: (LivingEntity, EntityDamageEvent) -> Unit) {
+        damagedHooks[entity.uniqueId] = Hook(scriptName, callback)
+    }
+
+    fun setAttackCallback(scriptName: String, entity: LivingEntity, callback: (LivingEntity, EntityDamageByEntityEvent) -> Unit) {
+        attackHooks[entity.uniqueId] = Hook(scriptName, callback)
+    }
+
+    fun setDrops(scriptName: String, entity: LivingEntity, items: List<ItemStack>, exp: Int?, keepDefault: Boolean) {
+        dropSpecs[entity.uniqueId] = DropSpec(scriptName, items.map { it.clone() }, exp, keepDefault)
     }
 
     fun ownerOf(entity: LivingEntity): String? =
         entity.persistentDataContainer.get(ownerKey, PersistentDataType.STRING)
 
+    private inline fun runHook(scriptName: String, where: String, block: () -> Unit) {
+        try {
+            block()
+        } catch (ex: Throwable) {
+            KSLErrors.log(plugin, scriptName, where, ex)
+        }
+    }
+
     @EventHandler
     fun onDeath(event: EntityDeathEvent) {
-        val hook = deathCallbacks.remove(event.entity.uniqueId) ?: return
-        try {
-            hook.callback(event.entity, event.entity.killer)
-        } catch (ex: Throwable) {
-            KSLErrors.log(plugin, hook.scriptName, "entity onDeath", ex)
+        val uuid = event.entity.uniqueId
+        dropSpecs.remove(uuid)?.let { spec ->
+            if (!spec.keepDefault) event.drops.clear()
+            event.drops.addAll(spec.items.map { it.clone() })
+            spec.exp?.let { event.droppedExp = it }
         }
+        // The mob is gone after this event; its damage hooks would only be dead weight.
+        damagedHooks.remove(uuid)
+        attackHooks.remove(uuid)
+        val hook = deathHooks.remove(uuid) ?: return
+        runHook(hook.scriptName, "entity onDeath") { hook.callback(event.entity, event.entity.killer) }
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    fun onDamaged(event: EntityDamageEvent) {
+        val entity = event.entity as? LivingEntity ?: return
+        val hook = damagedHooks[entity.uniqueId] ?: return
+        runHook(hook.scriptName, "entity onDamaged") { hook.callback(entity, event) }
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    fun onAttack(event: EntityDamageByEntityEvent) {
+        val attacker = event.damager as? LivingEntity ?: return
+        val hook = attackHooks[attacker.uniqueId] ?: return
+        runHook(hook.scriptName, "entity onAttack") { hook.callback(attacker, event) }
     }
 
     // Catches every removal cause (death, /kill, distance despawn, other plugins), not only script unload.
@@ -77,7 +136,7 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
         if (event.cause == EntityRemoveEvent.Cause.UNLOAD && entity.isPersistent) return
         val uuid = entity.uniqueId
         // Hooks can exist for entities we never spawned, so this must not depend on the owner tag.
-        deathCallbacks.remove(uuid)
+        dropHooks(uuid)
         removeOnReload.remove(uuid)
         ownerOf(entity)?.let { entitiesByScript[it]?.remove(uuid) }
     }
@@ -98,7 +157,10 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
     }
 
     fun cleanupForScript(scriptName: String) {
-        deathCallbacks.values.removeIf { it.scriptName == scriptName }
+        deathHooks.values.removeIf { it.scriptName == scriptName }
+        damagedHooks.values.removeIf { it.scriptName == scriptName }
+        attackHooks.values.removeIf { it.scriptName == scriptName }
+        dropSpecs.values.removeIf { it.scriptName == scriptName }
         val ids = entitiesByScript.remove(scriptName) ?: return
         ids.forEach { uuid ->
             val shouldRemove = removeOnReload.remove(uuid) ?: true

@@ -3,6 +3,8 @@ package ru.privateserver.ksl
 import org.bukkit.Bukkit
 import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Player
+import org.bukkit.event.entity.EntityDamageByEntityEvent
+import org.bukkit.event.entity.EntityDamageEvent
 import org.bukkit.scheduler.BukkitTask
 
 class KSLEntityBehaviorBuilder(
@@ -47,5 +49,15 @@ class KSLEntityBehaviorBuilder(
 
     fun onDeath(block: (LivingEntity, Player?) -> Unit) {
         plugin.entityManager.setDeathCallback(scriptName, entity, block)
+    }
+
+    // The mob took damage (not cancelled by others). The event can be modified, e.g. event.damage = 1.0.
+    fun onDamaged(block: (LivingEntity, EntityDamageEvent) -> Unit) {
+        plugin.entityManager.setDamagedCallback(scriptName, entity, block)
+    }
+
+    // The mob hit someone (not cancelled by others). Projectile damage is not included.
+    fun onAttack(block: (LivingEntity, EntityDamageByEntityEvent) -> Unit) {
+        plugin.entityManager.setAttackCallback(scriptName, entity, block)
     }
 }

@@ -554,3 +554,55 @@ fun BukkitScriptContext.shopOpen(player: Player) { /* ... */ }
 
 Для ресурсов, привязанных к скрипту, реализуй `KSLContextExtension` (оба метода теперь необязательные) и
 чисти состояние в `onContextDestroyed(scriptName)`.
+
+---
+
+## API v3: хуки, формы эффектов, атрибуты мобов
+
+`KSL.API_VERSION = 3` (укажи `override val minApiVersion = 3`, если используешь это).
+
+### Свой хук (интеграция с другим плагином)
+
+```kotlin
+class PointsHook : KSLHook {
+    override val hookId = "playerpoints"
+    override val pluginName = "PlayerPoints"
+    private val api = PlayerPoints.getInstance().api          // класс стороннего плагина остаётся внутри хука
+
+    fun balance(player: Player): Int = api.look(player.uniqueId)
+    fun give(player: Player, amount: Int) = api.give(player.uniqueId, amount)
+}
+
+// addon.onLoad(api)
+if (api.isPluginEnabled("PlayerPoints")) api.registerHook(PointsHook())
+```
+
+В скрипте: `val points = requireHook<PointsHook>("playerpoints")`. Хук, зарегистрированный в `onLoad`, снимается
+вместе с аддоном. Скрипты должны видеть класс `PointsHook` — добавь его пакет через `api.addDefaultImports(...)`.
+
+### Своя форма частиц
+
+```kotlin
+api.registerEffectShape("spiral") { params, durationTicks ->
+    val radius = params.num("radius", 1.0)
+    val height = params.num("height", 2.0)
+    KSLEffectShape { tick, _ ->
+        val angle = Math.toRadians(tick * 20.0)
+        listOf(Vector(cos(angle) * radius, (tick % 20) / 20.0 * height, sin(angle) * radius))
+    }
+}
+```
+
+В скрипте: `location.playEffect(Particle.FLAME) { shape("spiral", "radius" to 1.5, "height" to 3.0) }`.
+Встроенные формы доступны по тем же именам: `circle`, `helix`, `sphere`, `square`, `point`.
+
+### Свой ключ шаблона моба
+
+```kotlin
+api.registerEntityAttribute("SIZE") { entity, value ->
+    (entity as? Slime)?.size = value.toInt()
+}
+```
+
+В скрипте: `spawnCustomEntity(loc, "TYPE:SLIME HP:40 SIZE:4")`. Исключение в обработчике не убивает спавн:
+оно логируется как предупреждение, остальные ключи применяются.

@@ -4,7 +4,10 @@ import net.luckperms.api.LuckPerms
 import net.luckperms.api.LuckPermsProvider
 import org.bukkit.entity.Player
 
-class KSLLuckPermsHook {
+class KSLLuckPermsHook : KSLHook {
+
+    override val hookId = "luckperms"
+    override val pluginName = "LuckPerms"
 
     private val api: LuckPerms = LuckPermsProvider.get()
 

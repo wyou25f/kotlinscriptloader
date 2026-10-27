@@ -1,5 +1,7 @@
 package ru.privateserver.ksl
 
+import org.bukkit.Bukkit
+import org.bukkit.entity.LivingEntity
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -21,6 +23,10 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     private val importOwners = ConcurrentHashMap<String, MutableSet<String>>()
     private val readyCallbacks = ConcurrentHashMap<String, CopyOnWriteArrayList<ReadyHook>>()
     private val mismatchWarned = ConcurrentHashMap.newKeySet<String>()
+
+    val hookRegistry = KSLOwnedRegistry<KSLHook>()
+    val effectShapes = KSLOwnedRegistry<KSLShapeFactory>()
+    val entityAttributes = KSLOwnedRegistry<(LivingEntity, String) -> Unit>()
 
     private val eventBus = KSLEventBus { topic, ex ->
         plugin.logger.warning("§9[KSL] подписчик темы '$topic' упал: ${ex::class.simpleName}: ${ex.message}")
@@ -127,7 +133,10 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         readyCallbacks.values.forEach { hooks -> hooks.removeIf { it.owner == owner } }
         eventBus.clearOwner(owner)
 
-        return ownedServices.size + ownedExtensions.size + releasedImports.size
+        val releasedRegistryEntries = hookRegistry.releaseOwner(owner) +
+            effectShapes.releaseOwner(owner) + entityAttributes.releaseOwner(owner)
+
+        return ownedServices.size + ownedExtensions.size + releasedImports.size + releasedRegistryEntries
     }
 
     override fun registerService(key: String, instance: Any) {
@@ -208,6 +217,47 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
 
     override fun reloadScripts(): Pair<Int, Int> = plugin.reloadScripts()
 
+    // Registration is attributed to the addon currently in onLoad; calls from anywhere else stay ownerless.
+    private fun <T : Any> KSLOwnedRegistry<T>.putOwned(kind: String, key: String, value: T) {
+        val owner = currentlyLoading.get()
+        if (contains(key) && ownerOf(key) != owner) {
+            plugin.logger.warning("§9[KSL] §e⚠ $kind '$key' (владелец: ${ownerOf(key) ?: "не указан"}) перезаписан вызовом ${owner ?: "вне onLoad"}")
+        }
+        put(key, value, owner)
+    }
+
+    override fun registerHook(hook: KSLHook) {
+        hookRegistry.putOwned("Хук", hook.hookId.lowercase(), hook)
+    }
+
+    override fun unregisterHook(hookId: String) = hookRegistry.remove(hookId.lowercase())
+
+    override fun getHook(hookId: String): KSLHook? = hookRegistry.get(hookId.lowercase())
+
+    override fun <T : KSLHook> getHook(hookId: String, type: Class<T>): T? {
+        val hook = getHook(hookId) ?: return null
+        if (type.isInstance(hook)) return type.cast(hook)
+        if (mismatchWarned.add("hook:$hookId|${type.name}")) {
+            plugin.logger.warning(
+                "§9[KSL] §e⚠ Хук '$hookId' имеет тип ${hook.javaClass.name}, а запрошен ${type.name} — " +
+                    "если имена совпадают, класс загружен разными classloader'ами (используй compileOnly для API провайдера)."
+            )
+        }
+        return null
+    }
+
+    override fun hooks(): List<KSLHook> = hookRegistry.values()
+
+    override fun isPluginEnabled(pluginName: String): Boolean = Bukkit.getPluginManager().isPluginEnabled(pluginName)
+
+    override fun registerEffectShape(name: String, factory: KSLShapeFactory) {
+        effectShapes.putOwned("Форма эффекта", name.lowercase(), factory)
+    }
+
+    override fun registerEntityAttribute(key: String, handler: (LivingEntity, String) -> Unit) {
+        entityAttributes.putOwned("Атрибут моба", key.uppercase(), handler)
+    }
+
     // Script subscriptions share the bus; the owner tag lets unload drop them without a tracking list.
     fun subscribeFromScript(scriptName: String, topic: String, handler: (Any?) -> Unit): AutoCloseable =
         eventBus.subscribe("script:$scriptName", topic, handler)
@@ -243,5 +293,8 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         importOwners.clear()
         readyCallbacks.clear()
         eventBus.clear()
+        hookRegistry.clear()
+        effectShapes.clear()
+        entityAttributes.clear()
     }
 }

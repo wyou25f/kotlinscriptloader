@@ -103,6 +103,31 @@ private fun testDslTime() {
     check("2.mins is 2400 ticks", 2.mins == 2400L)
 }
 
+private fun testOwnedRegistry() {
+    println("KSLOwnedRegistry")
+    val registry = KSLOwnedRegistry<String>()
+    registry.put("a", "1", "addon-x")
+    registry.put("b", "2", "addon-x")
+    registry.put("c", "3", null)
+    check("get returns the stored value", registry.get("a") == "1" && registry.ownerOf("a") == "addon-x")
+    registry.put("a", "9", null)
+    check("an ownerless overwrite clears the stale owner", registry.ownerOf("a") == null && registry.get("a") == "9")
+    check("releaseOwner drops only that owner's entries", registry.releaseOwner("addon-x") == 1 && registry.get("b") == null)
+    check("ownerless entries survive releaseOwner", registry.get("a") == "9" && registry.get("c") == "3")
+    registry.remove("c")
+    check("remove deletes the entry", registry.get("c") == null && registry.keys() == setOf("a"))
+}
+
+private fun testShapeParams() {
+    println("shape params")
+    val params = mapOf<String, Any?>("radius" to 2, "height" to 1.5, "name" to "x")
+    check("num reads an Int as Double", params.num("radius", 0.0) == 2.0)
+    check("num reads a Double", params.num("height", 0.0) == 1.5)
+    check("num falls back for a missing key", params.num("missing", 7.0) == 7.0)
+    check("num falls back for a non-number", params.num("name", 3.0) == 3.0)
+    check("int truncates a number", params.int("height", 0) == 1)
+}
+
 private fun testScriptOrder() {
     println("KSLScriptOrder")
     val logger = Logger.getLogger("test")
@@ -158,6 +183,8 @@ fun main() {
     testCooldownStore()
     testSandboxRules()
     testEventBus()
+    testOwnedRegistry()
+    testShapeParams()
     testDslTime()
     testScriptOrder()
     println()

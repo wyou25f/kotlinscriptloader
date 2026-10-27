@@ -214,3 +214,39 @@ loadAllScripts()
 | `log(..)`, `logWarn(..)`, `logError(..)` | запись в консоль с префиксом `[скрипт]` |
 | `gui { button(slot, item) { player -> } }` | `set(slot, item) { player, _ -> }` |
 | `subscribe(topic) { }`, `publish(topic, payload)` | шина событий между скриптами и аддонами |
+
+---
+
+## Приложение: частицы и мобы (расширенные возможности)
+
+### `playEffect`
+
+| Вызов внутри блока | Что делает |
+|---|---|
+| `circle(r, step)`, `helix(r, turns, height)`, `lineTo({ loc }, points)` | базовые формы |
+| `sphere(r, points = 60, spinDegreesPerTick = 0.0)` | сфера из равномерных точек, может вращаться |
+| `square(size, pointsPerSide = 10)` | периметр квадрата |
+| `point()` | одна точка в центре |
+| `custom { tick, center -> listOf(Vector(..)) }` | своя форма прямо в скрипте |
+| `shape("имя", "param" to value)` | форма по имени: встроенная или из аддона |
+| `color(255, 0, 0)` / `color("#ff8800", size)` | цвет для `Particle.DUST` |
+| `data = ...` | данные для других частиц (BlockData, ItemStack, Color) |
+| `stopWhen { условие }` | досрочная остановка; несколько условий складываются через ИЛИ |
+| `onEnd { ... }` | один раз после окончания по времени или `stopWhen` |
+
+`count` ограничен 0..100 на точку.
+
+### `spawnCustomEntity`
+
+Ключи шаблона: `TYPE`, `NAME`, `HP`, `AI`, `BABY` и расширяемые: `SPEED` (множитель), `DAMAGE`, `ARMOR`,
+`KNOCKBACK_RESIST`, `GLOW`, `SILENT`, `INVULNERABLE` (+ ключи из аддонов). Неизвестный ключ даёт предупреждение.
+
+Билдер: `equip("HAND:DIAMOND_SWORD HELMET:IRON_HELMET")`, `attribute("attack_damage", 8.0)`, `speed(1.5)`,
+`damage(v)`, `armor(v)`, `potion(PotionEffectType.SPEED, seconds = 30, amplifier = 1)`, `glow()`, `silent()`,
+`invulnerable()`, `drops(item(...), exp = 50, keepDefault = false)`.
+
+Поведение: `mob.behavior { onTick(20) { }; onDeath { mob, killer -> }; onDamaged { mob, event -> }; onAttack { mob, event -> } }`.
+
+### Хуки
+
+`hook<KSLVaultHook>("vault")`, `requireHook<T>("id")`, `hasHook("id")`: единый доступ к интеграциям, включая хуки из аддонов.

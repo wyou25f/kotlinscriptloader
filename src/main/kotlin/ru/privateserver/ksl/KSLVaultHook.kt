@@ -6,7 +6,10 @@ import org.bukkit.Bukkit
 import org.bukkit.OfflinePlayer
 import org.bukkit.entity.Player
 
-class KSLVaultHook {
+class KSLVaultHook : KSLHook {
+
+    override val hookId = "vault"
+    override val pluginName = "Vault"
 
     private val economy: Economy? = Bukkit.getServicesManager().getRegistration(Economy::class.java)?.provider
     private val permission: Permission? = Bukkit.getServicesManager().getRegistration(Permission::class.java)?.provider

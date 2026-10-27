@@ -114,6 +114,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         scriptRunner   = ScriptRunner(this)
 
         KSL.init(addonManager)
+        KSLEffectShapes.registerDefaults(addonManager.effectShapes)
+        KSLEntityAttributes.registerDefaults(addonManager.entityAttributes)
 
         getCommand("ksl")?.setExecutor(KSLCommandExecutor(this))
 
@@ -201,35 +203,28 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         }
     }
 
+    // Present plugin + successful init => the hook is stored in its typed field and published in the hook registry.
+    private fun <T : KSLHook> integrate(pluginName: String, label: String, create: () -> T): T? {
+        if (Bukkit.getPluginManager().getPlugin(pluginName) == null) return null
+        val hook = runCatching(create)
+            .onFailure { logger.warning("$label: инициализация хука не удалась: ${it.message}") }
+            .getOrNull()
+        hook?.let { addonManager.registerHook(it) }
+        return hook
+    }
+
     private fun setupIntegrations() {
         papiEnabled = Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null
         if (papiEnabled)
             runCatching { KSLPlaceholderExpansion(this).register() }
                 .onFailure { logger.warning("PlaceholderAPI: регистрация expansion не удалась: ${it.message}") }
 
-        if (Bukkit.getPluginManager().getPlugin("LuckPerms") != null)
-            runCatching { luckPerms = KSLLuckPermsHook() }
-                .onFailure { logger.warning("LuckPerms: инициализация хука не удалась: ${it.message}") }
-
-        if (Bukkit.getPluginManager().getPlugin("Essentials") != null)
-            runCatching { essentials = KSLEssentialsHook() }
-                .onFailure { logger.warning("EssentialsX: инициализация хука не удалась: ${it.message}") }
-
-        if (Bukkit.getPluginManager().getPlugin("Vault") != null)
-            runCatching { vault = KSLVaultHook() }
-                .onFailure { logger.warning("Vault: инициализация хука не удалась: ${it.message}") }
-
-        if (Bukkit.getPluginManager().getPlugin("SkinsRestorer") != null)
-            runCatching { skinRestorer = KSLSkinHook() }
-                .onFailure { logger.warning("SkinsRestorer: инициализация хука не удалась: ${it.message}") }
-
-        if (Bukkit.getPluginManager().getPlugin("WorldEdit") != null)
-            runCatching { worldEdit = KSLWorldEditHook() }
-                .onFailure { logger.warning("WorldEdit: инициализация хука не удалась: ${it.message}") }
-
-        if (Bukkit.getPluginManager().getPlugin("WorldGuard") != null)
-            runCatching { worldGuard = KSLWorldGuardHook() }
-                .onFailure { logger.warning("WorldGuard: инициализация хука не удалась: ${it.message}") }
+        luckPerms   = integrate("LuckPerms", "LuckPerms") { KSLLuckPermsHook() }
+        essentials  = integrate("Essentials", "EssentialsX") { KSLEssentialsHook() }
+        vault       = integrate("Vault", "Vault") { KSLVaultHook() }
+        skinRestorer = integrate("SkinsRestorer", "SkinsRestorer") { KSLSkinHook() }
+        worldEdit   = integrate("WorldEdit", "WorldEdit") { KSLWorldEditHook() }
+        worldGuard  = integrate("WorldGuard", "WorldGuard") { KSLWorldGuardHook() }
     }
 
     private fun generateAutocompleteStub() {
@@ -318,6 +313,24 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 appendLine("fun command(name: String, aliases: List<String> = emptyList(), permission: String? = null, tabComplete: ((Player, Array<String>) -> List<String>)? = null, action: (Player, Array<String>) -> Unit) = Unit")
                 appendLine("fun commandAny(name: String, aliases: List<String> = emptyList(), permission: String? = null, tabComplete: ((org.bukkit.command.CommandSender, Array<String>) -> List<String>)? = null, action: (org.bukkit.command.CommandSender, Array<String>) -> Unit) = Unit")
                 appendLine("fun <T> cfg(path: String, default: T): T = default")
+                appendLine("val String.mm: net.kyori.adventure.text.Component get() = throw UnsupportedOperationException()")
+                appendLine("fun Player.title(title: String, subtitle: String = \"\", fadeInTicks: Int = 10, stayTicks: Int = 40, fadeOutTicks: Int = 10) = Unit")
+                appendLine("fun Player.sound(key: String, volume: Float = 1f, pitch: Float = 1f) = Unit")
+                appendLine("fun Player.heal() = Unit")
+                appendLine("fun loc(world: String, x: Double, y: Double, z: Double, yaw: Float = 0f, pitch: Float = 0f): org.bukkit.Location? = null")
+                appendLine("fun org.bukkit.Location.offset(x: Double = 0.0, y: Double = 0.0, z: Double = 0.0): org.bukkit.Location = this")
+                appendLine("fun org.bukkit.Location.playersNear(radius: Double): Collection<Player> = emptyList()")
+                appendLine("fun onJoin(action: org.bukkit.event.player.PlayerJoinEvent.() -> Unit) = Unit")
+                appendLine("fun onQuit(action: org.bukkit.event.player.PlayerQuitEvent.() -> Unit) = Unit")
+                appendLine("fun onPlayerDeath(action: org.bukkit.event.player.PlayerDeathEvent.() -> Unit) = Unit")
+                appendLine("fun onRespawn(action: org.bukkit.event.player.PlayerRespawnEvent.() -> Unit) = Unit")
+                appendLine("fun onBlockBreak(action: org.bukkit.event.block.BlockBreakEvent.() -> Unit) = Unit")
+                appendLine("fun onBlockPlace(action: org.bukkit.event.block.BlockPlaceEvent.() -> Unit) = Unit")
+                appendLine("fun onInteract(action: org.bukkit.event.player.PlayerInteractEvent.() -> Unit) = Unit")
+                appendLine("fun onChat(action: io.papermc.paper.event.player.AsyncChatEvent.() -> Unit) = Unit")
+                appendLine("fun hasHook(hookId: String): Boolean = false")
+                appendLine("inline fun <reified T : ru.privateserver.ksl.KSLHook> hook(hookId: String): T? = null")
+                appendLine("inline fun <reified T : ru.privateserver.ksl.KSLHook> requireHook(hookId: String): T = throw UnsupportedOperationException()")
                 appendLine()
                 appendLine("fun parseMM(text: String): Component = Component.empty()")
                 appendLine("fun broadcastMM(text: String) = Unit")
@@ -391,13 +404,13 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 appendLine("fun discordSend(channel: String, message: String) = Unit")
                 appendLine("fun discordEmbed(channel: String, title: String, description: String = \"\", color: Int = 0x5865F2, footer: String = \"\") = Unit")
                 appendLine()
-                appendLine("class KSLEffectSpec { var count: Int = 1; var offsetX: Double = 0.0; var offsetY: Double = 0.0; var offsetZ: Double = 0.0; var extra: Double = 0.0; var durationTicks: Long = 100L; var intervalTicks: Long = 2L; fun circle(radius: Double, stepDegrees: Double = 15.0) = Unit; fun helix(radius: Double, turns: Double = 3.0, height: Double = 3.0) = Unit; fun lineTo(target: () -> org.bukkit.Location, points: Int = 20) = Unit }")
+                appendLine("class KSLEffectSpec { var count: Int = 1; var offsetX: Double = 0.0; var offsetY: Double = 0.0; var offsetZ: Double = 0.0; var extra: Double = 0.0; var durationTicks: Long = 100L; var intervalTicks: Long = 2L; var data: Any? = null; fun circle(radius: Double, stepDegrees: Double = 15.0) = Unit; fun helix(radius: Double, turns: Double = 3.0, height: Double = 3.0) = Unit; fun lineTo(target: () -> org.bukkit.Location, points: Int = 20) = Unit; fun sphere(radius: Double, points: Int = 60, spinDegreesPerTick: Double = 0.0) = Unit; fun square(size: Double, pointsPerSide: Int = 10) = Unit; fun point() = Unit; fun custom(points: (Long, org.bukkit.Location) -> List<org.bukkit.util.Vector>) = Unit; fun shape(name: String, vararg params: Pair<String, Any?>) = Unit; fun color(r: Int, g: Int, b: Int, size: Float = 1f) = Unit; fun color(hex: String, size: Float = 1f) = Unit; fun stopWhen(condition: () -> Boolean) = Unit; fun onEnd(block: () -> Unit) = Unit }")
                 appendLine("fun org.bukkit.Location.playEffect(particle: org.bukkit.Particle, builder: KSLEffectSpec.() -> Unit): Int = 0")
                 appendLine("fun org.bukkit.entity.Entity.playEffect(particle: org.bukkit.Particle, follow: Boolean = false, builder: KSLEffectSpec.() -> Unit): Int = 0")
                 appendLine("fun stopEffect(taskId: Int) = Unit")
                 appendLine()
-                appendLine("class KSLEntityBuilder { fun equip(template: String) = Unit }")
-                appendLine("class KSLEntityBehaviorBuilder { fun onTick(period: Long, initialDelay: Long = 0L, block: (org.bukkit.entity.LivingEntity) -> Unit) = Unit; fun onDeath(block: (org.bukkit.entity.LivingEntity, Player?) -> Unit) = Unit }")
+                appendLine("class KSLEntityBuilder { fun equip(template: String) = Unit; fun attribute(name: String, value: Double) = Unit; fun speed(multiplier: Double) = Unit; fun damage(value: Double) = Unit; fun armor(value: Double) = Unit; fun potion(type: org.bukkit.potion.PotionEffectType, seconds: Int = -1, amplifier: Int = 0) = Unit; fun glow(on: Boolean = true) = Unit; fun silent(on: Boolean = true) = Unit; fun invulnerable(on: Boolean = true) = Unit; fun drops(vararg items: ItemStack, exp: Int? = null, keepDefault: Boolean = false) = Unit }")
+                appendLine("class KSLEntityBehaviorBuilder { fun onTick(period: Long, initialDelay: Long = 0L, block: (org.bukkit.entity.LivingEntity) -> Unit) = Unit; fun onDeath(block: (org.bukkit.entity.LivingEntity, Player?) -> Unit) = Unit; fun onDamaged(block: (org.bukkit.entity.LivingEntity, org.bukkit.event.entity.EntityDamageEvent) -> Unit) = Unit; fun onAttack(block: (org.bukkit.entity.LivingEntity, org.bukkit.event.entity.EntityDamageByEntityEvent) -> Unit) = Unit }")
                 appendLine("fun spawnCustomEntity(location: org.bukkit.Location, template: String, removeOnReload: Boolean = true, builder: KSLEntityBuilder.() -> Unit = {}): org.bukkit.entity.LivingEntity = throw UnsupportedOperationException()")
                 appendLine("fun org.bukkit.entity.LivingEntity.behavior(builder: KSLEntityBehaviorBuilder.() -> Unit) = Unit")
             })
@@ -569,13 +582,25 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             "WorldEdit" to (worldEdit != null),
             "WorldGuard" to (worldGuard != null)
         ).forEach { (name, present) ->
-            val installed = Bukkit.getPluginManager().getPlugin(name) != null
+            // The doctor label says EssentialsX, the plugin itself is registered as Essentials.
+            val installed = Bukkit.getPluginManager().getPlugin(if (name == "EssentialsX") "Essentials" else name) != null
             val detail = when {
                 present -> "подключен"
                 installed -> "плагин найден, но хук не инициализировался — смотри лог при старте"
                 else -> "не установлен (опционально)"
             }
             lines += DiagnosticLine(name, present || !installed, detail)
+        }
+
+        // Hooks contributed by addons; the built-in ones are listed above.
+        val builtinHooks = setOf("luckperms", "essentials", "vault", "skinsrestorer", "worldedit", "worldguard")
+        addonManager.hooks().filter { it.hookId.lowercase() !in builtinHooks }.forEach { hook ->
+            val enabled = addonManager.isPluginEnabled(hook.pluginName)
+            lines += DiagnosticLine(
+                "${hook.hookId} (${hook.pluginName})",
+                enabled,
+                if (enabled) "хук аддона подключен" else "хук зарегистрирован, но плагин ${hook.pluginName} не включён"
+            )
         }
 
         val errorCount = KSLErrors.totalCount()

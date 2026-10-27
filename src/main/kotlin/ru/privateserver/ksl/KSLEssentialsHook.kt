@@ -5,7 +5,10 @@ import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import java.math.BigDecimal
 
-class KSLEssentialsHook {
+class KSLEssentialsHook : KSLHook {
+
+    override val hookId = "essentials"
+    override val pluginName = "Essentials"
 
     private val essentials: Essentials =
         Bukkit.getPluginManager().getPlugin("Essentials") as Essentials

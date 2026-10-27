@@ -437,7 +437,7 @@ open class BukkitScriptContext(
 
     fun Location.playEffect(particle: Particle, builder: KSLEffectSpec.() -> Unit): Int {
         val frozen = this.clone()
-        val spec = KSLEffectSpec(particle) { frozen }
+        val spec = KSLEffectSpec(particle, { frozen }, plugin.addonManager.effectShapes)
         spec.builder()
         return plugin.effectManager.play(scriptName, spec)
     }
@@ -450,13 +450,13 @@ open class BukkitScriptContext(
             val frozen = entity.location.clone()
             ({ frozen })
         }
-        val spec = KSLEffectSpec(particle, supplier)
+        val spec = KSLEffectSpec(particle, supplier, plugin.addonManager.effectShapes)
         if (follow) spec.stopCondition = { !entity.isValid }
         spec.builder()
         return plugin.effectManager.play(scriptName, spec)
     }
 
-    fun stopEffect(taskId: Int) = Bukkit.getScheduler().cancelTask(taskId)
+    fun stopEffect(taskId: Int) = cancelTask(taskId)
 
     fun spawnCustomEntity(
         location: Location,
@@ -497,7 +497,19 @@ open class BukkitScriptContext(
             if (entity is Ageable) {
                 attrs["BABY"]?.toBooleanStrictOrNull()?.let { isBaby -> if (isBaby) entity.setBaby() else entity.setAdult() }
             }
-            KSLEntityBuilder(entity).builder()
+            // Template keys beyond the core ones come from the attribute registry (built-ins and addons).
+            attrs.forEach { (key, value) ->
+                if (key in KSLEntityAttributes.coreKeys) return@forEach
+                val handler = plugin.addonManager.entityAttributes.get(key)
+                if (handler == null) {
+                    val known = (KSLEntityAttributes.coreKeys + plugin.addonManager.entityAttributes.keys()).sorted()
+                    plugin.logger.warning("[$scriptName] spawnCustomEntity: неизвестный атрибут $key (доступны: ${known.joinToString(", ")})")
+                    return@forEach
+                }
+                runCatching { handler(entity, value) }
+                    .onFailure { plugin.logger.warning("[$scriptName] spawnCustomEntity: $key:$value — ${it.message}") }
+            }
+            KSLEntityBuilder(entity, plugin, scriptName).builder()
         } catch (ex: Throwable) {
             // Do not leave a half-initialised mob in the world.
             plugin.entityManager.forget(scriptName, entity)

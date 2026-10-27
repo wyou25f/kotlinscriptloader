@@ -7,7 +7,10 @@ import com.sk89q.worldguard.protection.flags.Flags
 import org.bukkit.Location
 import org.bukkit.entity.Player
 
-class KSLWorldGuardHook {
+class KSLWorldGuardHook : KSLHook {
+
+    override val hookId = "worldguard"
+    override val pluginName = "WorldGuard"
 
     fun regionsAt(location: Location): List<String> = KSLErrors.hookSafe("WorldGuard", emptyList<String>()) {
         val query = WorldGuard.getInstance().platform.regionContainer.createQuery()

@@ -1,5 +1,32 @@
 # Unreleased
 
+## 🔌 API v3: хуки и движки расширяются из аддонов
+
+- **Хуки.** `KSLHook` (`hookId`, `pluginName`) + `api.registerHook(...)`, `api.hook<T>("id")`, `api.hooks()`, `api.isPluginEnabled(...)`. Встроенные Vault, LuckPerms, Essentials, WorldEdit, WorldGuard, SkinsRestorer тоже лежат в реестре; в скриптах: `hook<T>("id")`, `requireHook<T>("id")`, `hasHook("id")`. Хуки аддонов видны в `/ksl doctor`.
+- **Формы частиц.** `api.registerEffectShape("spiral") { params, durationTicks -> KSLEffectShape }`; в скрипте: `shape("spiral", "radius" to 2.0)`. Хелперы `params.num(...)` и `params.int(...)`.
+- **Атрибуты моба.** `api.registerEntityAttribute("SIZE") { entity, value -> }`; в шаблоне: `spawnCustomEntity(loc, "TYPE:SLIME SIZE:4")`.
+- Всё зарегистрированное внутри `onLoad` снимается вместе с аддоном. `KSL.API_VERSION = 3`.
+
+## ✨ Эффекты частиц
+
+- Формы: `sphere(radius, points, spinDegreesPerTick)`, `square(size, pointsPerSide)`, `point()`, `custom { tick, center -> List<Vector> }`, `shape("имя", ...)`.
+- `color(r, g, b)` / `color("#ff8800")` для `Particle.DUST`; `data = ...` для частиц с данными (раньше `DUST` падал без `DustOptions`; теперь понятная ошибка сразу при вызове).
+- `stopWhen { условие }` (раньше пользовательского условия остановки не было) и `onEnd { }`.
+
+## ✨ Мобы
+
+- Новые ключи шаблона: `SPEED` (множитель), `DAMAGE`, `ARMOR`, `KNOCKBACK_RESIST`, `GLOW`, `SILENT`, `INVULNERABLE`. Неизвестный ключ шаблона теперь даёт предупреждение со списком допустимых (опечатки больше не молчат).
+- Билдер: `attribute(name, v)`, `speed(x)`, `damage(v)`, `armor(v)`, `potion(type, seconds, amplifier)`, `glow()`, `silent()`, `invulnerable()`, `drops(items, exp, keepDefault)`.
+- `behavior { onDamaged { mob, event -> }; onAttack { mob, event -> } }`.
+
+## ✨ Ещё алиасы
+
+`onJoin`, `onQuit`, `onPlayerDeath`, `onRespawn`, `onBlockBreak`, `onBlockPlace`, `onInteract`, `onChat`; `"<red>текст".mm`, `player.title(...)`, `player.sound("entity.player.levelup")`, `player.heal()`, `loc(world, x, y, z)`, `location.offset(...)`, `location.playersNear(r)`.
+
+## 🐛 Исправления
+
+- `/ksl doctor` говорил «не установлен» про Essentials, даже когда плагин стоял, а хук не поднялся (искал плагин по имени «EssentialsX»).
+
 ## 🧩 API для аддонов (KSL.API_VERSION = 2)
 
 - `api.service<T>("key")` / `api.requireService<T>("key")` — типизированный доступ к сервисам; при несовпадении classloader'ов в лог пишется понятная подсказка.

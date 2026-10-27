@@ -4,10 +4,18 @@ import org.bukkit.Location
 import org.bukkit.util.Vector
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 fun interface KSLEffectShape {
     fun points(tick: Long, center: Location): List<Vector>
 }
+
+// Builds a shape from script parameters: shape("name", "radius" to 2.0). Read values with num()/int().
+typealias KSLShapeFactory = (params: Map<String, Any?>, durationTicks: Long) -> KSLEffectShape
+
+fun Map<String, Any?>.num(key: String, default: Double): Double = (this[key] as? Number)?.toDouble() ?: default
+
+fun Map<String, Any?>.int(key: String, default: Int): Int = (this[key] as? Number)?.toInt() ?: default
 
 object KSLEffectShapes {
 
@@ -46,5 +54,48 @@ object KSLEffectShapes {
             val delta = to.toVector().subtract(center.toVector())
             (0..steps).map { i -> delta.clone().multiply(i.toDouble() / steps) }
         }
+    }
+
+    // Evenly spread points (Fibonacci lattice); spinDegreesPerTick rotates the whole sphere around Y.
+    fun sphere(radius: Double, points: Int, spinDegreesPerTick: Double): KSLEffectShape {
+        val n = points.coerceIn(4, MAX_POINTS)
+        val golden = Math.PI * (3.0 - sqrt(5.0))
+        val base = (0 until n).map { i ->
+            val y = 1.0 - 2.0 * (i + 0.5) / n
+            val ring = sqrt(1.0 - y * y)
+            val theta = golden * i
+            Vector(cos(theta) * ring * radius, y * radius, sin(theta) * ring * radius)
+        }
+        if (spinDegreesPerTick == 0.0) return KSLEffectShape { _, _ -> base }
+        return KSLEffectShape { tick, _ ->
+            val spin = Math.toRadians(tick * spinDegreesPerTick)
+            base.map { it.clone().rotateAroundY(spin) }
+        }
+    }
+
+    // Perimeter of a square lying flat, centred on the effect location.
+    fun square(size: Double, pointsPerSide: Int): KSLEffectShape {
+        val n = pointsPerSide.coerceIn(1, MAX_POINTS / 4)
+        val h = size / 2.0
+        val perimeter = ArrayList<Vector>(n * 4)
+        for (i in 0 until n) {
+            val t = -h + size * i / n
+            perimeter += Vector(t, 0.0, -h)
+            perimeter += Vector(h, 0.0, t)
+            perimeter += Vector(-t, 0.0, h)
+            perimeter += Vector(-h, 0.0, -t)
+        }
+        return KSLEffectShape { _, _ -> perimeter }
+    }
+
+    fun point(): KSLEffectShape = KSLEffectShape { _, _ -> listOf(Vector(0.0, 0.0, 0.0)) }
+
+    // Built-ins are registered like addon shapes, so shape("circle", "radius" to 2.0) works everywhere.
+    fun registerDefaults(registry: KSLOwnedRegistry<KSLShapeFactory>) {
+        registry.put("circle", { p, _ -> circle(p.num("radius", 1.0), p.num("step", 15.0)) }, null)
+        registry.put("helix", { p, total -> helix(p.num("radius", 1.0), p.num("turns", 3.0), p.num("height", 3.0), total) }, null)
+        registry.put("sphere", { p, _ -> sphere(p.num("radius", 1.0), p.int("points", 60), p.num("spin", 0.0)) }, null)
+        registry.put("square", { p, _ -> square(p.num("size", 2.0), p.int("points", 10)) }, null)
+        registry.put("point", { _, _ -> point() }, null)
     }
 }

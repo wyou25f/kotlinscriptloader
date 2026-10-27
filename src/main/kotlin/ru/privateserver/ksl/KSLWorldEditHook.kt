@@ -8,7 +8,10 @@ import org.bukkit.Location
 import org.bukkit.Material
 import org.bukkit.entity.Player
 
-class KSLWorldEditHook {
+class KSLWorldEditHook : KSLHook {
+
+    override val hookId = "worldedit"
+    override val pluginName = "WorldEdit"
 
     fun selection(player: Player): Pair<Location, Location>? = KSLErrors.hookSafe("WorldEdit", null) {
         val actor = BukkitAdapter.adapt(player)

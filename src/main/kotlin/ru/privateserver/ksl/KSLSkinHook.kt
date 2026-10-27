@@ -5,7 +5,10 @@ import net.skinsrestorer.api.SkinsRestorerProvider
 import net.skinsrestorer.api.property.SkinProperty
 import org.bukkit.entity.Player
 
-class KSLSkinHook {
+class KSLSkinHook : KSLHook {
+
+    override val hookId = "skinsrestorer"
+    override val pluginName = "SkinsRestorer"
 
     private val api: SkinsRestorer = SkinsRestorerProvider.get()
 
