@@ -126,6 +126,43 @@ private fun testShapeParams() {
     check("num falls back for a missing key", params.num("missing", 7.0) == 7.0)
     check("num falls back for a non-number", params.num("name", 3.0) == 3.0)
     check("int truncates a number", params.int("height", 0) == 1)
+    check("long reads a number", params.long("radius", 0L) == 2L)
+    check("bool falls back for a non-boolean", params.bool("name", true))
+    check("bool reads a Boolean", mapOf<String, Any?>("on" to false).bool("on", true).not())
+    check("str stringifies a value", params.str("radius", "?") == "2")
+    check("str falls back for a missing key", params.str("missing", "d") == "d")
+}
+
+private fun testDialect() {
+    println("KSLDialect / KSLDatabaseSettings / Migrations")
+    val cols = listOf("script_name", "key", "value")
+    val keys = listOf("script_name", "key")
+    val sqlite = KSLDialect.SQLITE.upsert("ksl_persist", cols, keys)
+    check("sqlite upsert uses ON CONFLICT", sqlite.contains("ON CONFLICT(`script_name`, `key`) DO UPDATE SET `value` = excluded.`value`"))
+    val mysql = KSLDialect.MARIADB.upsert("ksl_persist", cols, keys)
+    check("mariadb upsert uses ON DUPLICATE KEY", mysql.contains("ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)"))
+    check("reserved word key is quoted in the column list", sqlite.contains("(`script_name`, `key`, `value`)") && mysql.contains("(`script_name`, `key`, `value`)"))
+    check("one placeholder per column", sqlite.count { it == '?' } == 3)
+    check("upsert rejects keys outside the columns", runCatching { KSLDialect.SQLITE.upsert("t", listOf("a", "b"), listOf("c")) }.isFailure)
+    check("dialect names parse case-insensitively", KSLDialect.parse(" MariaDB ") == KSLDialect.MARIADB && KSLDialect.parse("postgres") == null)
+
+    check("sqlite settings need no credentials", KSLDatabaseSettings.parse("sqlite").dialect == KSLDialect.SQLITE)
+    val mysqlSettings = KSLDatabaseSettings.parse("mysql", host = "db.local", port = 3307, name = "ksl_prod", user = "ksl", password = "p@ss/word?")
+    check("mysql url carries host, port, database and ssl mode", mysqlSettings.jdbcUrl() == "jdbc:mariadb://db.local:3307/ksl_prod?sslMode=disable&allowPublicKeyRetrieval=true")
+    check("mariadb url has no MySQL-only option", KSLDatabaseSettings.parse("mariadb", user = "u").jdbcUrl() == "jdbc:mariadb://localhost:3306/ksl?sslMode=disable")
+    check("the password never appears in describe()", !mysqlSettings.describe().contains("p@ss") && mysqlSettings.describe() == "MySQL ksl@db.local:3307/ksl_prod")
+    check("remote settings require a user", runCatching { KSLDatabaseSettings.parse("mysql") }.isFailure)
+    check("a database name with a URL separator is rejected", runCatching { KSLDatabaseSettings.parse("mysql", user = "u", name = "ksl?x=1") }.isFailure)
+    check("an unknown ssl mode is rejected", runCatching { KSLDatabaseSettings.parse("mysql", user = "u", sslMode = "yes") }.isFailure)
+    check("an unknown type is rejected", runCatching { KSLDatabaseSettings.parse("oracle") }.isFailure)
+    check("pool size is clamped", KSLDatabaseSettings.parse("sqlite", poolSize = 500).poolSize == 32)
+
+    val sqliteDdl = Migrations.statements(KSLDialect.SQLITE)
+    val mysqlDdl = Migrations.statements(KSLDialect.MYSQL)
+    check("same number of schema steps on every backend", sqliteDdl.size == mysqlDdl.size && sqliteDdl.size == 3)
+    check("mysql DDL uses indexable binary-collated keys and InnoDB", mysqlDdl.all { it.contains("VARCHAR(190)") && it.contains("utf8mb4_bin") && it.contains("ENGINE=InnoDB") })
+    check("sqlite DDL stays plain", sqliteDdl.none { it.contains("VARCHAR") || it.contains("ENGINE") })
+    check("the reserved key column is quoted in DDL", mysqlDdl[1].contains("`key`") && sqliteDdl[1].contains("`key`"))
 }
 
 private fun testScriptOrder() {
@@ -184,6 +221,7 @@ fun main() {
     testSandboxRules()
     testEventBus()
     testOwnedRegistry()
+    testDialect()
     testShapeParams()
     testDslTime()
     testScriptOrder()

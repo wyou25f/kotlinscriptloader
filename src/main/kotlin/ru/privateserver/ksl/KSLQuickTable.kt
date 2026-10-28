@@ -13,6 +13,11 @@ class KSLTableStore(private val plugin: KotlinScriptLoaderPlugin) {
 
 class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val tableName: String) {
 
+    // The dialect is fixed once the database is initialised, so the statement is built once per table.
+    private val upsertSql by lazy {
+        plugin.dialect.upsert("ksl_table", listOf("table_name", "row_key", "column_key", "value"), listOf("table_name", "row_key", "column_key"))
+    }
+
     fun set(rowKey: String, columnKey: String, value: Any?) {
         val encoded = KSLPersistCodec.encode(value) ?: throw IllegalArgumentException(
             "[table:$tableName] Тип ${value?.let { it::class.simpleName }} не поддерживается — " +
@@ -22,8 +27,7 @@ class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val ta
             try {
                 plugin.database.connection.use { conn: Connection ->
                     conn.prepareStatement(
-                        "INSERT INTO ksl_table (table_name, row_key, column_key, value) VALUES (?, ?, ?, ?) " +
-                            "ON CONFLICT(table_name, row_key, column_key) DO UPDATE SET value = excluded.value"
+                        upsertSql
                     ).use { ps ->
                         ps.setString(1, tableName)
                         ps.setString(2, rowKey)
@@ -76,8 +80,7 @@ class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val ta
                 }
                 val updated = current + amount
                 conn.prepareStatement(
-                    "INSERT INTO ksl_table (table_name, row_key, column_key, value) VALUES (?, ?, ?, ?) " +
-                        "ON CONFLICT(table_name, row_key, column_key) DO UPDATE SET value = excluded.value"
+                    upsertSql
                 ).use { ps ->
                     ps.setString(1, tableName)
                     ps.setString(2, rowKey)

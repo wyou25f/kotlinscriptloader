@@ -8,6 +8,8 @@ class KSLEffectManager(private val plugin: KotlinScriptLoaderPlugin) {
     private companion object {
         // Per point; shapes already cap the point count, this caps the multiplier.
         const val MAX_COUNT = 100
+        // A custom shape can return anything; a runaway list would freeze the tick.
+        const val MAX_POINTS = 720
     }
 
     fun play(scriptName: String, spec: KSLEffectSpec): Int {
@@ -43,7 +45,7 @@ class KSLEffectManager(private val plugin: KotlinScriptLoaderPlugin) {
                 val world = center.world
                 if (world != null) {
                     val count = spec.count.coerceIn(0, MAX_COUNT)
-                    shape.points(tick, center).forEach { offset ->
+                    shape.points(tick, center).take(MAX_POINTS).forEach { offset ->
                         val point = center.clone().add(offset)
                         world.spawnParticle(spec.particle, point, count, spec.offsetX, spec.offsetY, spec.offsetZ, spec.extra, spec.data)
                     }

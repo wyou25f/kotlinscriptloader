@@ -21,6 +21,9 @@ object KSLEntityAttributes {
         return true
     }
 
+    fun getBase(entity: LivingEntity, name: String): Double? =
+        find(name)?.let { entity.getAttribute(it) }?.baseValue
+
     fun multiplyBase(entity: LivingEntity, name: String, factor: Double): Boolean {
         val instance = find(name)?.let { entity.getAttribute(it) } ?: return false
         instance.baseValue = instance.baseValue * factor

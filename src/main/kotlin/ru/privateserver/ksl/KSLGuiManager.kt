@@ -37,7 +37,10 @@ class KSLGuiManager(private val plugin: KotlinScriptLoaderPlugin) : Listener {
     fun closeGuisForScript(scriptName: String) {
         Bukkit.getOnlinePlayers().forEach { player ->
             val holder = player.openInventory.topInventory.getHolder(false) as? KSLGuiHolder ?: return@forEach
-            if (holder.gui.scriptName == scriptName) player.closeInventory()
+            if (holder.gui.scriptName == scriptName) {
+                holder.gui.dispose()
+                player.closeInventory()
+            }
         }
     }
 }

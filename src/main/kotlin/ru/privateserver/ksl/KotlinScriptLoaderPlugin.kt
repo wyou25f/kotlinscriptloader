@@ -181,25 +181,58 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         logger.info("$c9${bold}╚══════════════════════════════════════╝$r")
     }
 
+    // SQLite by default; MySQL/MariaDB when database.type says so (manage it with phpMyAdmin or any SQL client).
+    var dialect: KSLDialect = KSLDialect.SQLITE
+        private set
+
+    private fun readDatabaseSettings(): KSLDatabaseSettings = KSLDatabaseSettings.parse(
+        type = config.getString("database.type", "sqlite") ?: "sqlite",
+        host = config.getString("database.host", "localhost") ?: "localhost",
+        port = config.getInt("database.port", 3306),
+        name = config.getString("database.name", "ksl") ?: "ksl",
+        user = config.getString("database.user", "") ?: "",
+        password = config.getString("database.password", "") ?: "",
+        sslMode = config.getString("database.ssl-mode", "disable") ?: "disable",
+        poolSize = config.getInt("database.pool-size", 4)
+    )
+
     private fun initDatabase(): Boolean {
+        var settings: KSLDatabaseSettings? = null
         return try {
+            val parsed = readDatabaseSettings()
+            settings = parsed
             val cfg = HikariConfig().apply {
-                jdbcUrl         = "jdbc:sqlite:${File(dataFolder, "ksl.db").absolutePath}"
-                driverClassName = "org.sqlite.JDBC"
-                maximumPoolSize = 4
                 poolName        = "ksl-pool"
-                // Scripts get the raw pool; one unclosed connection out of four starves everything else.
+                maximumPoolSize = parsed.poolSize
+                // Scripts get the raw pool; one unclosed connection starves everything else.
                 leakDetectionThreshold = 10_000L
-                // Pool readers run next to the single DB writer thread; WAL + busy timeout avoid SQLITE_BUSY.
-                addDataSourceProperty("journal_mode", "WAL")
-                addDataSourceProperty("busy_timeout", "5000")
+                if (parsed.dialect == KSLDialect.SQLITE) {
+                    jdbcUrl         = "jdbc:sqlite:${File(dataFolder, "ksl.db").absolutePath}"
+                    driverClassName = "org.sqlite.JDBC"
+                    // Pool readers run next to the single DB writer thread; WAL + busy timeout avoid SQLITE_BUSY.
+                    addDataSourceProperty("journal_mode", "WAL")
+                    addDataSourceProperty("busy_timeout", "5000")
+                } else {
+                    jdbcUrl         = parsed.jdbcUrl()
+                    driverClassName = "org.mariadb.jdbc.Driver"
+                    username        = parsed.user
+                    password        = parsed.password
+                    connectionTimeout = 10_000L
+                }
             }
+            dialect = parsed.dialect
             database = HikariDataSource(cfg)
-            val applied = database.connection.use { Migrations.run(it) }
+            val applied = database.connection.use { Migrations.run(it, dialect) }
+            logger.info("База данных: ${parsed.describe()}")
             if (applied > 0) logger.info("Применено миграций БД: $applied")
             true
         } catch (ex: Exception) {
-            logger.severe("Не удалось инициализировать базу данных: ${ex.message}"); false
+            val rootMessage = generateSequence<Throwable>(ex) { it.cause }.last().message ?: ex.message
+            logger.severe("Не удалось инициализировать базу данных (${settings?.describe() ?: "настройки не разобраны"}): $rootMessage")
+            if (settings?.dialect?.isRemote == true) {
+                logger.severe("Проверь host/port/user/password в config.yml, что база '${settings?.name}' создана (phpMyAdmin → Базы данных) и у пользователя есть на неё права.")
+            }
+            false
         }
     }
 
@@ -322,7 +355,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 appendLine("fun org.bukkit.Location.playersNear(radius: Double): Collection<Player> = emptyList()")
                 appendLine("fun onJoin(action: org.bukkit.event.player.PlayerJoinEvent.() -> Unit) = Unit")
                 appendLine("fun onQuit(action: org.bukkit.event.player.PlayerQuitEvent.() -> Unit) = Unit")
-                appendLine("fun onPlayerDeath(action: org.bukkit.event.player.PlayerDeathEvent.() -> Unit) = Unit")
+                appendLine("fun onPlayerDeath(action: org.bukkit.event.entity.PlayerDeathEvent.() -> Unit) = Unit")
                 appendLine("fun onRespawn(action: org.bukkit.event.player.PlayerRespawnEvent.() -> Unit) = Unit")
                 appendLine("fun onBlockBreak(action: org.bukkit.event.block.BlockBreakEvent.() -> Unit) = Unit")
                 appendLine("fun onBlockPlace(action: org.bukkit.event.block.BlockPlaceEvent.() -> Unit) = Unit")
@@ -409,7 +442,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 appendLine("fun org.bukkit.entity.Entity.playEffect(particle: org.bukkit.Particle, follow: Boolean = false, builder: KSLEffectSpec.() -> Unit): Int = 0")
                 appendLine("fun stopEffect(taskId: Int) = Unit")
                 appendLine()
-                appendLine("class KSLEntityBuilder { fun equip(template: String) = Unit; fun attribute(name: String, value: Double) = Unit; fun speed(multiplier: Double) = Unit; fun damage(value: Double) = Unit; fun armor(value: Double) = Unit; fun potion(type: org.bukkit.potion.PotionEffectType, seconds: Int = -1, amplifier: Int = 0) = Unit; fun glow(on: Boolean = true) = Unit; fun silent(on: Boolean = true) = Unit; fun invulnerable(on: Boolean = true) = Unit; fun drops(vararg items: ItemStack, exp: Int? = null, keepDefault: Boolean = false) = Unit }")
+                appendLine("class KSLEntityBuilder { fun equip(template: String, dropChance: Float? = null) = Unit; fun attribute(name: String, value: Double) = Unit; fun speed(multiplier: Double) = Unit; fun damage(value: Double) = Unit; fun armor(value: Double) = Unit; fun potion(type: org.bukkit.potion.PotionEffectType, seconds: Int = -1, amplifier: Int = 0) = Unit; fun glow(on: Boolean = true) = Unit; fun silent(on: Boolean = true) = Unit; fun invulnerable(on: Boolean = true) = Unit; fun drops(vararg items: ItemStack, exp: Int? = null, keepDefault: Boolean = false) = Unit }")
                 appendLine("class KSLEntityBehaviorBuilder { fun onTick(period: Long, initialDelay: Long = 0L, block: (org.bukkit.entity.LivingEntity) -> Unit) = Unit; fun onDeath(block: (org.bukkit.entity.LivingEntity, Player?) -> Unit) = Unit; fun onDamaged(block: (org.bukkit.entity.LivingEntity, org.bukkit.event.entity.EntityDamageEvent) -> Unit) = Unit; fun onAttack(block: (org.bukkit.entity.LivingEntity, org.bukkit.event.entity.EntityDamageByEntityEvent) -> Unit) = Unit }")
                 appendLine("fun spawnCustomEntity(location: org.bukkit.Location, template: String, removeOnReload: Boolean = true, builder: KSLEntityBuilder.() -> Unit = {}): org.bukkit.entity.LivingEntity = throw UnsupportedOperationException()")
                 appendLine("fun org.bukkit.entity.LivingEntity.behavior(builder: KSLEntityBehaviorBuilder.() -> Unit) = Unit")
@@ -555,7 +588,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         lines += DiagnosticLine("База данных", dbOk, if (dbOk) "соединение живое" else "не отвечает — проверь ksl.db")
 
         val tablesOk = checkDatabaseTables()
-        lines += DiagnosticLine("Таблицы БД", tablesOk, if (tablesOk) "ksl_scripts, ksl_persist, ksl_table на месте" else "миграции не применились корректно")
+        lines += DiagnosticLine("Таблицы БД", tablesOk, if (tablesOk) "ksl_scripts, ksl_persist, ksl_table на месте (${dialect.label})" else "миграции не применились корректно")
 
         val brokenCommands = verifyTrackedCommands()
         lines += DiagnosticLine(

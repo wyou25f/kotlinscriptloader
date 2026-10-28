@@ -12,11 +12,26 @@ class KSLEntityBuilder(
     private val scriptName: String
 ) {
 
-    fun equip(template: String) {
+    private val equipKeys = setOf("HAND", "OFFHAND", "HELMET", "CHESTPLATE", "LEGGINGS", "BOOTS")
+
+    // dropChance: 0f means the gear never drops; null keeps the vanilla chance (about 8.5% per piece).
+    fun equip(template: String, dropChance: Float? = null) {
         val attrs = KSLTemplateParser.parse(template)
         val eq = entity.equipment ?: return
 
-        fun item(key: String): ItemStack? = attrs[key]?.let { Material.matchMaterial(it) }?.let { ItemStack(it) }
+        attrs.keys.filter { it !in equipKeys }.forEach {
+            plugin.logger.warning("[$scriptName] equip: неизвестный слот $it (доступны: ${equipKeys.joinToString(", ")})")
+        }
+
+        fun item(key: String): ItemStack? {
+            val raw = attrs[key] ?: return null
+            val material = Material.matchMaterial(raw)
+            if (material == null || !material.isItem) {
+                plugin.logger.warning("[$scriptName] equip: '$raw' для $key — не предмет")
+                return null
+            }
+            return ItemStack(material)
+        }
 
         item("HAND")?.let { eq.setItemInMainHand(it) }
         item("OFFHAND")?.let { eq.setItemInOffHand(it) }
@@ -24,6 +39,15 @@ class KSLEntityBuilder(
         item("CHESTPLATE")?.let { eq.chestplate = it }
         item("LEGGINGS")?.let { eq.leggings = it }
         item("BOOTS")?.let { eq.boots = it }
+
+        dropChance?.let { chance ->
+            eq.itemInMainHandDropChance = chance
+            eq.itemInOffHandDropChance = chance
+            eq.helmetDropChance = chance
+            eq.chestplateDropChance = chance
+            eq.leggingsDropChance = chance
+            eq.bootsDropChance = chance
+        }
     }
 
     // Base value by vanilla attribute name: attribute("attack_damage", 8.0).

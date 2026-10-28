@@ -46,6 +46,8 @@ dependencies {
 
     implementation("com.zaxxer:HikariCP:5.1.0")
     implementation("org.xerial:sqlite-jdbc:3.46.1.3")
+    // One driver for both MySQL and MariaDB servers.
+    implementation("org.mariadb.jdbc:mariadb-java-client:3.4.1")
 }
 
 java {

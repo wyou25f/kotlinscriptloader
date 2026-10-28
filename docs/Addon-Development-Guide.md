@@ -606,3 +606,48 @@ api.registerEntityAttribute("SIZE") { entity, value ->
 
 В скрипте: `spawnCustomEntity(loc, "TYPE:SLIME HP:40 SIZE:4")`. Исключение в обработчике не убивает спавн:
 оно логируется как предупреждение, остальные ключи применяются.
+
+---
+
+## Алиасы для авторов аддонов (`ru.privateserver.ksl.addon.*`)
+
+Подключается одной строкой: `import ru.privateserver.ksl.addon.*`. Это тонкие обёртки над `KSLAPI`; длинные имена продолжают работать.
+
+| Алиас | Что делает |
+|---|---|
+| `simpleAddon(id, version) { api -> }` | аддон без своего класса (`unload = { }`, `requires`, `needsApi`) |
+| `KSLBaseHook(hookId, pluginName)` | базовый класс для хука |
+| `api.provide(key, obj)` / `api.revoke(key)` | `registerService` / `unregisterService` |
+| `api.hasService(key)` | есть ли сервис |
+| `api.serviceOr<T>(key, default)` | сервис или значение по умолчанию |
+| `api.imports("pkg.*")` | `addDefaultImports` |
+| `api.whenReady(id) { addon -> }` | `onAddonReady` |
+| `api.isLoaded(id)`, `api.findAddon(id)`, `api.addonIds()` | про загруженные аддоны |
+| `api.requireApi(3)` | падает с понятным сообщением на слишком старом KSL |
+| `api.kslVersion` | версия плагина KSL |
+| `api.reload()` | `reloadScripts()` |
+| `api.contextExtension("id", onCreated, onDestroyed)` | расширение контекста без своего класса |
+| `api.hasHook(id)`, `api.hookIds()` | про хуки |
+| `api.hookIf("Plugin") { MyHook() }` | регистрирует хук, только если плагин включён; ошибка фабрики логируется |
+| `api.shape(name) { params, ticks -> }` | `registerEffectShape` |
+| `api.entityAttribute(KEY) { entity, value -> }` | `registerEntityAttribute` |
+| `shapeOf { tick, center -> points }` | форма из лямбды |
+| `ringPoints(radius, count, y)` | точки кольца для своих форм |
+| `parseTemplate("A:1 B:2")` | разбор шаблона `KEY:value` |
+| `entity.attr(name, v)`, `entity.attrBase(name)` | базовое значение атрибута по ванильному имени |
+| `params.num/int/long/bool/str(key, default)` | чтение параметров формы (пакет `ru.privateserver.ksl`) |
+| `api.on(topic) { }` / `api.emit(topic, payload)` | `subscribe` / `publish` |
+| `api.table("myaddon_data")` | таблица в SQLite KSL (добавляй префикс аддона) |
+| `api.log(..)`, `api.warn(..)`, `api.severe(..)` | лог с префиксом `[KSL]` |
+| `api.sync { }`, `api.async { }`, `api.later(ticks) { }`, `api.every(ticks) { }` | задачи Bukkit; возвращают `BukkitTask`, при выгрузке аддона их нужно отменить самому |
+| `api.listen<Event>(priority, ignoreCancelled) { }` | Bukkit-слушатель; `close()` на результате снимает его |
+
+Пример минимального аддона целиком:
+
+```kotlin
+val addon = simpleAddon("greeter", "1.0", needsApi = 3) { api ->
+    api.imports("com.example.greeter.dsl.*")
+    api.provide("greeter", Greeter())
+    api.on("player.welcome") { name -> api.log("welcome $name") }
+}
+```

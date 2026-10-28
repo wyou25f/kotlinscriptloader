@@ -14,9 +14,11 @@ import org.bukkit.inventory.ItemStack
 class KSLGuiInstance(
     val scriptName: String,
     private val plugin: KotlinScriptLoaderPlugin,
-    val rows: Int,
+    requestedRows: Int,
     title: String
 ) {
+    // createInventory accepts 9..54 slots only; anything else would throw after the script already ran half-way.
+    val rows: Int = requestedRows.coerceIn(1, 6)
     val size = rows * 9
     val inventory: Inventory
     private val holder = KSLGuiHolder(this)
@@ -34,6 +36,9 @@ class KSLGuiInstance(
     private var nextSlot = -1
 
     init {
+        if (rows != requestedRows) {
+            plugin.logger.warning("[$scriptName] gui: rows=$requestedRows вне 1..6 — использую $rows")
+        }
         if (!Bukkit.isPrimaryThread()) {
             throw IllegalStateException(
                 "gui() вызван не из основного потока сервера — Bukkit Inventory можно создавать только на main thread. " +
@@ -51,7 +56,10 @@ class KSLGuiInstance(
     }
 
     fun set(slot: Int, item: ItemStack, onClick: ((Player, InventoryClickEvent) -> Unit)? = null) {
-        if (slot !in 0 until size) return
+        if (slot !in 0 until size) {
+            plugin.logger.warning("[$scriptName] gui: слот $slot вне 0..${size - 1} — предмет не добавлен")
+            return
+        }
         inventory.setItem(slot, item)
         clickHandlers[slot] = onClick
     }
@@ -93,6 +101,10 @@ class KSLGuiInstance(
         render: (T) -> ItemStack,
         onClick: (Player, T) -> Unit
     ) {
+        if (slots.isEmpty()) {
+            plugin.logger.warning("[$scriptName] gui paginate: список slots пуст — страницы не будет")
+            return
+        }
         @Suppress("UNCHECKED_CAST")
         pageItems = items as List<Any>
         pageSlots = slots.toIntArray()
@@ -131,6 +143,15 @@ class KSLGuiInstance(
         }
     }
 
+    val pageCount: Int
+        get() = if (pageSlots.isEmpty()) 0 else maxOf(1, (pageItems.size + pageSlots.size - 1) / pageSlots.size)
+
+    fun showPage(index: Int) {
+        if (pageSlots.isEmpty()) return
+        pageIndex = index.coerceIn(0, pageCount - 1)
+        renderPage()
+    }
+
     private fun nextPage() {
         pageIndex++
         renderPage()
@@ -141,11 +162,28 @@ class KSLGuiInstance(
         renderPage()
     }
 
+    // Opening an inventory from an async thread throws, and opening one inside a click event can lose the cursor item,
+    // so both cases are deferred by a tick.
     fun open(player: Player) {
-        player.openInventory(inventory)
+        if (Bukkit.isPrimaryThread() && clickDepth == 0) {
+            player.openInventory(inventory)
+        } else {
+            Bukkit.getScheduler().runTask(plugin, Runnable { if (player.isOnline) player.openInventory(inventory) })
+        }
+    }
+
+    // Called when the owning script unloads: drops every lambda so a viewer's open inventory cannot keep the old classloader alive.
+    internal fun dispose() {
+        clickHandlers.fill(null)
+        closeHandler = null
+        pageRender = null
+        pageClick = null
+        pageItems = emptyList()
     }
 
     internal fun handleClick(event: InventoryClickEvent) {
+        // A double-click on an allowed slot gathers matching items from every other slot, locked ones included.
+        if (event.action == InventoryAction.COLLECT_TO_CURSOR && !allowedMovement.all { it }) event.isCancelled = true
         val slot = event.rawSlot
         if (slot !in 0 until size) {
             // Shift-click and double-click in the player's own inventory move items into or out of the GUI.
@@ -155,10 +193,13 @@ class KSLGuiInstance(
         if (!allowedMovement[slot]) event.isCancelled = true
         val handler = clickHandlers[slot] ?: return
         val player = event.whoClicked as? Player ?: return
+        clickDepth++
         try {
             handler(player, event)
         } catch (ex: Throwable) {
             KSLErrors.log(plugin, scriptName, "gui click slot $slot", ex)
+        } finally {
+            clickDepth--
         }
     }
 
@@ -172,5 +213,10 @@ class KSLGuiInstance(
         } catch (ex: Throwable) {
             KSLErrors.log(plugin, scriptName, "gui onClose", ex)
         }
+    }
+
+    private companion object {
+        // Click handlers run on the main thread only, so a plain counter is enough.
+        var clickDepth = 0
     }
 }

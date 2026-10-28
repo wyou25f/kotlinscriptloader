@@ -35,6 +35,11 @@ class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
         if (encoded != null) plugin.dbExecutor.submit { saveToDb(fullKey, encoded) }
     }
 
+    // "key" is a reserved word in MySQL/MariaDB, hence the quoting inside the dialect helper.
+    private val upsertSql by lazy {
+        plugin.dialect.upsert("ksl_persist", listOf("script_name", "key", "value"), listOf("script_name", "key"))
+    }
+
     fun clearScript(scriptName: String) {
         memory.keys.removeIf { it.startsWith("$scriptName:") }
     }
@@ -43,7 +48,7 @@ class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
         val (scriptName, key) = splitKey(fullKey) ?: return null
         return try {
             plugin.database.connection.use { conn ->
-                conn.prepareStatement("SELECT value FROM ksl_persist WHERE script_name = ? AND key = ?").use { ps ->
+                conn.prepareStatement("SELECT value FROM ksl_persist WHERE script_name = ? AND `key` = ?").use { ps ->
                     ps.setString(1, scriptName)
                     ps.setString(2, key)
                     ps.executeQuery().use { rs -> if (rs.next()) decode(rs.getString("value")) else null }
@@ -59,10 +64,7 @@ class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
         val (scriptName, key) = splitKey(fullKey) ?: return
         try {
             plugin.database.connection.use { conn: Connection ->
-                conn.prepareStatement(
-                    "INSERT INTO ksl_persist (script_name, key, value) VALUES (?, ?, ?) " +
-                        "ON CONFLICT(script_name, key) DO UPDATE SET value = excluded.value"
-                ).use { ps ->
+                conn.prepareStatement(upsertSql).use { ps ->
                     ps.setString(1, scriptName)
                     ps.setString(2, key)
                     ps.setString(3, encoded)

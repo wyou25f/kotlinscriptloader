@@ -1,5 +1,23 @@
 # Unreleased
 
+## 🗄️ MySQL и MariaDB (управление через phpMyAdmin)
+
+- Новая секция `database:` в `config.yml`: `type: sqlite | mysql | mariadb`, `host`, `port`, `name`, `user`, `password`, `ssl-mode`, `pool-size`. По умолчанию всё как раньше: SQLite, ничего настраивать не нужно.
+- Один драйвер (MariaDB Connector/J) работает с обоими серверами. Таблицы `ksl_*` создаются сами при первом запуске: бинарная сортировка ключей (`Foo` и `foo` различаются, как в SQLite), `utf8mb4`, InnoDB; версия схемы хранится в `ksl_meta`.
+- Различия диалектов собраны в одном месте (`KSLDialect`): upsert (`ON CONFLICT` / `ON DUPLICATE KEY`) и кавычки идентификаторов. Колонка `key` в `ksl_persist` теперь всегда в кавычках: `KEY` зарезервировано в MySQL.
+- При ошибке подключения в лог пишется причина без пароля и подсказка (host/port/user, создана ли база, права пользователя). `/ksl doctor` показывает тип БД.
+- Требуется MySQL 5.7+ или MariaDB 10.2+. Перенос данных из `ksl.db` на сервер пока ручной.
+
+## 🧰 Алиасы для авторов аддонов (36 штук, `import ru.privateserver.ksl.addon.*`)
+
+`simpleAddon`, `KSLBaseHook`, `provide/revoke/hasService/serviceOr`, `imports`, `whenReady`, `isLoaded/findAddon/addonIds`, `requireApi`, `kslVersion`, `reload`, `contextExtension`, `hasHook/hookIds/hookIf`, `shape`, `entityAttribute`, `shapeOf`, `ringPoints`, `parseTemplate`, `attr/attrBase`, `on/emit`, `table`, `log/warn/severe`, `sync/async/later/every`, `listen`; параметры форм `num/int/long/bool/str`. Таблица в `docs/Addon-Development-Guide.md`.
+
+## 🐛 Исправления GUI, эффектов и мобов
+
+- **GUI:** двойной клик по разрешённому слоту собирал предметы из заблокированных слотов (дюп); `rows` вне 1..6 ронял `createInventory`; `gui.open()` из async-потока (например из `onChat`) бросал исключение, а вызов внутри клика мог терять предмет на курсоре, теперь открытие откладывается на тик; при выгрузке скрипта обработчики открытых GUI очищаются (раньше держали старый classloader); слот вне диапазона и пустой `slots` в `paginate` теперь предупреждают; добавлены `pageCount` и `showPage(i)`.
+- **Эффекты:** пользовательская форма могла вернуть неограниченное число точек, теперь не более 720 за тик.
+- **Мобы:** `equip(...)` молча игнорировал опечатки в слотах и не-предметы, теперь предупреждает; добавлен `dropChance` (по умолчанию как раньше, 0f — экипировка не выпадает).
+
 ## 🔌 API v3: хуки и движки расширяются из аддонов
 
 - **Хуки.** `KSLHook` (`hookId`, `pluginName`) + `api.registerHook(...)`, `api.hook<T>("id")`, `api.hooks()`, `api.isPluginEnabled(...)`. Встроенные Vault, LuckPerms, Essentials, WorldEdit, WorldGuard, SkinsRestorer тоже лежат в реестре; в скриптах: `hook<T>("id")`, `requireHook<T>("id")`, `hasHook("id")`. Хуки аддонов видны в `/ksl doctor`.

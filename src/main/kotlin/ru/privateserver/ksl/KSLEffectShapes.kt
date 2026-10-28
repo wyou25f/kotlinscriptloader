@@ -17,6 +17,12 @@ fun Map<String, Any?>.num(key: String, default: Double): Double = (this[key] as?
 
 fun Map<String, Any?>.int(key: String, default: Int): Int = (this[key] as? Number)?.toInt() ?: default
 
+fun Map<String, Any?>.long(key: String, default: Long): Long = (this[key] as? Number)?.toLong() ?: default
+
+fun Map<String, Any?>.bool(key: String, default: Boolean): Boolean = (this[key] as? Boolean) ?: default
+
+fun Map<String, Any?>.str(key: String, default: String): String = this[key]?.toString() ?: default
+
 object KSLEffectShapes {
 
     private const val MAX_POINTS = 360
