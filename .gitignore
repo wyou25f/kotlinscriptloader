@@ -6,6 +6,7 @@ build/
 
 ### Kotlin ###
 *.kotlin_module
+config.yml
 
 ### IntelliJ IDEA ###
 .idea/
