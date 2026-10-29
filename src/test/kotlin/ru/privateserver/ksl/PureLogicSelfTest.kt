@@ -165,6 +165,15 @@ private fun testDialect() {
     check("the reserved key column is quoted in DDL", mysqlDdl[1].contains("`key`") && sqliteDdl[1].contains("`key`"))
 }
 
+private fun testDiscordJson() {
+    println("Discord JSON")
+    check("quotes and backslashes are escaped", jsonString("a\"b\\c") == "\"a\\\"b\\\\c\"")
+    check("newline, carriage return and tab are escaped", jsonString("1\n2\r3\t4") == "\"1\\n2\\r3\\t4\"")
+    check("other control characters become \\u escapes", jsonString("a\u0001b\u001fc") == "\"a\\u0001b\\u001fc\"")
+    check("non-ASCII text is kept as is", jsonString("Привет ✔") == "\"Привет ✔\"")
+    check("an empty string is a pair of quotes", jsonString("") == "\"\"")
+}
+
 private fun testScriptOrder() {
     println("KSLScriptOrder")
     val logger = Logger.getLogger("test")
@@ -222,6 +231,7 @@ fun main() {
     testEventBus()
     testOwnedRegistry()
     testDialect()
+    testDiscordJson()
     testShapeParams()
     testDslTime()
     testScriptOrder()

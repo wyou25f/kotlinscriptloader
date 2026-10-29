@@ -20,7 +20,7 @@ class ScriptValidator(private val plugin: KotlinScriptLoaderPlugin) {
             }
 
             val compilationConfig = buildScriptCompilationConfig(plugin.addonManager)
-            val result = runBlocking { compiler(file.toScriptSource(), compilationConfig) }
+            val result = synchronized(plugin.compileLock) { runBlocking { compiler(file.toScriptSource(), compilationConfig) } }
             val compileIssues = when (result) {
                 is ResultWithDiagnostics.Failure -> result.reports
                     .filter { it.severity >= ScriptDiagnostic.Severity.ERROR }

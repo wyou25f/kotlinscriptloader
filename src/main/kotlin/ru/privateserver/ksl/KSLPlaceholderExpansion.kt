@@ -11,7 +11,16 @@ class KSLPlaceholderExpansion(private val plugin: KotlinScriptLoaderPlugin) : Pl
     override fun persist() = true
 
     override fun onRequest(player: OfflinePlayer?, params: String): String? {
-        val resolver = plugin.placeholders[params] ?: return ""
-        return player?.let { resolver(it) } ?: ""
+        val key = params.lowercase()
+        val resolver = plugin.placeholders.get(key) ?: return ""
+        val target = player ?: return ""
+        // A throwing resolver would otherwise surface inside PlaceholderAPI on every refresh (scoreboards, tab lists).
+        return try {
+            resolver(target) ?: ""
+        } catch (ex: Throwable) {
+            val owner = plugin.placeholders.ownerOf(key)?.removePrefix("script:") ?: "?"
+            KSLErrors.log(plugin, owner, "placeholder %ksl_$params%", ex)
+            ""
+        }
     }
 }

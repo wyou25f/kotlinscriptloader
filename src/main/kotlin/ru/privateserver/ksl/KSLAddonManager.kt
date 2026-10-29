@@ -1,6 +1,7 @@
 package ru.privateserver.ksl
 
 import org.bukkit.Bukkit
+import org.bukkit.OfflinePlayer
 import org.bukkit.entity.LivingEntity
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
@@ -134,7 +135,8 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         eventBus.clearOwner(owner)
 
         val releasedRegistryEntries = hookRegistry.releaseOwner(owner) +
-            effectShapes.releaseOwner(owner) + entityAttributes.releaseOwner(owner)
+            effectShapes.releaseOwner(owner) + entityAttributes.releaseOwner(owner) +
+            plugin.placeholders.releaseOwner(owner)
 
         return ownedServices.size + ownedExtensions.size + releasedImports.size + releasedRegistryEntries
     }
@@ -249,6 +251,12 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     override fun hooks(): List<KSLHook> = hookRegistry.values()
 
     override fun isPluginEnabled(pluginName: String): Boolean = Bukkit.getPluginManager().isPluginEnabled(pluginName)
+
+    override fun registerPlaceholder(key: String, resolver: (OfflinePlayer) -> String?) {
+        plugin.placeholders.putOwned("Плейсхолдер", key.lowercase(), resolver)
+    }
+
+    override fun unregisterPlaceholder(key: String) = plugin.placeholders.remove(key.lowercase())
 
     override fun registerEffectShape(name: String, factory: KSLShapeFactory) {
         effectShapes.putOwned("Форма эффекта", name.lowercase(), factory)

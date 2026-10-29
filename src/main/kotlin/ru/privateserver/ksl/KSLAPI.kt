@@ -1,5 +1,6 @@
 package ru.privateserver.ksl
 
+import org.bukkit.OfflinePlayer
 import org.bukkit.entity.LivingEntity
 import org.bukkit.plugin.java.JavaPlugin
 
@@ -45,6 +46,10 @@ interface KSLAPI {
     fun <T : KSLHook> getHook(hookId: String, type: Class<T>): T?
     fun hooks(): List<KSLHook>
     fun isPluginEnabled(pluginName: String): Boolean
+
+    // ---- PlaceholderAPI: %ksl_<key>% (needs PlaceholderAPI installed; case-insensitive, removed with the addon) ----
+    fun registerPlaceholder(key: String, resolver: (OfflinePlayer) -> String?)
+    fun unregisterPlaceholder(key: String)
 
     // ---- Engines: plug new behaviour into playEffect / spawnCustomEntity ----
 

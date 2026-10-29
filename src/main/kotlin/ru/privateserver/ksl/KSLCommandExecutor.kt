@@ -1,5 +1,6 @@
 package ru.privateserver.ksl
 
+import org.bukkit.Bukkit
 import org.bukkit.command.Command
 import org.bukkit.command.CommandExecutor
 import org.bukkit.command.CommandSender
@@ -14,7 +15,9 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
         }
 
         when (args.getOrNull(0)?.lowercase()) {
-            null, "reload" -> {
+            null, "help" -> sendHelp(sender)
+
+            "reload" -> {
                 val scriptName = args.getOrNull(1)
                 if (scriptName != null) {
                     sender.sendMessage("§7Перезагружаю '$scriptName.kts'...")
@@ -98,32 +101,60 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
             }
 
             "validate" -> {
-                sender.sendMessage("§7Проверяю скрипты без загрузки (dry-run)...")
-                val results = plugin.validateAllScripts()
-                val broken = results.filterValues { it.isNotEmpty() }
-                if (broken.isEmpty()) {
-                    sender.sendMessage("§a✔ Все скрипты (${results.size}) компилируются без ошибок.")
-                } else {
-                    sender.sendMessage("§c${broken.size} из ${results.size} скриптов с проблемами:")
-                    broken.forEach { (scriptName, issues) ->
-                        sender.sendMessage("  §f$scriptName§7:")
-                        issues.forEach { sender.sendMessage("    §c$it") }
+                sender.sendMessage("§7Проверяю скрипты без загрузки (dry-run), это может занять несколько секунд...")
+                background(sender, { plugin.validateAllScripts() }) { results ->
+                    val broken = results.filterValues { it.isNotEmpty() }
+                    if (broken.isEmpty()) {
+                        sender.sendMessage("§a✔ Все скрипты (${results.size}) компилируются без ошибок.")
+                    } else {
+                        sender.sendMessage("§c${broken.size} из ${results.size} скриптов с проблемами:")
+                        broken.forEach { (scriptName, issues) ->
+                            sender.sendMessage("  §f$scriptName§7:")
+                            issues.forEach { sender.sendMessage("    §c$it") }
+                        }
                     }
                 }
             }
 
             "doctor" -> {
-                sender.sendMessage("§9§l▶ KSL Диагностика")
-                val lines = plugin.runDiagnostics()
-                lines.forEach { line ->
-                    val mark = if (line.ok) "§a✔" else "§c✘"
-                    sender.sendMessage("$mark §f${line.label}§7: ${line.detail}")
+                sender.sendMessage("§9§l▶ KSL Диагностика §7(проверка компилятора занимает несколько секунд)")
+                // The first Kotlin compile initialises the whole compiler; on the server thread that froze the tick for 10+ s.
+                background(sender, { plugin.selfTestCompiler() }) { compiler ->
+                    val lines = plugin.runDiagnostics(compiler)
+                    lines.forEach { line ->
+                        val mark = if (line.ok) "§a✔" else "§c✘"
+                        sender.sendMessage("$mark §f${line.label}§7: ${line.detail}")
+                    }
+                    val failedCount = lines.count { !it.ok }
+                    if (failedCount == 0) {
+                        sender.sendMessage("§a§lВсё в порядке.")
+                    } else {
+                        sender.sendMessage("§e§l$failedCount пункт(ов) требуют внимания — см. выше.")
+                    }
                 }
-                val failedCount = lines.count { !it.ok }
-                if (failedCount == 0) {
-                    sender.sendMessage("§a§lВсё в порядке.")
-                } else {
-                    sender.sendMessage("§e§l$failedCount пункт(ов) требуют внимания — см. выше.")
+            }
+
+            "dbmigrate" -> {
+                if (!plugin.dialect.isRemote) {
+                    sender.sendMessage("§eKSL: сейчас используется SQLite, переносить некуда. Укажи database.type: mysql или mariadb в config.yml и перезапусти сервер.")
+                    return true
+                }
+                val confirmed = args.getOrNull(1).equals("confirm", ignoreCase = true)
+                sender.sendMessage("§7Читаю ksl.db...")
+                background(sender, {
+                    val migrator = KSLDbMigrator(plugin)
+                    val found = migrator.inspect()
+                    if (found != null && confirmed) found to migrator.migrate() else found to null
+                }) { (found, migrated) ->
+                    when {
+                        found == null -> sender.sendMessage("§eKSL: файл ksl.db не найден в папке плагина — переносить нечего.")
+                        migrated == null -> {
+                            sender.sendMessage("§aВ ksl.db найдено: §fpersist ${found.persist}§a, §ftable ${found.table}§a записей.")
+                            sender.sendMessage("§7Они будут скопированы в ${plugin.dialect.label} (существующие ключи перезапишутся, ksl.db не изменится).")
+                            sender.sendMessage("§7Для запуска: §f/ksl dbmigrate confirm")
+                        }
+                        else -> sender.sendMessage("§a✔ Перенесено: §fpersist ${migrated.persist}§a, §ftable ${migrated.table}§a. Файл ksl.db не тронут.")
+                    }
                 }
             }
 
@@ -134,9 +165,41 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                 }
             }
 
-            else -> sender.sendMessage("§cИспользование: /ksl [reload|addons|services|libraries|discord|sandbox|errors|doctor|validate]")
+            else -> sendHelp(sender, unknown = args[0])
         }
         return true
+    }
+
+    private fun sendHelp(sender: CommandSender, unknown: String? = null) {
+        if (unknown != null) sender.sendMessage("§cНеизвестная подкоманда '$unknown'.")
+        sender.sendMessage("§9§lKSL §7— команды:")
+        listOf(
+            "reload [скрипт]" to "перезагрузить все скрипты или один",
+            "addons" to "загруженные аддоны",
+            "services" to "зарегистрированные сервисы",
+            "libraries" to "экспортированные библиотеки",
+            "discord" to "настроенные Discord-каналы",
+            "sandbox" to "состояние sandbox",
+            "errors" to "последняя ошибка скриптов",
+            "doctor" to "диагностика (компилятор, БД, хуки)",
+            "validate" to "проверить скрипты без загрузки",
+            "dbmigrate [confirm]" to "перенести ksl.db в MySQL/MariaDB"
+        ).forEach { (name, description) -> sender.sendMessage("  §f/ksl $name §8— §7$description") }
+    }
+
+    // Runs work off the main thread and hands the result back on it: sendMessage and the Bukkit API belong there.
+    private fun <T> background(sender: CommandSender, work: () -> T, done: (T) -> Unit) {
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, Runnable {
+            val outcome = runCatching(work)
+            Bukkit.getScheduler().runTask(plugin, Runnable {
+                outcome
+                    .onSuccess { done(it) }
+                    .onFailure {
+                        sender.sendMessage("§cОшибка: ${it::class.simpleName}: ${it.message}")
+                        plugin.logger.warning("Фоновая команда /ksl не удалась: ${it::class.simpleName}: ${it.message}")
+                    }
+            })
+        })
     }
 
     override fun onTabComplete(
@@ -144,13 +207,16 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
     ): List<String> {
         if (!sender.hasPermission("ksl.admin")) return emptyList()
         if (args.size == 1)
-            return listOf("reload", "addons", "services", "libraries", "discord", "sandbox", "errors", "doctor", "validate")
+            return listOf("help", "reload", "addons", "services", "libraries", "discord", "sandbox", "errors", "doctor", "validate", "dbmigrate")
                 .filter { it.startsWith(args[0].lowercase()) }
         if (args.size == 2 && args[0].equals("reload", ignoreCase = true)) {
             val names = plugin.scriptsFolder.listFiles { f -> f.isFile && f.extension == "kts" && !f.name.startsWith(".") }
                 ?.map { it.nameWithoutExtension }
                 ?: emptyList()
             return names.filter { it.startsWith(args[1], ignoreCase = true) }
+        }
+        if (args.size == 2 && args[0].equals("dbmigrate", ignoreCase = true)) {
+            return listOf("confirm").filter { it.startsWith(args[1].lowercase()) }
         }
         return emptyList()
     }

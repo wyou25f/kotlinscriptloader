@@ -2,6 +2,7 @@ package ru.privateserver.ksl.addon
 
 import org.bukkit.Bukkit
 import org.bukkit.Location
+import org.bukkit.OfflinePlayer
 import org.bukkit.entity.LivingEntity
 import org.bukkit.event.Event
 import org.bukkit.event.EventPriority
@@ -111,6 +112,10 @@ fun KSLAPI.hookIf(pluginName: String, factory: () -> KSLHook): Boolean {
         false
     }
 }
+
+// ---- PlaceholderAPI ----
+
+fun KSLAPI.placeholder(key: String, resolver: (OfflinePlayer) -> String?) = registerPlaceholder(key, resolver)
 
 // ---- engines ----
 

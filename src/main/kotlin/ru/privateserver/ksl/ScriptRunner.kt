@@ -35,7 +35,7 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
                 jvm { baseClassLoader(pluginClassLoader) }
             }
 
-            val result = host.eval(file.toScriptSource(), compilationConfig, evalConfig)
+            val result = synchronized(plugin.compileLock) { host.eval(file.toScriptSource(), compilationConfig, evalConfig) }
 
             result.reports
                 .filter { it.severity == ScriptDiagnostic.Severity.WARNING }
@@ -82,7 +82,7 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
                 jvm { baseClassLoader(pluginClassLoader) }
             }
             val source = "6 * 7".toScriptSource("ksl_selftest.kts")
-            val result = host.eval(source, compilationConfig, evalConfig)
+            val result = synchronized(plugin.compileLock) { host.eval(source, compilationConfig, evalConfig) }
             when (result) {
                 is ResultWithDiagnostics.Failure -> {
                     val reason = result.reports.joinToString("; ") { formatDiagnostic(it) }

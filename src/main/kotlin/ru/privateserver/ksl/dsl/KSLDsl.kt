@@ -7,6 +7,7 @@ import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.title.Title
 import org.bukkit.Bukkit
 import org.bukkit.Location
+import org.bukkit.OfflinePlayer
 import org.bukkit.Material
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
@@ -158,6 +159,9 @@ fun BukkitScriptContext.onInteract(action: PlayerInteractEvent.() -> Unit) = onE
 
 // Fires on Paper's async chat thread: do not touch the world directly, wrap that in sync { }.
 fun BukkitScriptContext.onChat(action: AsyncChatEvent.() -> Unit) = onEvent<AsyncChatEvent>(action = action)
+
+// %ksl_<key>% for PlaceholderAPI; removed when the script unloads.
+fun BukkitScriptContext.placeholder(key: String, resolver: (OfflinePlayer) -> String?) = registerPlaceholder(key, resolver)
 
 // ---- hooks (integrations registered by KSL or by addons) ----
 

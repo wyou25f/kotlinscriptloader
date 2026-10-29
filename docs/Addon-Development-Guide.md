@@ -651,3 +651,18 @@ val addon = simpleAddon("greeter", "1.0", needsApi = 3) { api ->
     api.on("player.welcome") { name -> api.log("welcome $name") }
 }
 ```
+
+---
+
+## API v4: плейсхолдеры
+
+```kotlin
+// addon.onLoad(api)
+api.placeholder("online") { player -> Bukkit.getOnlinePlayers().size.toString() }   // %ksl_online%
+```
+
+То же без алиаса: `api.registerPlaceholder(key) { player -> }` и `api.unregisterPlaceholder(key)`. Нужен установленный PlaceholderAPI.
+Ключи нечувствительны к регистру; плейсхолдер, зарегистрированный в `onLoad`, снимается вместе с аддоном.
+Исключение внутри резолвера логируется как ошибка и даёт пустую строку, PlaceholderAPI оно не затрагивает.
+Если ключ уже занят скриптом или другим аддоном, в консоль выводится предупреждение, а новый резолвер заменяет старый.
+

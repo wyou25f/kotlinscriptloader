@@ -90,7 +90,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private val placeholdersByScript = ConcurrentHashMap<String, MutableList<String>>()
     private val tasksByScript        = ConcurrentHashMap<String, MutableSet<Int>>()
     private val scriptsWithGuis       = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
-    val placeholders                 = ConcurrentHashMap<String, (OfflinePlayer) -> String?>()
+    // Owner label is "script:<name>" for scripts and the addon id for addons.
+    val placeholders                 = KSLOwnedRegistry<(OfflinePlayer) -> String?>()
+    private var papiUnregister: (() -> Unit)? = null
 
     val scriptsFolder: File by lazy { File(dataFolder, "scripts").apply { mkdirs() } }
 
@@ -104,7 +106,21 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private val bold = "§l"
     private val r = "§r"
 
+    // Compiling scripts is not thread-safe against itself; async diagnostics and main-thread loads take turns.
+    val compileLock = Any()
+
+    private val legacyColors = Regex("§[0-9A-Fa-fK-Ok-oRrXx]")
+
+    // The console prints "§9" literally when it comes through the plugin logger, so the codes are stripped there.
+    private fun stripColorsFromLog() {
+        logger.filter = java.util.logging.Filter { record ->
+            record.message = record.message?.replace(legacyColors, "")
+            true
+        }
+    }
+
     override fun onEnable() {
+        stripColorsFromLog()
         dataFolder.mkdirs()
         saveDefaultConfig()
         KSLErrors.reset()
@@ -144,6 +160,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             .onFailure { logger.warning("Ошибка при выгрузке скриптов: ${it.message}") }
         runCatching { addonManager.shutdown() }
             .onFailure { logger.warning("Ошибка при выгрузке аддонов: ${it.message}") }
+        runCatching { papiUnregister?.invoke() }
+            .onFailure { logger.warning("Ошибка при снятии PlaceholderAPI expansion: ${it.message}") }
         runCatching {
             dbExecutor.shutdown()
             if (!dbExecutor.awaitTermination(3, java.util.concurrent.TimeUnit.SECONDS)) {
@@ -249,7 +267,11 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private fun setupIntegrations() {
         papiEnabled = Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null
         if (papiEnabled)
-            runCatching { KSLPlaceholderExpansion(this).register() }
+            runCatching {
+                val expansion = KSLPlaceholderExpansion(this)
+                expansion.register()
+                papiUnregister = { expansion.unregister() }
+            }
                 .onFailure { logger.warning("PlaceholderAPI: регистрация expansion не удалась: ${it.message}") }
 
         luckPerms   = integrate("LuckPerms", "LuckPerms") { KSLLuckPermsHook() }
@@ -379,6 +401,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 appendLine("val Player.prefix: String? get() = null")
                 appendLine()
                 appendLine("fun registerPlaceholder(key: String, resolver: (OfflinePlayer) -> String?) = Unit")
+                appendLine("fun placeholder(key: String, resolver: (OfflinePlayer) -> String?) = Unit")
                 appendLine()
                 appendLine("fun luckPermsGroup(player: Player): String? = null")
                 appendLine("fun luckPermsPrefix(player: Player): String? = null")
@@ -465,6 +488,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         return loaded to failed
     }
 
+    // Public so command handlers can run the compiler check off the main thread.
+    fun selfTestCompiler(): Pair<Boolean, String> = scriptRunner.selfTestCompiler()
+
     fun validateAllScripts(): Map<String, List<String>> {
         val files = scriptsFolder.listFiles { f ->
             f.isFile && f.extension == "kts" && !f.name.startsWith(".")
@@ -516,7 +542,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         }.onFailure { logger.warning("[$scriptName] Не удалось снять часть команд: ${it.message}") }
 
         runCatching {
-            placeholdersByScript.remove(scriptName)?.forEach { placeholders.remove(it) }
+            placeholdersByScript.remove(scriptName)
+            // Only this script's own entries: another script may have taken over a key with the same name.
+            placeholders.releaseOwner("script:$scriptName")
         }.onFailure { logger.warning("[$scriptName] Не удалось снять часть плейсхолдеров: ${it.message}") }
 
         runCatching { addonManager.notifyContextDestroyed(scriptName) }
@@ -579,13 +607,14 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     data class DiagnosticLine(val label: String, val ok: Boolean, val detail: String)
 
-    fun runDiagnostics(): List<DiagnosticLine> {
+    // The compiler self-test takes seconds on first use; callers on the main thread pass a result computed elsewhere.
+    fun runDiagnostics(compiler: Pair<Boolean, String> = scriptRunner.selfTestCompiler()): List<DiagnosticLine> {
         val lines = mutableListOf<DiagnosticLine>()
 
         val dbOk = runCatching {
             database.connection.use { it.isValid(2) }
         }.getOrDefault(false)
-        lines += DiagnosticLine("База данных", dbOk, if (dbOk) "соединение живое" else "не отвечает — проверь ksl.db")
+        lines += DiagnosticLine("База данных", dbOk, if (dbOk) "соединение живое (${dialect.label})" else "не отвечает — проверь ksl.db")
 
         val tablesOk = checkDatabaseTables()
         lines += DiagnosticLine("Таблицы БД", tablesOk, if (tablesOk) "ksl_scripts, ksl_persist, ksl_table на месте (${dialect.label})" else "миграции не применились корректно")
@@ -600,7 +629,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         val scriptsWritable = runCatching { scriptsFolder.canWrite() }.getOrDefault(false)
         lines += DiagnosticLine("Папка scripts/", scriptsWritable, scriptsFolder.absolutePath)
 
-        val (compilerOk, compilerDetail) = scriptRunner.selfTestCompiler()
+        val (compilerOk, compilerDetail) = compiler
         lines += DiagnosticLine("Компилятор скриптов", compilerOk, compilerDetail)
 
         val commandOk = Bukkit.getCommandMap().getCommand("ksl") != null
@@ -690,7 +719,13 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     }
 
     fun registerPlaceholder(scriptName: String, key: String, resolver: (OfflinePlayer) -> String?) {
-        placeholders[key] = resolver
-        placeholdersByScript.computeIfAbsent(scriptName) { mutableListOf() }.add(key)
+        val normalized = key.lowercase()
+        val owner = "script:$scriptName"
+        val previousOwner = placeholders.ownerOf(normalized)
+        if (placeholders.contains(normalized) && previousOwner != owner) {
+            logger.warning("[$scriptName] Плейсхолдер %ksl_$normalized% уже занят (${previousOwner ?: "аддон/хук"}) — будет перезаписан")
+        }
+        placeholders.put(normalized, resolver, owner)
+        placeholdersByScript.computeIfAbsent(scriptName) { mutableListOf() }.add(normalized)
     }
 }
