@@ -60,7 +60,7 @@ class KSLEffectSpec(
     // A shape by name, built-in or contributed by an addon: shape("sphere", "radius" to 2.0, "spin" to 6.0).
     fun shape(name: String, vararg params: Pair<String, Any?>) {
         val factory = shapes?.get(name.lowercase())
-            ?: error("Неизвестная форма эффекта '$name'. Доступны: ${shapes?.keys()?.sorted()?.joinToString(", ") ?: "—"}")
+            ?: error("${KSLError.EFFECT_UNKNOWN_SHAPE.tag} Неизвестная форма эффекта '$name'. Доступны: ${shapes?.keys()?.sorted()?.joinToString(", ") ?: "—"}")
         val map = params.toMap()
         shapeBuilder = { totalTicks -> factory(map, totalTicks) }
     }
@@ -71,7 +71,7 @@ class KSLEffectSpec(
 
     fun color(hex: String, size: Float = 1f) {
         val rgb = hex.removePrefix("#").toIntOrNull(16)
-            ?: throw IllegalArgumentException("color: ожидался HEX вида #RRGGBB, получено '$hex'")
+            ?: throw IllegalArgumentException("${KSLError.EFFECT_BAD_COLOR.tag} color: ожидался HEX вида #RRGGBB, получено '$hex'")
         data = Particle.DustOptions(Color.fromRGB(rgb and 0xFFFFFF), size)
     }
 

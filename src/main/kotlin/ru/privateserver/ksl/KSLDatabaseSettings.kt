@@ -39,7 +39,7 @@ data class KSLDatabaseSettings(
             poolSize: Int = 4
         ): KSLDatabaseSettings {
             val dialect = KSLDialect.parse(type)
-                ?: throw IllegalArgumentException("Неизвестный database.type '$type' — доступно: sqlite, mysql, mariadb")
+                ?: throw IllegalArgumentException("${KSLError.CONFIG_DB_INVALID.tag} Неизвестный database.type '$type' — доступно: sqlite, mysql, mariadb")
             val pool = poolSize.coerceIn(1, 32)
             if (!dialect.isRemote) {
                 return KSLDatabaseSettings(dialect, host, port, name, user, password, sslMode, pool)
@@ -48,11 +48,11 @@ data class KSLDatabaseSettings(
             val cleanHost = host.trim()
             val cleanName = name.trim()
             val cleanSsl = sslMode.trim().lowercase()
-            require(HOST.matches(cleanHost)) { "database.host '$host' содержит недопустимые символы" }
-            require(port in 1..65535) { "database.port $port вне диапазона 1..65535" }
-            require(NAME.matches(cleanName)) { "database.name '$name' должен состоять из букв, цифр, _ . - \$" }
-            require(user.isNotBlank()) { "database.user не задан — создай пользователя в phpMyAdmin и впиши его в config.yml" }
-            require(cleanSsl in SSL_MODES) { "database.ssl-mode '$sslMode' — доступно: ${SSL_MODES.joinToString(", ")}" }
+            require(HOST.matches(cleanHost)) { "${KSLError.CONFIG_DB_INVALID.tag} database.host '$host' содержит недопустимые символы" }
+            require(port in 1..65535) { "${KSLError.CONFIG_DB_INVALID.tag} database.port $port вне диапазона 1..65535" }
+            require(NAME.matches(cleanName)) { "${KSLError.CONFIG_DB_INVALID.tag} database.name '$name' должен состоять из букв, цифр, _ . - \$" }
+            require(user.isNotBlank()) { "${KSLError.CONFIG_DB_INVALID.tag} database.user не задан — создай пользователя в phpMyAdmin и впиши его в config.yml" }
+            require(cleanSsl in SSL_MODES) { "${KSLError.CONFIG_DB_INVALID.tag} database.ssl-mode '$sslMode' — доступно: ${SSL_MODES.joinToString(", ")}" }
             return KSLDatabaseSettings(dialect, cleanHost, port, cleanName, user, password, cleanSsl, pool)
         }
     }

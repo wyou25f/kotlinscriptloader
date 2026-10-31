@@ -4,6 +4,7 @@ import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.OfflinePlayer
 import org.bukkit.entity.LivingEntity
+import org.bukkit.entity.Player
 import org.bukkit.event.Event
 import org.bukkit.event.EventPriority
 import org.bukkit.event.HandlerList
@@ -17,6 +18,7 @@ import ru.privateserver.ksl.KSLAddon
 import ru.privateserver.ksl.KSLContextExtension
 import ru.privateserver.ksl.KSLEffectShape
 import ru.privateserver.ksl.KSLEntityAttributes
+import ru.privateserver.ksl.KSLError
 import ru.privateserver.ksl.KSLHook
 import ru.privateserver.ksl.KSLQuickTable
 import ru.privateserver.ksl.KSLShapeFactory
@@ -108,7 +110,7 @@ fun KSLAPI.hookIf(pluginName: String, factory: () -> KSLHook): Boolean {
         registerHook(factory())
         true
     } catch (ex: Throwable) {
-        kslPlugin.logger.warning("[KSL] хук для $pluginName не создан: ${ex::class.simpleName}: ${ex.message}")
+        kslPlugin.logger.warning("[KSL] ${KSLError.HOOK_INIT_FAILED.tag} хук для $pluginName не создан: ${ex::class.simpleName}: ${ex.message}")
         false
     }
 }
@@ -116,6 +118,8 @@ fun KSLAPI.hookIf(pluginName: String, factory: () -> KSLHook): Boolean {
 // ---- PlaceholderAPI ----
 
 fun KSLAPI.placeholder(key: String, resolver: (OfflinePlayer) -> String?) = registerPlaceholder(key, resolver)
+
+fun KSLAPI.textPlaceholder(key: String, resolver: (Player?) -> String?) = registerTextPlaceholder(key, resolver)
 
 // ---- engines ----
 
@@ -188,7 +192,7 @@ inline fun <reified T : Event> KSLAPI.listen(
             try {
                 action(event)
             } catch (ex: Throwable) {
-                owner.logger.warning("[KSL] listen<${T::class.simpleName}>: ${ex::class.simpleName}: ${ex.message}")
+                owner.logger.warning("[KSL] ${KSLError.ADDON_LISTENER_FAILED.tag} listen<${T::class.simpleName}>: ${ex::class.simpleName}: ${ex.message}")
             }
         }
     }

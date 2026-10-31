@@ -7,6 +7,7 @@ import org.bukkit.OfflinePlayer
 import org.bukkit.command.Command
 import org.bukkit.command.SimpleCommandMap
 import org.bukkit.event.HandlerList
+import org.bukkit.entity.Player
 import org.bukkit.event.Listener
 import org.bukkit.plugin.java.JavaPlugin
 import java.io.File
@@ -94,6 +95,42 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     val placeholders                 = KSLOwnedRegistry<(OfflinePlayer) -> String?>()
     private var papiUnregister: (() -> Unit)? = null
 
+    // @key@ tokens for message()/richMessage(); owner is "script:<name>", an addon id, or "config".
+    val textPlaceholders = KSLOwnedRegistry<(Player?) -> String?>()
+
+    fun registerTextPlaceholder(owner: String, key: String, resolver: (Player?) -> String?) {
+        val normalized = key.lowercase()
+        if (normalized in KSLTextPlaceholders.reserved) {
+            logger.warning("[$owner] ${KSLError.TEXT_PLACEHOLDER_RESERVED.tag} @$normalized@ встроен в KSL — выбери другое имя")
+            return
+        }
+        val previous = textPlaceholders.ownerOf(normalized)
+        if (textPlaceholders.contains(normalized) && previous != owner) {
+            logger.warning("[$owner] ${KSLError.PLACEHOLDER_CONFLICT.tag} Текстовый плейсхолдер @$normalized@ уже занят (${previous ?: "?"}) — будет перезаписан")
+        }
+        textPlaceholders.put(normalized, resolver, owner)
+    }
+
+    fun resolveTextPlaceholder(key: String, player: Player?): String? {
+        val resolver = textPlaceholders.get(key) ?: return null
+        return try {
+            resolver(player) ?: ""
+        } catch (ex: Throwable) {
+            KSLErrors.log(this, textPlaceholders.ownerOf(key)?.removePrefix("script:") ?: "?", "@$key@", ex, KSLError.TEXT_PLACEHOLDER_FAILED)
+            ""
+        }
+    }
+
+    // text-placeholders: in config.yml, re-read on every /ksl reload.
+    private fun loadConfigTextPlaceholders() {
+        textPlaceholders.releaseOwner("config")
+        val section = config.getConfigurationSection("text-placeholders") ?: return
+        section.getKeys(false).forEach { key ->
+            val value = section.getString(key) ?: return@forEach
+            registerTextPlaceholder("config", key) { _ -> value }
+        }
+    }
+
     val scriptsFolder: File by lazy { File(dataFolder, "scripts").apply { mkdirs() } }
 
     private val c9 = "§9"
@@ -123,6 +160,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         stripColorsFromLog()
         dataFolder.mkdirs()
         saveDefaultConfig()
+        loadConfigTextPlaceholders()
         KSLErrors.reset()
 
         addonManager   = KSLAddonManager(this)
@@ -151,26 +189,28 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         generateAutocompleteStub()
 
         val (loaded, failed) = loadAllScripts()
+        startWatcher()
         printStartupSummary(dbOk, loaded, failed)
     }
 
     override fun onDisable() {
+        runCatching { scriptWatcher?.stop() }
         logger.info("$c9$bold■ KotlinScriptLoader останавливается...$r")
         runCatching { unloadAllScripts() }
-            .onFailure { logger.warning("Ошибка при выгрузке скриптов: ${it.message}") }
+            .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} Ошибка при выгрузке скриптов: ${it.message}") }
         runCatching { addonManager.shutdown() }
-            .onFailure { logger.warning("Ошибка при выгрузке аддонов: ${it.message}") }
+            .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} Ошибка при выгрузке аддонов: ${it.message}") }
         runCatching { papiUnregister?.invoke() }
-            .onFailure { logger.warning("Ошибка при снятии PlaceholderAPI expansion: ${it.message}") }
+            .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} Ошибка при снятии PlaceholderAPI expansion: ${it.message}") }
         runCatching {
             dbExecutor.shutdown()
             if (!dbExecutor.awaitTermination(3, java.util.concurrent.TimeUnit.SECONDS)) {
                 val dropped = dbExecutor.shutdownNow().size
-                if (dropped > 0) logger.warning("DB-очередь не успела завершиться: потеряно записей — $dropped")
+                if (dropped > 0) logger.warning("${KSLError.DB_WRITES_LOST.tag} DB-очередь не успела завершиться: потеряно записей — $dropped")
             }
-        }.onFailure { logger.warning("Не удалось корректно остановить DB-очередь: ${it.message}") }
+        }.onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} Не удалось корректно остановить DB-очередь: ${it.message}") }
         runCatching { if (::database.isInitialized) database.close() }
-            .onFailure { logger.warning("Ошибка при закрытии базы данных: ${it.message}") }
+            .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} Ошибка при закрытии базы данных: ${it.message}") }
         KSL.shutdown()
         logger.info("$c9$bold■ KotlinScriptLoader остановлен$r")
     }
@@ -202,6 +242,14 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     // SQLite by default; MySQL/MariaDB when database.type says so (manage it with phpMyAdmin or any SQL client).
     var dialect: KSLDialect = KSLDialect.SQLITE
         private set
+
+    // database.cache in config.yml; by default on for SQLite and off for MySQL/MariaDB.
+    var tableCacheEnabled: Boolean = true
+        private set
+
+    private fun clearTableCaches() {
+        if (this::tableStore.isInitialized) tableStore.clearCaches()
+    }
 
     private fun readDatabaseSettings(): KSLDatabaseSettings = KSLDatabaseSettings.parse(
         type = config.getString("database.type", "sqlite") ?: "sqlite",
@@ -239,6 +287,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 }
             }
             dialect = parsed.dialect
+            tableCacheEnabled = config.getBoolean("database.cache", !parsed.dialect.isRemote)
             database = HikariDataSource(cfg)
             val applied = database.connection.use { Migrations.run(it, dialect) }
             logger.info("База данных: ${parsed.describe()}")
@@ -246,7 +295,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             true
         } catch (ex: Exception) {
             val rootMessage = generateSequence<Throwable>(ex) { it.cause }.last().message ?: ex.message
-            logger.severe("Не удалось инициализировать базу данных (${settings?.describe() ?: "настройки не разобраны"}): $rootMessage")
+            logger.severe("${KSLError.DB_INIT_FAILED.tag} Не удалось инициализировать базу данных (${settings?.describe() ?: "настройки не разобраны"}): $rootMessage")
             if (settings?.dialect?.isRemote == true) {
                 logger.severe("Проверь host/port/user/password в config.yml, что база '${settings?.name}' создана (phpMyAdmin → Базы данных) и у пользователя есть на неё права.")
             }
@@ -258,7 +307,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private fun <T : KSLHook> integrate(pluginName: String, label: String, create: () -> T): T? {
         if (Bukkit.getPluginManager().getPlugin(pluginName) == null) return null
         val hook = runCatching(create)
-            .onFailure { logger.warning("$label: инициализация хука не удалась: ${it.message}") }
+            .onFailure { logger.warning("${KSLError.HOOK_INIT_FAILED.tag} $label: инициализация хука не удалась: ${it.message}") }
             .getOrNull()
         hook?.let { addonManager.registerHook(it) }
         return hook
@@ -272,7 +321,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 expansion.register()
                 papiUnregister = { expansion.unregister() }
             }
-                .onFailure { logger.warning("PlaceholderAPI: регистрация expansion не удалась: ${it.message}") }
+                .onFailure { logger.warning("${KSLError.PAPI_REGISTER_FAILED.tag} PlaceholderAPI: регистрация expansion не удалась: ${it.message}") }
 
         luckPerms   = integrate("LuckPerms", "LuckPerms") { KSLLuckPermsHook() }
         essentials  = integrate("Essentials", "EssentialsX") { KSLEssentialsHook() }
@@ -402,6 +451,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 appendLine()
                 appendLine("fun registerPlaceholder(key: String, resolver: (OfflinePlayer) -> String?) = Unit")
                 appendLine("fun placeholder(key: String, resolver: (OfflinePlayer) -> String?) = Unit")
+                appendLine("fun textPlaceholder(key: String, resolver: (Player?) -> String?) = Unit")
+                appendLine("fun registerTextPlaceholder(key: String, resolver: (Player?) -> String?) = Unit")
                 appendLine()
                 appendLine("fun luckPermsGroup(player: Player): String? = null")
                 appendLine("fun luckPermsPrefix(player: Player): String? = null")
@@ -471,19 +522,55 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 appendLine("fun org.bukkit.entity.LivingEntity.behavior(builder: KSLEntityBehaviorBuilder.() -> Unit) = Unit")
             })
             logger.info("Сгенерирован .autocomplete.kts для IDE-подсказок")
-        }.onFailure { logger.warning("Не удалось сгенерировать .autocomplete.kts: ${it.message}") }
+        }.onFailure { logger.warning("${KSLError.AUTOCOMPLETE_FAILED.tag} Не удалось сгенерировать .autocomplete.kts: ${it.message}") }
     }
 
     var lastLoadStats: Pair<Int, Int> = 0 to 0
         private set
 
+    private var scriptWatcher: KSLScriptWatcher? = null
+
+    private fun startWatcher() {
+        if (!config.getBoolean("scripts.auto-reload", false)) return
+        scriptWatcher = runCatching { KSLScriptWatcher(this).also { it.start() } }
+            .onFailure { logger.warning("${KSLError.SCRIPT_WATCHER_FAILED.tag} Автоперезагрузка скриптов не запущена: ${it.message}") }
+            .getOrNull()
+        if (scriptWatcher != null) logger.info("Автоперезагрузка скриптов включена (scripts.auto-reload)")
+    }
+
+    // Folder-relative id without the extension, e.g. "economy/shop". It is the script's identity in logs,
+    // persist keys, commands and @requires, so moving a script into another folder gives it a new id.
+    fun scriptId(file: File): String = file.relativeTo(scriptsFolder).invariantSeparatorsPath.removeSuffix(".kts")
+
+    // Every .kts under scripts/ (sub-folders included, up to 8 levels). Dot-files and folders starting with "." or "_" are skipped.
+    fun findScriptFiles(): List<File> {
+        val root = scriptsFolder
+        val depth = if (config.getBoolean("scripts.recursive", true)) 8 else 1
+        return root.walkTopDown().maxDepth(depth)
+            .onEnter { it == root || !(it.name.startsWith(".") || it.name.startsWith("_")) }
+            .filter { it.isFile && it.extension == "kts" && !it.name.startsWith(".") }
+            .sortedBy { scriptId(it) }
+            .toList()
+    }
+
+    fun scriptIds(): List<String> = findScriptFiles().map { scriptId(it) }
+
+    // Last seen state of each loaded script file; lets /ksl reload changed skip everything that did not change.
+    private val scriptStamps = ConcurrentHashMap<String, Long>()
+
+    private fun stampOf(file: File): Long = file.lastModified() * 31 + file.length()
+
+    private fun loadOne(file: File): Boolean {
+        val ok = scriptRunner.loadScript(file)
+        // Recorded even when loading failed, so a broken script is not recompiled until it changes.
+        scriptStamps[scriptId(file)] = stampOf(file)
+        return ok
+    }
+
     fun loadAllScripts(): Pair<Int, Int> {
-        val files = scriptsFolder.listFiles { f ->
-            f.isFile && f.extension == "kts" && !f.name.startsWith(".")
-        } ?: emptyArray()
-        val ordered = KSLScriptOrder.sort(files, logger)
+        val ordered = KSLScriptOrder.sort(findScriptFiles(), { scriptId(it) }, logger)
         var loaded = 0; var failed = 0
-        ordered.forEach { if (scriptRunner.loadScript(it)) loaded++ else failed++ }
+        ordered.forEach { if (loadOne(it)) loaded++ else failed++ }
         lastLoadStats = loaded to failed
         return loaded to failed
     }
@@ -492,11 +579,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     fun selfTestCompiler(): Pair<Boolean, String> = scriptRunner.selfTestCompiler()
 
     fun validateAllScripts(): Map<String, List<String>> {
-        val files = scriptsFolder.listFiles { f ->
-            f.isFile && f.extension == "kts" && !f.name.startsWith(".")
-        } ?: emptyArray()
         val validator = ScriptValidator(this)
-        return files.associate { it.nameWithoutExtension to validator.validate(it) }
+        return findScriptFiles().associate { scriptId(it) to validator.validate(it) }
     }
 
     fun verifyTrackedCommands(): List<String> {
@@ -517,7 +601,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         }
         true
     } catch (ex: Exception) {
-        logger.warning("[doctor] Проверка таблиц БД не удалась: ${ex.message}")
+        logger.warning("${KSLError.DB_DOCTOR_TABLES.tag} [doctor] Проверка таблиц БД не удалась: ${ex.message}")
         false
     }
 
@@ -528,40 +612,42 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     }
 
     private fun unloadScript(scriptName: String) {
+        scriptStamps.remove(scriptName)
         runCatching {
             tasksByScript.remove(scriptName)?.forEach { Bukkit.getScheduler().cancelTask(it) }
-        }.onFailure { logger.warning("[$scriptName] Не удалось отменить часть тасков: ${it.message}") }
+        }.onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось отменить часть тасков: ${it.message}") }
 
         runCatching {
             listenersByScript.remove(scriptName)?.forEach { HandlerList.unregisterAll(it) }
-        }.onFailure { logger.warning("[$scriptName] Не удалось снять часть listener'ов: ${it.message}") }
+        }.onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось снять часть listener'ов: ${it.message}") }
 
         runCatching {
             val commands = commandsByScript.remove(scriptName)?.toSet() ?: emptySet()
             if (commands.isNotEmpty()) unregisterCommands(commands)
-        }.onFailure { logger.warning("[$scriptName] Не удалось снять часть команд: ${it.message}") }
+        }.onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось снять часть команд: ${it.message}") }
 
         runCatching {
             placeholdersByScript.remove(scriptName)
             // Only this script's own entries: another script may have taken over a key with the same name.
             placeholders.releaseOwner("script:$scriptName")
-        }.onFailure { logger.warning("[$scriptName] Не удалось снять часть плейсхолдеров: ${it.message}") }
+            textPlaceholders.releaseOwner("script:$scriptName")
+        }.onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось снять часть плейсхолдеров: ${it.message}") }
 
         runCatching { addonManager.notifyContextDestroyed(scriptName) }
-            .onFailure { logger.warning("[$scriptName] Ошибка при уведомлении аддонов о выгрузке: ${it.message}") }
+            .onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Ошибка при уведомлении аддонов о выгрузке: ${it.message}") }
 
         runCatching { guiManager.closeGuisForScript(scriptName) }
-            .onFailure { logger.warning("[$scriptName] Не удалось закрыть открытые GUI: ${it.message}") }
+            .onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось закрыть открытые GUI: ${it.message}") }
         scriptsWithGuis.remove(scriptName)
 
         runCatching { libraryRegistry.clearScript(scriptName) }
-            .onFailure { logger.warning("[$scriptName] Не удалось очистить библиотечные экспорты: ${it.message}") }
+            .onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось очистить библиотечные экспорты: ${it.message}") }
 
         runCatching { entityManager.cleanupForScript(scriptName) }
-            .onFailure { logger.warning("[$scriptName] Не удалось убрать кастомных сущностей скрипта: ${it.message}") }
+            .onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось убрать кастомных сущностей скрипта: ${it.message}") }
 
         runCatching { cooldownStore.clearScript(scriptName) }
-            .onFailure { logger.warning("[$scriptName] Не удалось очистить кулдауны скрипта: ${it.message}") }
+            .onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось очистить кулдауны скрипта: ${it.message}") }
     }
 
     private fun unregisterCommands(commands: Set<Command>) {
@@ -571,7 +657,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         if (viaApi.isSuccess) return
         val viaReflection = runCatching { removeOurCommands(reflectKnownCommands(), commands) }
         if (viaReflection.isFailure)
-            logger.warning("commandMap недоступен для изменения — старые команды сохранятся до рестарта.")
+            logger.warning("${KSLError.COMMAND_MAP_UNAVAILABLE.tag} commandMap недоступен для изменения — старые команды сохранятся до рестарта.")
     }
 
     private fun removeOurCommands(knownCommands: MutableMap<String, Command>, ourCommands: Set<Command>) {
@@ -588,6 +674,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     fun reloadScripts(): Pair<Int, Int> {
         reloadConfig()
+        loadConfigTextPlaceholders()
+        clearTableCaches()
         sandboxEnabled = config.getBoolean("sandbox", false)
         discord = KSLDiscordHook(this).takeIf { it.channels().isNotEmpty() }
         unloadAllScripts()
@@ -596,14 +684,50 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     }
 
     fun reloadScript(scriptName: String): Boolean {
-        val file = File(scriptsFolder, "$scriptName.kts")
-        if (!file.exists() || !file.isFile) {
-            logger.warning("Скрипт '$scriptName.kts' не найден в scripts/")
+        val id = scriptName.trim().removeSuffix(".kts").replace('\\', '/')
+        val file = File(scriptsFolder, "$id.kts")
+        if (!file.canonicalFile.toPath().startsWith(scriptsFolder.canonicalFile.toPath())) {
+            logger.warning("${KSLError.SCRIPT_PATH_ESCAPE.tag} Имя скрипта '$scriptName' выходит за пределы scripts/")
             return false
         }
-        unloadScript(scriptName)
-        return scriptRunner.loadScript(file)
+        if (!file.isFile) {
+            logger.warning("[$id] ${KSLError.SCRIPT_NOT_FOUND.tag} Скрипт '$id.kts' не найден в scripts/")
+            return false
+        }
+        unloadScript(id)
+        return loadOne(file)
     }
+
+    // "economy" or "economy/": reloads every script in that folder (sub-folders included) in dependency order.
+    // Returns null when the folder holds no scripts.
+    fun reloadFolder(folder: String): Pair<Int, Int>? {
+        val clean = folder.trim().replace('\\', '/').trim('/')
+        if (clean.isEmpty()) return null
+        val files = findScriptFiles().filter { scriptId(it).startsWith("$clean/") }
+        if (files.isEmpty()) return null
+        files.forEach { unloadScript(scriptId(it)) }
+        var loaded = 0; var failed = 0
+        KSLScriptOrder.sort(files, { scriptId(it) }, logger).forEach { if (loadOne(it)) loaded++ else failed++ }
+        return loaded to failed
+    }
+
+    data class ChangeReport(val reloaded: Int, val unloaded: Int, val unchanged: Int, val failed: Int)
+
+    // Recompiles only new and modified scripts and unloads deleted ones; compiling is the expensive part of a reload.
+    fun reloadChanged(): ChangeReport {
+        val files = findScriptFiles()
+        val present = files.map { scriptId(it) }.toSet()
+        val removed = scriptStamps.keys.filter { it !in present }
+        removed.forEach { unloadScript(it) }
+        val changed = files.filter { scriptStamps[scriptId(it)] != stampOf(it) }
+        changed.forEach { unloadScript(scriptId(it)) }
+        var failed = 0
+        KSLScriptOrder.sort(changed, { scriptId(it) }, logger).forEach { if (!loadOne(it)) failed++ }
+        return ChangeReport(changed.size - failed, removed.size, files.size - changed.size, failed)
+    }
+
+    // Used by the file watcher when a script file disappears.
+    fun removeScript(scriptName: String) = unloadScript(scriptName)
 
     data class DiagnosticLine(val label: String, val ok: Boolean, val detail: String)
 
@@ -714,7 +838,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         commandsByScript.computeIfAbsent(scriptName) { mutableListOf() }.add(command)
         scheduleCommandSync()
         if (Bukkit.getCommandMap().getCommand(command.name) !== command)
-            logger.warning("Команда '/${command.name}' из '${command.scriptName}' конфликтует — " +
+            logger.warning("${KSLError.COMMAND_CONFLICT.tag} Команда '/${command.name}' из '${command.scriptName}' конфликтует — " +
                 "доступна как '/${name.lowercase()}:${command.name}'.")
     }
 
@@ -723,7 +847,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         val owner = "script:$scriptName"
         val previousOwner = placeholders.ownerOf(normalized)
         if (placeholders.contains(normalized) && previousOwner != owner) {
-            logger.warning("[$scriptName] Плейсхолдер %ksl_$normalized% уже занят (${previousOwner ?: "аддон/хук"}) — будет перезаписан")
+            logger.warning("[$scriptName] ${KSLError.PLACEHOLDER_CONFLICT.tag} Плейсхолдер %ksl_$normalized% уже занят (${previousOwner ?: "аддон/хук"}) — будет перезаписан")
         }
         placeholders.put(normalized, resolver, owner)
         placeholdersByScript.computeIfAbsent(scriptName) { mutableListOf() }.add(normalized)

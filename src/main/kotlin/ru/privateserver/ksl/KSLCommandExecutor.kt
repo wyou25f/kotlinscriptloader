@@ -1,6 +1,7 @@
 package ru.privateserver.ksl
 
 import org.bukkit.Bukkit
+import java.io.File
 import org.bukkit.command.Command
 import org.bukkit.command.CommandExecutor
 import org.bukkit.command.CommandSender
@@ -18,20 +19,36 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
             null, "help" -> sendHelp(sender)
 
             "reload" -> {
-                val scriptName = args.getOrNull(1)
-                if (scriptName != null) {
-                    sender.sendMessage("§7Перезагружаю '$scriptName.kts'...")
-                    val ok = plugin.reloadScript(scriptName)
-                    if (ok) {
-                        sender.sendMessage("§aKSL: '$scriptName.kts' перезагружен, остальные скрипты не тронуты.")
-                    } else {
-                        sender.sendMessage("§cНе удалось перезагрузить '$scriptName.kts' — см. консоль.")
+                val target = args.getOrNull(1)
+                when {
+                    target == null -> {
+                        sender.sendMessage("§7Перезагружаю все скрипты...")
+                        val (loaded, failed) = plugin.reloadScripts()
+                        val color = if (failed == 0) "§a" else "§e"
+                        sender.sendMessage("${color}KSL: $loaded загружено, $failed с ошибками.")
                     }
-                } else {
-                    sender.sendMessage("§7Перезагружаю все скрипты...")
-                    val (loaded, failed) = plugin.reloadScripts()
-                    val color = if (failed == 0) "§a" else "§e"
-                    sender.sendMessage("${color}KSL: $loaded загружено, $failed с ошибками.")
+                    target.equals("changed", ignoreCase = true) -> {
+                        val report = plugin.reloadChanged()
+                        val color = if (report.failed == 0) "§a" else "§e"
+                        sender.sendMessage("${color}KSL: перезагружено ${report.reloaded}, выгружено ${report.unloaded}, без изменений ${report.unchanged}, с ошибками ${report.failed}.")
+                    }
+                    target.endsWith("/") || File(plugin.scriptsFolder, target).isDirectory -> {
+                        val result = plugin.reloadFolder(target)
+                        if (result == null) {
+                            sender.sendMessage("§cВ папке '$target' нет скриптов.")
+                        } else {
+                            val color = if (result.second == 0) "§a" else "§e"
+                            sender.sendMessage("${color}KSL: папка '$target': ${result.first} загружено, ${result.second} с ошибками.")
+                        }
+                    }
+                    else -> {
+                        sender.sendMessage("§7Перезагружаю '$target.kts'...")
+                        if (plugin.reloadScript(target)) {
+                            sender.sendMessage("§aKSL: '$target.kts' перезагружен, остальные скрипты не тронуты.")
+                        } else {
+                            sender.sendMessage("§cНе удалось перезагрузить '$target.kts' — см. консоль.")
+                        }
+                    }
                 }
             }
 
@@ -95,8 +112,25 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                     val ago = (System.currentTimeMillis() - last.timestamp) / 1000
                     sender.sendMessage("§7Последняя: §f[${last.scriptName}] ${last.where} §8(${ago}с назад)")
                     sender.sendMessage("§7${last.message}")
+                    sender.sendMessage("§7Код §e${last.code.code} §8— §7${last.code.title}. Подробнее: §f/ksl error ${last.code.code}")
                 } else {
                     sender.sendMessage("§7Ошибок не зафиксировано.")
+                }
+            }
+
+            "error" -> {
+                val query = args.getOrNull(1)
+                if (query == null) {
+                    sender.sendMessage("§7Использование: §f/ksl error <код> §7(например /ksl error ${KSLError.SCRIPT_COMPILE.code}). Категории:")
+                    KSLErrorCategory.entries.forEach { sender.sendMessage("  §e${it.letter} §8— §7${it.title}") }
+                } else {
+                    val error = KSLError.find(query)
+                    if (error == null) {
+                        sender.sendMessage("§cКод '$query' не найден. Полный список: docs/Error-Codes.md")
+                    } else {
+                        sender.sendMessage("§e${error.code} §8— §f${error.title} §8(${error.category.title})")
+                        sender.sendMessage("§7Что делать: ${error.hint}")
+                    }
                 }
             }
 
@@ -174,13 +208,14 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
         if (unknown != null) sender.sendMessage("§cНеизвестная подкоманда '$unknown'.")
         sender.sendMessage("§9§lKSL §7— команды:")
         listOf(
-            "reload [скрипт]" to "перезагрузить все скрипты или один",
+            "reload [скрипт|папка/|changed]" to "перезагрузить всё, один скрипт, папку или только изменённые",
             "addons" to "загруженные аддоны",
             "services" to "зарегистрированные сервисы",
             "libraries" to "экспортированные библиотеки",
             "discord" to "настроенные Discord-каналы",
             "sandbox" to "состояние sandbox",
             "errors" to "последняя ошибка скриптов",
+            "error <код>" to "расшифровка кода ошибки, например ${KSLError.SCRIPT_COMPILE.code}",
             "doctor" to "диагностика (компилятор, БД, хуки)",
             "validate" to "проверить скрипты без загрузки",
             "dbmigrate [confirm]" to "перенести ksl.db в MySQL/MariaDB"
@@ -196,7 +231,7 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                     .onSuccess { done(it) }
                     .onFailure {
                         sender.sendMessage("§cОшибка: ${it::class.simpleName}: ${it.message}")
-                        plugin.logger.warning("Фоновая команда /ksl не удалась: ${it::class.simpleName}: ${it.message}")
+                        plugin.logger.warning("${KSLError.BACKGROUND_COMMAND_FAILED.tag} Фоновая команда /ksl не удалась: ${it::class.simpleName}: ${it.message}")
                     }
             })
         })
@@ -207,13 +242,16 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
     ): List<String> {
         if (!sender.hasPermission("ksl.admin")) return emptyList()
         if (args.size == 1)
-            return listOf("help", "reload", "addons", "services", "libraries", "discord", "sandbox", "errors", "doctor", "validate", "dbmigrate")
+            return listOf("help", "reload", "addons", "services", "libraries", "discord", "sandbox", "errors", "error", "doctor", "validate", "dbmigrate")
                 .filter { it.startsWith(args[0].lowercase()) }
         if (args.size == 2 && args[0].equals("reload", ignoreCase = true)) {
-            val names = plugin.scriptsFolder.listFiles { f -> f.isFile && f.extension == "kts" && !f.name.startsWith(".") }
-                ?.map { it.nameWithoutExtension }
-                ?: emptyList()
-            return names.filter { it.startsWith(args[1], ignoreCase = true) }
+            val ids = plugin.scriptIds()
+            // Scripts, folders ("economy/") and the "changed" keyword.
+            val folders = ids.filter { it.contains('/') }.map { it.substringBeforeLast('/') + "/" }.toSet()
+            return (ids + folders + "changed").sorted().filter { it.startsWith(args[1], ignoreCase = true) }
+        }
+        if (args.size == 2 && args[0].equals("error", ignoreCase = true)) {
+            return KSLError.entries.map { it.code }.filter { it.startsWith(args[1].lowercase()) }.take(40)
         }
         if (args.size == 2 && args[0].equals("dbmigrate", ignoreCase = true)) {
             return listOf("confirm").filter { it.startsWith(args[1].lowercase()) }

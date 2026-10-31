@@ -33,7 +33,7 @@ class DynamicCommand(
         try {
             action(sender, args)
         } catch (ex: Throwable) {
-            KSLErrors.log(plugin, scriptName, "command '/$commandLabel'", ex)
+            KSLErrors.log(plugin, scriptName, "command '/$commandLabel'", ex, KSLError.COMMAND_EXECUTE_FAILED)
             sender.sendMessage("§cПроизошла ошибка при выполнении команды. Администратор уже уведомлён в консоли.")
         }
         return true
@@ -46,7 +46,7 @@ class DynamicCommand(
         return try {
             completer(sender, args)
         } catch (ex: Throwable) {
-            KSLErrors.log(plugin, scriptName, "tabComplete '/$alias'", ex)
+            KSLErrors.log(plugin, scriptName, "tabComplete '/$alias'", ex, KSLError.COMMAND_TAB_FAILED)
             emptyList()
         }
     }

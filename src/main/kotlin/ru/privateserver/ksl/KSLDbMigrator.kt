@@ -70,7 +70,7 @@ class KSLDbMigrator(private val plugin: KotlinScriptLoaderPlugin) {
                             val value = rs.getString(i + 1)
                             // MySQL would cut or reject it with a cryptic error halfway through; fail early and say which row.
                             if (i < keyCount && (value?.length ?: 0) > MAX_KEY_LENGTH) {
-                                error("$table: ключ длиннее $MAX_KEY_LENGTH символов (${columns[i]} = '${value?.take(40)}…') — сократи его в ksl.db и повтори")
+                                error("$table: ${KSLError.DB_KEY_TOO_LONG.tag} ключ длиннее $MAX_KEY_LENGTH символов (${columns[i]} = '${value?.take(40)}…') — сократи его в ksl.db и повтори")
                             }
                             ps.setString(i + 1, value)
                         }

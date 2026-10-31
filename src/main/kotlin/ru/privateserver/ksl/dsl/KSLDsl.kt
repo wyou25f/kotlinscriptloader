@@ -163,6 +163,9 @@ fun BukkitScriptContext.onChat(action: AsyncChatEvent.() -> Unit) = onEvent<Asyn
 // %ksl_<key>% for PlaceholderAPI; removed when the script unloads.
 fun BukkitScriptContext.placeholder(key: String, resolver: (OfflinePlayer) -> String?) = registerPlaceholder(key, resolver)
 
+// @key@ inside message()/richMessage() texts; removed when the script unloads.
+fun BukkitScriptContext.textPlaceholder(key: String, resolver: (Player?) -> String?) = registerTextPlaceholder(key, resolver)
+
 // ---- hooks (integrations registered by KSL or by addons) ----
 
 fun BukkitScriptContext.hasHook(hookId: String): Boolean = plugin.addonManager.getHook(hookId) != null

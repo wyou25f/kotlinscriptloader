@@ -7,7 +7,7 @@ object KSLErrors {
 
     fun validPeriod(plugin: KotlinScriptLoaderPlugin, scriptName: String, where: String, requested: Long): Long {
         if (requested >= 1) return requested
-        plugin.logger.warning("[$scriptName] $where: period/interval должен быть >= 1 тик, получено $requested — использую 1")
+        plugin.logger.warning("[$scriptName] ${KSLError.TASK_BAD_PERIOD.tag} $where: period/interval должен быть >= 1 тик, получено $requested — использую 1")
         return 1L
     }
 
@@ -20,20 +20,23 @@ object KSLErrors {
         }
     }
 
-    data class LastError(val scriptName: String, val where: String, val message: String, val timestamp: Long)
+    data class LastError(val scriptName: String, val where: String, val message: String, val timestamp: Long, val code: KSLError)
 
     private val counters = ConcurrentHashMap<String, AtomicInteger>()
     @Volatile private var last: LastError? = null
 
-    fun log(plugin: KotlinScriptLoaderPlugin, scriptName: String, where: String, ex: Throwable) {
+    // Every logged error carries a catalog code (see KSLError); SCRIPT_RUNTIME is the generic one.
+    fun log(plugin: KotlinScriptLoaderPlugin, scriptName: String, where: String, ex: Throwable, code: KSLError = KSLError.SCRIPT_RUNTIME) {
         val cause = ex.cause ?: ex
         counters.computeIfAbsent(scriptName) { AtomicInteger(0) }.incrementAndGet()
-        last = LastError(scriptName, where, "${cause::class.simpleName}: ${cause.message}", System.currentTimeMillis())
+        last = LastError(scriptName, where, "${cause::class.simpleName}: ${cause.message}", System.currentTimeMillis(), code)
 
-        plugin.logger.severe("[$scriptName] ❌ Ошибка в $where: ${cause::class.simpleName}: ${cause.message}")
+        plugin.logger.severe("[$scriptName] ${code.tag} ❌ Ошибка в $where: ${cause::class.simpleName}: ${cause.message}")
+        // Scripts in folders are named "folder/name", while the compiled class only carries the file name.
+        val baseName = scriptName.substringAfterLast('/')
         val relevant = cause.stackTrace.filter { frame ->
             frame.fileName?.endsWith(".kts") == true ||
-                frame.className.contains(scriptName, ignoreCase = true)
+                frame.className.contains(baseName, ignoreCase = true)
         }
         if (relevant.isNotEmpty()) {
             relevant.take(5).forEach { frame ->
@@ -45,6 +48,7 @@ object KSLErrors {
                 plugin.logger.severe("  → ${it.className}.${it.methodName}(${it.fileName}:${it.lineNumber})")
             }
         }
+        plugin.logger.severe("  ℹ Что это значит: /ksl error ${code.code}")
     }
 
     fun countFor(scriptName: String): Int = counters[scriptName]?.get() ?: 0

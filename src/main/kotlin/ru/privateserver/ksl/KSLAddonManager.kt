@@ -3,6 +3,7 @@ package ru.privateserver.ksl
 import org.bukkit.Bukkit
 import org.bukkit.OfflinePlayer
 import org.bukkit.entity.LivingEntity
+import org.bukkit.entity.Player
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -30,7 +31,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     val entityAttributes = KSLOwnedRegistry<(LivingEntity, String) -> Unit>()
 
     private val eventBus = KSLEventBus { topic, ex ->
-        plugin.logger.warning("§9[KSL] подписчик темы '$topic' упал: ${ex::class.simpleName}: ${ex.message}")
+        plugin.logger.warning("§9[KSL] ${KSLError.ADDON_CALLBACK_FAILED.tag} подписчик темы '$topic' упал: ${ex::class.simpleName}: ${ex.message}")
     }
 
     private val currentlyLoading = ThreadLocal<String?>()
@@ -51,13 +52,13 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
 
         if (addon.minApiVersion > KSL.API_VERSION) {
             plugin.logger.severe(
-                "§9[KSL] §c✘ '$id' требует KSL API v${addon.minApiVersion}, установлен v${KSL.API_VERSION} — обнови KotlinScriptLoader"
+                "§9[KSL] §c✘ '$id' ${KSLError.ADDON_API_TOO_OLD.tag} требует KSL API v${addon.minApiVersion}, установлен v${KSL.API_VERSION} — обнови KotlinScriptLoader"
             )
             return
         }
 
         if (addons.containsKey(id)) {
-            plugin.logger.warning("§9[KSL] §e⚠ Аддон '$id' уже загружен — старый экземпляр выгружается перед заменой")
+            plugin.logger.warning("§9[KSL] §e⚠ Аддон '$id' ${KSLError.ADDON_DUPLICATE.tag} уже загружен — старый экземпляр выгружается перед заменой")
             unregisterAddon(id)
         }
 
@@ -70,7 +71,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         val missingDeps = addon.dependsOn.filter { !addons.containsKey(it) }
         if (missingDeps.isNotEmpty()) {
             plugin.logger.warning(
-                "§9[KSL]   §e⚠ '$id' объявил зависимость от [${missingDeps.joinToString(", ")}], " +
+                "§9[KSL]   §e⚠ '$id' ${KSLError.ADDON_DEP_MISSING.tag} объявил зависимость от [${missingDeps.joinToString(", ")}], " +
                     "но ${if (missingDeps.size == 1) "он ещё не загружен" else "они ещё не загружены"}. " +
                     "Если это критично — используй api.onAddonReady(id) { } внутри onLoad для отложенной привязки, " +
                     "либо укажи depend в plugin.yml, чтобы Bukkit гарантировал порядок загрузки плагинов."
@@ -80,7 +81,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         val result = asOwner(id) { runCatching { addon.onLoad(this) } }
 
         if (result.isFailure) {
-            plugin.logger.severe("§9[KSL] §c✘ Ошибка загрузки '$id': ${result.exceptionOrNull()?.message}")
+            plugin.logger.severe("§9[KSL] §c✘ ${KSLError.ADDON_LOAD_FAILED.tag} Ошибка загрузки '$id': ${result.exceptionOrNull()?.message}")
             // A half-initialised addon would otherwise stay listed as loaded, with whatever it managed to register.
             runCatching { addon.onUnload() }
             releaseOwned(id)
@@ -103,11 +104,11 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
 
         val dependents = addons.values.filter { addonId in it.dependsOn }.map { it.addonId }
         if (dependents.isNotEmpty()) {
-            plugin.logger.warning("§9[KSL] §e$addonId выгружается, хотя от него зависят: [${dependents.joinToString(", ")}]")
+            plugin.logger.warning("§9[KSL] §e$addonId ${KSLError.ADDON_DEP_UNLOADING.tag} выгружается, хотя от него зависят: [${dependents.joinToString(", ")}]")
         }
 
         runCatching { addon.onUnload() }
-            .onFailure { plugin.logger.warning("§9[KSL] §e$addonId: ошибка выгрузки: ${it.message}") }
+            .onFailure { plugin.logger.warning("§9[KSL] §e$addonId: ${KSLError.ADDON_UNLOAD_FAILED.tag} ошибка выгрузки: ${it.message}") }
 
         val cleanedUp = releaseOwned(addonId)
         if (cleanedUp > 0) {
@@ -136,7 +137,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
 
         val releasedRegistryEntries = hookRegistry.releaseOwner(owner) +
             effectShapes.releaseOwner(owner) + entityAttributes.releaseOwner(owner) +
-            plugin.placeholders.releaseOwner(owner)
+            plugin.placeholders.releaseOwner(owner) + plugin.textPlaceholders.releaseOwner(owner)
 
         return ownedServices.size + ownedExtensions.size + releasedImports.size + releasedRegistryEntries
     }
@@ -146,7 +147,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         val previousOwner = serviceOwner[key]
         if (services.containsKey(key) && previousOwner != owner) {
             plugin.logger.warning(
-                "§9[KSL] §e⚠ Сервис '$key' (владелец: ${previousOwner ?: "не указан"}) перезаписан вызовом ${owner ?: "вне onLoad"}"
+                "§9[KSL] §e⚠ Сервис '$key' (владелец: ${previousOwner ?: "не указан"}) ${KSLError.ADDON_OVERWRITE.tag} перезаписан вызовом ${owner ?: "вне onLoad"}"
             )
         }
         services[key] = instance
@@ -166,7 +167,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         if (type.isInstance(instance)) return type.cast(instance)
         if (mismatchWarned.add("$key|${type.name}")) {
             plugin.logger.warning(
-                "§9[KSL] §e⚠ Сервис '$key' имеет тип ${instance.javaClass.name}, а запрошен ${type.name}. " +
+                "§9[KSL] §e⚠ Сервис '$key' ${KSLError.ADDON_TYPE_MISMATCH.tag} имеет тип ${instance.javaClass.name}, а запрошен ${type.name}. " +
                     "Если имена совпадают — класс загружен разными classloader'ами (аддон упакован вместе с зависимостью; используй compileOnly)."
             )
         }
@@ -208,7 +209,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     private fun runReady(addon: KSLAddon, hook: ReadyHook) {
         asOwner(hook.owner) {
             runCatching { hook.callback(addon) }
-                .onFailure { plugin.logger.warning("§9[KSL] onAddonReady('${addon.addonId}') callback упал: ${it.message}") }
+                .onFailure { plugin.logger.warning("§9[KSL] onAddonReady('${addon.addonId}') ${KSLError.ADDON_CALLBACK_FAILED.tag} callback упал: ${it.message}") }
         }
     }
 
@@ -223,7 +224,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     private fun <T : Any> KSLOwnedRegistry<T>.putOwned(kind: String, key: String, value: T) {
         val owner = currentlyLoading.get()
         if (contains(key) && ownerOf(key) != owner) {
-            plugin.logger.warning("§9[KSL] §e⚠ $kind '$key' (владелец: ${ownerOf(key) ?: "не указан"}) перезаписан вызовом ${owner ?: "вне onLoad"}")
+            plugin.logger.warning("§9[KSL] §e⚠ $kind '$key' (владелец: ${ownerOf(key) ?: "не указан"}) ${KSLError.ADDON_OVERWRITE.tag} перезаписан вызовом ${owner ?: "вне onLoad"}")
         }
         put(key, value, owner)
     }
@@ -241,7 +242,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         if (type.isInstance(hook)) return type.cast(hook)
         if (mismatchWarned.add("hook:$hookId|${type.name}")) {
             plugin.logger.warning(
-                "§9[KSL] §e⚠ Хук '$hookId' имеет тип ${hook.javaClass.name}, а запрошен ${type.name} — " +
+                "§9[KSL] §e⚠ Хук '$hookId' ${KSLError.ADDON_TYPE_MISMATCH.tag} имеет тип ${hook.javaClass.name}, а запрошен ${type.name} — " +
                     "если имена совпадают, класс загружен разными classloader'ами (используй compileOnly для API провайдера)."
             )
         }
@@ -257,6 +258,12 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     }
 
     override fun unregisterPlaceholder(key: String) = plugin.placeholders.remove(key.lowercase())
+
+    override fun registerTextPlaceholder(key: String, resolver: (Player?) -> String?) {
+        plugin.registerTextPlaceholder(currentlyLoading.get() ?: "addon", key, resolver)
+    }
+
+    override fun unregisterTextPlaceholder(key: String) = plugin.textPlaceholders.remove(key.lowercase())
 
     override fun registerEffectShape(name: String, factory: KSLShapeFactory) {
         effectShapes.putOwned("Форма эффекта", name.lowercase(), factory)
@@ -277,7 +284,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     fun notifyContextCreated(context: BukkitScriptContext) {
         contextExtensions.values.forEach { ext ->
             runCatching { ext.onContextCreated(context) }
-                .onFailure { plugin.logger.warning("§9[KSL] ${ext.extensionId}.onContextCreated: ${it.message}") }
+                .onFailure { plugin.logger.warning("§9[KSL] ${KSLError.ADDON_CALLBACK_FAILED.tag} ${ext.extensionId}.onContextCreated: ${it.message}") }
         }
     }
 
@@ -285,7 +292,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         eventBus.clearOwner("script:$scriptName")
         contextExtensions.values.forEach { ext ->
             runCatching { ext.onContextDestroyed(scriptName) }
-                .onFailure { plugin.logger.warning("§9[KSL] ${ext.extensionId}.onContextDestroyed: ${it.message}") }
+                .onFailure { plugin.logger.warning("§9[KSL] ${KSLError.ADDON_CALLBACK_FAILED.tag} ${ext.extensionId}.onContextDestroyed: ${it.message}") }
         }
     }
 

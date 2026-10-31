@@ -21,3 +21,21 @@ database:
   # disable | trust | verify-ca | verify-full
   ssl-mode: disable
   pool-size: 4
+  # Кэш значений table() в памяти. По умолчанию: sqlite - включён, mysql/mariadb - выключен
+  # (данные могут менять другие серверы или вы сами в phpMyAdmin). Очищается при /ksl reload.
+  # cache: true
+
+# Папки со скриптами и перезагрузка.
+scripts:
+  # Искать скрипты и в подпапках scripts/ (папки и файлы, начинающиеся с "." , и папки с "_" пропускаются).
+  # Имя скрипта = путь внутри scripts/ без .kts, например economy/shop.
+  recursive: true
+  # Сам перезагружает скрипт при сохранении файла (удобно при разработке; на боевом сервере лучше выключить).
+  auto-reload: false
+
+# Свои @плейсхолдеры@ для message()/richMessage()/messageList() в скриптах.
+# Например server_name: "Мой сервер" даёт @server_name@. Встроенные имена
+# (player, world, online, maxplayers, health, ping) занять нельзя.
+# Динамические (зависящие от игрока) регистрируются из скрипта: textPlaceholder("rank") { player -> ... }
+text-placeholders: {}
+#  server_name: "Мой сервер"

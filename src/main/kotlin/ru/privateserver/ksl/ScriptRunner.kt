@@ -14,6 +14,7 @@ import kotlin.script.experimental.jvmhost.BasicJvmScriptingHost
 class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
 
     private val host = BasicJvmScriptingHost()
+
     private val pluginClassLoader = plugin::class.java.classLoader
 
     companion object {
@@ -21,7 +22,8 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
     }
 
     fun loadScript(file: File): Boolean {
-        val scriptName = file.nameWithoutExtension
+        // Folder-relative id ("economy/shop"), so two folders can each hold a shop.kts.
+        val scriptName = plugin.scriptId(file)
         val startedAt = System.nanoTime()
         return try {
             if (!checkSandbox(file, scriptName)) return false
@@ -39,11 +41,11 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
 
             result.reports
                 .filter { it.severity == ScriptDiagnostic.Severity.WARNING }
-                .forEach { plugin.logger.warning("[$scriptName] ⚠ ${formatDiagnostic(it)}") }
+                .forEach { plugin.logger.warning("[$scriptName] ${KSLError.SCRIPT_COMPILE_WARNING.tag} ⚠ ${formatDiagnostic(it)}") }
 
             val ok = when (result) {
                 is ResultWithDiagnostics.Failure -> {
-                    plugin.logger.severe("[$scriptName] ❌ Ошибки компиляции:")
+                    plugin.logger.severe("[$scriptName] ${KSLError.SCRIPT_COMPILE.tag} ❌ Ошибки компиляции:")
                     result.reports
                         .filter { it.severity >= ScriptDiagnostic.Severity.ERROR }
                         .forEach { plugin.logger.severe("  ${formatDiagnostic(it)}") }
@@ -63,7 +65,7 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
 
             val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000
             if (elapsedMs > SLOW_LOAD_THRESHOLD_MS) {
-                plugin.logger.warning("[$scriptName] ⏱ Загрузка заняла ${elapsedMs}мс — это дольше обычного, проверь скрипт на тяжёлые операции в top-level коде (сеть, БД синхронно и т.п.)")
+                plugin.logger.warning("[$scriptName] ${KSLError.SCRIPT_SLOW_LOAD.tag} ⏱ Загрузка заняла ${elapsedMs}мс — это дольше обычного, проверь скрипт на тяжёлые операции в top-level коде (сеть, БД синхронно и т.п.)")
             }
 
             ok
@@ -106,7 +108,7 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
         if (!plugin.sandboxEnabled) return true
         val violations = KSLSandboxRules.scan(file)
         violations.firstOrNull()?.let {
-            plugin.logger.severe("[$scriptName] 🚫 Sandbox нарушение строка ${it.line}: запрещённый паттерн '${it.pattern}'")
+            plugin.logger.severe("[$scriptName] ${KSLError.SCRIPT_SANDBOX.tag} 🚫 Sandbox нарушение строка ${it.line}: запрещённый паттерн '${it.pattern}'")
             return false
         }
         return true

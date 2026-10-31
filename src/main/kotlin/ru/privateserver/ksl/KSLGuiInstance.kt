@@ -37,18 +37,18 @@ class KSLGuiInstance(
 
     init {
         if (rows != requestedRows) {
-            plugin.logger.warning("[$scriptName] gui: rows=$requestedRows вне 1..6 — использую $rows")
+            plugin.logger.warning("[$scriptName] ${KSLError.GUI_BAD_ROWS.tag} gui: rows=$requestedRows вне 1..6 — использую $rows")
         }
         if (!Bukkit.isPrimaryThread()) {
             throw IllegalStateException(
-                "gui() вызван не из основного потока сервера — Bukkit Inventory можно создавать только на main thread. " +
+                "${KSLError.GUI_WRONG_THREAD.tag} gui() вызван не из основного потока сервера — Bukkit Inventory можно создавать только на main thread. " +
                     "Если ты вызываешь gui() внутри runAsync/delayAsync, оберни это в runSync { gui(...) ... }."
             )
         }
         val component = try {
             MiniMessage.miniMessage().deserialize(title)
         } catch (ex: Throwable) {
-            plugin.logger.warning("[$scriptName] Не удалось разобрать MiniMessage-заголовок GUI ('$title'): ${ex.message} — использую как обычный текст")
+            plugin.logger.warning("[$scriptName] ${KSLError.GUI_BAD_TITLE.tag} Не удалось разобрать MiniMessage-заголовок GUI ('$title'): ${ex.message} — использую как обычный текст")
             Component.text(title)
         }
         inventory = Bukkit.createInventory(holder, size, component)
@@ -57,7 +57,7 @@ class KSLGuiInstance(
 
     fun set(slot: Int, item: ItemStack, onClick: ((Player, InventoryClickEvent) -> Unit)? = null) {
         if (slot !in 0 until size) {
-            plugin.logger.warning("[$scriptName] gui: слот $slot вне 0..${size - 1} — предмет не добавлен")
+            plugin.logger.warning("[$scriptName] ${KSLError.GUI_BAD_SLOT.tag} gui: слот $slot вне 0..${size - 1} — предмет не добавлен")
             return
         }
         inventory.setItem(slot, item)
@@ -102,7 +102,7 @@ class KSLGuiInstance(
         onClick: (Player, T) -> Unit
     ) {
         if (slots.isEmpty()) {
-            plugin.logger.warning("[$scriptName] gui paginate: список slots пуст — страницы не будет")
+            plugin.logger.warning("[$scriptName] ${KSLError.GUI_PAGINATE_EMPTY.tag} gui paginate: список slots пуст — страницы не будет")
             return
         }
         @Suppress("UNCHECKED_CAST")
@@ -139,7 +139,7 @@ class KSLGuiInstance(
                 else clear(nextSlot)
             }
         } catch (ex: Throwable) {
-            KSLErrors.log(plugin, scriptName, "gui paginate render", ex)
+            KSLErrors.log(plugin, scriptName, "gui paginate render", ex, KSLError.GUI_CLICK_FAILED)
         }
     }
 
@@ -197,7 +197,7 @@ class KSLGuiInstance(
         try {
             handler(player, event)
         } catch (ex: Throwable) {
-            KSLErrors.log(plugin, scriptName, "gui click slot $slot", ex)
+            KSLErrors.log(plugin, scriptName, "gui click slot $slot", ex, KSLError.GUI_CLICK_FAILED)
         } finally {
             clickDepth--
         }
@@ -211,7 +211,7 @@ class KSLGuiInstance(
         try {
             closeHandler?.invoke(player)
         } catch (ex: Throwable) {
-            KSLErrors.log(plugin, scriptName, "gui onClose", ex)
+            KSLErrors.log(plugin, scriptName, "gui onClose", ex, KSLError.GUI_CLICK_FAILED)
         }
     }
 

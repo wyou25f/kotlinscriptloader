@@ -174,6 +174,83 @@ private fun testDiscordJson() {
     check("an empty string is a pair of quotes", jsonString("") == "\"\"")
 }
 
+private fun testErrorCatalog() {
+    println("KSLError catalog")
+    val all = KSLError.entries
+    val codes = all.map { it.code }
+    check("codes are unique", codes.toSet().size == all.size)
+    check("numbers are unique", all.map { it.number }.toSet().size == all.size)
+    check("every code is four digits and a lowercase letter", codes.all { Regex("^[0-9]{4}[a-z]$").matches(it) })
+    check("the letter is the category letter", all.all { it.code.last() == it.category.letter })
+    check("category letters are unique", KSLErrorCategory.entries.map { it.letter }.toSet().size == KSLErrorCategory.entries.size)
+    val numbers = all.map { it.number }.sorted()
+    check("numbers are scattered: no two codes are neighbours", numbers.zipWithNext().all { (a, b) -> b - a >= 20 })
+    check("numbers are not a 0001, 0002 sequence", numbers.first() >= 100)
+    check("every code has a title and a hint", all.all { it.title.isNotBlank() && it.hint.isNotBlank() })
+    val sample = KSLError.SCRIPT_COMPILE
+    check("find accepts #, brackets and upper case", KSLError.find("#" + sample.code.uppercase()) == sample && KSLError.find("[" + sample.code + "]") == sample)
+    check("find returns null for an unknown code", KSLError.find("0000z") == null)
+    check("tag wraps the code in brackets", sample.tag == "[" + sample.code + "]")
+}
+
+private fun testScriptIds() {
+    println("script ids, folders and requirements")
+    val ids = listOf("main", "economy/shop", "economy/bank", "pvp/arena")
+    check("an exact id resolves", KSLScriptOrder.resolve("economy/shop", ids) == "economy/shop")
+    check("a bare name resolves when it is unique", KSLScriptOrder.resolve("arena", ids) == "pvp/arena")
+    check("the .kts suffix and backslashes are tolerated", KSLScriptOrder.resolve("economy\\bank.kts", ids) == "economy/bank")
+    check("an ambiguous bare name does not resolve", KSLScriptOrder.resolve("shop", listOf("a/shop", "b/shop")) == null)
+    check("an unknown name does not resolve", KSLScriptOrder.resolve("nope", ids) == null)
+
+    val warnings = mutableListOf<String>()
+    val order = KSLScriptOrder.sortIds(listOf("b", "a", "c"), mapOf("a" to listOf("b")), { warnings += it })
+    check("a requirement loads first, the rest keep their order", order == listOf("b", "a", "c") && warnings.isEmpty())
+    val reversed = KSLScriptOrder.sortIds(listOf("a", "b", "c"), mapOf("a" to listOf("c")), { warnings += it })
+    check("a dependent moves after its requirement", reversed == listOf("b", "c", "a"))
+    val cyclic = KSLScriptOrder.sortIds(listOf("x", "y"), mapOf("x" to listOf("y"), "y" to listOf("x")), { warnings += it })
+    check("a cycle keeps everything and warns with the catalog code", cyclic.toSet() == setOf("x", "y") && warnings.size == 1 && warnings[0].contains(KSLError.SCRIPT_REQUIRES_CYCLE.code))
+
+    val tmp = java.nio.file.Files.createTempDirectory("kslfolders").toFile()
+    File(tmp, "economy").mkdirs()
+    val core = File(tmp, "core.kts").apply { writeText("println(1)") }
+    val shop = File(tmp, "economy/shop.kts").apply { writeText("// @requires: core\nprintln(2)") }
+    val idOf = { f: File -> f.relativeTo(tmp).invariantSeparatorsPath.removeSuffix(".kts") }
+    val ordered = KSLScriptOrder.sort(listOf(shop, core), idOf, Logger.getLogger("test")).map(idOf)
+    check("a script in a folder finds its requirement by bare name", ordered == listOf("core", "economy/shop"))
+    tmp.deleteRecursively()
+}
+
+private fun testTextPlaceholders() {
+    println("text placeholders")
+    val values = mapOf("server" to "KSL", "rank" to "Admin")
+    check("known tokens are replaced", KSLTextPlaceholders.apply("Welcome to @server@, @rank@!") { values[it] } == "Welcome to KSL, Admin!")
+    check("tokens are case-insensitive", KSLTextPlaceholders.apply("@SERVER@") { values[it] } == "KSL")
+    check("unknown tokens stay for the unmatched warning", KSLTextPlaceholders.apply("hi @nobody@") { values[it] } == "hi @nobody@")
+    check("text without @ is returned as is", KSLTextPlaceholders.apply("plain text 100%") { "x" } == "plain text 100%")
+    check("a value containing a dollar sign is inserted literally", KSLTextPlaceholders.apply("@a@") { "\$1" } == "\$1")
+    check("built-in names are reserved", listOf("player", "world", "online", "maxplayers", "health", "ping").all { it in KSLTextPlaceholders.reserved })
+}
+
+private fun testValueCache() {
+    println("KSLValueCache")
+    val cache = KSLValueCache(3)
+    check("an unread key is a miss", !cache.has("a"))
+    cache.store("a", "i:1")
+    check("a stored value is a hit", cache.has("a") && cache.value("a") == "i:1")
+    cache.store("gone", null)
+    check("a known-absent row is a hit with no value", cache.has("gone") && cache.value("gone") == null)
+    val seen = cache.version()
+    cache.store("a", "i:2")
+    cache.fill("a", "i:1", seen)
+    check("a read that started before a write cannot overwrite it", cache.value("a") == "i:2")
+    cache.fill("b", "i:9", cache.version())
+    check("an up-to-date read is cached", cache.value("b") == "i:9")
+    cache.store("c", "i:3")
+    check("the cache empties itself at the limit", cache.size() <= 3)
+    cache.clear()
+    check("clear removes everything", !cache.has("a") && cache.size() == 0)
+}
+
 private fun testScriptOrder() {
     println("KSLScriptOrder")
     val logger = Logger.getLogger("test")
@@ -235,6 +312,10 @@ fun main() {
     testShapeParams()
     testDslTime()
     testScriptOrder()
+    testErrorCatalog()
+    testScriptIds()
+    testTextPlaceholders()
+    testValueCache()
     println()
     println("TOTAL: $passed passed, $failed failed")
     if (failed > 0) kotlin.system.exitProcess(1)

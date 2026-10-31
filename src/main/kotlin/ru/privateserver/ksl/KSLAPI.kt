@@ -2,6 +2,7 @@ package ru.privateserver.ksl
 
 import org.bukkit.OfflinePlayer
 import org.bukkit.entity.LivingEntity
+import org.bukkit.entity.Player
 import org.bukkit.plugin.java.JavaPlugin
 
 interface KSLAPI {
@@ -50,6 +51,11 @@ interface KSLAPI {
     // ---- PlaceholderAPI: %ksl_<key>% (needs PlaceholderAPI installed; case-insensitive, removed with the addon) ----
     fun registerPlaceholder(key: String, resolver: (OfflinePlayer) -> String?)
     fun unregisterPlaceholder(key: String)
+
+    // ---- Text placeholders: @key@ inside message()/richMessage() texts (case-insensitive, removed with the addon) ----
+    // The player is null for messages that are not addressed to anyone. Names of built-in tokens are reserved.
+    fun registerTextPlaceholder(key: String, resolver: (Player?) -> String?)
+    fun unregisterTextPlaceholder(key: String)
 
     // ---- Engines: plug new behaviour into playEffect / spawnCustomEntity ----
 

@@ -36,10 +36,10 @@ class KSLEntityBehaviorBuilder(
                 block(entity)
                 errors = 0
             } catch (ex: Throwable) {
-                KSLErrors.log(plugin, scriptName, "entity onTick", ex)
+                KSLErrors.log(plugin, scriptName, "entity onTick", ex, KSLError.ENTITY_HOOK_FAILED)
                 // A broken tick would otherwise log a stack trace 20 times a second for the mob's whole life.
                 if (++errors >= MAX_CONSECUTIVE_ERRORS) {
-                    plugin.logger.severe("[$scriptName] entity onTick отключён: $MAX_CONSECUTIVE_ERRORS ошибок подряд")
+                    plugin.logger.severe("[$scriptName] ${KSLError.ENTITY_TICK_DISABLED.tag} entity onTick отключён: $MAX_CONSECUTIVE_ERRORS ошибок подряд")
                     stop()
                 }
             }

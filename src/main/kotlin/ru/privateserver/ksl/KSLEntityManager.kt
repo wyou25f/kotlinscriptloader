@@ -92,12 +92,17 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
         try {
             block()
         } catch (ex: Throwable) {
-            KSLErrors.log(plugin, scriptName, where, ex)
+            KSLErrors.log(plugin, scriptName, where, ex, KSLError.ENTITY_HOOK_FAILED)
         }
     }
 
+    // Death, damage and removal events fire for every entity on the server; with no scripted mobs they should cost nothing.
+    private fun hooksIdle(): Boolean =
+        deathHooks.isEmpty() && damagedHooks.isEmpty() && attackHooks.isEmpty() && dropSpecs.isEmpty()
+
     @EventHandler
     fun onDeath(event: EntityDeathEvent) {
+        if (hooksIdle()) return
         val uuid = event.entity.uniqueId
         dropSpecs.remove(uuid)?.let { spec ->
             if (!spec.keepDefault) event.drops.clear()
@@ -113,6 +118,7 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
 
     @EventHandler(ignoreCancelled = true)
     fun onDamaged(event: EntityDamageEvent) {
+        if (damagedHooks.isEmpty()) return
         val entity = event.entity as? LivingEntity ?: return
         val hook = damagedHooks[entity.uniqueId] ?: return
         runHook(hook.scriptName, "entity onDamaged") { hook.callback(entity, event) }
@@ -120,6 +126,7 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
 
     @EventHandler(ignoreCancelled = true)
     fun onAttack(event: EntityDamageByEntityEvent) {
+        if (attackHooks.isEmpty()) return
         val attacker = event.damager as? LivingEntity ?: return
         val hook = attackHooks[attacker.uniqueId] ?: return
         runHook(hook.scriptName, "entity onAttack") { hook.callback(attacker, event) }
@@ -131,6 +138,7 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
     // ConcurrentModificationException if removal happens while the world is iterating its entities.
     @EventHandler
     fun onRemove(event: EntityRemoveEvent) {
+        if (hooksIdle() && entitiesByScript.isEmpty() && removeOnReload.isEmpty()) return
         val entity = event.entity as? LivingEntity ?: return
         // Saved with the chunk and coming back under the same UUID: keep the hooks and the index entry.
         if (event.cause == EntityRemoveEvent.Cause.UNLOAD && entity.isPersistent) return
@@ -146,7 +154,9 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
     @EventHandler
     fun onEntitiesLoad(event: EntitiesLoadEvent) {
         if (!plugin.isEnabled) return
+        // Only living entities are ever spawned by scripts; reading the PDC of items and armor stands in every loaded chunk is wasted work.
         val orphans = event.entities.filter { entity ->
+            if (entity !is LivingEntity) return@filter false
             val pdc = entity.persistentDataContainer
             val owner = pdc.get(ownerKey, PersistentDataType.STRING) ?: return@filter false
             pdc.has(ephemeralKey, PersistentDataType.BYTE) && entitiesByScript[owner]?.contains(entity.uniqueId) != true
@@ -166,7 +176,7 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
             val shouldRemove = removeOnReload.remove(uuid) ?: true
             if (shouldRemove) {
                 runCatching { Bukkit.getEntity(uuid)?.remove() }
-                    .onFailure { plugin.logger.warning("[$scriptName] Не удалось убрать сущность $uuid при выгрузке: ${it.message}") }
+                    .onFailure { plugin.logger.warning("[$scriptName] ${KSLError.ENTITY_CLEANUP_FAILED.tag} Не удалось убрать сущность $uuid при выгрузке: ${it.message}") }
             }
         }
     }

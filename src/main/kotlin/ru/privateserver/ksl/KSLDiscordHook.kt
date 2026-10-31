@@ -54,7 +54,7 @@ class KSLDiscordHook(private val plugin: KotlinScriptLoaderPlugin) {
     // allowMentions = true lets @everyone/@here/role mentions through.
     fun send(channel: String, content: String, allowMentions: Boolean = false) {
         val url = webhooks[channel] ?: run {
-            plugin.logger.warning("[Discord] Канал '$channel' не настроен в config.yml")
+            plugin.logger.warning("[Discord] ${KSLError.DISCORD_NOT_CONFIGURED.tag} Канал '$channel' не настроен в config.yml")
             return
         }
         post(channel, url, "{\"content\":${jsonString(content.take(MAX_CONTENT))}${if (allowMentions) "" else NO_MENTIONS}}")
@@ -69,7 +69,7 @@ class KSLDiscordHook(private val plugin: KotlinScriptLoaderPlugin) {
         allowMentions: Boolean = false
     ) {
         val url = webhooks[channel] ?: run {
-            plugin.logger.warning("[Discord] Канал '$channel' не настроен в config.yml")
+            plugin.logger.warning("[Discord] ${KSLError.DISCORD_NOT_CONFIGURED.tag} Канал '$channel' не настроен в config.yml")
             return
         }
         val footerBlock = if (footer.isNotBlank()) ",\"footer\":{\"text\":${jsonString(footer.take(MAX_FOOTER))}}" else ""
@@ -94,7 +94,7 @@ class KSLDiscordHook(private val plugin: KotlinScriptLoaderPlugin) {
             .whenComplete { response, ex ->
                 when {
                     ex != null ->
-                        plugin.logger.warning("[Discord] Ошибка отправки в канал '$channel': ${ex.message}")
+                        plugin.logger.warning("[Discord] ${KSLError.DISCORD_SEND_FAILED.tag} Ошибка отправки в канал '$channel': ${ex.message}")
                     response.statusCode() == 429 && attempt < MAX_RETRIES -> {
                         // Rate limited: Discord says how long to wait; a dropped message is worse than a short delay.
                         val seconds = response.headers().firstValue("retry-after").orElse("1").toDoubleOrNull() ?: 1.0
@@ -103,7 +103,7 @@ class KSLDiscordHook(private val plugin: KotlinScriptLoaderPlugin) {
                             .execute { post(channel, url, json, attempt + 1) }
                     }
                     response.statusCode() !in 200..299 ->
-                        plugin.logger.warning("[Discord] HTTP ${response.statusCode()} при отправке в канал '$channel'")
+                        plugin.logger.warning("[Discord] ${KSLError.DISCORD_HTTP_ERROR.tag} HTTP ${response.statusCode()} при отправке в канал '$channel'")
                 }
             }
     }

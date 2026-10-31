@@ -48,7 +48,7 @@ open class BukkitScriptContext(
     @Synchronized
     fun saveConfig() {
         try { writeAtomically(config, configFile) }
-        catch (ex: IOException) { plugin.logger.warning("[$scriptName] Не удалось сохранить $scriptName.yml: ${ex.message}") }
+        catch (ex: IOException) { plugin.logger.warning("[$scriptName] ${KSLError.YAML_SAVE_FAILED.tag} Не удалось сохранить $scriptName.yml: ${ex.message}") }
     }
 
     fun loadYaml(fileName: String): YamlConfiguration {
@@ -56,7 +56,7 @@ open class BukkitScriptContext(
         val file = File(root, fileName).canonicalFile
         // Without this check '../..' lets a script create or read files anywhere the server can write.
         require(file.toPath() != root.toPath() && file.toPath().startsWith(root.toPath())) {
-            "loadYaml: '$fileName' выходит за пределы scripts/"
+            "${KSLError.YAML_PATH_ESCAPE.tag} loadYaml: '$fileName' выходит за пределы scripts/"
         }
         return loadYamlFile(file)
     }
@@ -72,11 +72,11 @@ open class BukkitScriptContext(
             val backup = File(file.parentFile, "${file.name}.broken-${System.currentTimeMillis()}")
             val saved = runCatching { file.copyTo(backup) }.isSuccess
             plugin.logger.severe(
-                "[$scriptName] ${file.name} содержит ошибку YAML (${ex.message?.lineSequence()?.firstOrNull()}). " +
+                "[$scriptName] ${KSLError.YAML_BROKEN.tag} ${file.name} содержит ошибку YAML (${ex.message?.lineSequence()?.firstOrNull()}). " +
                     if (saved) "Копия: ${backup.name}, используется пустой конфиг." else "Копию сделать не удалось, используется пустой конфиг."
             )
         } catch (ex: IOException) {
-            plugin.logger.severe("[$scriptName] Не удалось прочитать ${file.name}: ${ex.message}")
+            plugin.logger.severe("[$scriptName] ${KSLError.YAML_READ_FAILED.tag} Не удалось прочитать ${file.name}: ${ex.message}")
         }
         return yaml
     }
@@ -103,32 +103,42 @@ open class BukkitScriptContext(
 
     private fun substitute(path: String, raw: String, player: Player?, replacements: Array<out Pair<String, Any?>>): String {
         var text = raw
+        // Most messages contain no @token@ and no %placeholder%; those skip the scans below entirely.
+        val hasTokens = text.indexOf('@') >= 0
 
-        if (player != null) {
-            text = text
-                .replace("@player@", player.name)
-                .replace("@world@", player.world.name)
-                .replace("@online@", Bukkit.getOnlinePlayers().size.toString())
-                .replace("@maxplayers@", Bukkit.getMaxPlayers().toString())
-                .replace("@health@", formatPlaceholderValue(player.health))
-                .replace("@ping@", player.ping.toString())
+        if (hasTokens) {
+            if (player != null) {
+                text = text
+                    .replace("@player@", player.name)
+                    .replace("@world@", player.world.name)
+                    .replace("@online@", Bukkit.getOnlinePlayers().size.toString())
+                    .replace("@maxplayers@", Bukkit.getMaxPlayers().toString())
+                    .replace("@health@", formatPlaceholderValue(player.health))
+                    .replace("@ping@", player.ping.toString())
+            }
+            replacements.forEach { (key, value) -> text = text.replace("@$key@", formatPlaceholderValue(value)) }
+            text = KSLTextPlaceholders.apply(text) { key -> plugin.resolveTextPlaceholder(key, player) }
         }
 
-        replacements.forEach { (key, value) -> text = text.replace("@$key@", formatPlaceholderValue(value)) }
-
-        if (player != null && plugin.papiEnabled) {
+        if (player != null && plugin.papiEnabled && text.indexOf('%') >= 0) {
             text = KSLPapiResolver.resolve(player, text)
         }
 
-        unmatchedPlaceholderRegex.findAll(text).forEach { match ->
-            val warnKey = "$path:${match.value}"
-            if (warnedPlaceholders.add(warnKey)) {
-                plugin.logger.warning("[$scriptName] В '$path' остался незаменённый плейсхолдер ${match.value} — проверь имя ключа в message()/messageList()/richMessage()")
+        if (text.indexOf('@') >= 0) {
+            unmatchedPlaceholderRegex.findAll(text).forEach { match ->
+                val warnKey = "$path:${match.value}"
+                if (warnedPlaceholders.add(warnKey)) {
+                    plugin.logger.warning("[$scriptName] ${KSLError.PLACEHOLDER_UNMATCHED.tag} В '$path' остался незаменённый плейсхолдер ${match.value} — проверь имя ключа в message()/messageList()/richMessage() или зарегистрируй textPlaceholder")
+                }
             }
         }
 
         return text
     }
+
+    // @key@ in message()/richMessage(); removed when the script unloads. Names of built-in tokens are reserved.
+    fun registerTextPlaceholder(key: String, resolver: (Player?) -> String?) =
+        plugin.registerTextPlaceholder("script:$scriptName", key, resolver)
 
     fun YamlConfiguration.message(path: String, vararg replacements: Pair<String, Any?>): String {
         val raw = getString(path) ?: return path
@@ -174,7 +184,7 @@ open class BukkitScriptContext(
                     }
                 }
             } catch (ex: Exception) {
-                plugin.logger.warning("[$scriptName] dbExecute: ${ex.message}")
+                plugin.logger.warning("[$scriptName] ${KSLError.DB_SCRIPT_QUERY_FAILED.tag} dbExecute: ${ex.message}")
             }
         }
     }
@@ -189,7 +199,7 @@ open class BukkitScriptContext(
                     }
                 }
             } catch (ex: Exception) {
-                plugin.logger.warning("[$scriptName] dbQuery: ${ex.message}")
+                plugin.logger.warning("[$scriptName] ${KSLError.DB_SCRIPT_QUERY_FAILED.tag} dbQuery: ${ex.message}")
             }
         }
     }
@@ -199,7 +209,7 @@ open class BukkitScriptContext(
         try {
             block()
         } catch (ex: Throwable) {
-            KSLErrors.log(plugin, scriptName, where, ex)
+            KSLErrors.log(plugin, scriptName, where, ex, KSLError.TASK_FAILED)
         }
     }
 
@@ -247,7 +257,7 @@ open class BukkitScriptContext(
                 try {
                     event.action()
                 } catch (ex: Throwable) {
-                    KSLErrors.log(plugin, scriptName, "onEvent<${T::class.simpleName}>", ex)
+                    KSLErrors.log(plugin, scriptName, "onEvent<${T::class.simpleName}>", ex, KSLError.EVENT_HANDLER_FAILED)
                 }
             }
         }
@@ -342,7 +352,7 @@ open class BukkitScriptContext(
 
     fun registerPlaceholder(key: String, resolver: (OfflinePlayer) -> String?) {
         if (!plugin.papiEnabled) {
-            plugin.logger.warning("[$scriptName] PlaceholderAPI не найден — плейсхолдер '$key' пропущен"); return
+            plugin.logger.warning("[$scriptName] ${KSLError.PAPI_MISSING.tag} PlaceholderAPI не найден — плейсхолдер '$key' пропущен"); return
         }
         plugin.registerPlaceholder(scriptName, key, resolver)
     }
@@ -421,7 +431,7 @@ open class BukkitScriptContext(
 
     fun discordSend(channel: String, message: String) {
         plugin.discord?.send(channel, message)
-            ?: plugin.logger.warning("[$scriptName] discordSend: Discord не настроен в config.yml")
+            ?: plugin.logger.warning("[$scriptName] ${KSLError.DISCORD_NOT_CONFIGURED.tag} discordSend: Discord не настроен в config.yml")
     }
 
     fun discordEmbed(
@@ -432,7 +442,7 @@ open class BukkitScriptContext(
         footer: String = ""
     ) {
         plugin.discord?.sendEmbed(channel, title, description, color, footer)
-            ?: plugin.logger.warning("[$scriptName] discordEmbed: Discord не настроен в config.yml")
+            ?: plugin.logger.warning("[$scriptName] ${KSLError.DISCORD_NOT_CONFIGURED.tag} discordEmbed: Discord не настроен в config.yml")
     }
 
     fun Location.playEffect(particle: Particle, builder: KSLEffectSpec.() -> Unit): Int {
@@ -468,13 +478,13 @@ open class BukkitScriptContext(
         val typeName = attrs["TYPE"]
         val type = typeName?.let { runCatching { EntityType.valueOf(it.uppercase()) }.getOrNull() }
             ?: EntityType.ZOMBIE.also {
-                if (typeName != null) plugin.logger.warning("[$scriptName] spawnCustomEntity: неизвестный TYPE:$typeName — использую ZOMBIE")
+                if (typeName != null) plugin.logger.warning("[$scriptName] ${KSLError.ENTITY_UNKNOWN_TYPE.tag} spawnCustomEntity: неизвестный TYPE:$typeName — использую ZOMBIE")
             }
-        val world = location.world ?: error("spawnCustomEntity: у локации нет мира")
+        val world = location.world ?: error("${KSLError.ENTITY_NO_WORLD.tag} spawnCustomEntity: у локации нет мира")
         val spawned = world.spawnEntity(location, type)
         val entity = spawned as? LivingEntity ?: run {
             spawned.remove()
-            error("spawnCustomEntity: TYPE:${type.name} — не LivingEntity (нужен живой моб вроде ZOMBIE/SKELETON/COW), заспавненная сущность удалена")
+            error("${KSLError.ENTITY_NOT_LIVING.tag} spawnCustomEntity: TYPE:${type.name} — не LivingEntity (нужен живой моб вроде ZOMBIE/SKELETON/COW), заспавненная сущность удалена")
         }
 
         plugin.entityManager.trackSpawn(scriptName, entity, removeOnReload)
@@ -490,7 +500,7 @@ open class BukkitScriptContext(
                     entity.setMaxHealth(hp)
                     entity.health = hp
                 } else {
-                    plugin.logger.warning("[$scriptName] spawnCustomEntity: HP:$hp вне (0, 1024] — игнорирую")
+                    plugin.logger.warning("[$scriptName] ${KSLError.ENTITY_BAD_HP.tag} spawnCustomEntity: HP:$hp вне (0, 1024] — игнорирую")
                 }
             }
             attrs["AI"]?.toBooleanStrictOrNull()?.let { entity.setAI(it) }
@@ -503,11 +513,11 @@ open class BukkitScriptContext(
                 val handler = plugin.addonManager.entityAttributes.get(key)
                 if (handler == null) {
                     val known = (KSLEntityAttributes.coreKeys + plugin.addonManager.entityAttributes.keys()).sorted()
-                    plugin.logger.warning("[$scriptName] spawnCustomEntity: неизвестный атрибут $key (доступны: ${known.joinToString(", ")})")
+                    plugin.logger.warning("[$scriptName] ${KSLError.ENTITY_UNKNOWN_ATTRIBUTE.tag} spawnCustomEntity: неизвестный атрибут $key (доступны: ${known.joinToString(", ")})")
                     return@forEach
                 }
                 runCatching { handler(entity, value) }
-                    .onFailure { plugin.logger.warning("[$scriptName] spawnCustomEntity: $key:$value — ${it.message}") }
+                    .onFailure { plugin.logger.warning("[$scriptName] ${KSLError.ENTITY_ATTRIBUTE_FAILED.tag} spawnCustomEntity: $key:$value — ${it.message}") }
             }
             KSLEntityBuilder(entity, plugin, scriptName).builder()
         } catch (ex: Throwable) {

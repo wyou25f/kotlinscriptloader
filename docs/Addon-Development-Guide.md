@@ -666,3 +666,15 @@ api.placeholder("online") { player -> Bukkit.getOnlinePlayers().size.toString() 
 Исключение внутри резолвера логируется как ошибка и даёт пустую строку, PlaceholderAPI оно не затрагивает.
 Если ключ уже занят скриптом или другим аддоном, в консоль выводится предупреждение, а новый резолвер заменяет старый.
 
+---
+
+## API v5: текстовые плейсхолдеры
+
+```kotlin
+api.textPlaceholder("rank") { player -> player?.let { lookupRank(it) } ?: "Гость" }   // @rank@ в message()/richMessage()
+```
+
+То же без алиаса: `api.registerTextPlaceholder(key) { player -> }` и `api.unregisterTextPlaceholder(key)`.
+Игрок может быть `null`, если текст ни к кому не обращён. Имена встроенных токенов заняты, регистр не важен.
+Токен, зарегистрированный в `onLoad`, снимается вместе с аддоном.
+

@@ -20,14 +20,14 @@ class KSLEntityBuilder(
         val eq = entity.equipment ?: return
 
         attrs.keys.filter { it !in equipKeys }.forEach {
-            plugin.logger.warning("[$scriptName] equip: неизвестный слот $it (доступны: ${equipKeys.joinToString(", ")})")
+            plugin.logger.warning("[$scriptName] ${KSLError.ENTITY_BAD_EQUIP_SLOT.tag} equip: неизвестный слот $it (доступны: ${equipKeys.joinToString(", ")})")
         }
 
         fun item(key: String): ItemStack? {
             val raw = attrs[key] ?: return null
             val material = Material.matchMaterial(raw)
             if (material == null || !material.isItem) {
-                plugin.logger.warning("[$scriptName] equip: '$raw' для $key — не предмет")
+                plugin.logger.warning("[$scriptName] ${KSLError.ENTITY_BAD_EQUIP_ITEM.tag} equip: '$raw' для $key — не предмет")
                 return null
             }
             return ItemStack(material)

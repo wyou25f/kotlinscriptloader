@@ -27,7 +27,7 @@ class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
         // Fail fast on the caller thread; a background warning would silently lose the write.
         val encoded = if (persistent) {
             KSLPersistCodec.encode(value) ?: throw IllegalArgumentException(
-                "[persist] Тип ${value?.let { it::class.simpleName }} не поддерживается для persistent = true у ключа '$fullKey' — " +
+                "[persist] Тип ${value?.let { it::class.simpleName }} ${KSLError.DB_UNSUPPORTED_TYPE.tag} не поддерживается для persistent = true у ключа '$fullKey' — " +
                     "поддерживаются только String, Int, Long, Double, Boolean, null"
             )
         } else null
@@ -55,7 +55,7 @@ class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
                 }
             }
         } catch (ex: Exception) {
-            plugin.logger.warning("[persist] Не удалось загрузить '$fullKey': ${ex.message}")
+            plugin.logger.warning("[persist] ${KSLError.DB_PERSIST_LOAD_FAILED.tag} Не удалось загрузить '$fullKey': ${ex.message}")
             null
         }
     }
@@ -72,7 +72,7 @@ class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
                 }
             }
         } catch (ex: Exception) {
-            plugin.logger.warning("[persist] Не удалось сохранить '$fullKey' в БД: ${ex.message} — значение осталось только в памяти до следующего рестарта")
+            plugin.logger.warning("[persist] ${KSLError.DB_PERSIST_SAVE_FAILED.tag} Не удалось сохранить '$fullKey' в БД: ${ex.message} — значение осталось только в памяти до следующего рестарта")
         }
     }
 

@@ -16,7 +16,7 @@ class KSLEffectManager(private val plugin: KotlinScriptLoaderPlugin) {
         val required = spec.particle.dataType
         if (required != Void::class.java && spec.data == null) {
             throw IllegalArgumentException(
-                "[$scriptName] playEffect: Particle.${spec.particle.name} требует data (${required.simpleName}) — " +
+                "[$scriptName] ${KSLError.EFFECT_DATA_REQUIRED.tag} playEffect: Particle.${spec.particle.name} требует data (${required.simpleName}) — " +
                     "для DUST вызови color(255, 0, 0), для остальных присвой data = ..."
             )
         }
@@ -26,7 +26,7 @@ class KSLEffectManager(private val plugin: KotlinScriptLoaderPlugin) {
         val interval = KSLErrors.validPeriod(plugin, scriptName, "playEffect", spec.intervalTicks)
 
         if (spec.count !in 0..MAX_COUNT)
-            plugin.logger.warning("[$scriptName] playEffect: count=${spec.count} вне 0..$MAX_COUNT — значение будет ограничено")
+            plugin.logger.warning("[$scriptName] playEffect: ${KSLError.EFFECT_COUNT_CLAMPED.tag} count=${spec.count} вне 0..$MAX_COUNT — значение будет ограничено")
 
         fun stop() {
             task.cancel()
@@ -45,13 +45,16 @@ class KSLEffectManager(private val plugin: KotlinScriptLoaderPlugin) {
                 val world = center.world
                 if (world != null) {
                     val count = spec.count.coerceIn(0, MAX_COUNT)
+                    // Plain coordinates: one Location per point per tick adds up with large shapes and many effects.
+                    val cx = center.x
+                    val cy = center.y
+                    val cz = center.z
                     shape.points(tick, center).take(MAX_POINTS).forEach { offset ->
-                        val point = center.clone().add(offset)
-                        world.spawnParticle(spec.particle, point, count, spec.offsetX, spec.offsetY, spec.offsetZ, spec.extra, spec.data)
+                        world.spawnParticle(spec.particle, cx + offset.x, cy + offset.y, cz + offset.z, count, spec.offsetX, spec.offsetY, spec.offsetZ, spec.extra, spec.data)
                     }
                 }
             } catch (ex: Throwable) {
-                KSLErrors.log(plugin, scriptName, "playEffect tick", ex)
+                KSLErrors.log(plugin, scriptName, "playEffect tick", ex, KSLError.EFFECT_TICK_FAILED)
                 stop()
                 return@Runnable
             }

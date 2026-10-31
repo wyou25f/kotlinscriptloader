@@ -11,7 +11,7 @@ class KSLLibraryRegistry(private val plugin: KotlinScriptLoaderPlugin) {
     fun export(scriptName: String, key: String, value: Any) {
         val existingOwner = ownerByKey[key]
         if (existingOwner != null && existingOwner != scriptName) {
-            plugin.logger.warning("[$scriptName] export('$key') перезаписывает экспорт скрипта '$existingOwner' — используй уникальные ключи")
+            plugin.logger.warning("[$scriptName] ${KSLError.LIBRARY_OVERWRITE.tag} export('$key') перезаписывает экспорт скрипта '$existingOwner' — используй уникальные ключи")
         }
         exports[key] = value
         ownerByKey[key] = scriptName

@@ -19,7 +19,7 @@ class KSLPlaceholderExpansion(private val plugin: KotlinScriptLoaderPlugin) : Pl
             resolver(target) ?: ""
         } catch (ex: Throwable) {
             val owner = plugin.placeholders.ownerOf(key)?.removePrefix("script:") ?: "?"
-            KSLErrors.log(plugin, owner, "placeholder %ksl_$params%", ex)
+            KSLErrors.log(plugin, owner, "placeholder %ksl_$params%", ex, KSLError.PLACEHOLDER_RESOLVER_FAILED)
             ""
         }
     }
