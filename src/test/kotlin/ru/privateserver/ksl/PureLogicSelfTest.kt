@@ -251,6 +251,60 @@ private fun testValueCache() {
     check("clear removes everything", !cache.has("a") && cache.size() == 0)
 }
 
+private fun testSandboxLayers() {
+    println("sandbox: class deny-list, loader, command policy")
+    val deny = KSLClassDenyList()
+    check("Runtime and ProcessBuilder are denied", deny.denies("java.lang.Runtime") && deny.denies("java.lang.ProcessBuilder"))
+    check("reflection entry points are denied", deny.denies("java.lang.reflect.Method") && deny.denies("java.lang.ClassLoader") && deny.denies("java.lang.invoke.MethodHandles"))
+    check("package prefixes are denied", deny.denies("sun.misc.Unsafe") && deny.denies("kotlin.reflect.full.KClasses") && deny.denies("jdk.internal.misc.Unsafe"))
+    check("what the compiler generates for lambdas stays available",
+        !deny.denies("java.lang.invoke.LambdaMetafactory") && !deny.denies("java.lang.invoke.MethodHandles\$Lookup") && !deny.denies("java.lang.invoke.MethodType"))
+    check("ordinary classes are allowed",
+        !deny.denies("java.util.ArrayList") && !deny.denies("org.bukkit.Bukkit") && !deny.denies("kotlin.collections.CollectionsKt") && !deny.denies("java.lang.reflect.Modifier"))
+
+    val custom = KSLClassDenyList(extra = listOf("com.example.Secret", "com.evil."), allowed = listOf("java.lang.Runtime", "sun.misc."))
+    check("extra exact names and prefixes are denied", custom.denies("com.example.Secret") && custom.denies("com.evil.Thing") && !custom.denies("com.example.Other"))
+    check("allowed entries are lifted from the defaults", !custom.denies("java.lang.Runtime") && !custom.denies("sun.misc.Unsafe") && custom.denies("java.lang.ProcessBuilder"))
+
+    val seen = mutableListOf<String>()
+    val loader = KSLSandboxClassLoader(KSLClassDenyList::class.java.classLoader, deny, "t") { seen += it }
+    check("the loader refuses a denied class", runCatching { loader.loadClass("java.lang.Runtime") }.exceptionOrNull() is ClassNotFoundException)
+    runCatching { loader.loadClass("java.lang.Runtime") }
+    check("a denied class is reported once", seen == listOf("java.lang.Runtime"))
+    check("the loader still hands out allowed classes", loader.loadClass("java.util.ArrayList") === java.util.ArrayList::class.java)
+
+    val blocklist = setOf("op", "stop")
+    check("a plain command is matched", KSLCommandPolicy.isBlocked("op Steve", blocklist))
+    check("case, slashes and namespaces do not hide it", KSLCommandPolicy.isBlocked("/Minecraft:OP Steve", blocklist) && KSLCommandPolicy.isBlocked("//bukkit:stop", blocklist))
+    check("a tab or newline after the name does not hide it", KSLCommandPolicy.isBlocked("op\tSteve", blocklist) && KSLCommandPolicy.isBlocked("stop\nnow", blocklist))
+    check("other commands pass", !KSLCommandPolicy.isBlocked("say hello", blocklist) && !KSLCommandPolicy.isBlocked("opme", blocklist))
+
+    check("the text filter accepts custom patterns", KSLSandboxRules.scanSource("val x = Foo.bar()", listOf("Foo.bar")).size == 1)
+    check("custom patterns replace the defaults", KSLSandboxRules.scanSource("Runtime.getRuntime()", listOf("Foo.bar")).isEmpty())
+}
+
+private fun testWriteCoalescer() {
+    println("KSLWriteCoalescer")
+    val w = KSLWriteCoalescer()
+    val first = w.offer("k", "1")
+    val second = w.offer("k", "2")
+    check("the first write of a key needs a task, the next one joins it", first != null && second == null)
+    check("the task writes the newest value", w.take(first!!)?.value == "2")
+    check("a ticket is used up once", w.take(first) == null)
+    check("after the task ran, a new write needs a new task", w.offer("k", "3") != null)
+
+    val a = w.offer("a", "x")
+    w.barrier()
+    val b = w.offer("a", "y")
+    check("a barrier keeps writes on either side apart", a != null && b != null && a != b)
+    check("each side writes its own value", w.take(a!!)?.value == "x" && w.take(b!!)?.value == "y")
+
+    val n = w.offer("n", null)
+    val taken = w.take(n!!)
+    check("writing null is a real write", taken != null && taken.value == null)
+    check("nothing pending at the end", w.pendingCount() == 1 || w.pendingCount() == 0)
+}
+
 private fun testScriptOrder() {
     println("KSLScriptOrder")
     val logger = Logger.getLogger("test")
@@ -316,6 +370,8 @@ fun main() {
     testScriptIds()
     testTextPlaceholders()
     testValueCache()
+    testSandboxLayers()
+    testWriteCoalescer()
     println()
     println("TOTAL: $passed passed, $failed failed")
     if (failed > 0) kotlin.system.exitProcess(1)

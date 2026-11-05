@@ -21,6 +21,7 @@ import ru.privateserver.ksl.KSLEntityAttributes
 import ru.privateserver.ksl.KSLError
 import ru.privateserver.ksl.KSLHook
 import ru.privateserver.ksl.KSLQuickTable
+import ru.privateserver.ksl.KSLScriptEvent
 import ru.privateserver.ksl.KSLShapeFactory
 import ru.privateserver.ksl.KSLTemplateParser
 import ru.privateserver.ksl.KotlinScriptLoaderPlugin
@@ -157,7 +158,23 @@ fun KSLAPI.table(name: String): KSLQuickTable =
     (kslPlugin as? KotlinScriptLoaderPlugin)?.tableStore?.table(name)
         ?: error("KSL ещё не инициализирован — table() можно вызывать начиная с onLoad")
 
+// ---- script lifecycle (event bus topics ksl.script.*) ----
+
+fun KSLAPI.onScriptLoaded(handler: (KSLScriptEvent) -> Unit): AutoCloseable =
+    subscribe("ksl.script.loaded") { (it as? KSLScriptEvent)?.let(handler) }
+
+fun KSLAPI.onScriptFailed(handler: (KSLScriptEvent) -> Unit): AutoCloseable =
+    subscribe("ksl.script.failed") { (it as? KSLScriptEvent)?.let(handler) }
+
+fun KSLAPI.onScriptUnloaded(handler: (KSLScriptEvent) -> Unit): AutoCloseable =
+    subscribe("ksl.script.unloaded") { (it as? KSLScriptEvent)?.let(handler) }
+
 // ---- logging ----
+
+// With a catalog code, so an addon's messages look like KSL's own and /ksl error can explain them.
+fun KSLAPI.warn(code: KSLError, message: String) = kslPlugin.logger.warning("[KSL] ${code.tag} $message")
+
+fun KSLAPI.severe(code: KSLError, message: String) = kslPlugin.logger.severe("[KSL] ${code.tag} $message")
 
 fun KSLAPI.log(message: String) = kslPlugin.logger.info("[KSL] $message")
 

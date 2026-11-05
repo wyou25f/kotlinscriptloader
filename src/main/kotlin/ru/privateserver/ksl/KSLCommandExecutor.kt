@@ -20,34 +20,66 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
 
             "reload" -> {
                 val target = args.getOrNull(1)
+                val busy = "§eПерезагрузка уже выполняется, подожди пару секунд."
+                // Compiling happens on a worker thread, so the server keeps ticking; the swap itself takes a moment on the main thread.
                 when {
                     target == null -> {
-                        sender.sendMessage("§7Перезагружаю все скрипты...")
-                        val (loaded, failed) = plugin.reloadScripts()
-                        val color = if (failed == 0) "§a" else "§e"
-                        sender.sendMessage("${color}KSL: $loaded загружено, $failed с ошибками.")
+                        sender.sendMessage("§7Перезагружаю все скрипты: компиляция идёт в фоне, сервер не блокируется...")
+                        plugin.reloadScriptsAsync { result ->
+                            if (result == null) {
+                                sender.sendMessage(busy)
+                            } else {
+                                val color = if (result.second == 0) "§a" else "§e"
+                                sender.sendMessage("${color}KSL: ${result.first} загружено, ${result.second} с ошибками.")
+                            }
+                        }
                     }
                     target.equals("changed", ignoreCase = true) -> {
-                        val report = plugin.reloadChanged()
-                        val color = if (report.failed == 0) "§a" else "§e"
-                        sender.sendMessage("${color}KSL: перезагружено ${report.reloaded}, выгружено ${report.unloaded}, без изменений ${report.unchanged}, с ошибками ${report.failed}.")
+                        plugin.reloadChangedAsync { report ->
+                            if (report == null) {
+                                sender.sendMessage(busy)
+                            } else {
+                                val color = if (report.failed == 0) "§a" else "§e"
+                                sender.sendMessage("${color}KSL: перезагружено ${report.reloaded}, выгружено ${report.unloaded}, без изменений ${report.unchanged}, с ошибками ${report.failed}.")
+                            }
+                        }
                     }
                     target.endsWith("/") || File(plugin.scriptsFolder, target).isDirectory -> {
-                        val result = plugin.reloadFolder(target)
-                        if (result == null) {
-                            sender.sendMessage("§cВ папке '$target' нет скриптов.")
-                        } else {
-                            val color = if (result.second == 0) "§a" else "§e"
-                            sender.sendMessage("${color}KSL: папка '$target': ${result.first} загружено, ${result.second} с ошибками.")
+                        val started = plugin.reloadFolderAsync(target) { result ->
+                            if (result == null) {
+                                sender.sendMessage(busy)
+                            } else {
+                                val color = if (result.second == 0) "§a" else "§e"
+                                sender.sendMessage("${color}KSL: папка '$target': ${result.first} загружено, ${result.second} с ошибками.")
+                            }
                         }
+                        if (started) sender.sendMessage("§7Перезагружаю папку '$target'...")
+                        else sender.sendMessage("§cВ папке '$target' нет скриптов.")
                     }
                     else -> {
                         sender.sendMessage("§7Перезагружаю '$target.kts'...")
-                        if (plugin.reloadScript(target)) {
-                            sender.sendMessage("§aKSL: '$target.kts' перезагружен, остальные скрипты не тронуты.")
-                        } else {
-                            sender.sendMessage("§cНе удалось перезагрузить '$target.kts' — см. консоль.")
+                        plugin.reloadScriptAsync(target) { ok ->
+                            when (ok) {
+                                null -> sender.sendMessage(busy)
+                                true -> sender.sendMessage("§aKSL: '$target.kts' перезагружен, остальные скрипты не тронуты.")
+                                false -> sender.sendMessage("§cНе удалось перезагрузить '$target.kts': см. консоль. Если он уже работал, продолжает работать прежняя версия.")
+                            }
                         }
+                    }
+                }
+            }
+
+            "scripts" -> {
+                val infos = plugin.scriptInfos()
+                if (infos.isEmpty()) {
+                    sender.sendMessage("§eKSL: в scripts/ нет скриптов.")
+                } else {
+                    sender.sendMessage("§9§lСкрипты §7(${infos.count { it.loaded }} из ${infos.size} загружено):")
+                    infos.forEach { info ->
+                        val mark = if (info.loaded) "§a✔" else "§c✘"
+                        val time = if (info.loadMillis >= 0) "${info.loadMillis}мс" else "—"
+                        val errors = if (info.errors > 0) " §c${info.errors} ошибок" else ""
+                        sender.sendMessage("  $mark §f${info.id} §8— §7$time$errors")
                     }
                 }
             }
@@ -153,8 +185,8 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
             "doctor" -> {
                 sender.sendMessage("§9§l▶ KSL Диагностика §7(проверка компилятора занимает несколько секунд)")
                 // The first Kotlin compile initialises the whole compiler; on the server thread that froze the tick for 10+ s.
-                background(sender, { plugin.selfTestCompiler() }) { compiler ->
-                    val lines = plugin.runDiagnostics(compiler)
+                background(sender, { plugin.selfTestCompiler() to plugin.sandboxProbe() }) { (compiler, sandboxProbe) ->
+                    val lines = plugin.runDiagnostics(compiler, sandboxProbe)
                     lines.forEach { line ->
                         val mark = if (line.ok) "§a✔" else "§c✘"
                         sender.sendMessage("$mark §f${line.label}§7: ${line.detail}")
@@ -195,7 +227,14 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
             "sandbox" -> {
                 sender.sendMessage("§aKSL Sandbox: §f${if (plugin.sandboxEnabled) "§aвключён" else "§eвыключен"}")
                 if (plugin.sandboxEnabled) {
-                    sender.sendMessage("§7Статический фильтр опасных вызовов перед компиляцией. Это не изоляция: скрипты выполняются с правами сервера.")
+                    val level = if (plugin.sandboxStrict) "strict: текстовый фильтр + запрет классов" else "text: только текстовый фильтр"
+                    sender.sendMessage("§7Уровень: §f$level")
+                    if (plugin.sandboxTrusted.isNotEmpty()) sender.sendMessage("§7Доверенные скрипты: §f${plugin.sandboxTrusted.sorted().joinToString(", ")}")
+                    sender.sendMessage("§7Скрипт в sandbox не может загрузить Runtime, ProcessBuilder, рефлексию и ClassLoader; проверить это на сервере: §f/ksl doctor")
+                    sender.sendMessage("§7Sandbox ограничивает опасные возможности JVM, но не права самого KSL: скрипту по-прежнему доступны Bukkit и DSL. Подробнее: docs/Security-and-Sandbox.md")
+                }
+                if (plugin.consoleBlocklist.isNotEmpty()) {
+                    sender.sendMessage("§7Заблокированные консольные команды для скриптов: §f${plugin.consoleBlocklist.sorted().joinToString(", ")}")
                 }
             }
 
@@ -208,7 +247,8 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
         if (unknown != null) sender.sendMessage("§cНеизвестная подкоманда '$unknown'.")
         sender.sendMessage("§9§lKSL §7— команды:")
         listOf(
-            "reload [скрипт|папка/|changed]" to "перезагрузить всё, один скрипт, папку или только изменённые",
+            "reload [скрипт|папка/|changed]" to "перезагрузить всё, один скрипт, папку или только изменённые (в фоне)",
+            "scripts" to "список скриптов: статус, время загрузки, ошибки",
             "addons" to "загруженные аддоны",
             "services" to "зарегистрированные сервисы",
             "libraries" to "экспортированные библиотеки",
@@ -242,7 +282,7 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
     ): List<String> {
         if (!sender.hasPermission("ksl.admin")) return emptyList()
         if (args.size == 1)
-            return listOf("help", "reload", "addons", "services", "libraries", "discord", "sandbox", "errors", "error", "doctor", "validate", "dbmigrate")
+            return listOf("help", "reload", "scripts", "addons", "services", "libraries", "discord", "sandbox", "errors", "error", "doctor", "validate", "dbmigrate")
                 .filter { it.startsWith(args[0].lowercase()) }
         if (args.size == 2 && args[0].equals("reload", ignoreCase = true)) {
             val ids = plugin.scriptIds()

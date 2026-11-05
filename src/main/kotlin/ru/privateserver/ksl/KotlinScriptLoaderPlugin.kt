@@ -20,8 +20,22 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     @Volatile private var dbThread: Thread? = null
 
-    val dbExecutor: java.util.concurrent.ExecutorService = java.util.concurrent.Executors.newSingleThreadExecutor { runnable ->
-        Thread(runnable, "KSL-DB").apply { isDaemon = true }.also { dbThread = it }
+    // A plain ThreadPoolExecutor rather than newSingleThreadExecutor(): the queue length is needed for diagnostics.
+    val dbExecutor = java.util.concurrent.ThreadPoolExecutor(
+        1, 1, 0L, java.util.concurrent.TimeUnit.MILLISECONDS, java.util.concurrent.LinkedBlockingQueue<Runnable>()
+    ) { runnable -> Thread(runnable, "KSL-DB").apply { isDaemon = true }.also { dbThread = it } }
+
+    fun dbQueueSize(): Int = dbExecutor.queue.size
+
+    private val dbQueueWarnAt = 5000
+
+    private fun startQueueMonitor() {
+        Bukkit.getScheduler().runTaskTimerAsynchronously(this, Runnable {
+            val queued = dbQueueSize()
+            if (queued >= dbQueueWarnAt) {
+                logger.warning("${KSLError.DB_QUEUE_LARGE.tag} В очереди записи БД $queued операций — БД не успевает за скриптами")
+            }
+        }, 600L, 600L)
     }
 
     // Runs after every write queued before it. Inline on the DB thread: waiting on our own queue would deadlock.
@@ -59,6 +73,45 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     var sandboxEnabled = false
         private set
+
+    // strict = text filter + class-loader deny-list; text = only the text filter.
+    var sandboxStrict = true
+        private set
+
+    var sandboxTrusted: Set<String> = emptySet()
+        private set
+
+    var sandboxPatterns: List<String> = KSLSandboxRules.forbidden
+        private set
+
+    var sandboxDenyList = KSLClassDenyList()
+        private set
+
+    var consoleBlocklist: Set<String> = emptySet()
+        private set
+
+    private var maxListeners = 500
+    private var maxTasks = 2000
+    private val limitWarned = ConcurrentHashMap.newKeySet<String>()
+
+    fun isSandboxed(scriptId: String): Boolean = sandboxEnabled && scriptId !in sandboxTrusted
+
+    // "/minecraft:op Steve" and "OP" are the same command.
+    fun isConsoleCommandBlocked(command: String): Boolean = KSLCommandPolicy.isBlocked(command, consoleBlocklist)
+
+    fun readSecurityConfig() {
+        sandboxEnabled = config.getBoolean("sandbox", false)
+        sandboxStrict = !config.getString("security.sandbox-level", "strict").equals("text", ignoreCase = true)
+        sandboxTrusted = config.getStringList("security.sandbox-trusted").map { it.trim().removeSuffix(".kts") }.toSet()
+        val allowedPatterns = config.getStringList("security.sandbox-allowed").map { it.trim() }.toSet()
+        sandboxPatterns = (KSLSandboxRules.forbidden + config.getStringList("security.sandbox-extra-forbidden"))
+            .filter { it !in allowedPatterns }.distinct()
+        sandboxDenyList = KSLClassDenyList(config.getStringList("security.class-deny-extra"), config.getStringList("security.class-deny-allowed"))
+        consoleBlocklist = (if (config.isList("security.console-command-blocklist")) config.getStringList("security.console-command-blocklist")
+            else listOf("op", "deop", "stop", "restart", "reload", "rl")).map { it.trim().lowercase() }.toSet()
+        maxListeners = config.getInt("security.limits.max-listeners-per-script", 500).coerceAtLeast(10)
+        maxTasks = config.getInt("security.limits.max-tasks-per-script", 2000).coerceAtLeast(10)
+    }
 
     var papiEnabled = false
         private set
@@ -143,8 +196,24 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private val bold = "§l"
     private val r = "§r"
 
-    // Compiling scripts is not thread-safe against itself; async diagnostics and main-thread loads take turns.
-    val compileLock = Any()
+    // Compiling is the heavy part of loading. At most scripts.compile-threads compiles run at once, which also keeps
+    // the background doctor/validate from compiling next to a reload.
+    private var compilePermits = java.util.concurrent.Semaphore(1)
+    private var compileThreads = 1
+
+    fun <T> withCompilePermit(block: () -> T): T {
+        compilePermits.acquire()
+        try {
+            return block()
+        } finally {
+            compilePermits.release()
+        }
+    }
+
+    private fun initCompileThreads() {
+        compileThreads = config.getInt("scripts.compile-threads", 1).coerceIn(1, 8)
+        compilePermits = java.util.concurrent.Semaphore(compileThreads)
+    }
 
     private val legacyColors = Regex("§[0-9A-Fa-fK-Ok-oRrXx]")
 
@@ -164,7 +233,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         KSLErrors.reset()
 
         addonManager   = KSLAddonManager(this)
-        sandboxEnabled = config.getBoolean("sandbox", false)
+        readSecurityConfig()
+        initCompileThreads()
         scriptRunner   = ScriptRunner(this)
 
         KSL.init(addonManager)
@@ -190,6 +260,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
         val (loaded, failed) = loadAllScripts()
         startWatcher()
+        startQueueMonitor()
         printStartupSummary(dbOk, loaded, failed)
     }
 
@@ -235,7 +306,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         logger.info("$c9${bold}║$r ${c7}Discord         : ${if (discord != null) "${cg}✔ ${discord!!.channels().size} канал(ов)$r" else "${ce}○ не настроен$r"}")
         logger.info("$c9${bold}║$r ${c7}Аддоны          : ${if (addonsCount > 0) "${cg}✔ $addonsCount загружено$r" else "${ce}○ нет$r"}")
         logger.info("$c9${bold}║$r ${c7}Сервисы         : ${if (servicesCount > 0) "${cg}✔ $servicesCount зарегистрировано$r" else "${ce}○ нет$r"}")
-        logger.info("$c9${bold}║$r ${c7}Sandbox         : ${if (sandboxEnabled) "${cg}✔ включён$r" else "${ce}○ выключен$r"}")
+        logger.info("$c9${bold}║$r ${c7}Sandbox         : ${if (sandboxEnabled) "${cg}✔ включён (${if (sandboxStrict) "strict" else "text"})$r" else "${ce}○ выключен$r"}")
         logger.info("$c9${bold}╚══════════════════════════════════════╝$r")
     }
 
@@ -257,7 +328,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         port = config.getInt("database.port", 3306),
         name = config.getString("database.name", "ksl") ?: "ksl",
         user = config.getString("database.user", "") ?: "",
-        password = config.getString("database.password", "") ?: "",
+        // Keeping the password out of config.yml: leave it empty and set the KSL_DB_PASSWORD environment variable.
+        password = (config.getString("database.password", "") ?: "").ifBlank { System.getenv("KSL_DB_PASSWORD") ?: "" },
         sslMode = config.getString("database.ssl-mode", "disable") ?: "disable",
         poolSize = config.getInt("database.pool-size", 4)
     )
@@ -338,7 +410,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 .filter { it.addonDescription.isNotBlank() }
                 .joinToString("\n") { "// Addon: ${it.addonId} v${it.addonVersion} — ${it.addonDescription}" }
 
-            stub.writeText(buildString {
+            val generated = buildString {
                 appendLine("// AUTO-GENERATED by KotlinScriptLoader v${description.version} — не редактировать")
                 appendLine("// IntelliJ IDEA: File → Project Structure → Libraries → добавь этот файл")
                 if (addonLines.isNotBlank()) { appendLine(); appendLine(addonLines) }
@@ -520,8 +592,12 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 appendLine("class KSLEntityBehaviorBuilder { fun onTick(period: Long, initialDelay: Long = 0L, block: (org.bukkit.entity.LivingEntity) -> Unit) = Unit; fun onDeath(block: (org.bukkit.entity.LivingEntity, Player?) -> Unit) = Unit; fun onDamaged(block: (org.bukkit.entity.LivingEntity, org.bukkit.event.entity.EntityDamageEvent) -> Unit) = Unit; fun onAttack(block: (org.bukkit.entity.LivingEntity, org.bukkit.event.entity.EntityDamageByEntityEvent) -> Unit) = Unit }")
                 appendLine("fun spawnCustomEntity(location: org.bukkit.Location, template: String, removeOnReload: Boolean = true, builder: KSLEntityBuilder.() -> Unit = {}): org.bukkit.entity.LivingEntity = throw UnsupportedOperationException()")
                 appendLine("fun org.bukkit.entity.LivingEntity.behavior(builder: KSLEntityBehaviorBuilder.() -> Unit) = Unit")
-            })
-            logger.info("Сгенерирован .autocomplete.kts для IDE-подсказок")
+            }
+            // Rewriting an identical file on every reload makes the IDE re-index the stub for nothing.
+            if (!stub.exists() || stub.readText() != generated) {
+                stub.writeText(generated)
+                logger.info("Сгенерирован .autocomplete.kts для IDE-подсказок")
+            }
         }.onFailure { logger.warning("${KSLError.AUTOCOMPLETE_FAILED.tag} Не удалось сгенерировать .autocomplete.kts: ${it.message}") }
     }
 
@@ -555,28 +631,120 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     fun scriptIds(): List<String> = findScriptFiles().map { scriptId(it) }
 
-    // Last seen state of each loaded script file; lets /ksl reload changed skip everything that did not change.
+    // Last seen state of each script file; lets /ksl reload changed skip everything that did not change.
     private val scriptStamps = ConcurrentHashMap<String, Long>()
+
+    // Scripts whose code is currently registered (listeners, commands, ...).
+    private val liveScripts = ConcurrentHashMap.newKeySet<String>()
+    private val loadMillisById = ConcurrentHashMap<String, Long>()
+    private val reloadBusy = java.util.concurrent.atomic.AtomicBoolean(false)
 
     private fun stampOf(file: File): Long = file.lastModified() * 31 + file.length()
 
-    private fun loadOne(file: File): Boolean {
-        val ok = scriptRunner.loadScript(file)
-        // Recorded even when loading failed, so a broken script is not recompiled until it changes.
-        scriptStamps[scriptId(file)] = stampOf(file)
+    fun scriptInfos(): List<KSLScriptInfo> = findScriptFiles().map { file ->
+        val id = scriptId(file)
+        KSLScriptInfo(id, id in liveScripts, loadMillisById[id] ?: -1L, KSLErrors.countFor(id))
+    }
+
+    fun compileScript(file: File): CompiledUnit = scriptRunner.compile(file)
+
+    data class ReloadSummary(val loaded: Int, val failed: Int, val removed: Int)
+
+    // Compile phase: no Bukkit API, so it runs on any thread. Several files compile side by side with scripts.compile-threads > 1.
+    private fun compileBatch(files: List<File>): Map<String, CompiledUnit> {
+        if (compileThreads <= 1 || files.size <= 1) return files.associate { scriptId(it) to scriptRunner.compile(it) }
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(compileThreads) { r -> Thread(r, "KSL-Compile").apply { isDaemon = true } }
+        try {
+            val futures = files.map { file -> pool.submit(java.util.concurrent.Callable { scriptRunner.compile(file) }) }
+            return files.indices.associate { scriptId(files[it]) to futures[it].get() }
+        } finally {
+            pool.shutdown()
+        }
+    }
+
+    // Swap phase (main thread): the running version is replaced only after the new one compiled,
+    // so a typo in a script no longer takes the working version down with it.
+    private fun applyUnit(unit: CompiledUnit): Boolean {
+        val id = unit.id
+        if (!unit.ok) {
+            scriptRunner.reportFailure(unit)
+            if (id in liveScripts) {
+                logger.warning("[$id] ${KSLError.SCRIPT_KEPT_PREVIOUS.tag} Новая версия не скомпилировалась — продолжает работать предыдущая")
+            }
+            // Recorded so a broken script is not recompiled until it changes.
+            scriptStamps[id] = stampOf(unit.file)
+            addonManager.publish("ksl.script.failed", KSLScriptEvent(id, unit.compileMillis, unit.errors.firstOrNull() ?: unit.crash?.message))
+            return false
+        }
+        unloadScript(id)
+        liveScripts.add(id)
+        val startedAt = System.nanoTime()
+        val ok = scriptRunner.evaluate(unit)
+        val totalMs = unit.compileMillis + (System.nanoTime() - startedAt) / 1_000_000
+        loadMillisById[id] = totalMs
+        scriptStamps[id] = stampOf(unit.file)
+        addonManager.publish(if (ok) "ksl.script.loaded" else "ksl.script.failed", KSLScriptEvent(id, totalMs, if (ok) null else "ошибка выполнения"))
         return ok
     }
 
+    private fun swap(ordered: List<File>, units: Map<String, CompiledUnit>, removed: Collection<String>): ReloadSummary {
+        removed.forEach { unloadScript(it) }
+        var loaded = 0
+        var failed = 0
+        ordered.forEach { if (applyUnit(units.getValue(scriptId(it)))) loaded++ else failed++ }
+        return ReloadSummary(loaded, failed, removed.size)
+    }
+
+    // Blocking flavour, for startup and for callers that already sit on the main thread.
+    private fun reloadNow(files: List<File>, removed: Collection<String>): ReloadSummary {
+        val ordered = KSLScriptOrder.sort(files, { scriptId(it) }, logger)
+        return swap(ordered, compileBatch(ordered), removed)
+    }
+
+    // Compiles on a worker thread while the server keeps ticking, then swaps on the main thread.
+    // done receives null when another reload is still running.
+    private fun runAsyncReload(files: List<File>, removed: Collection<String>, done: (ReloadSummary?) -> Unit) {
+        if (!reloadBusy.compareAndSet(false, true)) {
+            done(null)
+            return
+        }
+        try {
+            Bukkit.getScheduler().runTaskAsynchronously(this, Runnable {
+                val ordered = KSLScriptOrder.sort(files, { scriptId(it) }, logger)
+                val units = try {
+                    compileBatch(ordered)
+                } catch (ex: Throwable) {
+                    logger.severe("${KSLError.SCRIPT_RUNTIME.tag} Фоновая компиляция не удалась: ${ex::class.simpleName}: ${ex.message}")
+                    null
+                }
+                try {
+                    Bukkit.getScheduler().runTask(this, Runnable {
+                        try {
+                            done(if (units == null) ReloadSummary(0, ordered.size, 0) else swap(ordered, units, removed))
+                        } finally {
+                            reloadBusy.set(false)
+                        }
+                    })
+                } catch (ex: Throwable) {
+                    reloadBusy.set(false)
+                }
+            })
+        } catch (ex: Throwable) {
+            reloadBusy.set(false)
+            throw ex
+        }
+    }
+
     fun loadAllScripts(): Pair<Int, Int> {
-        val ordered = KSLScriptOrder.sort(findScriptFiles(), { scriptId(it) }, logger)
-        var loaded = 0; var failed = 0
-        ordered.forEach { if (loadOne(it)) loaded++ else failed++ }
-        lastLoadStats = loaded to failed
-        return loaded to failed
+        val summary = reloadNow(findScriptFiles(), emptyList())
+        lastLoadStats = summary.loaded to summary.failed
+        return lastLoadStats
     }
 
     // Public so command handlers can run the compiler check off the main thread.
     fun selfTestCompiler(): Pair<Boolean, String> = scriptRunner.selfTestCompiler()
+
+    fun sandboxProbe(): Pair<Boolean, String> = scriptRunner.sandboxProbe()
 
     fun validateAllScripts(): Map<String, List<String>> {
         val validator = ScriptValidator(this)
@@ -606,13 +774,14 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     }
 
     fun unloadAllScripts() {
-        val loadedScripts = (tasksByScript.keys + listenersByScript.keys + commandsByScript.keys + placeholdersByScript.keys +
-            scriptsWithGuis + libraryRegistry.scriptNames() + entityManager.scriptNames()).toSet()
-        loadedScripts.forEach { unloadScript(it) }
+        knownScriptNames().forEach { unloadScript(it) }
     }
 
     private fun unloadScript(scriptName: String) {
         scriptStamps.remove(scriptName)
+        limitWarned.remove("$scriptName|L")
+        limitWarned.remove("$scriptName|T")
+        if (liveScripts.remove(scriptName)) addonManager.publish("ksl.script.unloaded", KSLScriptEvent(scriptName))
         runCatching {
             tasksByScript.remove(scriptName)?.forEach { Bukkit.getScheduler().cancelTask(it) }
         }.onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось отменить часть тасков: ${it.message}") }
@@ -672,67 +841,134 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         return field.get(Bukkit.getCommandMap() as SimpleCommandMap) as MutableMap<String, Command>
     }
 
-    fun reloadScripts(): Pair<Int, Int> {
+    // Re-reads config.yml and everything derived from it.
+    private fun refreshConfig() {
         reloadConfig()
         loadConfigTextPlaceholders()
         clearTableCaches()
-        sandboxEnabled = config.getBoolean("sandbox", false)
+        readSecurityConfig()
         discord = KSLDiscordHook(this).takeIf { it.channels().isNotEmpty() }
-        unloadAllScripts()
         generateAutocompleteStub()
-        return loadAllScripts()
     }
 
-    fun reloadScript(scriptName: String): Boolean {
+    fun reloadScripts(): Pair<Int, Int> {
+        refreshConfig()
+        val files = findScriptFiles()
+        val present = files.map { scriptId(it) }.toSet()
+        val summary = reloadNow(files, knownScriptNames() - present)
+        lastLoadStats = summary.loaded to summary.failed
+        return lastLoadStats
+    }
+
+    // done gets null when a reload is already in progress.
+    fun reloadScriptsAsync(done: (Pair<Int, Int>?) -> Unit) {
+        if (reloadBusy.get()) {
+            done(null)
+            return
+        }
+        refreshConfig()
+        val files = findScriptFiles()
+        val present = files.map { scriptId(it) }.toSet()
+        runAsyncReload(files, knownScriptNames() - present) { summary ->
+            if (summary == null) {
+                done(null)
+            } else {
+                lastLoadStats = summary.loaded to summary.failed
+                done(lastLoadStats)
+            }
+        }
+    }
+
+    // The file behind a script name, or null (with the reason logged) when the name is unusable.
+    private fun resolveScriptFile(scriptName: String): File? {
         val id = scriptName.trim().removeSuffix(".kts").replace('\\', '/')
         val file = File(scriptsFolder, "$id.kts")
         if (!file.canonicalFile.toPath().startsWith(scriptsFolder.canonicalFile.toPath())) {
             logger.warning("${KSLError.SCRIPT_PATH_ESCAPE.tag} Имя скрипта '$scriptName' выходит за пределы scripts/")
-            return false
+            return null
         }
         if (!file.isFile) {
             logger.warning("[$id] ${KSLError.SCRIPT_NOT_FOUND.tag} Скрипт '$id.kts' не найден в scripts/")
-            return false
+            return null
         }
-        unloadScript(id)
-        return loadOne(file)
+        return file
     }
 
-    // "economy" or "economy/": reloads every script in that folder (sub-folders included) in dependency order.
+    fun reloadScript(scriptName: String): Boolean {
+        val file = resolveScriptFile(scriptName) ?: return false
+        return reloadNow(listOf(file), emptyList()).failed == 0
+    }
+
+    // done: true/false for the outcome, null when another reload is running.
+    fun reloadScriptAsync(scriptName: String, done: (Boolean?) -> Unit) {
+        val file = resolveScriptFile(scriptName)
+        if (file == null) {
+            done(false)
+            return
+        }
+        runAsyncReload(listOf(file), emptyList()) { summary -> done(summary?.let { it.failed == 0 }) }
+    }
+
+    private fun filesInFolder(folder: String): List<File> {
+        val clean = folder.trim().replace('\\', '/').trim('/')
+        if (clean.isEmpty()) return emptyList()
+        return findScriptFiles().filter { scriptId(it).startsWith("$clean/") }
+    }
+
+    // "economy" or "economy/": every script in that folder (sub-folders included) in dependency order.
     // Returns null when the folder holds no scripts.
     fun reloadFolder(folder: String): Pair<Int, Int>? {
-        val clean = folder.trim().replace('\\', '/').trim('/')
-        if (clean.isEmpty()) return null
-        val files = findScriptFiles().filter { scriptId(it).startsWith("$clean/") }
+        val files = filesInFolder(folder)
         if (files.isEmpty()) return null
-        files.forEach { unloadScript(scriptId(it)) }
-        var loaded = 0; var failed = 0
-        KSLScriptOrder.sort(files, { scriptId(it) }, logger).forEach { if (loadOne(it)) loaded++ else failed++ }
-        return loaded to failed
+        val summary = reloadNow(files, emptyList())
+        return summary.loaded to summary.failed
+    }
+
+    // Returns false (nothing started) when the folder holds no scripts.
+    fun reloadFolderAsync(folder: String, done: (Pair<Int, Int>?) -> Unit): Boolean {
+        val files = filesInFolder(folder)
+        if (files.isEmpty()) return false
+        runAsyncReload(files, emptyList()) { summary -> done(summary?.let { it.loaded to it.failed }) }
+        return true
     }
 
     data class ChangeReport(val reloaded: Int, val unloaded: Int, val unchanged: Int, val failed: Int)
 
-    // Recompiles only new and modified scripts and unloads deleted ones; compiling is the expensive part of a reload.
-    fun reloadChanged(): ChangeReport {
+    private class Changes(val changed: List<File>, val removed: List<String>, val unchanged: Int)
+
+    private fun detectChanges(): Changes {
         val files = findScriptFiles()
         val present = files.map { scriptId(it) }.toSet()
         val removed = scriptStamps.keys.filter { it !in present }
-        removed.forEach { unloadScript(it) }
         val changed = files.filter { scriptStamps[scriptId(it)] != stampOf(it) }
-        changed.forEach { unloadScript(scriptId(it)) }
-        var failed = 0
-        KSLScriptOrder.sort(changed, { scriptId(it) }, logger).forEach { if (!loadOne(it)) failed++ }
-        return ChangeReport(changed.size - failed, removed.size, files.size - changed.size, failed)
+        return Changes(changed, removed, files.size - changed.size)
+    }
+
+    // Compiles only new and modified scripts and unloads deleted ones: compiling is the expensive part of a reload.
+    fun reloadChanged(): ChangeReport {
+        val changes = detectChanges()
+        val summary = reloadNow(changes.changed, changes.removed)
+        return ChangeReport(summary.loaded, summary.removed, changes.unchanged, summary.failed)
+    }
+
+    fun reloadChangedAsync(done: (ChangeReport?) -> Unit) {
+        val changes = detectChanges()
+        runAsyncReload(changes.changed, changes.removed) { summary ->
+            done(summary?.let { ChangeReport(it.loaded, it.removed, changes.unchanged, it.failed) })
+        }
     }
 
     // Used by the file watcher when a script file disappears.
     fun removeScript(scriptName: String) = unloadScript(scriptName)
 
+    private fun knownScriptNames(): Set<String> =
+        (tasksByScript.keys + listenersByScript.keys + commandsByScript.keys + placeholdersByScript.keys +
+            scriptsWithGuis + libraryRegistry.scriptNames() + entityManager.scriptNames() + liveScripts).toSet()
+
     data class DiagnosticLine(val label: String, val ok: Boolean, val detail: String)
 
     // The compiler self-test takes seconds on first use; callers on the main thread pass a result computed elsewhere.
-    fun runDiagnostics(compiler: Pair<Boolean, String> = scriptRunner.selfTestCompiler()): List<DiagnosticLine> {
+    fun runDiagnostics(compiler: Pair<Boolean, String> = scriptRunner.selfTestCompiler(), sandbox: Pair<Boolean, String>? = null): List<DiagnosticLine> {
         val lines = mutableListOf<DiagnosticLine>()
 
         val dbOk = runCatching {
@@ -755,6 +991,10 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
         val (compilerOk, compilerDetail) = compiler
         lines += DiagnosticLine("Компилятор скриптов", compilerOk, compilerDetail)
+        sandbox?.let { (ok, detail) -> lines += DiagnosticLine("Изоляция классов (sandbox)", ok, detail) }
+
+        val queued = dbQueueSize()
+        lines += DiagnosticLine("Очередь записи БД", queued < dbQueueWarnAt, "$queued в очереди")
 
         val commandOk = Bukkit.getCommandMap().getCommand("ksl") != null
         lines += DiagnosticLine("Команда /ksl", commandOk, if (commandOk) "зарегистрирована" else "не найдена в commandMap")
@@ -800,9 +1040,21 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         val ids = tasksByScript.computeIfAbsent(scriptName) { ConcurrentHashMap.newKeySet() }
         ids.add(taskId)
         // Finished one-shot tasks would otherwise pile up for as long as the script lives.
-        if (ids.size % 64 == 0) {
+        fun pruneFinished() {
             val scheduler = Bukkit.getScheduler()
             ids.removeIf { !scheduler.isQueued(it) && !scheduler.isCurrentlyRunning(it) }
+        }
+        if (ids.size % 64 == 0) pruneFinished()
+        if (ids.size > maxTasks) {
+            pruneFinished()
+            if (ids.size > maxTasks) {
+                // A script creating tasks without end (a delay inside every, a timer per event) would grow without bound.
+                Bukkit.getScheduler().cancelTask(taskId)
+                ids.remove(taskId)
+                if (limitWarned.add("$scriptName|T")) {
+                    logger.severe("[$scriptName] ${KSLError.SCRIPT_LIMIT_TASKS.tag} У скрипта больше $maxTasks активных задач — новые отменяются (security.limits.max-tasks-per-script)")
+                }
+            }
         }
     }
 
@@ -815,7 +1067,16 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     }
 
     fun trackListener(scriptName: String, listener: Listener) {
-        listenersByScript.computeIfAbsent(scriptName) { mutableListOf() }.add(listener)
+        val listeners = listenersByScript.computeIfAbsent(scriptName) { mutableListOf() }
+        if (listeners.size >= maxListeners) {
+            // The listener is already registered with Bukkit; take it back out.
+            HandlerList.unregisterAll(listener)
+            if (limitWarned.add("$scriptName|L")) {
+                logger.severe("[$scriptName] ${KSLError.SCRIPT_LIMIT_LISTENERS.tag} У скрипта уже $maxListeners обработчиков событий — новые отклоняются (security.limits.max-listeners-per-script)")
+            }
+            return
+        }
+        listeners.add(listener)
     }
 
     private val commandSyncQueued = java.util.concurrent.atomic.AtomicBoolean(false)

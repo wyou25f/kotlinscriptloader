@@ -48,6 +48,20 @@ interface KSLAPI {
     fun hooks(): List<KSLHook>
     fun isPluginEnabled(pluginName: String): Boolean
 
+    // ---- Scripts ----
+    // Event bus topics (payload: KSLScriptEvent): ksl.script.loaded, ksl.script.failed, ksl.script.unloaded.
+    fun scripts(): List<KSLScriptInfo>
+
+    // Blocks the caller until the script is recompiled and swapped; main thread only. A script that fails to compile keeps running.
+    fun reloadScript(scriptId: String): Boolean
+
+    // Compiles in the background and swaps on the main thread; done gets null when another reload is already running.
+    fun reloadScriptsAsync(done: (Pair<Int, Int>?) -> Unit)
+
+    // Whether KSL's sandbox applies to this script, and whether a console command is refused to scripts.
+    fun isSandboxed(scriptId: String): Boolean
+    fun isConsoleCommandBlocked(command: String): Boolean
+
     // ---- PlaceholderAPI: %ksl_<key>% (needs PlaceholderAPI installed; case-insensitive, removed with the addon) ----
     fun registerPlaceholder(key: String, resolver: (OfflinePlayer) -> String?)
     fun unregisterPlaceholder(key: String)

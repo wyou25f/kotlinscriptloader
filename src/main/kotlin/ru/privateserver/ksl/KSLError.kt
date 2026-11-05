@@ -182,7 +182,19 @@ enum class KSLError(val number: Int, val category: KSLErrorCategory, val title: 
     AUTOCOMPLETE_FAILED(8181, KSLErrorCategory.SYSTEM, "Не удалось создать .autocomplete.kts",
         "Проверь права на запись в папку scripts/. На работу скриптов это не влияет."),
     SCRIPT_WATCHER_FAILED(4438, KSLErrorCategory.SCRIPT, "Автоперезагрузка скриптов не запущена",
-        "Проверь права на папку scripts/ и лимит наблюдателей файловой системы. Скрипты по-прежнему перезагружаются командой /ksl reload.");
+        "Проверь права на папку scripts/ и лимит наблюдателей файловой системы. Скрипты по-прежнему перезагружаются командой /ksl reload."),
+    SANDBOX_CLASS_DENIED(695, KSLErrorCategory.SCRIPT, "Скрипт обратился к запрещённому классу",
+        "Sandbox не дал загрузить класс из чёрного списка (Runtime, ProcessBuilder, рефлексия, ClassLoader и т.п.). Убери вызов или добавь скрипт в security.sandbox-trusted, если ему можно доверять."),
+    SCRIPT_LIMIT_LISTENERS(6752, KSLErrorCategory.SCRIPT, "Превышен лимит обработчиков событий у скрипта",
+        "Скрипт регистрирует onEvent в цикле или внутри другого события. Регистрируй обработчик один раз на верхнем уровне. Лимит: security.limits.max-listeners-per-script."),
+    SCRIPT_LIMIT_TASKS(3008, KSLErrorCategory.SCRIPT, "Превышен лимит задач у скрипта",
+        "Скрипт создаёт слишком много delay/every/sync. Не создавай задачи в цикле без остановки. Лимит: security.limits.max-tasks-per-script."),
+    SCRIPT_KEPT_PREVIOUS(9065, KSLErrorCategory.SCRIPT, "Новая версия не скомпилировалась, работает предыдущая",
+        "Старая версия скрипта осталась активной. Исправь ошибки (см. выше) и повтори /ksl reload <скрипт>."),
+    COMMAND_BLOCKED(5322, KSLErrorCategory.COMMAND, "Консольная команда заблокирована",
+        "Команда есть в security.console-command-blocklist. Убери её из списка, если скрипту можно доверять."),
+    DB_QUEUE_LARGE(1579, KSLErrorCategory.DATABASE, "Очередь записи в БД разрослась",
+        "БД пишет медленнее, чем скрипты в неё пишут. Проверь скорость БД и частоту set()/persist, подробности в /ksl doctor.");
 
     // Four digits and the category letter, e.g. 0583c.
     val code: String get() = String.format("%04d%c", number, category.letter)

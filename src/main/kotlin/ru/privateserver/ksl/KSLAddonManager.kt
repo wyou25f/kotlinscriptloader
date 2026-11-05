@@ -220,6 +220,16 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
 
     override fun reloadScripts(): Pair<Int, Int> = plugin.reloadScripts()
 
+    override fun scripts(): List<KSLScriptInfo> = plugin.scriptInfos()
+
+    override fun reloadScript(scriptId: String): Boolean = plugin.reloadScript(scriptId)
+
+    override fun reloadScriptsAsync(done: (Pair<Int, Int>?) -> Unit) = plugin.reloadScriptsAsync(done)
+
+    override fun isSandboxed(scriptId: String): Boolean = plugin.isSandboxed(scriptId)
+
+    override fun isConsoleCommandBlocked(command: String): Boolean = plugin.isConsoleCommandBlocked(command)
+
     // Registration is attributed to the addon currently in onLoad; calls from anywhere else stay ownerless.
     private fun <T : Any> KSLOwnedRegistry<T>.putOwned(kind: String, key: String, value: T) {
         val owner = currentlyLoading.get()

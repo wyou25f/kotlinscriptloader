@@ -678,3 +678,22 @@ api.textPlaceholder("rank") { player -> player?.let { lookupRank(it) } ?: "Го�
 Игрок может быть `null`, если текст ни к кому не обращён. Имена встроенных токенов заняты, регистр не важен.
 Токен, зарегистрированный в `onLoad`, снимается вместе с аддоном.
 
+---
+
+## API v6: скрипты, перезагрузка, безопасность
+
+```kotlin
+// список скриптов: id, загружен ли, время загрузки, число ошибок
+api.scripts().forEach { println("${it.id} loaded=${it.loaded} ${it.loadMillis}ms errors=${it.errors}") }
+
+// реагировать на жизненный цикл (шина событий; подписки аддона снимаются вместе с ним)
+api.onScriptLoaded { event -> api.log("загружен ${event.scriptId} за ${event.millis}мс") }
+api.onScriptFailed { event -> api.warn(KSLError.SCRIPT_COMPILE, "${event.scriptId}: ${event.error}") }
+
+// перезагрузка: компиляция в фоне, скрипт с ошибкой компиляции продолжает работать прежней версией
+api.reloadScriptsAsync { result -> if (result == null) api.log("уже идёт") else api.log("загружено ${result.first}") }
+api.reloadScript("economy/shop")      // блокирующий вариант, только из главного потока
+```
+
+`api.isSandboxed(id)` и `api.isConsoleCommandBlocked(cmd)` позволяют аддону применять те же правила, что и KSL.
+`api.warn(код, текст)` и `api.severe(код, текст)` пишут сообщение с кодом из каталога `KSLError`, чтобы `/ksl error` умел его расшифровать.

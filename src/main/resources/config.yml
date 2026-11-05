@@ -1,0 +1,67 @@
+sandbox: false
+
+discord:
+  webhooks:
+    general: ""
+    admin: ""
+    logs: ""
+
+# База данных KSL (persist, table(), доступ из скриптов через database).
+#   sqlite  - файл plugins/KotlinScriptLoader/ksl.db, ничего настраивать не нужно (по умолчанию)
+#   mysql / mariadb - внешний сервер; базу и пользователя создай в phpMyAdmin (кодировка utf8mb4),
+#                     таблицы ksl_* KSL создаст сам при первом запуске. Нужны MySQL 5.7+ или MariaDB 10.2+.
+# Пароль хранится здесь открытым текстом - не выкладывай этот файл в репозиторий.
+database:
+  type: sqlite
+  host: localhost
+  port: 3306
+  name: ksl
+  user: ""
+  password: ""
+  # disable | trust | verify-ca | verify-full
+  ssl-mode: disable
+  pool-size: 4
+  # Кэш значений table() в памяти. По умолчанию: sqlite - включён, mysql/mariadb - выключен
+  # (данные могут менять другие серверы или вы сами в phpMyAdmin). Очищается при /ksl reload.
+  # cache: true
+
+# Папки со скриптами и перезагрузка.
+scripts:
+  # Искать скрипты и в подпапках scripts/ (папки и файлы, начинающиеся с "." , и папки с "_" пропускаются).
+  # Имя скрипта = путь внутри scripts/ без .kts, например economy/shop.
+  recursive: true
+  # Сам перезагружает скрипт при сохранении файла (удобно при разработке; на боевом сервере лучше выключить).
+  auto-reload: false
+  # Сколько скриптов компилировать одновременно при перезагрузке (1-8). 1 безопасно по умолчанию;
+  # больше ускоряет перезагрузку многих скриптов, но нагружает процессор.
+  compile-threads: 1
+
+# Свои @плейсхолдеры@ для message()/richMessage()/messageList() в скриптах.
+# Например server_name: "Мой сервер" даёт @server_name@. Встроенные имена
+# (player, world, online, maxplayers, health, ping) занять нельзя.
+# Динамические (зависящие от игрока) регистрируются из скрипта: textPlaceholder("rank") { player -> ... }
+text-placeholders: {}
+#  server_name: "Мой сервер"
+
+# Безопасность скриптов. Подробности и честные границы: docs/Security-and-Sandbox.md
+# Сам sandbox включается ключом sandbox: true в начале файла.
+security:
+  # strict - текстовый фильтр + запрет классов: скрипт не сможет загрузить Runtime, ProcessBuilder,
+  #          рефлексию, ClassLoader и т.п. (обойти конкатенацией строк нельзя; проверка: /ksl doctor)
+  # text   - только текстовый фильтр по исходнику
+  sandbox-level: strict
+  # Скрипты, на которые sandbox не действует (имена как в /ksl reload, например economy/shop)
+  sandbox-trusted: []
+  # Дополнительные запрещённые фрагменты текста / разрешённые из списка по умолчанию
+  sandbox-extra-forbidden: []
+  sandbox-allowed: []
+  # Дополнительные запрещённые классы (точное имя или пакет с точкой на конце: com.example.) / разрешённые
+  class-deny-extra: []
+  class-deny-allowed: []
+  # Консольные команды, которые executeConsole() выполнять не будет (по умолчанию как ниже)
+  console-command-blocklist: [op, deop, stop, restart, reload, rl]
+  limits:
+    # Сколько обработчиков событий и активных задач может создать один скрипт. Защита от скрипта,
+    # который регистрирует их в цикле или внутри события.
+    max-listeners-per-script: 500
+    max-tasks-per-script: 2000

@@ -29,6 +29,8 @@ object KSLSandboxRules {
         ".getConstructor(",
         "ClassLoader",
         "classLoader",
+        // Console commands go through executeConsole, which applies security.console-command-blocklist.
+        "dispatchCommand(",
         "System.exit",
         "System.halt",
         "System.load",
@@ -51,11 +53,11 @@ object KSLSandboxRules {
 
     data class Violation(val line: Int, val pattern: String)
 
-    fun scan(file: File): List<Violation> = scanSource(file.readText())
+    fun scan(file: File, patterns: List<String> = forbidden): List<Violation> = scanSource(file.readText(), patterns)
 
-    fun scanSource(source: String): List<Violation> {
+    fun scanSource(source: String, patterns: List<String> = forbidden): List<Violation> {
         val (text, lineOf) = normalize(source)
-        return forbidden
+        return patterns
             .mapNotNull { pattern -> text.indexOf(pattern).takeIf { it >= 0 }?.let { Violation(lineOf[it], pattern) } }
             .sortedBy { it.line }
     }

@@ -28,6 +28,9 @@ class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val ta
 
     fun clearValueCache() { valueCache?.clear() }
 
+    // Repeated set() of the same cell while an earlier write is still queued becomes one write of the newest value.
+    private val writes = KSLWriteCoalescer()
+
     fun set(rowKey: String, columnKey: String, value: Any?) {
         val encoded = KSLPersistCodec.encode(value) ?: throw IllegalArgumentException(
             "[table:$tableName] Тип ${value?.let { it::class.simpleName }} ${KSLError.DB_UNSUPPORTED_TYPE.tag} не поддерживается — " +
@@ -35,7 +38,10 @@ class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val ta
         )
         // Write-through: a read right after this set() sees the new value without waiting for the queue.
         valueCache?.store(cacheKey(rowKey, columnKey), encoded)
-        plugin.dbExecutor.submit {
+        // null: a write for this cell is already queued and will pick the newest value up.
+        val ticket = writes.offer(cacheKey(rowKey, columnKey), encoded) ?: return
+        plugin.dbExecutor.submit(Runnable {
+            val taken = writes.take(ticket) ?: return@Runnable
             try {
                 plugin.database.connection.use { conn: Connection ->
                     conn.prepareStatement(
@@ -44,14 +50,14 @@ class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val ta
                         ps.setString(1, tableName)
                         ps.setString(2, rowKey)
                         ps.setString(3, columnKey)
-                        ps.setString(4, encoded)
+                        ps.setString(4, taken.value)
                         ps.executeUpdate()
                     }
                 }
             } catch (ex: Exception) {
                 plugin.logger.warning("[table:$tableName] ${KSLError.DB_TABLE_FAILED.tag} set('$rowKey', '$columnKey') не удался: ${ex.message}")
             }
-        }
+        })
     }
 
     fun get(rowKey: String, columnKey: String): String? =
@@ -72,6 +78,7 @@ class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val ta
     // NOTE: increment() and all reads wait for the DB queue so they observe earlier set()/delete() calls;
     // that can block the caller while a large backlog drains.
     fun increment(rowKey: String, columnKey: String, amount: Long = 1L): Long {
+        writes.barrier()
         val task: () -> Long = {
             plugin.database.connection.use { conn: Connection ->
                 val current = conn.prepareStatement(
@@ -114,6 +121,8 @@ class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val ta
     fun delete(rowKey: String, columnKey: String? = null) {
         // Deleting a whole row would need an index of its columns; emptying the cache is rare and simpler.
         valueCache?.clear()
+        // Writes queued before the delete must not be merged with ones made after it.
+        writes.barrier()
         plugin.dbExecutor.submit {
             try {
                 plugin.database.connection.use { conn: Connection ->

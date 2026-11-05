@@ -419,6 +419,11 @@ open class BukkitScriptContext(
         plugin.persistStore.property(scriptName, key, persistent, default)
 
     fun executeConsole(command: String) {
+        // The one DSL call that runs with full console rights; op, stop and similar are refused by default.
+        if (plugin.isConsoleCommandBlocked(command)) {
+            plugin.logger.warning("[$scriptName] ${KSLError.COMMAND_BLOCKED.tag} Консольная команда '${command.trim().substringBefore(' ')}' заблокирована (security.console-command-blocklist)")
+            return
+        }
         plugin.logger.info("[KSL] Скрипт '$scriptName' выполняет консольную команду: $command")
         if (org.bukkit.Bukkit.isPrimaryThread()) {
             org.bukkit.Bukkit.dispatchCommand(org.bukkit.Bukkit.getConsoleSender(), command)

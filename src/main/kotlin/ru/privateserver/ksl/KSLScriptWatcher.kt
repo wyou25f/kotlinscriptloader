@@ -95,7 +95,7 @@ class KSLScriptWatcher(private val plugin: KotlinScriptLoaderPlugin) {
             pending.remove(id)
             if (File(plugin.scriptsFolder, "$id.kts").isFile) {
                 plugin.logger.info("[$id] Файл изменён — перезагружаю только его")
-                plugin.reloadScript(id)
+                plugin.reloadScriptAsync(id) { }
             } else {
                 plugin.logger.info("[$id] Файл удалён — скрипт выгружен")
                 plugin.removeScript(id)

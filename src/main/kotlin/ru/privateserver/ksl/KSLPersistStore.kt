@@ -32,8 +32,17 @@ class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
             )
         } else null
         memory[fullKey] = value ?: Null
-        if (encoded != null) plugin.dbExecutor.submit { saveToDb(fullKey, encoded) }
+        if (encoded != null) {
+            // A value written every tick would otherwise queue twenty UPDATEs per second; one queued write carries the newest.
+            val ticket = writes.offer(fullKey, encoded) ?: return
+            plugin.dbExecutor.submit(Runnable {
+                val value = writes.take(ticket)?.value ?: return@Runnable
+                saveToDb(fullKey, value)
+            })
+        }
     }
+
+    private val writes = KSLWriteCoalescer()
 
     // "key" is a reserved word in MySQL/MariaDB, hence the quoting inside the dialect helper.
     private val upsertSql by lazy {
