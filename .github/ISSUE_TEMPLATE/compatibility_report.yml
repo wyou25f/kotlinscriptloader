@@ -1,0 +1,51 @@
+
+name: Compatibility Report
+description: Report compatibility issues with server software.
+title: "[Compatibility]: "
+labels:
+  - compatibility
+body:
+  - type: input
+    id: ksl
+    attributes:
+      label: KSL Version
+      placeholder: "e.g. 2.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: minecraft
+    attributes:
+      label: Minecraft Version
+      placeholder: "e.g. 1.21.4"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Server Platform
+      options:
+        - Paper
+        - Folia
+        - Spigot
+        - Purpur
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Compatibility Problem
+      description: Describe what does not work.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      render: text
+    validations:
+      required: false
