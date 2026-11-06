@@ -1,0 +1,43 @@
+
+name: Question
+description: Ask a question about KotlinScriptLoader.
+title: "[Question]: "
+labels:
+  - question
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a question about KSL?
+        Provide enough details so we can help you.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - Installation
+        - Configuration
+        - Script Development
+        - API Usage
+        - Commands
+        - Compatibility
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: Clearly describe what you want to know.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Include code snippets or relevant details.
+    validations:
+      required: false
