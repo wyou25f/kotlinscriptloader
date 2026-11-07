@@ -305,6 +305,18 @@ private fun testWriteCoalescer() {
     check("nothing pending at the end", w.pendingCount() == 1 || w.pendingCount() == 0)
 }
 
+private fun testReportFormatting() {
+    println("KSLReport")
+    val repeated = KSLReport.compactErrors(listOf("строка 1: A", "строка 1: A", "строка 1: A", "строка 68: B"))
+    check("identical lines are folded with a counter", repeated == listOf("строка 1: A (×3)", "строка 68: B"))
+    check("order of first appearance is kept", KSLReport.compactErrors(listOf("b", "a", "b")) == listOf("b (×2)", "a"))
+    val many = (1..9).map { "строка $it: ошибка" }
+    val cut = KSLReport.compactErrors(many, 5)
+    check("a long list is cut and points to /ksl errors", cut.size == 6 && cut.last() == "… и ещё 4: /ksl errors")
+    check("a short list is returned whole", KSLReport.compactErrors(listOf("x"), 5) == listOf("x"))
+    check("an empty list stays empty", KSLReport.compactErrors(emptyList()).isEmpty())
+}
+
 private fun testScriptOrder() {
     println("KSLScriptOrder")
     val logger = Logger.getLogger("test")
@@ -372,6 +384,7 @@ fun main() {
     testValueCache()
     testSandboxLayers()
     testWriteCoalescer()
+    testReportFormatting()
     println()
     println("TOTAL: $passed passed, $failed failed")
     if (failed > 0) kotlin.system.exitProcess(1)

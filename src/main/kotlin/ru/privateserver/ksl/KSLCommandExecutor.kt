@@ -145,6 +145,7 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                     sender.sendMessage("§7Последняя: §f[${last.scriptName}] ${last.where} §8(${ago}с назад)")
                     sender.sendMessage("§7${last.message}")
                     sender.sendMessage("§7Код §e${last.code.code} §8— §7${last.code.title}. Подробнее: §f/ksl error ${last.code.code}")
+                    KSLReport.compactErrors(KSLErrors.lastDetails, 8).forEach { sender.sendMessage("  §c$it") }
                 } else {
                     sender.sendMessage("§7Ошибок не зафиксировано.")
                 }

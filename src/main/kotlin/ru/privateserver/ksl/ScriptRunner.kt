@@ -59,20 +59,24 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
         }
     }
 
-    // Prints why a script could not be compiled. Main thread (it only logs, so any thread works in practice).
+    // Prints why a script could not be compiled: one short yellow block, repeated lines folded, never a wall of red.
     fun reportFailure(unit: CompiledUnit) {
         val id = unit.id
         unit.warnings.forEach { plugin.logger.warning("[$id] ${KSLError.SCRIPT_COMPILE_WARNING.tag} ⚠ $it") }
         when (unit.failure) {
-            KSLError.SCRIPT_SANDBOX ->
-                unit.errors.forEach { plugin.logger.severe("[$id] ${KSLError.SCRIPT_SANDBOX.tag} 🚫 Sandbox нарушение $it") }
+            KSLError.SCRIPT_SANDBOX -> {
+                plugin.logScriptProblem("[$id] ${KSLError.SCRIPT_SANDBOX.tag} 🚫 Sandbox не пропустил скрипт, нарушений: ${unit.errors.size}")
+                KSLReport.compactErrors(unit.errors).forEach { plugin.logScriptProblem("  $it") }
+            }
             KSLError.SCRIPT_COMPILE -> {
-                plugin.logger.severe("[$id] ${KSLError.SCRIPT_COMPILE.tag} ❌ Ошибки компиляции:")
-                unit.errors.forEach { plugin.logger.severe("  $it") }
+                plugin.logScriptProblem("[$id] ${KSLError.SCRIPT_COMPILE.tag} ❌ Скрипт не скомпилировался, ошибок: ${unit.errors.size}")
+                KSLReport.compactErrors(unit.errors).forEach { plugin.logScriptProblem("  $it") }
             }
             else -> unit.crash?.let { KSLErrors.log(plugin, id, "компиляция скрипта", it) }
-                ?: unit.errors.forEach { plugin.logger.severe("[$id] ${KSLError.SCRIPT_RUNTIME.tag} $it") }
+                ?: unit.errors.forEach { plugin.logScriptProblem("[$id] ${KSLError.SCRIPT_RUNTIME.tag} $it") }
         }
+        // For /ksl errors; runtime exceptions are recorded by KSLErrors.log itself.
+        if (unit.crash == null) KSLErrors.recordFailure(id, "компиляция", unit.errors, unit.failure ?: KSLError.SCRIPT_COMPILE)
     }
 
     // Runs a compiled script, which registers its listeners, commands and so on: main thread only.
@@ -96,10 +100,10 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
 
             val ok = when (result) {
                 is ResultWithDiagnostics.Failure -> {
-                    plugin.logger.severe("[$id] ${KSLError.SCRIPT_RUNTIME.tag} ❌ Не удалось выполнить скрипт:")
-                    result.reports
-                        .filter { it.severity >= ScriptDiagnostic.Severity.ERROR }
-                        .forEach { plugin.logger.severe("  ${formatDiagnostic(it)}") }
+                    plugin.logScriptProblem("[$id] ${KSLError.SCRIPT_RUNTIME.tag} ❌ Не удалось выполнить скрипт:")
+                    KSLReport.compactErrors(
+                        result.reports.filter { it.severity >= ScriptDiagnostic.Severity.ERROR }.map { formatDiagnostic(it) }
+                    ).forEach { plugin.logScriptProblem("  $it") }
                     false
                 }
                 is ResultWithDiagnostics.Success -> {
@@ -140,8 +144,16 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
     private fun loaderFor(id: String): ClassLoader {
         if (!plugin.isSandboxed(id) || !plugin.sandboxStrict) return pluginClassLoader
         return KSLSandboxClassLoader(pluginClassLoader, plugin.sandboxDenyList, id) { denied ->
-            plugin.logger.severe("[$id] ${KSLError.SANDBOX_CLASS_DENIED.tag} 🚫 Sandbox: скрипт обратился к запрещённому классу $denied")
+            plugin.logScriptProblem("[$id] ${KSLError.SANDBOX_CLASS_DENIED.tag} 🚫 Sandbox: скрипт обратился к запрещённому классу $denied")
         }
+    }
+
+    private val warmedUp = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    // The first compile and evaluation initialise the whole scripting runtime, which takes seconds. Doing that once,
+    // off the main thread, keeps the first real swap on the main thread quick.
+    fun warmUp() {
+        if (warmedUp.compareAndSet(false, true)) selfTestCompiler()
     }
 
     fun selfTestCompiler(): Pair<Boolean, String> {

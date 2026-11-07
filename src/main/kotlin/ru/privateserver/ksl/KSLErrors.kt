@@ -25,13 +25,19 @@ object KSLErrors {
     private val counters = ConcurrentHashMap<String, AtomicInteger>()
     @Volatile private var last: LastError? = null
 
+    // The lines behind the last compile failure, for /ksl errors.
+    @Volatile var lastDetails: List<String> = emptyList()
+        private set
+
     // Every logged error carries a catalog code (see KSLError); SCRIPT_RUNTIME is the generic one.
     fun log(plugin: KotlinScriptLoaderPlugin, scriptName: String, where: String, ex: Throwable, code: KSLError = KSLError.SCRIPT_RUNTIME) {
         val cause = ex.cause ?: ex
         counters.computeIfAbsent(scriptName) { AtomicInteger(0) }.incrementAndGet()
         last = LastError(scriptName, where, "${cause::class.simpleName}: ${cause.message}", System.currentTimeMillis(), code)
 
-        plugin.logger.severe("[$scriptName] ${code.tag} ❌ Ошибка в $where: ${cause::class.simpleName}: ${cause.message}")
+        lastDetails = emptyList()
+
+        plugin.logScriptProblem("[$scriptName] ${code.tag} ❌ Ошибка в $where: ${cause::class.simpleName}: ${cause.message}")
         // Scripts in folders are named "folder/name", while the compiled class only carries the file name.
         val baseName = scriptName.substringAfterLast('/')
         val relevant = cause.stackTrace.filter { frame ->
@@ -39,16 +45,23 @@ object KSLErrors {
                 frame.className.contains(baseName, ignoreCase = true)
         }
         if (relevant.isNotEmpty()) {
-            relevant.take(5).forEach { frame ->
+            relevant.take(3).forEach { frame ->
                 val line = if (frame.lineNumber > 0) "строка ${frame.lineNumber}" else "строка ?"
-                plugin.logger.severe("  → $scriptName.kts, $line")
+                plugin.logScriptProblem("  → $scriptName.kts, $line")
             }
         } else {
             cause.stackTrace.firstOrNull()?.let {
-                plugin.logger.severe("  → ${it.className}.${it.methodName}(${it.fileName}:${it.lineNumber})")
+                plugin.logScriptProblem("  → ${it.className}.${it.methodName}(${it.fileName}:${it.lineNumber})")
             }
         }
-        plugin.logger.severe("  ℹ Что это значит: /ksl error ${code.code}")
+        plugin.logScriptProblem("  ℹ Что это значит: /ksl error ${code.code}")
+    }
+
+    // A script that failed to compile (or was refused by the sandbox) is not an exception, but it is still an error to look up later.
+    fun recordFailure(scriptName: String, where: String, errors: List<String>, code: KSLError) {
+        counters.computeIfAbsent(scriptName) { AtomicInteger(0) }.incrementAndGet()
+        last = LastError(scriptName, where, errors.firstOrNull() ?: "ошибка без описания", System.currentTimeMillis(), code)
+        lastDetails = errors
     }
 
     fun countFor(scriptName: String): Int = counters[scriptName]?.get() ?: 0
@@ -60,5 +73,6 @@ object KSLErrors {
     fun reset() {
         counters.clear()
         last = null
+        lastDetails = emptyList()
     }
 }

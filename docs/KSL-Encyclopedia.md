@@ -381,3 +381,10 @@ text-placeholders:
 - `scripts.compile-threads` (1-8) задаёт, сколько скриптов компилировать одновременно.
 - Sandbox, запрет классов, блокировка консольных команд и лимиты: [Security-and-Sandbox.md](Security-and-Sandbox.md).
 
+## Приложение: как KSL сообщает об ошибках
+
+Ошибки скриптов пишутся жёлтым (WARN), коротко и с кодом (`[6156a]`), повторяющиеся строки сворачиваются. `/ksl errors`
+показывает последнюю ошибку со списком строк, `/ksl error <код>` объясняет код. Тяжёлая работа (компиляция) идёт в фоне,
+поэтому предупреждения Paper «server has not responded» из-за KSL не появляются: [Troubleshooting.md](Troubleshooting.md).
+Настройки `logging.script-errors-as-warnings`, `notifications.admins-in-game`, `scripts.startup-load` описаны в `config.yml`.
+

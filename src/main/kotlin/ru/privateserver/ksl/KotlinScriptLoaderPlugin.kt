@@ -96,6 +96,17 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     fun isSandboxed(scriptId: String): Boolean = sandboxEnabled && scriptId !in sandboxTrusted
 
+    // Script problems are for the script's author to fix, not a fault of the server, so they are yellow unless asked otherwise.
+    fun logScriptProblem(message: String) {
+        if (config.getBoolean("logging.script-errors-as-warnings", true)) logger.warning(message) else logger.severe(message)
+    }
+
+    // A short in-game note for admins when a script failed during a reload; the details stay in the console and /ksl errors.
+    fun notifyAdmins(message: String) {
+        if (!config.getBoolean("notifications.admins-in-game", true)) return
+        Bukkit.getOnlinePlayers().filter { it.hasPermission("ksl.admin") }.forEach { it.sendMessage(message) }
+    }
+
     // "/minecraft:op Steve" and "OP" are the same command.
     fun isConsoleCommandBlocked(command: String): Boolean = KSLCommandPolicy.isBlocked(command, consoleBlocklist)
 
@@ -258,10 +269,28 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         discord = KSLDiscordHook(this).takeIf { it.channels().isNotEmpty() }
         generateAutocompleteStub()
 
-        val (loaded, failed) = loadAllScripts()
         startWatcher()
         startQueueMonitor()
-        printStartupSummary(dbOk, loaded, failed)
+        loadScriptsAtStartup(dbOk)
+    }
+
+    private fun loadScriptsAtStartup(dbOk: Boolean) {
+        if (config.getString("scripts.startup-load", "async").equals("sync", ignoreCase = true)) {
+            val (loaded, failed) = loadAllScripts()
+            printStartupSummary(dbOk, loaded, failed)
+            return
+        }
+        logger.info("Скрипты загрузятся в фоне сразу после старта сервера (scripts.startup-load: sync загружает их до конца старта).")
+        // The first tick comes after every plugin has enabled, so addon imports and services exist by then,
+        // and the compile happens off the main thread instead of holding up the startup.
+        Bukkit.getScheduler().runTask(this, Runnable {
+            runAsyncReload(findScriptFiles(), emptyList()) { summary ->
+                val loaded = summary?.loaded ?: 0
+                val failed = summary?.failed ?: 0
+                lastLoadStats = loaded to failed
+                printStartupSummary(dbOk, loaded, failed)
+            }
+        })
     }
 
     override fun onDisable() {
@@ -674,6 +703,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             // Recorded so a broken script is not recompiled until it changes.
             scriptStamps[id] = stampOf(unit.file)
             addonManager.publish("ksl.script.failed", KSLScriptEvent(id, unit.compileMillis, unit.errors.firstOrNull() ?: unit.crash?.message))
+            val code = unit.failure ?: KSLError.SCRIPT_COMPILE
+            notifyAdmins("§c✘ §f$id§7: ${unit.errors.firstOrNull() ?: unit.crash?.message ?: "ошибка"} §8[${code.code}] §7(подробнее: /ksl errors)")
             return false
         }
         unloadScript(id)
@@ -684,6 +715,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         loadMillisById[id] = totalMs
         scriptStamps[id] = stampOf(unit.file)
         addonManager.publish(if (ok) "ksl.script.loaded" else "ksl.script.failed", KSLScriptEvent(id, totalMs, if (ok) null else "ошибка выполнения"))
+        if (!ok) notifyAdmins("§c✘ §f$id§7: ошибка при выполнении, подробности в консоли §8[${KSLError.SCRIPT_RUNTIME.code}] §7(/ksl errors)")
         return ok
     }
 
@@ -717,6 +749,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                     logger.severe("${KSLError.SCRIPT_RUNTIME.tag} Фоновая компиляция не удалась: ${ex::class.simpleName}: ${ex.message}")
                     null
                 }
+                // Initialise the scripting runtime here, not during the swap on the main thread.
+                runCatching { scriptRunner.warmUp() }
                 try {
                     Bukkit.getScheduler().runTask(this, Runnable {
                         try {
