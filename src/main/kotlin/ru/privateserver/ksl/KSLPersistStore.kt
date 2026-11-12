@@ -19,7 +19,11 @@ class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
         }
         // A stored nullable value is different from a missing row: preserve persisted nulls.
         val loaded = if (persistent) loadFromDb(fullKey) else null
-        val value = if (loaded?.first == true) loaded.second else default()
+        val value = when {
+            loaded == null -> default()
+            loaded.first -> loaded.second
+            else -> default()
+        }
         memory[fullKey] = value ?: Null
         @Suppress("UNCHECKED_CAST")
         return value as T
