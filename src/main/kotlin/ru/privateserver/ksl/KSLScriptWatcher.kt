@@ -24,6 +24,8 @@ class KSLScriptWatcher(private val plugin: KotlinScriptLoaderPlugin) {
     }
 
     private val pending = ConcurrentHashMap<String, Long>()
+    // Keep ids for files already loaded or observed: after a directory is deleted, its children are no longer on disk.
+    private val knownScripts = ConcurrentHashMap.newKeySet<String>()
     private val watched = ConcurrentHashMap<WatchKey, Path>()
     private var service: WatchService? = null
     private var thread: Thread? = null
@@ -32,6 +34,7 @@ class KSLScriptWatcher(private val plugin: KotlinScriptLoaderPlugin) {
     fun start() {
         val watchService = FileSystems.getDefault().newWatchService()
         service = watchService
+        knownScripts.addAll(plugin.scriptIds())
         registerTree(watchService, plugin.scriptsFolder)
         thread = Thread({ pump(watchService) }, "KSL-Watcher").apply { isDaemon = true; start() }
         flushTask = Bukkit.getScheduler().runTaskTimer(plugin, Runnable { flush() }, 20L, 10L)
@@ -70,6 +73,7 @@ class KSLScriptWatcher(private val plugin: KotlinScriptLoaderPlugin) {
                                 registerTree(watchService, child)
                                 child.walkTopDown().filter { it.isFile }.forEach { record(it) }
                             }
+                            event.kind() == ENTRY_DELETE && !child.name.endsWith(".kts") -> recordDeletedDirectory(child)
                             else -> record(child)
                         }
                     }
@@ -83,7 +87,21 @@ class KSLScriptWatcher(private val plugin: KotlinScriptLoaderPlugin) {
 
     private fun record(file: File) {
         if (file.extension != "kts" || file.name.startsWith(".")) return
-        pending[plugin.scriptId(file)] = System.currentTimeMillis()
+        val id = plugin.scriptId(file)
+        knownScripts.add(id)
+        pending[id] = System.currentTimeMillis()
+    }
+
+    // Deleting a directory produces one event for the directory, not one event per child file.
+    // Use ids remembered before deletion so scripts from the removed subtree are unloaded too.
+    private fun recordDeletedDirectory(directory: File) {
+        val relative = runCatching {
+            plugin.scriptsFolder.toPath().relativize(directory.toPath()).toString()
+                .replace(File.separatorChar, '/').trimEnd('/')
+        }.getOrNull()?.takeIf { it.isNotBlank() } ?: return
+        val prefix = "$relative/"
+        val now = System.currentTimeMillis()
+        knownScripts.filter { it.startsWith(prefix) }.forEach { id -> pending[id] = now }
     }
 
     // Runs on the main thread twice a second.
@@ -94,9 +112,11 @@ class KSLScriptWatcher(private val plugin: KotlinScriptLoaderPlugin) {
         ready.forEach { id ->
             pending.remove(id)
             if (File(plugin.scriptsFolder, "$id.kts").isFile) {
+                knownScripts.add(id)
                 plugin.logger.info("[$id] Файл изменён — перезагружаю только его")
                 plugin.reloadScriptAsync(id) { }
             } else {
+                knownScripts.remove(id)
                 plugin.logger.info("[$id] Файл удалён — скрипт выгружен")
                 plugin.removeScript(id)
             }
