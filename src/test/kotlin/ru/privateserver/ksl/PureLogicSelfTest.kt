@@ -4,6 +4,7 @@ import ru.privateserver.ksl.dsl.mins
 import ru.privateserver.ksl.dsl.sec
 import java.io.File
 import java.util.logging.Logger
+import org.junit.jupiter.api.Test
 
 private var passed = 0
 private var failed = 0
@@ -387,5 +388,10 @@ fun main() {
     testReportFormatting()
     println()
     println("TOTAL: $passed passed, $failed failed")
-    if (failed > 0) kotlin.system.exitProcess(1)
+    if (failed > 0) throw AssertionError("$failed self-test(s) failed")
+}
+
+@Test
+fun pureLogicSelfTest() {
+    main()
 }
