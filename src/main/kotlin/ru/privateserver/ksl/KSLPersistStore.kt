@@ -24,7 +24,8 @@ class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
             loaded.first -> loaded.second
             else -> default()
         }
-        memory[fullKey] = value ?: Null
+        // A failed database read must not cache the fallback: the next access should be able to retry.
+        if (!persistent || loaded != null) memory[fullKey] = value ?: Null
         @Suppress("UNCHECKED_CAST")
         return value as T
     }
@@ -63,12 +64,14 @@ class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
     private fun loadFromDb(fullKey: String): Pair<Boolean, Any?>? {
         val (scriptName, key) = splitKey(fullKey) ?: return null
         return try {
-            plugin.database.connection.use { conn ->
-                conn.prepareStatement("SELECT value FROM ksl_persist WHERE script_name = ? AND `key` = ?").use { ps ->
-                    ps.setString(1, scriptName)
-                    ps.setString(2, key)
-                    ps.executeQuery().use { rs ->
-                        if (rs.next()) true to decode(rs.getString("value")) else false to null
+            plugin.dbCall {
+                plugin.database.connection.use { conn ->
+                    conn.prepareStatement("SELECT value FROM ksl_persist WHERE script_name = ? AND `key` = ?").use { ps ->
+                        ps.setString(1, scriptName)
+                        ps.setString(2, key)
+                        ps.executeQuery().use { rs ->
+                            if (rs.next()) true to decode(rs.getString("value")) else false to null
+                        }
                     }
                 }
             }
