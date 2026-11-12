@@ -391,7 +391,9 @@ fun main() {
     if (failed > 0) throw AssertionError("$failed self-test(s) failed")
 }
 
-@Test
-fun pureLogicSelfTest() {
-    main()
+class PureLogicSelfTest {
+    @Test
+    fun runSelfTests() {
+        main()
+    }
 }
