@@ -17,9 +17,11 @@ class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
             @Suppress("UNCHECKED_CAST")
             return (if (cached === Null) null else cached) as T
         }
+        // A stored nullable value is different from a missing row: preserve persisted nulls.
         val loaded = if (persistent) loadFromDb(fullKey) else null
-        val value = loaded ?: default()
+        val value = if (loaded?.first == true) loaded.second else default()
         memory[fullKey] = value ?: Null
+        @Suppress("UNCHECKED_CAST")
         return value as T
     }
 
@@ -53,14 +55,17 @@ class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
         memory.keys.removeIf { it.startsWith("$scriptName:") }
     }
 
-    private fun loadFromDb(fullKey: String): Any? {
+    // Pair.first tells whether the row exists; Pair.second may legitimately be null.
+    private fun loadFromDb(fullKey: String): Pair<Boolean, Any?>? {
         val (scriptName, key) = splitKey(fullKey) ?: return null
         return try {
             plugin.database.connection.use { conn ->
                 conn.prepareStatement("SELECT value FROM ksl_persist WHERE script_name = ? AND `key` = ?").use { ps ->
                     ps.setString(1, scriptName)
                     ps.setString(2, key)
-                    ps.executeQuery().use { rs -> if (rs.next()) decode(rs.getString("value")) else null }
+                    ps.executeQuery().use { rs ->
+                        if (rs.next()) true to decode(rs.getString("value")) else false to null
+                    }
                 }
             }
         } catch (ex: Exception) {
