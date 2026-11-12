@@ -48,6 +48,8 @@ dependencies {
     implementation("org.xerial:sqlite-jdbc:3.46.1.3")
     // One driver for both MySQL and MariaDB servers.
     implementation("org.mariadb.jdbc:mariadb-java-client:3.4.1")
+
+    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
 }
 
 java {
@@ -74,4 +76,9 @@ tasks.shadowJar {
 
 tasks.build {
     dependsOn(tasks.shadowJar)
+}
+
+
+tasks.test {
+    useJUnitPlatform()
 }
