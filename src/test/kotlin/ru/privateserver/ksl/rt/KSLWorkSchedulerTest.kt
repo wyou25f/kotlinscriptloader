@@ -17,7 +17,7 @@ class KSLWorkSchedulerTest {
             scheduler.submit("shop") { done.countDown() }
             assertTrue(done.await(2, TimeUnit.SECONDS))
             val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
-            while (scheduler.snapshot().tracked != 0 && System.nanoTime() < deadline) Thread.yield()
+            while (scheduler.snapshot().completed != 1L && System.nanoTime() < deadline) Thread.yield()
             assertEquals(0, scheduler.snapshot().tracked)
             assertEquals(1L, scheduler.snapshot().completed)
         } finally {
