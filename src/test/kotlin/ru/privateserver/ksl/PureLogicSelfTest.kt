@@ -227,11 +227,11 @@ private fun testCommandAliases() {
     val aliases = normalizeCommandAliases(
         "Heal",
         listOf(" H, restore ", "HEAL", "restore", "quick-heal\tmed", "", "bad/name"),
-        warnings::add
+        { warnings.add(it); Unit }
     )
     check("aliases accept comma- and whitespace-separated groups", aliases == listOf("h", "restore", "quick-heal", "med"))
     check("aliases are trimmed and case-insensitive", aliases.first() == "h")
-    check("primary-name, duplicate and invalid aliases are reported", warnings.size == 4)
+    check("primary-name, duplicate and invalid aliases are reported", warnings.size == 3)
     check("invalid aliases do not enter the command map", "bad/name" !in aliases)
     check("blank alias entries are ignored", normalizeCommandAliases("help", listOf("", "  ", ", ,")).isEmpty())
 }

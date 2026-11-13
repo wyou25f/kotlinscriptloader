@@ -37,6 +37,10 @@ plugins/KotlinScriptLoader/
 - `luckPermsGroup/Prefix/Suffix(player)`, `hasGroup(player, name)` — LuckPerms (мягкая зависимость)
 - `balance(player)`, `setBalance(player, amount)`, `isAfk(player)` — EssentialsX (мягкая зависимость)
 - `runAsync { }` / `runSync { }` — таскшедулер
+- `onlinePlayers()`, `onlineCount`, `maxPlayers` — снимок списка игроков и текущие лимиты сервера
+- `findPlayer(nameOrUuid)` — поиск онлайн-игрока по точному нику без учёта регистра или UUID
+- `CommandSender.sendRichMessage(text)` — MiniMessage для игрока, консоли и других отправителей
+- `hasPermissionAny(...)` / `hasPermissionAll(...)` — проверка нескольких permission nodes
 
 Плюс `defaultImports` покрывает практически весь нужный Bukkit API: `entity.*`,
 весь `event.*` с под-пакетами (player/block/entity/inventory/world/server/weather/
@@ -490,10 +494,32 @@ repeat(20L) { /* повторять каждую секунду */ }
 не удалены и продолжают работать.
 
 Aliases регистрируются без учёта регистра: "Heal" становится `heal`.
-Пустые, некорректные, повторяющиеся aliases и aliases, совпадающие с именем
-команды, пропускаются с предупреждением в консоли. Допустимы латинские буквы,
-цифры, точка, дефис и подчёркивание. Если alias уже занят другой командой,
-KSL сообщает об этом и показывает namespaced-вариант, если Bukkit его зарегистрировал.
+Каждый элемент `aliases` можно указать отдельно или передать группой через
+запятую/пробел: `aliases = listOf("h, healme", "restore quick-heal")`.
+Пробелы по краям удаляются, пустые элементы игнорируются; некорректные,
+повторяющиеся aliases и aliases, совпадающие с именем команды, пропускаются
+с предупреждением в консоли. Допустимы латинские буквы, цифры, точка, дефис
+и подчёркивание. Если alias уже занят другой командой, KSL сообщает об этом
+и показывает namespaced-вариант, если Bukkit его зарегистрировал.
+
+Новые помощники контекста:
+
+```kotlin
+val online = onlinePlayers()
+val count = onlineCount
+val capacity = maxPlayers
+val target = findPlayer(args.firstOrNull() ?: "") // ник или UUID, только онлайн
+
+target?.sendRichMessage("<green>Привет!")
+if (sender.hasPermissionAny("staff.admin", "staff.moderator")) {
+    sender.sendRichMessage("<gold>У тебя есть доступ к staff-командам")
+}
+```
+
+`onlinePlayers()` возвращает список-снимок, а не живую коллекцию Bukkit.
+`findPlayer` ищет точное совпадение ника без учёта регистра или UUID и
+возвращает `null`, если игрок не в сети. `hasPermissionAll` требует все
+переданные права; `hasPermissionAny` — хотя бы одно.
 
 ## `registerCommand` — permission и tabComplete
 
