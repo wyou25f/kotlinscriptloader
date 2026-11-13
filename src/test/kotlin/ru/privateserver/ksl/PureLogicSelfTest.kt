@@ -306,6 +306,70 @@ private fun testWriteCoalescer() {
     check("nothing pending at the end", w.pendingCount() == 1 || w.pendingCount() == 0)
 }
 
+private fun testConfigMigrations() {
+    println("KSLConfigMigrationRunner")
+    val original = mutableMapOf("legacy" to "kept")
+    var persisted: Map<String, String>? = null
+    val result = KSLConfigMigrationRunner.migrate(
+        currentVersion = 0,
+        targetVersion = 2,
+        migrations = mapOf(
+            1 to { this["welcome"] = "hello" },
+            2 to { this["legacy"] = "renamed"; this["new-key"] = "default" }
+        ),
+        createWorkingCopy = { original.toMutableMap() },
+        setVersion = { yaml, version -> yaml["version"] = version.toString() },
+        persist = { persisted = it.toMap() }
+    )
+    check("migrations run sequentially and preserve values",
+        result == 2 && persisted?.get("legacy") == "renamed" &&
+            persisted?.get("welcome") == "hello" && persisted?.get("new-key") == "default")
+    check("version is updated after every successful step", persisted?.get("version") == "2")
+    check("original config is untouched before persistence", original == mapOf("legacy" to "kept"))
+
+    var writes = 0
+    val noOp = KSLConfigMigrationRunner.migrate<MutableMap<String, String>>(
+        currentVersion = 2, targetVersion = 2, migrations = emptyMap(),
+        createWorkingCopy = { error("no-op must not create a copy") },
+        setVersion = { _, _ -> error("no-op must not set version") },
+        persist = { writes++ }
+    )
+    check("current version does not trigger a write", noOp == 2 && writes == 0)
+
+    val missing = runCatching {
+        KSLConfigMigrationRunner.migrate(
+            currentVersion = 0, targetVersion = 2, migrations = mapOf(2 to { }),
+            createWorkingCopy = { mutableMapOf<String, String>() },
+            setVersion = { _, _ -> }, persist = { writes++ }
+        )
+    }.isFailure
+    check("missing migration step is rejected before work starts", missing && writes == 0)
+
+    val newer = runCatching {
+        KSLConfigMigrationRunner.migrate(
+            currentVersion = 3, targetVersion = 2, migrations = emptyMap(),
+            createWorkingCopy = { mutableMapOf<String, String>() },
+            setVersion = { _, _ -> }, persist = { writes++ }
+        )
+    }.isFailure
+    check("newer config version is rejected", newer && writes == 0)
+
+    val failedMigration = runCatching {
+        KSLConfigMigrationRunner.migrate(
+            currentVersion = 0, targetVersion = 2,
+            migrations = mapOf(
+                1 to { this["step"] = "one" },
+                2 to { throw IllegalStateException("migration failed") }
+            ),
+            createWorkingCopy = { original.toMutableMap() },
+            setVersion = { yaml, version -> yaml["version"] = version.toString() },
+            persist = { writes++ }
+        )
+    }.isFailure
+    check("failed migration never persists a partial working copy",
+        failedMigration && writes == 0 && original == mapOf("legacy" to "kept"))
+}
+
 private fun testReportFormatting() {
     println("KSLReport")
     val repeated = KSLReport.compactErrors(listOf("строка 1: A", "строка 1: A", "строка 1: A", "строка 68: B"))
@@ -385,6 +449,7 @@ fun main() {
     testValueCache()
     testSandboxLayers()
     testWriteCoalescer()
+    testConfigMigrations()
     testReportFormatting()
     println()
     println("TOTAL: $passed passed, $failed failed")
