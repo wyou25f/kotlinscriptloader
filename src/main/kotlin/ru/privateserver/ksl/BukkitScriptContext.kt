@@ -45,6 +45,51 @@ open class BukkitScriptContext(
 
     val config: YamlConfiguration by lazy { loadYamlFile(configFile) }
 
+    private val yamlSqlQueryCache = KSLYamlSqlQueryCache()
+    @Volatile private var yamlSqlQueriesLoaded = false
+
+    /**
+     * Reloads this script's YAML from disk and refreshes the cached SQL query map.
+     * A malformed YAML file leaves the current in-memory config and cache untouched.
+     *
+     * @return number of cached SQL queries
+     */
+    @Synchronized
+    fun reloadScriptConfig(): Int {
+        val reloaded = YamlConfiguration()
+        if (configFile.exists()) reloaded.load(configFile)
+        config.loadFromString(reloaded.saveToString())
+        return reloadYamlSqlQueries()
+    }
+
+    /**
+     * Rebuilds the SQL query cache from the current in-memory YAML.
+     * Call after changing database.queries with editConfig(...).
+     *
+     * @return number of cached SQL queries
+     */
+    @Synchronized
+    fun reloadYamlSqlQueries(): Int {
+        val section = config.getConfigurationSection("database.queries")
+        val queries = linkedMapOf<String, String>()
+        section?.getKeys(true)?.forEach { key ->
+            val sql = section.get(key) as? String
+            if (sql != null && sql.isNotBlank()) {
+                queries["database.queries.$key"] = sql
+            }
+        }
+        yamlSqlQueryCache.replace(queries)
+        yamlSqlQueriesLoaded = true
+        return queries.size
+    }
+
+    @Synchronized
+    private fun yamlSqlQuery(path: String): String {
+        if (!yamlSqlQueriesLoaded) reloadYamlSqlQueries()
+        return yamlSqlQueryCache.get(path)
+            ?: throw IllegalArgumentException("SQL query is missing or blank at YAML path '$path'")
+    }
+
     // YamlConfiguration is not thread-safe. Use editConfig for every mutation that may
     // overlap with another task; the lock covers both the mutation and the optional disk write.
     @Synchronized
@@ -284,18 +329,14 @@ open class BukkitScriptContext(
         return issues
     }
 
-    /** Executes a prepared SQL statement stored at the given path in this script's YAML. */
+    /** Executes a cached prepared SQL statement stored at the given path in this script's YAML. */
     fun dbExecuteYaml(queryPath: String, vararg args: Any?) {
-        val sql = config.getString(queryPath)?.takeIf { it.isNotBlank() }
-            ?: throw IllegalArgumentException("SQL query is missing or blank at YAML path '$queryPath'")
-        dbExecute(sql, *args)
+        dbExecute(yamlSqlQuery(queryPath), *args)
     }
 
-    /** Runs a prepared SQL query stored at the given path in this script's YAML. */
+    /** Runs a cached prepared SQL query stored at the given path in this script's YAML. */
     fun dbQueryYaml(queryPath: String, vararg args: Any?, block: (ResultSet) -> Unit) {
-        val sql = config.getString(queryPath)?.takeIf { it.isNotBlank() }
-            ?: throw IllegalArgumentException("SQL query is missing or blank at YAML path '$queryPath'")
-        dbQuery(sql, *args, block = block)
+        dbQuery(yamlSqlQuery(queryPath), *args, block = block)
     }
 
     fun dbExecute(sql: String, vararg args: Any?) {

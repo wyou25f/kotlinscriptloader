@@ -306,6 +306,24 @@ private fun testWriteCoalescer() {
     check("nothing pending at the end", w.pendingCount() == 1 || w.pendingCount() == 0)
 }
 
+private fun testYamlSqlQueryCache() {
+    println("KSLYamlSqlQueryCache")
+    val cache = KSLYamlSqlQueryCache()
+    check("empty cache starts empty", cache.size() == 0 && cache.get("database.queries.find") == null)
+    cache.replace(mapOf(
+        "database.queries.find" to "SELECT * FROM homes WHERE uuid = ?",
+        "database.queries.save" to "INSERT INTO homes(uuid) VALUES (?)",
+        "database.queries.blank" to " "
+    ))
+    check("query can be looked up by YAML path",
+        cache.get("database.queries.find") == "SELECT * FROM homes WHERE uuid = ?")
+    check("blank SQL is excluded", cache.get("database.queries.blank") == null && cache.size() == 2)
+    cache.replace(mapOf("database.queries.find" to "SELECT name FROM homes WHERE uuid = ?"))
+    check("refresh atomically replaces old entries",
+        cache.size() == 1 && cache.get("database.queries.save") == null &&
+            cache.get("database.queries.find") == "SELECT name FROM homes WHERE uuid = ?")
+}
+
 private fun testConfigMigrations() {
     println("KSLConfigMigrationRunner")
     val original = mutableMapOf("legacy" to "kept")
@@ -450,6 +468,7 @@ fun main() {
     testSandboxLayers()
     testWriteCoalescer()
     testConfigMigrations()
+    testYamlSqlQueryCache()
     testReportFormatting()
     println()
     println("TOTAL: $passed passed, $failed failed")

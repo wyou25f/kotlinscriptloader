@@ -1,5 +1,12 @@
 # Unreleased
 
+## ⚡ SQL query cache
+
+- `dbExecuteYaml` и `dbQueryYaml` теперь используют атомарный кэш именованных SQL-запросов.
+- Добавлены `reloadYamlSqlQueries()` для обновления кэша из текущего YAML и `reloadScriptConfig()` для безопасной перезагрузки YAML с диска без перезапуска сервера.
+- Добавлены self-tests для замены снимка кэша и удаления устаревших запросов.
+
+
 ## 🧩 YAML Schema и SQL из YAML
 
 - Добавлен `validateConfig { ... }` с проверкой типов, значений по умолчанию и диапазонов; можно отключить автоприменение через `applyDefaults = false`.
