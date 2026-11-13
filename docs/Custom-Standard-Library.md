@@ -75,6 +75,35 @@ val label = "Maintenance".asServerTag()
 
 No explicit `import` is needed for `com.example.serverstd.*`.
 
+## Contributing a module through the public API
+
+An addon can publish a versioned standard-library module:
+
+~~~kotlin
+class PlayerToolsModule : KSLStandardLibraryModule {
+    override val descriptor = KSLModuleDescriptor(
+        id = "example.player-tools",
+        version = "1.0.0",
+        description = "Player helper functions",
+        defaultImports = listOf("com.example.player.*")
+    )
+
+    override fun install(api: KSLAPI) {
+        // Register services, hooks, context extensions and other KSL contributions.
+    }
+
+    override fun uninstall(api: KSLAPI) {
+        // Release resources owned outside KSL's automatic registries, if any.
+    }
+}
+
+override fun onLoad(api: KSLAPI) {
+    api.registerStandardLibraryModule(PlayerToolsModule())
+}
+~~~
+
+Modules declare dependencies by ID. KSL validates missing dependencies, API compatibility and cycles, then installs modules in dependency-first order. Explicit removal is refused while another installed module depends on it. Modules registered during an addon's onLoad are automatically uninstalled when that addon unloads.
+
 ## Lifecycle and classpath
 
 KSL adds registered addon classloaders to the script compilation classpath and to the classloader used during script evaluation. KSL's own API and Bukkit classes remain parent-first, so an addon cannot replace those shared types.

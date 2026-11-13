@@ -4,6 +4,7 @@ import org.bukkit.OfflinePlayer
 import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Player
 import org.bukkit.plugin.java.JavaPlugin
+import ru.privateserver.ksl.api.library.KSLStandardLibraryModule
 
 interface KSLAPI {
     val kslPlugin: JavaPlugin
@@ -21,6 +22,9 @@ interface KSLAPI {
     fun <T : Any> getService(key: String, type: Class<T>): T?
 
     fun addDefaultImports(vararg packages: String)
+    fun registerStandardLibraryModule(module: KSLStandardLibraryModule)
+    fun unregisterStandardLibraryModule(moduleId: String)
+    fun standardLibraryModules(): List<KSLStandardLibraryModule>
     fun registerContextExtension(extension: KSLContextExtension)
     fun unregisterContextExtension(extensionId: String)
     fun registeredAddons(): List<KSLAddon>
