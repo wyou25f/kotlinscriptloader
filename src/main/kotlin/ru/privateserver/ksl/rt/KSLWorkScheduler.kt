@@ -132,6 +132,12 @@ class KSLWorkScheduler(
         return id
     }
 
+    fun cancel(taskId: Long): Boolean {
+        val task = tasks[taskId] ?: return false
+        task.cancel()
+        return true
+    }
+
     fun cancelOwner(owner: String): Int {
         val owned = tasks.values.filter { it.owner == owner }
         owned.forEach { it.cancel() }
