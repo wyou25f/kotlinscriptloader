@@ -37,7 +37,7 @@ typealias KSLModuleDescriptor = CoreKSLModuleDescriptor
 typealias KSLStandardLibraryModule = CoreKSLStandardLibraryModule
 typealias MesLib2 = CoreMesLib2
 typealias MesLib2Info = CoreMesLib2Info
-typealias KSLCache<K : Any, V : Any> = CoreKSLCache<K, V>
+typealias KSLCache<K, V> = CoreKSLCache<K, V>
 typealias KSLProfiler = CoreKSLProfiler
 
 /** Stable event-bus topic names published by KSL. */
