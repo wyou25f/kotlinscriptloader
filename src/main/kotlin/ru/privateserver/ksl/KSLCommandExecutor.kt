@@ -69,6 +69,27 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                 }
             }
 
+            "runtime", "perf", "memory", "cpu" -> {
+                if (args.getOrNull(1)?.equals("workers", true) == true) {
+                    val requested = args.getOrNull(2)?.toIntOrNull()
+                    if (requested == null || requested !in 1..64) sender.sendMessage("§eИспользование: /ksl runtime workers <1-64>")
+                    else sender.sendMessage("§aKSL: worker pool теперь использует ${plugin.resizeWorkers(requested)} поток(ов). Сохранено в config.yml.")
+                } else {
+                    val m = plugin.runtimeSnapshot()
+                    val w = plugin.workScheduler.snapshot()
+                    fun mib(bytes: Long) = if (bytes < 0L) "не задано" else "%.1f MiB".format(java.util.Locale.ROOT, bytes / 1_048_576.0)
+                    fun percent(value: Double?) = value?.let { "%.1f%%".format(java.util.Locale.ROOT, it * 100.0) } ?: "н/д"
+                    sender.sendMessage("§9§lKSL Runtime")
+                    sender.sendMessage("§7Heap: §f${mib(m.heapUsedBytes)} §7/ §f${mib(m.heapMaxBytes)} §8| committed: ${mib(m.heapCommittedBytes)}")
+                    sender.sendMessage("§7Non-heap: §f${mib(m.nonHeapUsedBytes)} §8| §7CPU: §f${m.processors} §8| process: §f${percent(m.processCpuLoad)} §8| system: §f${percent(m.systemCpuLoad)}")
+                    sender.sendMessage("§7JVM threads: §f${m.liveThreads} §8(daemon: ${m.daemonThreads}) §7| GC: §f${m.gcCount} §8(${m.gcTimeMillis}мс)")
+                    sender.sendMessage("§bWorker pool §8— §f${w.workers} поток(ов), active=${w.active}, queued=${w.queued}, tracked=${w.tracked}")
+                    sender.sendMessage("§7Completed: §f${w.completed} §8| §7rejected: §f${w.rejected}")
+                    sender.sendMessage("§7Настройка: §f/ksl runtime workers <1-64>")
+                    sender.sendMessage("§8Размер heap задаётся JVM через -Xms/-Xmx; принудительный GC KSL не вызывает.")
+                }
+            }
+
             "scripts" -> {
                 val infos = plugin.scriptInfos()
                 if (infos.isEmpty()) {
@@ -310,6 +331,7 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
         sender.sendMessage("§9§lKSL §7— команды:")
         listOf(
             "reload [скрипт|папка/|changed]" to "перезагрузить всё, один скрипт, папку или только изменённые (в фоне)",
+            "runtime" to "память JVM, CPU, потоки, очереди и планировщик",
             "scripts" to "список скриптов: статус, время загрузки, ошибки",
             "debug <скрипт>" to "диагностика выполнения, ошибок и ресурсов скрипта",
             "resources [скрипт]" to "отслеживаемые ресурсы и подозрительные остатки",
@@ -347,8 +369,14 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
     ): List<String> {
         if (!sender.hasPermission("ksl.admin")) return emptyList()
         if (args.size == 1)
-            return listOf("help", "reload", "scripts", "debug", "resources", "deps", "addons", "services", "libraries", "discord", "sandbox", "errors", "error", "doctor", "validate", "dbmigrate")
+            return listOf("help", "reload", "scripts", "debug", "resources", "deps", "runtime", "perf", "memory", "cpu", "addons", "services", "libraries", "discord", "sandbox", "errors", "error", "doctor", "validate", "dbmigrate")
                 .filter { it.startsWith(args[0].lowercase()) }
+        if (args.size == 2 && args[0].lowercase() in setOf("runtime", "perf", "memory", "cpu")) {
+            return listOf("workers").filter { it.startsWith(args[1].lowercase()) }
+        }
+        if (args.size == 3 && args[0].lowercase() in setOf("runtime", "perf", "memory", "cpu") && args[1].equals("workers", true)) {
+            return (1..64).map(Int::toString).filter { it.startsWith(args[2]) }
+        }
         if (args.size == 2 && args[0].equals("reload", ignoreCase = true)) {
             val ids = plugin.scriptIds()
             // Scripts, folders ("economy/") and the "changed" keyword.
