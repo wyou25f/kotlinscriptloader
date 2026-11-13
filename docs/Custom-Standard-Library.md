@@ -195,7 +195,7 @@ namespace:
 ml2.provideLocal("service", EconomyLibrary())
 
 // In another script, explicitly address the provider namespace
-val economy = libs.require("economy", "service")
+val economy = libs.require<EconomyLibrary>("economy", "service")
 ```
 
 Available facade names in scripts are `meslib2`, `ml2`, `lib2` and `libs`.
