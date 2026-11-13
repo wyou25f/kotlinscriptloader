@@ -39,7 +39,7 @@ object KSLRuntimeMonitor {
             heapCommittedBytes = heap.committed.coerceAtLeast(0L),
             heapMaxBytes = heap.max,
             nonHeapUsedBytes = nonHeap.used.coerceAtLeast(0L),
-            processors = os.availableProcessors().coerceAtLeast(1),
+            processors = os.availableProcessors.coerceAtLeast(1),
             processCpuLoad = extended?.processCpuLoad?.takeIf { it >= 0.0 },
             systemCpuLoad = extended?.cpuLoad?.takeIf { it >= 0.0 },
             systemLoadAverage = os.systemLoadAverage,
