@@ -12,6 +12,7 @@ import kotlin.script.experimental.api.implicitReceivers
 import kotlin.script.experimental.host.toScriptSource
 import kotlin.script.experimental.jvm.BasicJvmScriptEvaluator
 import kotlin.script.experimental.jvm.baseClassLoader
+import kotlin.script.experimental.jvm.dependenciesFromClassloader
 import kotlin.script.experimental.jvm.jvm
 import kotlin.script.experimental.jvmhost.BasicJvmScriptingHost
 import kotlin.script.experimental.jvmhost.JvmScriptCompiler
@@ -24,6 +25,14 @@ fun buildScriptCompilationConfig(addonManager: KSLAddonManager): ScriptCompilati
     ScriptCompilationConfiguration(KSLScriptCompilationConfiguration) {
         val addonImports = addonManager.getExtraImports()
         if (addonImports.isNotEmpty()) defaultImports(*addonImports.toTypedArray())
+        val addonClassLoaders = addonManager.getScriptClassLoaders()
+        if (addonClassLoaders.isNotEmpty()) {
+            jvm {
+                addonClassLoaders.forEach { classLoader ->
+                    dependenciesFromClassloader(classLoader = classLoader, wholeClasspath = true)
+                }
+            }
+        }
     }
 
 class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
@@ -141,8 +150,9 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
     }
 
     private fun loaderFor(id: String): ClassLoader {
-        if (!plugin.isSandboxed(id) || !plugin.sandboxStrict) return pluginClassLoader
-        return KSLSandboxClassLoader(pluginClassLoader, plugin.sandboxDenyList, id) { denied ->
+        val addonAwareLoader = KSLAddonClassLoader(pluginClassLoader, plugin.addonManager.getScriptClassLoaders())
+        if (!plugin.isSandboxed(id) || !plugin.sandboxStrict) return addonAwareLoader
+        return KSLSandboxClassLoader(addonAwareLoader, plugin.sandboxDenyList, id) { denied ->
             plugin.logScriptProblem("[$id] ${KSLError.SANDBOX_CLASS_DENIED.tag} 🚫 Sandbox: скрипт обратился к запрещённому классу $denied")
         }
     }

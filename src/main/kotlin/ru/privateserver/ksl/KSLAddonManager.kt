@@ -294,6 +294,12 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
 
     fun getExtraImports(): List<String> = extraImports.toList()
 
+    /** Classloaders of currently registered addons, in addon load order. */
+    fun getScriptClassLoaders(): List<ClassLoader> = loadOrder
+        .mapNotNull { addons[it]?.javaClass?.classLoader }
+        .filter { it !== plugin.javaClass.classLoader }
+        .distinct()
+
     fun getServiceKeys(): Set<String> = services.keys.toSet()
 
     fun notifyContextCreated(context: BukkitScriptContext) {

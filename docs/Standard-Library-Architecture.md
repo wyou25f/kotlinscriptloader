@@ -1,6 +1,6 @@
 # KSL Standard Library — architecture and built-in utilities
 
-**Status:** a small set of pure Kotlin utilities is shipped. Bukkit-specific convenience modules and the module host are future work.
+**Status:** built-in text, math, time, player and world packages are shipped. Custom standard-library code can be provided by KSL addons; the module planner is currently a validation/planning API, not an automatic module loader.
 
 ## Built-in packages
 
@@ -9,40 +9,62 @@ These packages are included in the default imports for KSL scripts:
 - `ru.privateserver.ksl.std.text.*`: Unicode-safe truncation, legacy color stripping, UUID parsing and whitespace tokenization.
 - `ru.privateserver.ksl.std.math.*`: checked clamping, range mapping and validated percentage chance.
 - `ru.privateserver.ksl.std.time.*`: explicit seconds/minutes/hours-to-ticks conversion, duration rounding and tick-to-duration conversion.
+- `ru.privateserver.ksl.std.player.*`: player messaging, permissions and inventory helpers.
+- `ru.privateserver.ksl.std.world.*`: block, location and entity-query helpers.
 
-The existing `ru.privateserver.ksl.dsl.*` package remains available. Its `.sec`, `.mins` and `.hours` extensions now use checked arithmetic and therefore throw on overflow instead of silently wrapping.
+The existing `ru.privateserver.ksl.dsl.*` package remains available. Its `.sec`, `.mins` and `.hours` extensions use checked arithmetic and throw on overflow instead of silently wrapping.
+
+## Writing a custom std package
+
+A custom standard library is a normal Kotlin KSL addon. Put extension functions and helper classes in a dedicated package, then register that package as a default import from the addon's `onLoad` callback:
+
+```kotlin
+package com.example.serverstd
+
+import net.kyori.adventure.text.Component
+import org.bukkit.entity.Player
+
+fun Player.sendWelcome() {
+    sendMessage(Component.text("Welcome to the server!"))
+}
+
+fun String.asServerTag(): String = "[Server] $this"
+```
+
+In the addon:
+
+```kotlin
+override fun onLoad(api: KSLAPI) {
+    api.addDefaultImports("com.example.serverstd.*")
+}
+```
+
+The import is added to the runtime compilation configuration while the addon is registered. KSL also adds the registered addon's classloader to script compilation and evaluation, so the imported extension functions and types can be resolved from the addon's JAR. When the addon unloads, its imports and classloader exposure disappear from subsequent compilations.
+
+Use a normal Bukkit `depend: [KotlinScriptLoader]` declaration when the addon requires KSL at startup. Compile against the KSL API with `compileOnly`; do not shade a second copy of KSL API classes into the addon.
+
+Custom std packages can expose:
+- Kotlin extension functions for Bukkit, Adventure and your own types;
+- top-level helper functions and constants;
+- classes, enums and data classes;
+- wrappers around third-party libraries bundled by the addon.
+
+Keep Bukkit world, entity and inventory operations on the server thread unless the Paper API explicitly permits asynchronous access.
 
 ## Module contracts
 
-The future Standard Library should be distributed as independently versioned modules rather than growing the KSL core. Each module declares its identity, version, required KSL API level, dependencies and any default imports it contributes.
+KSL exposes declarative module contracts for future independently versioned standard-library modules:
 
-Implementations use:
+- `KSLModuleDescriptor` declares identity, version, required KSL API level, dependencies and default imports;
+- `KSLStandardLibraryModule` declares install/uninstall callbacks;
+- `KSLModulePlanner.resolve(...)` validates duplicate IDs, missing dependencies, dependency cycles and API compatibility, then returns a deterministic dependency-first order.
 
-- `KSLModuleDescriptor` for metadata and dependency declarations;
-- `KSLStandardLibraryModule` for install/uninstall lifecycle;
-- `KSLModulePlanner.resolve(...)` to validate a complete module set and obtain a deterministic dependency-first order before changing server state.
-
-The planner rejects duplicate IDs, missing dependencies, dependency cycles and modules requiring a newer KSL API. Uninstall should happen in reverse order. Module implementations should register resources through `KSLAPI` so addon ownership and unload cleanup remain the lifecycle boundary.
-
-## Planned module families
-
-These are planning categories, not shipped functionality:
-
-| Module family | Intended scope |
-| --- | --- |
-| `ksl.std.core` | Common script helpers and shared types |
-| `ksl.std.text` | Components, formatting and text utilities |
-| `ksl.std.player` | Player-oriented convenience APIs |
-| `ksl.std.world` | World and entity helpers |
-| `ksl.std.storage` | Persistence abstractions |
-| `ksl.std.scheduler` | Task scheduling helpers |
+**Important:** the planner currently has no side effects. It does not discover, install or unload modules automatically. For a working custom std today, use the KSL addon lifecycle and `api.addDefaultImports(...)` described above.
 
 ## Compatibility policy
 
 - Additive API changes must preserve existing signatures.
 - Breaking changes require a deliberate API-version change and migration notes.
-- Every module declares the minimum KSL API version it needs.
-- Prefer one documented package namespace per module; avoid wildcard imports that collide.
-- Keep module implementations outside KSL core wherever possible.
-
-The module API is a foundation for a later loader/registry. It does not auto-install modules or change the runtime addon lifecycle.
+- Every addon/module should declare the minimum KSL API version it needs.
+- Prefer one documented package namespace per library; avoid wildcard imports that collide.
+- Keep custom implementations outside KSL core wherever possible.
