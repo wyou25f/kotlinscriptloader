@@ -9,6 +9,9 @@ import org.junit.jupiter.api.Test
 import ru.privateserver.ksl.dsl.hours
 import ru.privateserver.ksl.dsl.mins
 import ru.privateserver.ksl.dsl.sec
+import ru.privateserver.ksl.std.component.appendText
+import ru.privateserver.ksl.std.component.toMiniMessageComponent
+import ru.privateserver.ksl.std.component.toTextComponent
 import ru.privateserver.ksl.std.math.clamped
 import ru.privateserver.ksl.std.math.mapToRange
 import ru.privateserver.ksl.std.math.randomChance
@@ -23,6 +26,7 @@ import ru.privateserver.ksl.std.time.secondsToTicks
 import ru.privateserver.ksl.std.time.ticksToDuration
 import ru.privateserver.ksl.std.time.toTicksCeiling
 import java.time.Duration
+import net.kyori.adventure.text.Component
 
 class KSLStandardLibraryTest {
     @Test
@@ -34,6 +38,13 @@ class KSLStandardLibraryTest {
         assertEquals("red", "§c red§r".stripLegacyColors().trim())
         assertTrue("  550e8400-e29b-41d4-a716-446655440000 ".isUuid())
         assertNull("not-a-uuid".toUuidOrNull())
+    }
+
+    @Test
+    fun `component helpers keep plain text literal and parse MiniMessage`() {
+        assertEquals(Component.text("<red>literal</red>"), "<red>literal</red>".toTextComponent())
+        assertEquals(Component.text("hello").append(Component.text(" world")), Component.text("hello").appendText(" world"))
+        assertEquals(Component.text("hello"), "<green>hello</green>".toMiniMessageComponent())
     }
 
     @Test

@@ -1,6 +1,6 @@
 # KSL Standard Library — architecture and built-in utilities
 
-**Status:** built-in text, math, time, player, inventory and world packages are shipped. Custom standard-library code can be provided by KSL addons; the module planner is currently a validation/planning API, not an automatic module loader.
+**Status:** built-in text, math, time, player, inventory, item, component and world packages are shipped. Custom standard-library code can be provided by KSL addons; the module planner is currently a validation/planning API, not an automatic module loader.
 
 ## Built-in packages
 
@@ -11,11 +11,26 @@ These packages are included in the default imports for KSL scripts:
 - `ru.privateserver.ksl.std.time.*`: explicit seconds/minutes/hours-to-ticks conversion, duration rounding and tick-to-duration conversion.
 - `ru.privateserver.ksl.std.player.*`: player messaging, permissions and player-inventory helpers.
 - `ru.privateserver.ksl.std.inventory.*`: first matching slot lookup, similar-item counting and bounded item removal for any Bukkit inventory.
+- `ru.privateserver.ksl.std.item.*`: safe cloned ItemStack amount/name/lore transformations and empty-stack checks.
+- `ru.privateserver.ksl.std.component.*`: literal Adventure text components, MiniMessage parsing and immutable text appending.
 - `ru.privateserver.ksl.std.world.*`: block, location and entity-query helpers.
 
-The inventory helpers compare item similarity without relying on stack amount. They inspect all slots in the target inventory, do not mutate the supplied comparison item, and must be called on the server thread.
+Inventory and ItemStack helpers that inspect or modify Bukkit objects must be called on the server thread. ItemStack transformation helpers return clones and leave the original stack unchanged. `toTextComponent()` treats input as literal text; use `toMiniMessageComponent()` only when the input is intentionally MiniMessage markup.
 
 The existing `ru.privateserver.ksl.dsl.*` package remains available. Its `.sec`, `.mins` and `.hours` extensions use checked arithmetic and throw on overflow instead of silently wrapping.
+
+## Examples
+
+```kotlin
+val welcome = "<green>Welcome, <bold>player</bold>!</green>".toMiniMessageComponent()
+player.tell(welcome)
+
+val renamed = ItemStack(Material.DIAMOND)
+    .withDisplayName("<aqua>Reward".toTextComponent())
+    .withLore(listOf("A daily reward".toTextComponent()))
+
+player.inventory.addItem(renamed.copyWithAmount(3))
+```
 
 ## Writing a custom std package
 
@@ -44,7 +59,7 @@ override fun onLoad(api: KSLAPI) {
 
 The import is added to the runtime compilation configuration while the addon is registered. KSL also adds the registered addon's classloader to script compilation and evaluation, so the imported extension functions and types can be resolved from the addon's JAR. When the addon unloads, its imports and classloader exposure disappear from subsequent compilations.
 
-Use a normal Bukkit `depend: [KotlinScriptLoader]` declaration when the addon requires KSL at startup. Compile against the KSL API with `compileOnly`; do not shade a second copy of KSL API classes into the addon.
+Use a normal Bukkit `depend: [KotlinScriptLoader]` declaration when the addon requires KSL at startup. Compile against the KSL API with `compileOnly`; do not shade a second copy of KSL API classes into an addon.
 
 Custom std packages can expose:
 - Kotlin extension functions for Bukkit, Adventure and your own types;
