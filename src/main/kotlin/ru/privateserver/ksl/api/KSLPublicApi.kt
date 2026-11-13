@@ -18,6 +18,10 @@ import ru.privateserver.ksl.meslib2.MesLib2 as CoreMesLib2
 import ru.privateserver.ksl.meslib2.MesLib2Info as CoreMesLib2Info
 import ru.privateserver.ksl.rt.KSLCache as CoreKSLCache
 import ru.privateserver.ksl.rt.KSLProfiler as CoreKSLProfiler
+import ru.privateserver.ksl.rt.KSLWorkScheduler as CoreKSLWorkScheduler
+import ru.privateserver.ksl.rt.KSLWorkPriority as CoreKSLWorkPriority
+import ru.privateserver.ksl.rt.KSLRuntimeSnapshot as CoreKSLRuntimeSnapshot
+import ru.privateserver.ksl.rt.KSLRuntimeMonitor
 
 /**
  * Stable public entry point for KSL integrations and script libraries.
@@ -46,6 +50,16 @@ typealias MesLib = CoreMesLib2
 typealias MesLib2Info = CoreMesLib2Info
 typealias KSLCache<K, V> = CoreKSLCache<K, V>
 typealias KSLProfiler = CoreKSLProfiler
+typealias KSLWorkScheduler = CoreKSLWorkScheduler
+typealias KSLWorkPriority = CoreKSLWorkPriority
+typealias KSLRuntimeSnapshot = CoreKSLRuntimeSnapshot
+
+/** Current read-only JVM, CPU, thread and GC telemetry. */
+val kslRuntimeStats: KSLRuntimeSnapshot
+    get() = KSLRuntimeMonitor.snapshot()
+
+/** Function-form alias for [kslRuntimeStats]. */
+fun runtimeStats(): KSLRuntimeSnapshot = KSLRuntimeMonitor.snapshot()
 
 /** Stable event-bus topic names published by KSL. */
 object KSLTopics {

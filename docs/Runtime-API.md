@@ -136,3 +136,46 @@ still run on the server thread unless Paper documents otherwise.
 These utilities are independent objects. KSL does not automatically clear a
 cache or profiler created by a script; keep references scoped to the script or
 addon that owns them and discard them when that owner unloads.
+
+
+## Managed worker scheduler and runtime telemetry
+
+Use the bounded, priority-aware worker pool for CPU-heavy or blocking work
+that does not access Bukkit world/player state:
+
+```kotlin
+val taskId = worker(KSLWorkPriority.NORMAL) {
+    val result = calculateSomethingExpensive()
+    runSync { /* apply result through Bukkit APIs */ }
+}
+val otherTask = cpu { calculateSomethingExpensive() }
+val thirdTask = work { calculateSomethingExpensive() }
+cancelWorker(taskId)
+```
+
+Priorities are `HIGH`, `NORMAL` and `LOW`. Queue saturation and per-script
+limits reject new work rather than running it on the caller (possibly main) thread.
+Queued and running worker tasks owned by a script are cancelled on unload.
+Running tasks are interrupted; worker code should cooperate with interruption.
+
+```yaml
+runtime:
+  cpu-threads: 2
+  queue-capacity: 256
+  max-tasks-per-script: 64
+```
+
+Change the worker count live with `/ksl runtime workers <1-64>`; it is saved
+to `config.yml`. Queue capacity and per-script limit are read at startup.
+Worker count limits KSL's background concurrency but does not pin threads to
+physical cores or reserve CPU time from the OS.
+
+`/ksl runtime` (aliases: `/ksl perf`, `/ksl memory`, `/ksl cpu`) displays
+JVM heap/non-heap usage, processor count, process/system CPU load when available,
+thread counts, GC totals and worker queue activity. Scripts and addons can read
+the same snapshot via `KSLRuntimeMonitor.snapshot()`, `stats()`, `memory()`,
+`kslRuntimeStats` or `runtimeStats()`.
+
+The JVM controls heap size through startup flags such as `-Xms` and `-Xmx`.
+KSL does not forcibly invoke garbage collection, resize the JVM heap, or claim
+to measure exact memory retained by individual scripts.
