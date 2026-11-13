@@ -236,7 +236,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     }
 
     private fun initCompileThreads() {
-        compileThreads = config.getInt("scripts.compile-threads", 1).coerceIn(1, 8)
+        val requestedThreads = config.getInt("scripts.compile-threads", 1).coerceIn(1, 8)
+        if (requestedThreads == compileThreads) return
+        compileThreads = requestedThreads
         compilePermits = java.util.concurrent.Semaphore(compileThreads)
         compilePool.close()
         compilePool = KSLCompilePool(compileThreads)
