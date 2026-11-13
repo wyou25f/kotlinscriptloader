@@ -23,6 +23,12 @@ class KSLRuntimeToolsTest {
         assertThrows(IllegalArgumentException::class.java) { KSLCache<String, Int>(0) }
         assertThrows(IllegalArgumentException::class.java) { KSLCache<String, Int>(1, Duration.ofNanos(-1)) }
     }
+    @Test fun cacheExpiresEntriesAfterConfiguredDuration() {
+        val cache = KSLCache<String, Int>(2, Duration.ofMillis(10))
+        cache.put("short-lived", 1)
+        Thread.sleep(30)
+        assertNull(cache.get("short-lived"))
+    }
     @Test fun profilerRecordsFailuresAndResets() {
         val profiler = KSLProfiler("test")
         assertEquals("ok", profiler.measure { "ok" })

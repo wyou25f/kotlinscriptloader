@@ -89,7 +89,7 @@ owner-aware хранилище экспортов KSL, добавляя namespac
 // economy.kts
 meslib2.export("economy", "service", EconomyService(), version = "2.0")
 
-// shop.kts — объяви // @requires: economy
+// @requires: economy
 val economy = meslib2.require<EconomyService>("economy", "service", "2.0")
 ```
 
@@ -104,7 +104,8 @@ SemVer и не загружает библиотеки автоматическ�
 
 - `KSLCache<K, V>` — потокобезопасный LRU-кэш с лимитом размера и optional TTL;
 - `KSLProfiler` — агрегирует количество вызовов, ошибки, общее и максимальное время;
-- `kslrt.cache<K, V>(maxSize, expireAfter)` и `kslrt.profiler(name)` — фабрики.
+- `kslrt.cache<K, V>(maxSize, expireAfter)` и `kslrt.profiler(name)` — фабрики;
+- `kslapi` — явный алиас для установленного `KSLAPI` (старый `ksl` сохранён).
 
 ```kotlin
 val playerCache = kslrt.cache<String, PlayerData>(maxSize = 2_000)

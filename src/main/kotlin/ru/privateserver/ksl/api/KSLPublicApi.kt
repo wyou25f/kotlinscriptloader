@@ -64,6 +64,10 @@ const val KSL_API_VERSION: Int = CoreKSL.API_VERSION
 val ksl: KSLAPI
     get() = CoreKSL.api
 
+/** Explicitly named alias for the installed public API. */
+val kslapi: KSLAPI
+    get() = CoreKSL.api
+
 /** The installed KSL API, or null while KSL is unavailable or shutting down. */
 val kslOrNull: KSLAPI?
     get() = CoreKSL.apiOrNull

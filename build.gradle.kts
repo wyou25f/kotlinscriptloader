@@ -99,7 +99,12 @@ val verifyShadowJar by tasks.registering {
                 "ru/privateserver/ksl/std/inventory/InventoryExtensionsKt.class",
                 "ru/privateserver/ksl/std/item/ItemExtensionsKt.class",
                 "ru/privateserver/ksl/std/component/ComponentExtensionsKt.class",
-                "ru/privateserver/ksl/std/world/WorldExtensionsKt.class"
+                "ru/privateserver/ksl/std/world/WorldExtensionsKt.class",
+                "ru/privateserver/ksl/meslib2/MesLib2.class",
+                "ru/privateserver/ksl/meslib2/MesLib2Info.class",
+                "ru/privateserver/ksl/rt/KSLCache.class",
+                "ru/privateserver/ksl/rt/KSLProfiler.class",
+                "ru/privateserver/ksl/rt/KSLRuntime.class"
             )
             val missing = requiredClasses.filter { jar.getEntry(it) == null }
             check(missing.isEmpty()) { "Required KSL API/stdlib classes are missing: ${missing.joinToString()}" }

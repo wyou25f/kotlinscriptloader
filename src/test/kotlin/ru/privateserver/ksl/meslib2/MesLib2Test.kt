@@ -1,5 +1,6 @@
 package ru.privateserver.ksl.meslib2
 import org.junit.jupiter.api.Assertions.*
+import ru.privateserver.ksl.KSLExportStore
 import org.junit.jupiter.api.Test
 
 class MesLib2Test {
@@ -20,6 +21,14 @@ class MesLib2Test {
         assertNull(api.get<String>("economy", "service", "1.0"))
         assertEquals("2.0", api.info("economy", "service")?.version)
         assertEquals("provider", api.info("economy", "service")?.owner)
+    }
+    @Test fun exportsAreRemovedWithTheirOwningScript() {
+        val store = KSLExportStore()
+        val api = MesLib2("provider", store::export, store::get, store::ownerOf)
+        api.export("economy", "service", "ready")
+        assertEquals("ready", api.get<String>("economy", "service"))
+        store.clearOwner("provider")
+        assertNull(api.get<String>("economy", "service"))
     }
     @Test fun requireFailsForMissingExports() {
         val api = facade()

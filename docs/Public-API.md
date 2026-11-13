@@ -22,6 +22,7 @@ script-info, script-event, shape-factory, script-context and Standard Library
 module contracts. It also exposes:
 
 - `ksl`: non-null API accessor that throws if KSL is not initialized;
+- `kslapi`: explicit alias for the installed non-null API;
 - `kslOrNull`: safe nullable accessor for plugin load-order/shutdown edges;
 - `isKslAvailable`: availability flag;
 - `KSL_API_VERSION`: addon compatibility level;
