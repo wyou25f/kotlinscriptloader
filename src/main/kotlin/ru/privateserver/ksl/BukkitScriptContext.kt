@@ -87,7 +87,7 @@ open class BukkitScriptContext(
     private fun yamlSqlQuery(path: String): String {
         if (!yamlSqlQueriesLoaded) reloadYamlSqlQueries()
         return yamlSqlQueryCache.get(path)
-            ?: throw IllegalArgumentException("SQL query is missing or blank at YAML path '$path'")
+            ?: throw IllegalArgumentException("SQL query is missing or blank at YAML path '$path' in ${configFile.absolutePath}. Put this script's YAML file in the KotlinScriptLoader plugin folder (next to scripts/) and define the SQL query at YAML path '$path'.")
     }
 
     // YamlConfiguration is not thread-safe. Use editConfig for every mutation that may
@@ -369,6 +369,29 @@ open class BukkitScriptContext(
         }
     }
 
+    /**
+     * Short alias for [dbExecute]. SQL parameters are bound through a prepared statement.
+     */
+    fun execute(sql: String, vararg args: Any?) = dbExecute(sql, *args)
+
+    /**
+     * Short alias for [dbQuery]. The ResultSet is the lambda receiver, so use
+     * `next()`, `getLong("balance")`, etc. directly inside the block.
+     *
+     * The callback runs on KSL's database executor, not the Bukkit main thread.
+     */
+    fun query(sql: String, vararg args: Any?, block: ResultSet.() -> Unit) {
+        dbQuery(sql, *args) { resultSet -> resultSet.block() }
+    }
+
+    /** Short alias for [dbExecuteYaml]. */
+    fun executeYaml(queryPath: String, vararg args: Any?) = dbExecuteYaml(queryPath, *args)
+
+    /** Short alias for [dbQueryYaml] with ResultSet receiver syntax. */
+    fun queryYaml(queryPath: String, vararg args: Any?, block: ResultSet.() -> Unit) {
+        dbQueryYaml(queryPath, *args) { resultSet -> resultSet.block() }
+    }
+
     // Scheduler tasks swallow nothing: an uncaught exception would print a raw Bukkit trace every period.
     private fun guarded(where: String, block: () -> Unit) = Runnable {
         try {
@@ -398,6 +421,14 @@ open class BukkitScriptContext(
         val period = KSLErrors.validPeriod(plugin, scriptName, "every", ticks)
         return track(Bukkit.getScheduler().runTaskTimer(plugin, guarded("every", block), initialDelay, period))
     }
+
+    /**
+     * Compatibility alias for scripts using the older named argument `period`.
+     * Prefer `every(ticks = ...)` in new scripts.
+     */
+    @Suppress("UNUSED_PARAMETER")
+    fun every(period: Long, initialDelay: Long = 0L, compatibilityAlias: Unit = Unit, block: () -> Unit): Int =
+        every(ticks = period, initialDelay = initialDelay, block = block)
 
     fun delayAsync(ticks: Long, block: () -> Unit): Int =
         track(Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, guarded("delayAsync", block), ticks))

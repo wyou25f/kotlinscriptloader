@@ -208,28 +208,96 @@ database:
 
 ## 10. Свои запросы из скриптов
 
-Для `table()` и `persist` SQL писать не нужно. Свои таблицы и запросы работают через `database`, `dbExecute`, `dbQuery`.
+Для `table()` и `persist` SQL писать не нужно. Свои таблицы и запросы работают через `database`, `dbExecute`, `dbQuery` или короткие алиасы `execute` и `query`.
+
+### Где хранить YAML с запросами
+
+У каждого скрипта свой конфиг: имя файла совпадает с именем скрипта, а сам файл находится **в корневой папке плагина**, на одном уровне с каталогом `scripts/`.
+
+Например, для `scripts/money.kts` правильная структура такая:
+
+```text
+plugins/
+└── KotlinScriptLoader/
+    ├── money.yml
+    └── scripts/
+        └── money.kts
+```
+
+Не клади `money.yml` внутрь `scripts/`: `config` и `dbQueryYaml` читают именно `plugins/KotlinScriptLoader/money.yml`.
+
+Пример `money.yml`:
+
+```yaml
+database:
+  queries:
+    create-coins: |
+      CREATE TABLE IF NOT EXISTS coins (
+        uuid VARCHAR(36) NOT NULL PRIMARY KEY,
+        balance BIGINT NOT NULL DEFAULT 0
+      )
+    read-coins: "SELECT balance FROM coins WHERE uuid = ?"
+    add-coins: "UPDATE coins SET balance = balance + ? WHERE uuid = ?"
+```
+
+После изменения файла перезагрузи скрипты командой `/ksl reload`.
+
+Если KSL сообщает, что SQL-запрос не найден, проверь имя файла, путь `database.queries.*` и отступы YAML. Сообщение об ошибке показывает полный ожидаемый путь к YAML-файлу.
+
+### Полный SQL и короткие алиасы
+
 Пиши **переносимый SQL**, который понимают и SQLite, и MySQL/MariaDB:
 
 - нет `PRAGMA`, `AUTOINCREMENT`, `INSERT OR REPLACE`;
 - имена своих таблиц начинай с префикса скрипта, например `shop_orders`, чтобы они не пересеклись с чужими;
-- слова вроде `key`, `order`, `group` бери в обратные кавычки: `` `key` ``.
+- слова вроде `key`, `order`, `group` бери в обратные кавычки: `\`key\``.
+
+Старые имена API остаются доступными:
+
+- `dbExecute(sql, ...args)` — выполнить запрос без чтения результата;
+- `dbQuery(sql, ...args) { rs -> ... }` — прочитать результат через `ResultSet`;
+- `dbExecuteYaml(path, ...args)` и `dbQueryYaml(path, ...args) { rs -> ... }` — те же операции, но SQL берётся из YAML.
+
+Для новых скриптов есть короткие алиасы:
+
+- `execute(sql, ...args)` и `query(sql, ...args) { ... }`;
+- `executeYaml(path, ...args)` и `queryYaml(path, ...args) { ... }`.
+
+В `query { }` и `queryYaml { }` объект `ResultSet` — receiver блока, поэтому можно писать `next()` и `getLong("balance")` без переменной `rs`:
 
 ```kotlin
-// Свою таблицу создаём один раз.
-dbExecute("CREATE TABLE IF NOT EXISTS shop_orders (id INT NOT NULL PRIMARY KEY, buyer VARCHAR(64), price INT)")
+execute("CREATE TABLE IF NOT EXISTS coins (uuid VARCHAR(36) PRIMARY KEY, balance BIGINT NOT NULL DEFAULT 0)")
 
-// Чтение через JDBC. Соединение обязательно закрывать (use), иначе пул из 4 соединений быстро кончится.
-database.connection.use { conn ->
-    conn.prepareStatement("SELECT price FROM shop_orders WHERE buyer = ?").use { ps ->
-        ps.setString(1, player.name)
-        ps.executeQuery().use { rs -> while (rs.next()) println(rs.getInt(1)) }
+query("SELECT balance FROM coins WHERE uuid = ?", player.uniqueId.toString()) {
+    if (next()) {
+        val balance = getLong("balance")
+        println("Баланс: $balance")
     }
 }
-```
-Не оставляй соединения открытыми: через 10 секунд KSL напишет предупреждение об утечке.
 
----
+queryYaml("database.queries.read-coins", player.uniqueId.toString()) {
+    if (next()) println("Баланс: ${getLong("balance")}")
+}
+```
+
+Тот же запрос через прежний API:
+
+```kotlin
+dbQuery("SELECT balance FROM coins WHERE uuid = ?", player.uniqueId.toString()) { rs ->
+    if (rs.next()) println(rs.getLong("balance"))
+}
+```
+
+**Важно про потоки:** `dbExecute`, `dbQuery`, `execute`, `query` и YAML-варианты выполняются асинхронно на пуле БД. Не вызывай Bukkit API для игрока/мира напрямую внутри `query { }`. Для действий с Bukkit используй `runSync { ... }`. Например:
+
+```kotlin
+query("SELECT balance FROM coins WHERE uuid = ?", player.uniqueId.toString()) {
+    val balance = if (next()) getLong("balance") else 0L
+    runSync { player.sendMessage("Баланс: $balance") }
+}
+```
+
+Не оставляй JDBC-соединения открытыми: если работаешь напрямую через `database.connection`, обязательно используй `use { }`.
 
 ## 11. Безопасность и бэкапы
 

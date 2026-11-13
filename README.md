@@ -53,6 +53,12 @@ vehicle/hanging), `inventory.*`, `block.*`, `boss.*`, `attribute.*`, `enchantmen
 с `kotlin.collections.*`, который у Kotlin всегда подключён неявно, и компиляция
 скрипта будет падать на "ambiguous import".)
 
+## Совместимые короткие вызовы SQL и таймера
+
+В дополнение к `dbExecute` / `dbQuery` доступны `execute` / `query`, а для SQL из YAML — `executeYaml` / `queryYaml`. Внутри `query { }` можно напрямую вызывать JDBC-методы `next()`, `getLong(...)`, `getString(...)`; callback выполняется в фоне, Bukkit-действия переноси в `runSync { }`.
+
+Для периодических задач поддерживаются оба написания: `every(ticks = 1200L) { ... }` (основное) и `every(period = 1200L) { ... }` (совместимый алиас).
+
 ## /ksl reload
 
 Снимает все listener'ы (`HandlerList.unregisterAll`), плейсхолдеры и команды скриптов,
@@ -164,6 +170,16 @@ issues.forEach { issue ->
 По умолчанию отсутствующие и некорректные значения заменяются значениями из схемы и сохраняются в YAML. Передай `applyDefaults = false`, чтобы только получить список проблем без изменения файла. Диапазоны проверяются, но значения не подрезаются автоматически.
 
 ## SQL-запросы из YAML
+
+Для скрипта `money.kts` файл запросов называется `money.yml` и лежит в корне `plugins/KotlinScriptLoader/`, **рядом с папкой `scripts/`, а не внутри неё**:
+
+```text
+plugins/KotlinScriptLoader/
+├── money.yml
+└── scripts/
+    └── money.kts
+```
+
 ### Кэш SQL-запросов и обновление YAML без перезапуска
 
 Запросы из `database.queries` кэшируются при первом обращении к `dbExecuteYaml` или `dbQueryYaml`. Чтобы перечитать изменённый файл с диска и сразу обновить кэш:
