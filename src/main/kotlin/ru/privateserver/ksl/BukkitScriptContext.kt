@@ -10,6 +10,7 @@ import org.bukkit.NamespacedKey
 import org.bukkit.OfflinePlayer
 import org.bukkit.Particle
 import org.bukkit.command.CommandSender
+import org.bukkit.configuration.ConfigurationSection
 import org.bukkit.configuration.InvalidConfigurationException
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.entity.Ageable
@@ -60,14 +61,41 @@ open class BukkitScriptContext(
         catch (ex: IOException) { plugin.logger.warning("[$scriptName] ${KSLError.YAML_SAVE_FAILED.tag} Не удалось сохранить $scriptName.yml: ${ex.message}") }
     }
 
-    fun loadYaml(fileName: String): YamlConfiguration {
+    private fun resolveYamlFile(fileName: String, operation: String): File {
         val root = plugin.scriptsFolder.canonicalFile
         val file = File(root, fileName).canonicalFile
-        // Without this check '../..' lets a script create or read files anywhere the server can write.
+        // Canonical paths also prevent escaping scripts/ through ../ or symbolic links.
         require(file.toPath() != root.toPath() && file.toPath().startsWith(root.toPath())) {
-            "${KSLError.YAML_PATH_ESCAPE.tag} loadYaml: '$fileName' выходит за пределы scripts/"
+            "${KSLError.YAML_PATH_ESCAPE.tag} $operation: '$fileName' выходит за пределы scripts/"
         }
-        return loadYamlFile(file)
+        return file
+    }
+
+    fun loadYaml(fileName: String): YamlConfiguration =
+        loadYamlFile(resolveYamlFile(fileName, "loadYaml"))
+
+    /** Loads, edits and optionally saves a YAML file inside scripts/. */
+    @Synchronized
+    fun editYaml(
+        fileName: String,
+        save: Boolean = true,
+        block: YamlConfiguration.() -> Unit
+    ): YamlConfiguration {
+        val yaml = loadYamlFile(resolveYamlFile(fileName, "editYaml"))
+        yaml.block()
+        if (save) saveYaml(fileName, yaml)
+        return yaml
+    }
+
+    /** Saves a configuration previously obtained from loadYaml() or editYaml(). */
+    @Synchronized
+    fun saveYaml(fileName: String, yaml: YamlConfiguration) {
+        val file = resolveYamlFile(fileName, "saveYaml")
+        try {
+            writeAtomically(yaml, file)
+        } catch (ex: IOException) {
+            plugin.logger.warning("[$scriptName] ${KSLError.YAML_SAVE_FAILED.tag} Не удалось сохранить '$fileName': ${ex.message}")
+        }
     }
 
     private fun loadYamlFile(file: File): YamlConfiguration {
@@ -179,6 +207,37 @@ open class BukkitScriptContext(
         return get(path) as? T ?: default
     }
 
+    /** Reads a value without modifying YAML when the key is absent. */
+    inline fun <reified T> YamlConfiguration.getOrDefault(path: String, default: T): T =
+        get(path) as? T ?: default
+
+    /** Sets a value only when the path does not already exist. */
+    fun YamlConfiguration.setIfAbsent(path: String, value: Any?): Boolean {
+        if (contains(path)) return false
+        set(path, value)
+        return true
+    }
+
+    fun YamlConfiguration.string(path: String, default: String = ""): String =
+        getString(path) ?: default
+
+    fun YamlConfiguration.int(path: String, default: Int = 0): Int = getInt(path, default)
+    fun YamlConfiguration.long(path: String, default: Long = 0L): Long = getLong(path, default)
+    fun YamlConfiguration.double(path: String, default: Double = 0.0): Double = getDouble(path, default)
+    fun YamlConfiguration.bool(path: String, default: Boolean = false): Boolean = getBoolean(path, default)
+    fun YamlConfiguration.strings(path: String): List<String> = getStringList(path)
+
+    /** Creates the section if needed and applies a receiver lambda to it. */
+    fun YamlConfiguration.section(
+        path: String,
+        create: Boolean = true,
+        block: ConfigurationSection.() -> Unit
+    ) {
+        val target = getConfigurationSection(path)
+            ?: if (create) createSection(path) else return
+        target.block()
+    }
+
     fun table(name: String): KSLQuickTable = plugin.tableStore.table(name)
 
     val database: HikariDataSource get() = plugin.database
@@ -249,6 +308,13 @@ open class BukkitScriptContext(
         return track(Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, guarded("everyAsync", block), initialDelay, period))
     }
 
+    // Short DSL aliases; original method names remain available.
+    fun sync(block: () -> Unit): Int = runSync(block)
+    fun async(block: () -> Unit): Int = runAsync(block)
+    fun after(ticks: Long, block: () -> Unit): Int = delay(ticks, block)
+    fun repeat(ticks: Long, initialDelay: Long = 0L, block: () -> Unit): Int =
+        every(ticks, initialDelay, block)
+
     // Works for any id returned by delay/every/runSync/...; stopEffect is the same call for effects.
     fun cancelTask(taskId: Int) {
         Bukkit.getScheduler().cancelTask(taskId)
@@ -274,6 +340,12 @@ open class BukkitScriptContext(
         plugin.trackListener(scriptName, listener)
     }
 
+    inline fun <reified T : Event> on(
+        priority: EventPriority = EventPriority.NORMAL,
+        ignoreCancelled: Boolean = false,
+        crossinline action: T.() -> Unit
+    ) = onEvent<T>(priority, ignoreCancelled, action)
+
     fun registerCommand(
         name: String,
         aliases: List<String> = emptyList(),
@@ -289,6 +361,15 @@ open class BukkitScriptContext(
         })
     }
 
+    /** Short alias for registerCommand(). */
+    fun cmd(
+        name: String,
+        aliases: List<String> = emptyList(),
+        permission: String? = null,
+        tabComplete: ((Player, Array<String>) -> List<String>)? = null,
+        action: (Player, Array<String>) -> Unit
+    ) = registerCommand(name, aliases, permission, tabComplete, action)
+
     // Like registerCommand, but console and command blocks may run it too.
     fun registerCommandAny(
         name: String,
@@ -299,6 +380,15 @@ open class BukkitScriptContext(
     ) {
         addCommand(DynamicCommand(name, aliases, scriptName, plugin, permission, tabComplete, false, action))
     }
+
+    /** Short alias for registerCommandAny(). */
+    fun cmdAny(
+        name: String,
+        aliases: List<String> = emptyList(),
+        permission: String? = null,
+        tabComplete: ((CommandSender, Array<String>) -> List<String>)? = null,
+        action: (CommandSender, Array<String>) -> Unit
+    ) = registerCommandAny(name, aliases, permission, tabComplete, action)
 
     private fun addCommand(command: DynamicCommand) {
         Bukkit.getCommandMap().register(plugin.name.lowercase(), command)
