@@ -4,7 +4,7 @@ main: ru.privateserver.ksl.KotlinScriptLoaderPlugin
 api-version: '1.21'
 author: PrivateServer
 description: Приватный hot-reload загрузчик .kts скриптов
-softdepend: [PlaceholderAPI, LuckPerms, Essentials, Vault, SkinsRestorer, WorldEdit, WorldGuard]
+softdepend: [PlaceholderAPI, LuckPerms, Essentials, Vault, SkinsRestorer, WorldEdit, WorldGuard, TAB, AuthMe]
 commands:
   ksl:
     description: Управление KotlinScriptLoader

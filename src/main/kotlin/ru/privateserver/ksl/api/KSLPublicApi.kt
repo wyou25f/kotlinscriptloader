@@ -8,6 +8,8 @@ import ru.privateserver.ksl.KSLAPI as CoreKSLAPI
 import ru.privateserver.ksl.KSLAddon as CoreKSLAddon
 import ru.privateserver.ksl.KSLContextExtension as CoreKSLContextExtension
 import ru.privateserver.ksl.KSLHook as CoreKSLHook
+import ru.privateserver.ksl.KSLTabHook as CoreKSLTabHook
+import ru.privateserver.ksl.KSLAuthMeHook as CoreKSLAuthMeHook
 import ru.privateserver.ksl.KSLScriptInfo as CoreKSLScriptInfo
 import ru.privateserver.ksl.KSLShapeFactory as CoreKSLShapeFactory
 import ru.privateserver.ksl.KSLScriptEvent as CoreKSLScriptEvent
@@ -37,6 +39,8 @@ typealias KSLPublicAPI = CoreKSLAPI
 typealias KSLAddon = CoreKSLAddon
 typealias KSLContextExtension = CoreKSLContextExtension
 typealias KSLHook = CoreKSLHook
+typealias KSLTabHook = CoreKSLTabHook
+typealias KSLAuthMeHook = CoreKSLAuthMeHook
 typealias KSLScriptInfo = CoreKSLScriptInfo
 typealias BukkitScriptContext = CoreBukkitScriptContext
 typealias KSLShapeFactory = CoreKSLShapeFactory

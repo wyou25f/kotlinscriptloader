@@ -157,6 +157,12 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     var worldGuard: KSLWorldGuardHook? = null
         private set
 
+    var tab: KSLTabHook? = null
+        private set
+
+    var authMe: KSLAuthMeHook? = null
+        private set
+
     var discord: KSLDiscordHook? = null
         private set
 
@@ -421,6 +427,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         logger.info("$c9${bold}║$r ${c7}SkinsRestorer   : ${flag(skinRestorer != null)}")
         logger.info("$c9${bold}║$r ${c7}WorldEdit       : ${flag(worldEdit != null)}")
         logger.info("$c9${bold}║$r ${c7}WorldGuard      : ${flag(worldGuard != null)}")
+        logger.info("$c9${bold}║$r ${c7}TAB             : ${flag(tab != null)}")
+        logger.info("$c9${bold}║$r ${c7}AuthMe          : ${flag(authMe != null)}")
         logger.info("$c9${bold}║$r ${c7}Discord         : ${if (discord != null) "${cg}✔ ${discord!!.channels().size} канал(ов)$r" else "${ce}○ не настроен$r"}")
         logger.info("$c9${bold}║$r ${c7}Аддоны          : ${if (addonsCount > 0) "${cg}✔ $addonsCount загружено$r" else "${ce}○ нет$r"}")
         logger.info("$c9${bold}║$r ${c7}Сервисы         : ${if (servicesCount > 0) "${cg}✔ $servicesCount зарегистрировано$r" else "${ce}○ нет$r"}")
@@ -519,6 +527,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         skinRestorer = integrate("SkinsRestorer", "SkinsRestorer") { KSLSkinHook() }
         worldEdit   = integrate("WorldEdit", "WorldEdit") { KSLWorldEditHook() }
         worldGuard  = integrate("WorldGuard", "WorldGuard") { KSLWorldGuardHook() }
+        tab         = integrate("TAB", "TAB") { KSLTabHook() }
+        authMe      = integrate("AuthMe", "AuthMe") { KSLAuthMeHook() }
     }
 
     private fun generateAutocompleteStub() {
@@ -1152,7 +1162,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             "Vault" to (vault != null),
             "SkinsRestorer" to (skinRestorer != null),
             "WorldEdit" to (worldEdit != null),
-            "WorldGuard" to (worldGuard != null)
+            "WorldGuard" to (worldGuard != null),
+            "TAB" to (tab != null),
+            "AuthMe" to (authMe != null)
         ).forEach { (name, present) ->
             // The doctor label says EssentialsX, the plugin itself is registered as Essentials.
             val installed = Bukkit.getPluginManager().getPlugin(if (name == "EssentialsX") "Essentials" else name) != null
@@ -1165,7 +1177,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         }
 
         // Hooks contributed by addons; the built-in ones are listed above.
-        val builtinHooks = setOf("luckperms", "essentials", "vault", "skinsrestorer", "worldedit", "worldguard")
+        val builtinHooks = setOf("luckperms", "essentials", "vault", "skinsrestorer", "worldedit", "worldguard", "tab", "authme")
         addonManager.hooks().filter { it.hookId.lowercase() !in builtinHooks }.forEach { hook ->
             val enabled = addonManager.isPluginEnabled(hook.pluginName)
             lines += DiagnosticLine(
