@@ -1,3 +1,5 @@
+import java.util.zip.ZipFile
+
 plugins {
     kotlin("jvm") version "2.0.21"
     id("com.gradleup.shadow") version "9.4.2"
@@ -75,8 +77,23 @@ tasks.shadowJar {
     relocate("com.zaxxer.hikari", "ru.privateserver.ksl.libs.hikari")
 }
 
-tasks.build {
+val verifyShadowJar by tasks.registering {
     dependsOn(tasks.shadowJar)
+    doLast {
+        val jarFile = tasks.shadowJar.get().archiveFile.get().asFile
+        check(jarFile.isFile) { "Shadow JAR was not produced: ${jarFile.absolutePath}" }
+        ZipFile(jarFile).use { jar ->
+            check(jar.getEntry("plugin.yml") != null) { "plugin.yml is missing from the Shadow JAR" }
+            check(jar.getEntry("ru/privateserver/ksl/KotlinScriptLoaderPlugin.class") != null) {
+                "KotlinScriptLoaderPlugin main class is missing from the Shadow JAR"
+            }
+        }
+        logger.lifecycle("Verified plugin JAR: ${jarFile.name} (${jarFile.length()} bytes)")
+    }
+}
+
+tasks.build {
+    dependsOn(verifyShadowJar)
 }
 
 
