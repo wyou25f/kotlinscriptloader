@@ -15,7 +15,7 @@ class KSLLocalLibraryFingerprintTest {
         try {
             val source = File(root, "helpers/Helper.kt").apply {
                 parentFile.mkdirs()
-                writeText("val marker = 1\\n")
+                writeText("val marker = 1\n")
             }
             val fixedTime = FileTime.fromMillis(1_700_000_000_000L)
             Files.setLastModifiedTime(source.toPath(), fixedTime)
@@ -23,7 +23,7 @@ class KSLLocalLibraryFingerprintTest {
             val before = localLibrarySourceFingerprint(listOf(source), root)
             val previousSize = source.length()
 
-            source.writeText("val marker = 2\\n")
+            source.writeText("val marker = 2\n")
             Files.setLastModifiedTime(source.toPath(), fixedTime)
 
             assertEquals(previousSize, source.length())
@@ -40,11 +40,11 @@ class KSLLocalLibraryFingerprintTest {
         try {
             val first = File(root, "a/First.kt").apply {
                 parentFile.mkdirs()
-                writeText("package a\\n")
+                writeText("package a\n")
             }
             val second = File(root, "b/Second.kt").apply {
                 parentFile.mkdirs()
-                writeText("package b\\n")
+                writeText("package b\n")
             }
 
             assertEquals(
