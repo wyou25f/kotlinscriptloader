@@ -9,7 +9,7 @@ internal object KSLHookReflection {
     fun loadApi(pluginName: String, className: String): Any? = runCatching {
         val provider = Bukkit.getPluginManager().getPlugin(pluginName) ?: return@runCatching null
         val apiClass = provider.javaClass.classLoader.loadClass(className)
-        invoke(apiClass, "getInstance") ?: return@runCatching null
+        call(apiClass, "getInstance") ?: return@runCatching null
     }.getOrNull()
 
     fun call(target: Any?, methodName: String, vararg args: Any?): Any? {
