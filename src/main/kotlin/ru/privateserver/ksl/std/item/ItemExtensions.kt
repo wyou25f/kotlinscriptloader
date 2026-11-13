@@ -38,3 +38,53 @@ fun ItemStack.withLore(lines: List<Component>): ItemStack =
         meta.lore(lines.toList())
         itemMeta = meta
     }
+
+/** Returns a cloned stack with a plain-text lore list. */
+fun ItemStack.withLore(vararg lines: String): ItemStack =
+    withLore(lines.map(Component::text))
+
+/** Returns a cloned stack with its unbreakable flag changed. */
+fun ItemStack.withUnbreakable(unbreakable: Boolean = true): ItemStack =
+    clone().apply {
+        val meta = itemMeta ?: return@apply
+        meta.isUnbreakable = unbreakable
+        itemMeta = meta
+    }
+
+/**
+ * Returns a cloned stack with legacy custom model data.
+ * Prefer item model / data component APIs for new resource-pack pipelines.
+ */
+@Suppress("DEPRECATION")
+fun ItemStack.withCustomModelData(modelData: Int?): ItemStack =
+    clone().apply {
+        val meta = itemMeta ?: return@apply
+        meta.setCustomModelData(modelData)
+        itemMeta = meta
+    }
+
+/** Returns a cloned stack with [enchantment] at [level]. */
+fun ItemStack.withEnchantment(
+    enchantment: org.bukkit.enchantments.Enchantment,
+    level: Int = 1,
+    ignoreLevelRestriction: Boolean = false
+): ItemStack {
+    require(level > 0) { "enchantment level must be positive" }
+    return clone().apply {
+        val meta = itemMeta ?: return@apply
+        meta.addEnchant(enchantment, level, ignoreLevelRestriction)
+        itemMeta = meta
+    }
+}
+
+/** Returns a cloned stack without [enchantment]. */
+fun ItemStack.withoutEnchantment(enchantment: org.bukkit.enchantments.Enchantment): ItemStack =
+    clone().apply {
+        val meta = itemMeta ?: return@apply
+        meta.removeEnchant(enchantment)
+        itemMeta = meta
+    }
+
+/** Checks whether this stack carries [enchantment]. */
+fun ItemStack.hasEnchantment(enchantment: org.bukkit.enchantments.Enchantment): Boolean =
+    itemMeta?.hasEnchant(enchantment) == true
