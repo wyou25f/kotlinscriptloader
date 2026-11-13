@@ -332,9 +332,9 @@ compiler/classloader/JVM target где-то разъехались — `doctor` 
 /ksl reload kd        — только kd.kts, остальные не тронуты
 ```
 
-## Команды и aliases
+## Команды, aliases и короткий DSL
 
-Пример:
+Полная форма API остаётся доступной:
 
 ```kotlin
 registerCommand("heal", aliases = listOf("h", "restore")) { player, args ->
@@ -342,7 +342,38 @@ registerCommand("heal", aliases = listOf("h", "restore")) { player, args ->
 }
 ```
 
-Aliases регистрируются без учёта регистра: `"Heal"` становится `heal`.
+Для короткой записи есть `cmd` и `cmdAny`:
+
+```kotlin
+cmd("heal", aliases = listOf("h", "restore")) { player, args ->
+    player.health = player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH)?.value ?: 20.0
+}
+
+cmdAny("announce", aliases = listOf("say")) { sender, args ->
+    broadcast(args.joinToString(" "))
+}
+```
+
+События и задачи тоже имеют короткие имена:
+
+```kotlin
+on<org.bukkit.event.player.PlayerJoinEvent> {
+    player.sendMessage("Добро пожаловать!")
+}
+
+sync { /* выполнить на главном потоке */ }
+async { /* фоновая работа; не трогать Bukkit API */ }
+after(20L) { /* один раз через секунду */ }
+repeat(20L) { /* повторять каждую секунду */ }
+```
+
+`cmd` — короткий вариант `registerCommand` (только игроки), `cmdAny` —
+вариант `registerCommandAny` (игроки, консоль и командные блоки).
+`on<T>` соответствует `onEvent<T>`, а `sync`, `async`, `after` и
+`repeat` — `runSync`, `runAsync`, `delay` и `every`. Старые имена
+не удалены и продолжают работать.
+
+Aliases регистрируются без учёта регистра: "Heal" становится `heal`.
 Пустые, некорректные, повторяющиеся aliases и aliases, совпадающие с именем
 команды, пропускаются с предупреждением в консоли. Допустимы латинские буквы,
 цифры, точка, дефис и подчёркивание. Если alias уже занят другой командой,
@@ -371,37 +402,68 @@ registerCommand(
 Ошибка внутри `tabComplete`-лямбды ловится так же, как и в самой команде —
 не может уронить попытку игрока просто нажать Tab.
 
-## YAML — сообщения с `@placeholder@` и авто-дефолты
+## YAML — файлы, секции, типы и сообщения
 
-Раньше для сообщения из конфига с подстановками писали руками:
-`config.getString("welcome")!!.replace("%player%", player.name).replace('&', '§')`
-в каждом месте, где нужно сообщение. Теперь:
+Для основного файла скрипта доступны `config`, `editConfig { ... }` и
+`saveConfig()`. Для дополнительных YAML-файлов есть симметричный API:
+
+```kotlin
+// Прочитать отдельный файл из scripts/
+val messages = loadYaml("messages.yml")
+
+// Изменить его и сразу атомарно сохранить
+editYaml("messages.yml") {
+    set("welcome", "<green>Привет, @player@!")
+    set("limits.max-homes", 5)
+}
+
+// Сохранить позже, если нужно собрать несколько изменений в памяти
+val settings = loadYaml("settings.yml")
+settings.set("spawn.world", "world")
+saveYaml("settings.yml", settings)
+```
+
+`editYaml(fileName, save = true) { ... }` загружает YAML, передаёт его в
+receiver-лямбду и возвращает изменённый объект. При `save = true` изменения
+сразу записываются атомарно. `saveYaml(fileName, yaml)` сохраняет объект,
+полученный через `loadYaml` или созданный самостоятельно. Пути, как и в
+`loadYaml`, ограничены каталогом `scripts/`.
+
+У YAML есть дополнительные короткие помощники:
+
+```kotlin
+val maxHomes = config.int("limits.max-homes", 3)
+val title = config.string("menu.title", "Меню")
+val enabled = config.bool("feature.enabled", true)
+val lore = config.strings("menu.lore")
+
+config.setIfAbsent("feature.enabled", true) // true, если ключ добавлен
+val prefix = config.getOrDefault("chat.prefix", "&7") // не меняет файл
+
+config.section("messages") {
+    set("success", "<green>Готово!")
+    set("error", "<red>Ошибка")
+}
+```
+
+Доступны `string`, `int`, `long`, `double`, `bool`, `strings`,
+`getOrDefault`, `setIfAbsent` и `section(path) { ... }`.
+`getOrSetDefault(path, default)` по-прежнему добавляет отсутствующий ключ;
+для основного `config` он сохраняет его автоматически, а для отдельного
+файла используйте `editYaml` или явный `saveYaml`.
+
+Сообщения из YAML поддерживают `@placeholder@` и MiniMessage:
 
 ```kotlin
 broadcast(config.message("welcome", "player" to player.name, "rank" to rank))
+player.sendRichMessage(config.richMessage("messages.join", player))
 ```
 
-- `config.message(path, vararg "key" to value)` — берёт строку, заменяет
-  каждый `@key@` на `value.toString()`, красит `&` → `§`.
-- `config.messageList(path, ...)` — то же самое, но для списка строк
-  (`farewell-list: [...]` в YAML) — удобно для многострочных сообщений.
-- `config.richMessage(path, ...)` — то же самое, но возвращает MiniMessage
-  `Component` через уже существующий `parseMM`, если сообщение с тегами
-  вида `<gold>`.
-- `config.getOrSetDefault(path, default)` — если ключа в конфиге нет, ставит
-  дефолт и сохраняет (`saveConfig()`) на сам конфиг скрипта; если ключ уже
-  есть — просто возвращает текущее значение. Так конфиг скрипта постепенно
-  сам себя документирует новыми ключами при обновлении скрипта, без ручного
-  "если нет — добавь" в каждом месте.
-
-**Важная деталь**: автосохранение в `getOrSetDefault` срабатывает только для
-основного `config` скрипта — если вызвать этот же метод на файле, загруженном
-через `loadYaml("other.yml")`, значение выставится в памяти, но не сохранится
-автоматически на диск (у `loadYaml` нет привязки "как сохранить именно этот
-файл обратно", в отличие от `config`/`saveConfig()`). Раньше в черновике этот
-метод безусловно дёргал `saveConfig()` — это значило бы, что дефолт для
-`other.yml` тихо запишется не в тот файл, в `config.yml` скрипта. Поймал
-до релиза и ограничил автосохранение только настоящим `config`.
+- `message(path, ...)` — строка с заменой `@key@` и цветами `&`.
+- `messageList(path, ...)` — список строк.
+- `richMessage(path, ...)` — MiniMessage `Component`.
+- Перегрузки с `Player` заполняют `@player@`, `@world@`, `@online@`,
+  `@maxplayers@`, `@health@`, `@ping@`; PlaceholderAPI тоже поддерживается.
 
 ## DB — общая key-value таблица между скриптами (`table()`)
 
