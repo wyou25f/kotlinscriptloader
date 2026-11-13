@@ -13,21 +13,20 @@ class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
         KSLPersistProperty(this, scriptName, key, persistent, default)
 
     fun <T> get(fullKey: String, persistent: Boolean, default: () -> T): T {
-        memory[fullKey]?.let { cached ->
-            @Suppress("UNCHECKED_CAST")
-            return (if (cached === Null) null else cached) as T
-        }
-        // A stored nullable value is different from a missing row: preserve persisted nulls.
-        val loaded = if (persistent) loadFromDb(fullKey) else null
-        val value = when {
-            loaded == null -> default()
-            loaded.first -> loaded.second
-            else -> default()
-        }
-        // A failed database read must not cache the fallback: the next access should be able to retry.
-        if (!persistent || loaded != null) memory[fullKey] = value ?: Null
+        // Load and publish the first value atomically per key. A plain read/load/put sequence
+        // could overwrite a newer concurrent set() with a stale database result.
+        val cached = memory[fullKey] ?: memory.computeIfAbsent(fullKey) {
+            // A stored nullable value is different from a missing row: preserve persisted nulls.
+            val loaded = if (persistent) loadFromDb(fullKey) else null
+            when {
+                persistent && loaded == null -> null // Read failed: leave the key uncached so it can retry.
+                loaded?.first == true -> loaded.second ?: Null
+                else -> default() ?: Null
+            }
+        } ?: memory[fullKey] ?: return default()
+
         @Suppress("UNCHECKED_CAST")
-        return value as T
+        return (if (cached === Null) null else cached) as T
     }
 
     fun <T> set(fullKey: String, value: T, persistent: Boolean) {
