@@ -82,7 +82,9 @@ class KSLCache<K : Any, V : Any>(
 
     @Synchronized
     fun containsKey(key: K): Boolean {
-        val entry = entries[key] ?: return false
+        // LinkedHashMap is access-ordered: using entries[key] here would refresh recency.
+        // A membership check must not protect an otherwise least-recently-used entry.
+        val entry = entries.entries.firstOrNull { it.key == key }?.value ?: return false
         if (isExpired(entry)) {
             entries.remove(key)
             return false
