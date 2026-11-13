@@ -3,6 +3,17 @@ package ru.privateserver.ksl
 import org.bukkit.command.Command
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
+import java.util.Locale
+
+private val COMMAND_LABEL_PATTERN = Regex("[a-z0-9._-]+")
+
+private fun normalizeCommandLabel(label: String): String {
+    val normalized = label.lowercase(Locale.ROOT)
+    require(COMMAND_LABEL_PATTERN.matches(normalized)) {
+        "Некорректное имя команды '$label': разрешены латинские буквы, цифры, '.', '_' и '-'."
+    }
+    return normalized
+}
 
 class DynamicCommand(
     name: String,
@@ -13,10 +24,25 @@ class DynamicCommand(
     private val tabCompleter: ((CommandSender, Array<String>) -> List<String>)?,
     private val playersOnly: Boolean,
     private val action: (CommandSender, Array<String>) -> Unit
-) : Command(name) {
+) : Command(normalizeCommandLabel(name)) {
 
     init {
-        this.aliases = aliases
+        val primaryName = normalizeCommandLabel(name)
+        val normalizedAliases = LinkedHashSet<String>()
+
+        aliases.forEach { rawAlias ->
+            val alias = rawAlias.lowercase(Locale.ROOT)
+            when {
+                !COMMAND_LABEL_PATTERN.matches(alias) ->
+                    plugin.logger.warning("[$scriptName] Пропущен некорректный alias '$rawAlias' для команды '$primaryName'.")
+                alias == primaryName ->
+                    plugin.logger.warning("[$scriptName] Alias '$rawAlias' совпадает с именем команды '$primaryName' и пропущен.")
+                !normalizedAliases.add(alias) ->
+                    plugin.logger.warning("[$scriptName] Повторяющийся alias '$rawAlias' для команды '$primaryName' пропущен.")
+            }
+        }
+
+        this.aliases = normalizedAliases.toList()
         this.description = "Команда скрипта $scriptName"
         if (requiredPermission != null) this.permission = requiredPermission
     }
