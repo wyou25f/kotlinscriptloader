@@ -1,5 +1,7 @@
 package ru.privateserver.ksl.std
 
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.format.NamedTextColor
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
@@ -26,7 +28,6 @@ import ru.privateserver.ksl.std.time.secondsToTicks
 import ru.privateserver.ksl.std.time.ticksToDuration
 import ru.privateserver.ksl.std.time.toTicksCeiling
 import java.time.Duration
-import net.kyori.adventure.text.Component
 
 class KSLStandardLibraryTest {
     @Test
@@ -44,7 +45,7 @@ class KSLStandardLibraryTest {
     fun `component helpers keep plain text literal and parse MiniMessage`() {
         assertEquals(Component.text("<red>literal</red>"), "<red>literal</red>".toTextComponent())
         assertEquals(Component.text("hello").append(Component.text(" world")), Component.text("hello").appendText(" world"))
-        assertEquals(Component.text("hello"), "<green>hello</green>".toMiniMessageComponent())
+        assertEquals(Component.text("hello").color(NamedTextColor.GREEN), "<green>hello</green>".toMiniMessageComponent())
     }
 
     @Test
