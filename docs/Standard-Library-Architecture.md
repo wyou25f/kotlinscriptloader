@@ -77,7 +77,7 @@ KSL exposes declarative module contracts for future independently versioned stan
 - `KSLStandardLibraryModule` declares install/uninstall callbacks;
 - `KSLModulePlanner.resolve(...)` validates duplicate IDs, missing dependencies, dependency cycles and API compatibility, then returns a deterministic dependency-first order.
 
-The planner itself has no side effects; it only validates and orders modules. The runtime module manager uses it when an addon calls `api.registerStandardLibraryModule(module)`. Modules registered during `onLoad` are owned by that addon and are uninstalled in reverse order when it unloads. A module can also be removed explicitly with `api.unregisterStandardLibraryModule(id)`, provided no installed module depends on it. See [Custom Standard Library](Custom-Standard-Library.md) for a complete example.
+The planner itself has no side effects; it only validates and orders modules. The runtime module manager uses it when an addon calls `api.registerStandardLibraryModule(module)`. Register declared dependencies first, then the dependent module. Modules registered during `onLoad` are owned by that addon and are uninstalled in reverse registration order when it unloads. A module can also be removed explicitly with `api.unregisterStandardLibraryModule(id)`, provided no installed module depends on it. See [Custom Standard Library](Custom-Standard-Library.md) for a complete example.
 
 ## MesLib2 — межскриптовые библиотеки
 

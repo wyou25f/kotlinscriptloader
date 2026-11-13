@@ -129,9 +129,10 @@ class ServerToolsAddon : JavaPlugin(), KSLAddon {
 }
 ```
 
-KSL validates module IDs, missing dependencies, cycles and required API versions.
-It installs modules in dependency-first order. Imports from
-`descriptor.defaultImports` are registered automatically. Modules registered
+KSL validates module IDs, missing dependencies, cycles and required API versions
+before installing a module. Register dependency modules first; a dependent
+module cannot be installed until every declared dependency is registered.
+Imports from `descriptor.defaultImports` are registered automatically. Modules registered
 during an addon's `onLoad` are owned by that addon: unloading the addon calls
 `uninstall` in reverse order and releases module-owned services, imports,
 hooks and other KSL registrations.
@@ -143,7 +144,8 @@ cleans up KSL registrations made during the module's install callback.
 
 `KSLModulePlanner.resolve(...)` is the side-effect-free planning function used
 by the runtime before installation. It can also be used by tooling to validate
-a proposed module set without changing server state.
+a proposed module set and calculate its dependency-first order without changing
+server state. When registering modules one by one, follow that order.
 
 ## MesLib2 or addon module?
 
