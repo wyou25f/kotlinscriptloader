@@ -69,6 +69,22 @@ successfully discovered the template.
   does **not** prove that a particular IntelliJ/Kotlin plugin version has
   enabled live completion; test the sample script in the IDE itself.
 
+## IntelliJ editor smoke checks
+
+Open `samples/ide-completion-smoke-test.kts` after Gradle sync:
+
+1. Type after `api.`, `player?.`, `world.` and `location?.` to inspect member completion.
+2. Hover over `tellRich`, `entitiesInBox`, `isInside` and public API methods to inspect KDoc.
+3. Ctrl/Cmd-click these declarations to test navigation.
+4. Open `samples/ide-error-smoke-test.kts`. Its deliberately unknown method must be
+   reported as an unresolved reference. This file is a diagnostics fixture and
+   must not be copied into a live server scripts folder.
+
+The Gradle verification checks that the template, API and Standard Library classes
+are present in the exact JAR and that the smoke fixtures exist. It cannot automate
+IntelliJ's editor UI; completion, hover, navigation and highlighting still require
+the above in-IDE check on the target IntelliJ/Kotlin plugin version.
+
 ## VS Code
 
 KSL publishes a Kotlin scripting definition and a Gradle classpath, not a

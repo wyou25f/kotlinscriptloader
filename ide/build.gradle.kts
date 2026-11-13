@@ -50,7 +50,9 @@ tasks.register("verifyKslIdeSetup") {
                 "ru/privateserver/ksl/api/KSLApiProvider.class",
                 "ru/privateserver/ksl/std/text/TextExtensionsKt.class",
                 "ru/privateserver/ksl/std/math/MathExtensionsKt.class",
-                "ru/privateserver/ksl/std/time/TimeExtensionsKt.class"
+                "ru/privateserver/ksl/std/time/TimeExtensionsKt.class",
+                "ru/privateserver/ksl/std/player/PlayerExtensionsKt.class",
+                "ru/privateserver/ksl/std/world/WorldExtensionsKt.class"
             ).forEach { entry ->
                 check(jar.getEntry(entry) != null) {
                     "KSL IDE support entry is missing from ${jarFile.name}: $entry"
