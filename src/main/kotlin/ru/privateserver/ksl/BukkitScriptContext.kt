@@ -74,34 +74,23 @@ open class BukkitScriptContext(
         versionPath: String = "ksl.config-version",
         migrations: Map<Int, YamlConfiguration.() -> Unit>
     ): Int {
-        require(targetVersion >= 0) { "targetVersion must be >= 0" }
         require(versionPath.isNotBlank()) { "versionPath must not be blank" }
-
         val currentVersion = config.getInt(versionPath, 0)
-        require(currentVersion <= targetVersion) {
-            "Config version $currentVersion is newer than supported version $targetVersion"
-        }
-        if (currentVersion == targetVersion) return currentVersion
 
-        val missingVersions = (currentVersion + 1..targetVersion).filterNot(migrations::containsKey)
-        require(missingVersions.isEmpty()) {
-            "Missing config migrations for versions: ${missingVersions.joinToString()}"
-        }
-
-        val migrated = YamlConfiguration().apply {
-            loadFromString(config.saveToString())
-        }
-        for (version in currentVersion + 1..targetVersion) {
-            migrations.getValue(version).invoke(migrated)
-            migrated.set(versionPath, version)
-        }
-
-        // Write first: an I/O failure must not leave the in-memory config ahead of disk.
-        writeAtomically(migrated, configFile)
-        config.loadFromString(migrated.saveToString())
-        return targetVersion
+        return KSLConfigMigrationRunner.migrate(
+            currentVersion = currentVersion,
+            targetVersion = targetVersion,
+            migrations = migrations,
+            createWorkingCopy = {
+                YamlConfiguration().apply { loadFromString(config.saveToString()) }
+            },
+            setVersion = { yaml, version -> yaml.set(versionPath, version) },
+            persist = { migrated ->
+                writeAtomically(migrated, configFile)
+                config.loadFromString(migrated.saveToString())
+            }
+        )
     }
-
     private fun resolveYamlFile(fileName: String, operation: String): File {
         val root = plugin.scriptsFolder.canonicalFile
         val file = File(root, fileName).canonicalFile
