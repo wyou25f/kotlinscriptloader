@@ -9,18 +9,29 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.PrintStream
 import java.net.URLClassLoader
+import java.security.MessageDigest
+import java.util.HexFormat
 
 /**
  * Compiles scripts/libs/**/*.kt as one Kotlin source set. A successful output is
  * exposed to script compilation and evaluation; failed rebuilds keep the last
  * working classloader so a typo in a library does not break live scripts.
  */
+internal fun localLibrarySourceFingerprint(sources: List<File>, sourceFolder: File): List<String> =
+    sources.sortedBy { it.relativeTo(sourceFolder).invariantSeparatorsPath }.map { source ->
+        val relativePath = source.relativeTo(sourceFolder).invariantSeparatorsPath
+        val digest = MessageDigest.getInstance("SHA-256").digest(source.readBytes())
+        "$relativePath:${HexFormat.of().formatHex(digest)}"
+    }
+
 internal class KSLLocalLibraryManager(private val plugin: KotlinScriptLoaderPlugin) {
     private val sourceFolder = File(plugin.scriptsFolder, "libs").apply { mkdirs() }
     private val outputRoot = File(plugin.dataFolder, "compiled-libraries").apply { mkdirs() }
 
     @Volatile private var activeLoader: URLClassLoader? = null
-    @Volatile private var sourceStamp: List<String> = emptyList()
+    // Remember failed attempts too: unchanged broken sources should not trigger a full compiler run
+    // for every script compiled during a reload.
+    @Volatile private var attemptedStamp: List<String> = emptyList()
 
     val classLoader: ClassLoader? get() = activeLoader
 
@@ -30,14 +41,12 @@ internal class KSLLocalLibraryManager(private val plugin: KotlinScriptLoaderPlug
             .filter { it.isFile && it.extension.equals("kt", ignoreCase = true) }
             .sortedBy { it.relativeTo(sourceFolder).invariantSeparatorsPath }
             .toList()
-        val nextStamp = sources.map {
-            "${it.relativeTo(sourceFolder).invariantSeparatorsPath}:${it.length()}:${it.lastModified()}"
-        }
-        if (nextStamp == sourceStamp) return null
+        val nextStamp = localLibrarySourceFingerprint(sources, sourceFolder)
+        if (nextStamp == attemptedStamp) return null
+        attemptedStamp = nextStamp
         if (sources.isEmpty()) {
             activeLoader?.close()
             activeLoader = null
-            sourceStamp = emptyList()
             return null
         }
 
@@ -72,7 +81,6 @@ internal class KSLLocalLibraryManager(private val plugin: KotlinScriptLoaderPlug
         val nextLoader = URLClassLoader(arrayOf(output.toURI().toURL()), plugin::class.java.classLoader)
         val previous = activeLoader
         activeLoader = nextLoader
-        sourceStamp = nextStamp
         runCatching { previous?.close() }
         return "Скомпилировано локальных Kotlin-библиотек: ${sources.size} файл(ов)"
     }
