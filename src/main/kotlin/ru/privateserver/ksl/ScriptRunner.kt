@@ -21,7 +21,7 @@ import kotlin.script.experimental.jvmhost.JvmScriptCompiler
  * Builds the runtime configuration from the same canonical definition IntelliJ
  * discovers. Addon-provided imports remain runtime-only and are appended here.
  */
-fun buildScriptCompilationConfig(addonManager: KSLAddonManager, localLibraries: KSLLocalLibraryManager? = null): ScriptCompilationConfiguration =
+internal fun buildScriptCompilationConfig(addonManager: KSLAddonManager, localLibraries: KSLLocalLibraryManager? = null): ScriptCompilationConfiguration =
     ScriptCompilationConfiguration(KSLScriptCompilationConfiguration) {
         val addonImports = addonManager.getExtraImports()
         if (addonImports.isNotEmpty()) defaultImports(*addonImports.toTypedArray())
