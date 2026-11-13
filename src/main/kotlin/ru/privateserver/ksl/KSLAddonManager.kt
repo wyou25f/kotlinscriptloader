@@ -175,11 +175,11 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         runCatching { addon.onUnload() }
             .onFailure { plugin.logger.warning("§9[KSL] §e$addonId: ${KSLError.ADDON_UNLOAD_FAILED.tag} ошибка выгрузки: ${it.message}") }
 
-        val cleanedUp = releaseOwned(addonId)
+        val cleanedUp = releaseOwned(registeredId)
         if (cleanedUp > 0) {
-            plugin.logger.info("§9[KSL] §7$addonId: автоматически снято $cleanedUp объект(ов) (сервисы/расширения/импорты/подписки), не отписанных вручную")
+            plugin.logger.info("§9[KSL] §7$registeredId: автоматически снято $cleanedUp объект(ов) (сервисы/расширения/импорты/подписки), не отписанных вручную")
         }
-        plugin.logger.info("§9[KSL] §7$addonId выгружен")
+        plugin.logger.info("§9[KSL] §7$registeredId выгружен")
     }
 
     // Everything an addon registered during onLoad (or on behalf of it); returns how many things were released.
