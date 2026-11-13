@@ -1,6 +1,7 @@
 package ru.privateserver.ksl.rt
 
 import java.time.Duration
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Low-level runtime utility factory.
@@ -9,6 +10,8 @@ import java.time.Duration
  * KSL's internal script loader, compiler or classloader implementation.
  */
 object KSLRT {
+    private val profilers = ConcurrentHashMap<String, KSLProfiler>()
+
     @JvmStatic
     @JvmOverloads
     fun <K : Any, V : Any> cache(maxSize: Int, expireAfter: Duration = Duration.ZERO): KSLCache<K, V> =
@@ -21,7 +24,20 @@ object KSLRT {
         cache(maxSize, expireAfter)
 
     @JvmStatic
-    fun profiler(name: String): KSLProfiler = KSLProfiler(name)
+    /**
+     * Returns the shared profiler for [name]. Repeated calls and [measure] use
+     * the same instance so measurements remain observable after the block ends.
+     */
+    fun profiler(name: String): KSLProfiler {
+        require(name.isNotBlank()) { "Profiler name must not be blank" }
+        return profilers.computeIfAbsent(name) { KSLProfiler(it) }
+    }
+
+    /** Removes a named profiler and its accumulated statistics. */
+    fun removeProfiler(name: String): Boolean = profilers.remove(name) != null
+
+    /** Snapshot of currently registered profiler names. */
+    fun profilerNames(): Set<String> = profilers.keys.toSet()
 
     /** Alias for [profiler]. */
     @JvmStatic
