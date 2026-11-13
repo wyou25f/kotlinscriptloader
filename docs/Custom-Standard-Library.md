@@ -88,3 +88,26 @@ When an addon unloads, KSL removes the default imports and stops exposing that a
 - Avoid blocking database and network operations on the server thread.
 - Treat Bukkit world, entity and inventory APIs as main-thread operations unless documented otherwise.
 - Use unique package names to avoid collisions with built-in std packages.
+
+
+## Packages and explicit imports
+
+A library may contain as many Kotlin packages as needed. Keep source files under src/main/kotlin, declare each package in the file, and import declarations normally from another addon source file. KSL scripts can then use explicit imports such as:
+
+~~~kotlin
+import com.example.serverstd.player.sendWelcome
+import com.example.serverstd.text.asServerTag
+~~~
+
+Or register package imports once from the addon's onLoad:
+
+~~~kotlin
+override fun onLoad(api: KSLAPI) {
+    api.addDefaultImports(
+        "com.example.serverstd.player.*",
+        "com.example.serverstd.text.*"
+    )
+}
+~~~
+
+Imports are not source compilation: the classes and functions must already be compiled and available through the addon's classloader. KSL does not compile loose .kt files from the scripts directory. See [Packages, imports and local libraries](Packages-and-Imports.md) for the full walkthrough, project layout, Gradle setup and troubleshooting.

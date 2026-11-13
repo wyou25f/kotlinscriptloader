@@ -845,3 +845,10 @@ The public package also exposes the shared script-definition metadata used by
 the runtime and IDE tooling. See [Public API contracts](docs/Public-API.md) and
 the [Standard Library architecture](docs/Standard-Library-Architecture.md) for
 the module SPI and dependency planner (feature modules are not shipped yet).
+
+
+### Addon and library development
+
+- [Addon development guide](docs/Addon-Development-Guide.md)
+- [Packages, imports and local libraries](docs/Packages-and-Imports.md)
+- [Custom Standard Library](docs/Custom-Standard-Library.md)

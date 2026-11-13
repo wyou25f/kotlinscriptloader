@@ -9,7 +9,7 @@ class ExampleAddonPlugin : JavaPlugin(), KSLAddon {
 
     override val addonId = "example-addon"
     override val addonVersion = "1.0.0"
-    override val addonDescription = "Пример аддона с монетами"
+    override val addonDescription = "Пример аддона с монетами и собственным пакетом расширений"
 
     private val coinService = CoinService()
 
@@ -31,7 +31,12 @@ class ExampleAddonPlugin : JavaPlugin(), KSLAddon {
     override fun onLoad(api: KSLAPI) {
         api.registerService("coins", coinService)
         api.registerContextExtension(CoinContextExtension(coinService))
-        api.addDefaultImports("ru.example.CoinService")
+
+        // CoinService is imported by its class name; format extensions by package.
+        api.addDefaultImports(
+            "ru.example.CoinService",
+            "ru.example.format.*"
+        )
     }
 
     override fun onUnload() {
