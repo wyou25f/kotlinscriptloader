@@ -677,6 +677,16 @@ open class BukkitScriptContext(
         plugin.libraryRegistry.export(scriptName, key, value)
     }
 
+    /** Namespaced, typed and version-labelled exports shared between scripts. */
+    val meslib2: ru.privateserver.ksl.meslib2.MesLib2 by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        ru.privateserver.ksl.meslib2.MesLib2(
+            owner = scriptName,
+            exportValue = plugin.libraryRegistry::export,
+            getValue = plugin.libraryRegistry::get,
+            ownerOf = plugin.libraryRegistry::ownerOf
+        )
+    }
+
     inline fun <reified T : Any> library(key: String): T? = plugin.libraryRegistry.get(key) as? T
 
     inline fun <reified T : Any> requireLibrary(key: String): T =

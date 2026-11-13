@@ -14,6 +14,10 @@ import ru.privateserver.ksl.KSLScriptEvent as CoreKSLScriptEvent
 import ru.privateserver.ksl.api.library.KSLModuleDescriptor as CoreKSLModuleDescriptor
 import ru.privateserver.ksl.api.library.KSLModulePlanner as CoreKSLModulePlanner
 import ru.privateserver.ksl.api.library.KSLStandardLibraryModule as CoreKSLStandardLibraryModule
+import ru.privateserver.ksl.meslib2.MesLib2 as CoreMesLib2
+import ru.privateserver.ksl.meslib2.MesLib2Info as CoreMesLib2Info
+import ru.privateserver.ksl.rt.KSLCache as CoreKSLCache
+import ru.privateserver.ksl.rt.KSLProfiler as CoreKSLProfiler
 
 /**
  * Stable public entry point for KSL integrations and script libraries.
@@ -31,6 +35,10 @@ typealias KSLShapeFactory = CoreKSLShapeFactory
 typealias KSLScriptEvent = CoreKSLScriptEvent
 typealias KSLModuleDescriptor = CoreKSLModuleDescriptor
 typealias KSLStandardLibraryModule = CoreKSLStandardLibraryModule
+typealias MesLib2 = CoreMesLib2
+typealias MesLib2Info = CoreMesLib2Info
+typealias KSLCache<K, V> = CoreKSLCache<K, V>
+typealias KSLProfiler = CoreKSLProfiler
 
 /** Stable event-bus topic names published by KSL. */
 object KSLTopics {

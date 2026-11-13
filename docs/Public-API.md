@@ -104,3 +104,12 @@ require an API-version bump and do not break existing addon implementations.
 Tasks created by an addon are owned by that addon: cancel repeating or long-lived
 tasks during `onUnload`. Async callbacks must not access Bukkit world, entity or
 inventory state.
+
+
+## Runtime utilities
+
+KSL exposes `KSLCache` and `KSLProfiler` from
+`ru.privateserver.ksl.rt.*`; the script-friendly factory object is `kslrt`.
+The namespaced script library facade `meslib2` is available through the
+`BukkitScriptContext` receiver. These additions do not change existing
+`KSLAPI` interface signatures.

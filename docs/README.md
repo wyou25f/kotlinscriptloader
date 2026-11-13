@@ -9,7 +9,7 @@
 | Задача | Документ |
 |---|---|
 | Установка, обзор и написание скриптов | [Энциклопедия KSL](KSL-Encyclopedia.md) |
-| Встроенная библиотека | [Standard Library](Standard-Library-Architecture.md) |
+| Встроенная библиотека, MesLib2 и runtime tools | [Standard Library](Standard-Library-Architecture.md) |
 | Создание аддона | [Addon Development](Addon-Development-Guide.md) |
 | API для Kotlin/Java аддонов | [Public API](Public-API.md) |
 | Импорты и локальные библиотеки | [Packages and Imports](Packages-and-Imports.md) |

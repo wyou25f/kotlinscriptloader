@@ -79,6 +79,49 @@ KSL exposes declarative module contracts for future independently versioned stan
 
 **Important:** the planner currently has no side effects. It does not discover, install or unload modules automatically. For a working custom std today, use the KSL addon lifecycle and `api.addDefaultImports(...)` described above.
 
+## MesLib2 — межскриптовые библиотеки
+
+В каждом скрипте доступно свойство `meslib2`. Оно использует существующее
+owner-aware хранилище экспортов KSL, добавляя namespace, проверку типа и метку
+версии. Экспорты принадлежат скрипту-владельцу и автоматически удаляются при unload.
+
+```kotlin
+// economy.kts
+meslib2.export("economy", "service", EconomyService(), version = "2.0")
+
+// shop.kts — объяви // @requires: economy
+val economy = meslib2.require<EconomyService>("economy", "service", "2.0")
+```
+
+Идентификаторы namespace/name должны соответствовать `[a-z][a-z0-9._-]*`.
+Версия — непрозрачная метка с точным сравнением; KSL пока не интерпретирует
+SemVer и не загружает библиотеки автоматически. Старые `export()`,
+`library<T>()` и `requireLibrary<T>()` остаются совместимыми.
+
+## kslrt — runtime-инструменты
+
+Пакет `ru.privateserver.ksl.rt.*` добавлен в default imports:
+
+- `KSLCache<K, V>` — потокобезопасный LRU-кэш с лимитом размера и optional TTL;
+- `KSLProfiler` — агрегирует количество вызовов, ошибки, общее и максимальное время;
+- `kslrt.cache<K, V>(maxSize, expireAfter)` и `kslrt.profiler(name)` — фабрики.
+
+```kotlin
+val playerCache = kslrt.cache<String, PlayerData>(maxSize = 2_000)
+val profileTimer = kslrt.profiler("profile-load")
+
+val profile = profileTimer.measure {
+    loadProfile(playerId)
+}
+logger.info("Profile load average: ${profileTimer.snapshot().averageNanos} ns")
+```
+
+Кэш предназначен для данных приложения, а не для обхода потоковых ограничений
+Paper. Не помещай в него изменяемые Bukkit Player/World/Inventory объекты для
+доступа из async-задач. TTL по умолчанию выключен; при конкурентном cache miss
+loader может выполниться более одного раза. Профилировщик измеряет elapsed
+wall-clock time, а не CPU time. Сначала измеряй узкие места, затем оптимизируй.
+
 ## Compatibility policy
 
 - Additive API changes must preserve existing signatures.
