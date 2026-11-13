@@ -37,6 +37,19 @@ class MesLib2Test {
         assertTrue(api.contains("economy", "service", "2.0"))
         assertEquals("ready", api.resolve<String>("economy", "service", "2.0"))
     }
+    @Test fun aliasesOfferConcisePutLookupAndDescribeNames() {
+        val api = facade()
+        assertEquals("provider", api.scope)
+        api.put("economy", "service", "ready", "3.0")
+        assertTrue(api.has("economy", "service", "3.0"))
+        assertEquals("ready", api.lookup<String>("economy", "service", "3.0"))
+        assertEquals("ready", api.mustGet<String>("economy", "service", "3.0"))
+        assertEquals("3.0", api.describe("economy", "service")?.version)
+        api.putLocal("local", "value")
+        assertEquals("value", api.lookupLocal<String>("local"))
+        assertEquals("value", api.mustGetLocal<String>("local"))
+        assertTrue(api.hasLocal("local"))
+    }
     @Test fun exportsAreRemovedWithTheirOwningScript() {
         val store = KSLExportStore()
         val api = MesLib2("provider", store::export, store::get, store::ownerOf)

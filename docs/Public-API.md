@@ -26,15 +26,28 @@ module contracts. It also exposes:
 - `kslOrNull`: safe nullable accessor for plugin load-order/shutdown edges;
 - `isKslAvailable`: availability flag;
 - `KSL_API_VERSION`: addon compatibility level;
-- `service<T>()`, `requireService<T>()`, `hook<T>()`, `requireHook<T>()`;
-- `hasHook()`, `findAddon()`, `requireAddon()`, `findScript()`,
-  `requireScript()` and `isScriptLoaded()`;
+- `service<T>()`, `serviceOrNull<T>()`, `serviceOrThrow<T>()`,
+  `requireService<T>()` and `hasService()`;
+- `hook<T>()`, `requireHook<T>()`, `hasHook()` and
+  `hasHookRegistered()`;
+- `findAddon()`, `addon()`, `addons()`, `hasAddon()` and
+  `requireAddon()`;
+- `findScript()`, `script()`, `requireScript()` and `isScriptLoaded()`;
+- `reload(id)`, `reloadAll()` and `reloadAllAsync { }` aliases;
+- `emit(topic, payload)` and `on(topic) { }` aliases for the event bus;
+- `pluginAvailable(name)` for checking an installed plugin;
 - `KslApi` and `KSLPublicAPI`: alternate type names for `KSLAPI`;
 - `KSLMesLib2` and `MesLib`: alternate type names for the MesLib2 facade;
 - `KSLTopics` and typed `onScriptLoaded()`, `onScriptFailed()`,
   `onScriptUnloaded()` subscriptions;
 - the `KSLModulePlanner` facade;
-- `registerStandardLibraryModule(module)`, `unregisterStandardLibraryModule(id)` and `standardLibraryModules()` for addon-owned module lifecycle.
+- `registerStandardLibraryModule(module)`,
+  `unregisterStandardLibraryModule(id)` and
+  `standardLibraryModules()` for addon-owned module lifecycle.
+
+These short operations are Kotlin extension functions, not new abstract
+`KSLAPI` members. They preserve compatibility with existing addon
+implementations and do not require an API-version bump.
 
 Script lifecycle subscriptions use KSL's event bus. Handlers execute
 synchronously on the publisher's thread; move Bukkit world/entity/inventory
@@ -89,9 +102,9 @@ an intentional API-version change and migration notes. Keep KSL's API classes
 provided by the plugin classloader and declare them as `compileOnly` in addons.
 
 The Standard Library utilities and module contracts are documented in
-[Standard Library architecture](Standard-Library-Architecture.md) and the
+[Standard Library architecture](Standard-Library-Architecture.md),
+[Runtime API](Runtime-API.md) and the
 [custom library guide](Custom-Standard-Library.md).
-
 
 ## Convenience extensions
 
@@ -110,17 +123,18 @@ Tasks created by an addon are owned by that addon: cancel repeating or long-live
 tasks during `onUnload`. Async callbacks must not access Bukkit world, entity or
 inventory state.
 
-
 ## Runtime utilities
 
 KSL exposes `KSLCache` and `KSLProfiler` from
-`ru.privateserver.ksl.rt.*`; the script-friendly factory object is `kslrt`.
+`ru.privateserver.ksl.rt.*`. The factory is available as `KSLRT`, with
+`kslrt`, `rt` and `runtime` aliases. The factory provides `cache()`,
+`lru()`, `profiler()`, `profile()` and `measure()`.
+
 The namespaced script library facade is available through the
 `BukkitScriptContext` receiver as `meslib2`, `ml2`, `lib2` or `libs`.
-Its typed operations include `publish/provide`, `find/get`, `resolve/require`,
-`contains` and `info`. These additions do not change existing
-`KSLAPI` interface signatures.
-
+Its typed operations include `publish/provide/put`, `find/get/lookup`,
+`resolve/require/mustGet`, `contains/has` and `info/describe`. See
+[Runtime API](Runtime-API.md) for cache, profiler and MesLib2 examples.
 
 ## Short public API names
 

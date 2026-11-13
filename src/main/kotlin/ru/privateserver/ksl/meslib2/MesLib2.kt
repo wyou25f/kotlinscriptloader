@@ -13,8 +13,9 @@ class MesLib2 internal constructor(
     private val getValue: (String) -> Any?,
     private val ownerOf: (String) -> String?
 ) {
-    /** A stable, normalized namespace derived from the exporting script id. */
     val namespace: String = normalizeNamespace(owner)
+    /** Alias for [namespace], useful when thinking in terms of a library scope. */
+    val scope: String get() = namespace
 
     /** Publishes a value under namespace/name. Version is an exact-match label. */
     fun export(namespace: String, name: String, value: Any, version: String = "1.0.0") {
@@ -24,32 +25,24 @@ class MesLib2 internal constructor(
         exportValue(owner, key(namespace, name), MesLib2Entry(value, version))
     }
 
-    /** Publishes into this script's default namespace using version 1.0.0. */
     fun export(name: String, value: Any) = export(namespace, name, value)
+    fun exportLocal(name: String, value: Any, version: String = "1.0.0") = export(namespace, name, value, version)
 
-    /** Versioned local export; separate name avoids ambiguous positional overloads. */
-    fun exportLocal(name: String, value: Any, version: String = "1.0.0") =
-        export(namespace, name, value, version)
-
-    /** Alias for export; useful when describing a library's public contract. */
     fun publish(namespace: String, name: String, value: Any, version: String = "1.0.0") =
         export(namespace, name, value, version)
-
-    /** Publishes into this script's default namespace using version 1.0.0. */
     fun publish(name: String, value: Any) = export(namespace, name, value)
+    fun publishLocal(name: String, value: Any, version: String = "1.0.0") = export(namespace, name, value, version)
 
-    fun publishLocal(name: String, value: Any, version: String = "1.0.0") =
-        export(namespace, name, value, version)
-
-    /** Alias for export, often used for service objects. */
     fun provide(namespace: String, name: String, value: Any, version: String = "1.0.0") =
         export(namespace, name, value, version)
-
-    /** Provides a value in this script's default namespace using version 1.0.0. */
     fun provide(name: String, value: Any) = export(namespace, name, value)
+    fun provideLocal(name: String, value: Any, version: String = "1.0.0") = export(namespace, name, value, version)
 
-    fun provideLocal(name: String, value: Any, version: String = "1.0.0") =
+    /** Concise aliases for publishing values. */
+    fun put(namespace: String, name: String, value: Any, version: String = "1.0.0") =
         export(namespace, name, value, version)
+    fun put(name: String, value: Any) = export(namespace, name, value)
+    fun putLocal(name: String, value: Any, version: String = "1.0.0") = export(namespace, name, value, version)
 
     fun <T : Any> get(namespace: String, name: String, type: Class<T>, expectedVersion: String? = null): T? {
         validate(namespace, "namespace")
@@ -61,18 +54,20 @@ class MesLib2 internal constructor(
 
     inline fun <reified T : Any> get(namespace: String, name: String, expectedVersion: String? = null): T? =
         get(namespace, name, T::class.java, expectedVersion)
-
     fun <T : Any> getLocal(name: String, type: Class<T>, expectedVersion: String? = null): T? =
         get(namespace, name, type, expectedVersion)
-
     inline fun <reified T : Any> getLocal(name: String, expectedVersion: String? = null): T? =
         get(namespace, name, expectedVersion)
 
-    /** Short alias for typed get. */
     inline fun <reified T : Any> find(namespace: String, name: String, expectedVersion: String? = null): T? =
         get(namespace, name, expectedVersion)
-
     inline fun <reified T : Any> findLocal(name: String, expectedVersion: String? = null): T? =
+        getLocal(name, expectedVersion)
+
+    /** Lookup aliases for code that prefers database-style naming. */
+    inline fun <reified T : Any> lookup(namespace: String, name: String, expectedVersion: String? = null): T? =
+        get(namespace, name, expectedVersion)
+    inline fun <reified T : Any> lookupLocal(name: String, expectedVersion: String? = null): T? =
         getLocal(name, expectedVersion)
 
     fun <T : Any> require(namespace: String, name: String, type: Class<T>, expectedVersion: String? = null): T =
@@ -81,18 +76,20 @@ class MesLib2 internal constructor(
 
     inline fun <reified T : Any> require(namespace: String, name: String, expectedVersion: String? = null): T =
         require(namespace, name, T::class.java, expectedVersion)
-
     fun <T : Any> requireLocal(name: String, type: Class<T>, expectedVersion: String? = null): T =
         require(namespace, name, type, expectedVersion)
-
     inline fun <reified T : Any> requireLocal(name: String, expectedVersion: String? = null): T =
         require(namespace, name, expectedVersion)
 
-    /** Alias for require, useful at call sites that read like dependency resolution. */
     inline fun <reified T : Any> resolve(namespace: String, name: String, expectedVersion: String? = null): T =
         require(namespace, name, expectedVersion)
-
     inline fun <reified T : Any> resolveLocal(name: String, expectedVersion: String? = null): T =
+        requireLocal(name, expectedVersion)
+
+    /** Alias for required lookup. */
+    inline fun <reified T : Any> mustGet(namespace: String, name: String, expectedVersion: String? = null): T =
+        require(namespace, name, expectedVersion)
+    inline fun <reified T : Any> mustGetLocal(name: String, expectedVersion: String? = null): T =
         requireLocal(name, expectedVersion)
 
     fun contains(namespace: String, name: String, expectedVersion: String? = null): Boolean {
@@ -101,19 +98,24 @@ class MesLib2 internal constructor(
         val entry = getValue(key(namespace, name)) as? MesLib2Entry ?: return false
         return expectedVersion == null || entry.version == expectedVersion
     }
-
     fun containsLocal(name: String, expectedVersion: String? = null): Boolean =
+        contains(namespace, name, expectedVersion)
+
+    fun has(namespace: String, name: String, expectedVersion: String? = null): Boolean =
+        contains(namespace, name, expectedVersion)
+    fun hasLocal(name: String, expectedVersion: String? = null): Boolean =
         contains(namespace, name, expectedVersion)
 
     fun info(namespace: String, name: String): MesLib2Info? {
         validate(namespace, "namespace")
         validate(name, "name")
-        val key = key(namespace, name)
-        val entry = getValue(key) as? MesLib2Entry ?: return null
-        return MesLib2Info(namespace, name, entry.version, entry.value.javaClass.name, ownerOf(key))
+        val entryKey = key(namespace, name)
+        val entry = getValue(entryKey) as? MesLib2Entry ?: return null
+        return MesLib2Info(namespace, name, entry.version, entry.value.javaClass.name, ownerOf(entryKey))
     }
-
     fun infoLocal(name: String): MesLib2Info? = info(namespace, name)
+    fun describe(namespace: String, name: String): MesLib2Info? = info(namespace, name)
+    fun describeLocal(name: String): MesLib2Info? = info(namespace, name)
 
     private fun key(namespace: String, name: String) = "meslib2:$namespace:$name"
 
