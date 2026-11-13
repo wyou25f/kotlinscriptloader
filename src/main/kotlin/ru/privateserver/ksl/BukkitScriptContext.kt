@@ -424,6 +424,14 @@ open class BukkitScriptContext(
     fun runAsync(block: () -> Unit): Int =
         track(Bukkit.getScheduler().runTaskAsynchronously(plugin, guarded("runAsync", block)))
 
+    /** Runs work on KSL's bounded priority-aware worker pool. Bukkit world access belongs in runSync(). */
+    fun worker(priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL, block: () -> Unit): Long =
+        plugin.submitWorker(scriptName, priority) { plugin.measureScriptExecution(scriptName, "worker:$priority", block) }
+
+    fun cpu(block: () -> Unit): Long = worker(block = block)
+    fun work(block: () -> Unit): Long = worker(block = block)
+    fun cancelWorker(taskId: Long): Boolean = plugin.cancelWorker(taskId)
+
     fun runSync(block: () -> Unit): Int =
         track(Bukkit.getScheduler().runTask(plugin, guarded("runSync", block)))
 
