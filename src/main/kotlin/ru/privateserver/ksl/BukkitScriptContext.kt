@@ -507,6 +507,40 @@ open class BukkitScriptContext(
     fun broadcast(message: String) =
         Bukkit.getOnlinePlayers().forEach { it.sendMessage(message.replace('&', '§')) }
 
+    /** Snapshot of currently online players; safe to iterate while handling a script callback. */
+    fun onlinePlayers(): List<Player> = Bukkit.getOnlinePlayers().toList()
+
+    /** Number of online players at the time of access. */
+    val onlineCount: Int
+        get() = Bukkit.getOnlinePlayers().size
+
+    /** Maximum player count configured for this server. */
+    val maxPlayers: Int
+        get() = Bukkit.getMaxPlayers()
+
+    /**
+     * Finds an online player by exact name (case-insensitive) or UUID.
+     * Returns null for offline or unknown players.
+     */
+    fun findPlayer(nameOrUuid: String): Player? {
+        val query = nameOrUuid.trim()
+        if (query.isEmpty()) return null
+        val uuid = runCatching { java.util.UUID.fromString(query) }.getOrNull()
+        if (uuid != null) return Bukkit.getPlayer(uuid)
+        return Bukkit.getOnlinePlayers().firstOrNull { it.name.equals(query, ignoreCase = true) }
+    }
+
+    /** Sends MiniMessage to any command sender, including console. */
+    fun CommandSender.sendRichMessage(text: String) = sendMessage(parseMM(text))
+
+    /** True when the sender has at least one of the supplied permission nodes. */
+    fun CommandSender.hasPermissionAny(vararg permissions: String): Boolean =
+        permissions.any { it.isNotBlank() && hasPermission(it) }
+
+    /** True when the sender has every supplied permission node. */
+    fun CommandSender.hasPermissionAll(vararg permissions: String): Boolean =
+        permissions.all { it.isNotBlank() && hasPermission(it) }
+
     fun Player.sendRichMessage(text: String) = sendMessage(parseMM(text))
 
     fun Player.sendActionBarMessage(text: String) = sendActionBar(parseMM(text))
