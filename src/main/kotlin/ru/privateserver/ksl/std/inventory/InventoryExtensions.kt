@@ -89,7 +89,7 @@ fun Inventory.removeMatching(amount: Int, predicate: (ItemStack) -> Boolean): In
         if (left == 0) {
             setItem(slot, null)
         } else {
-            setItem(slot, stack.clone().apply { amount = left })
+            setItem(slot, stack.clone().apply { this.amount = left })
         }
         removed += take
         remaining -= take
