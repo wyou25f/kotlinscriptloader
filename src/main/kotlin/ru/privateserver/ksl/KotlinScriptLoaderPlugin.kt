@@ -151,7 +151,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private lateinit var scriptRunner: ScriptRunner
 
     private val listenersByScript    = ConcurrentHashMap<String, MutableList<Listener>>()
-    private val commandsByScript     = ConcurrentHashMap<String, MutableList<DynamicCommand>>()
+    private val commandsByScript     = ConcurrentHashMap<String, MutableSet<DynamicCommand>>()
     private val placeholdersByScript = ConcurrentHashMap<String, MutableList<String>>()
     private val tasksByScript        = ConcurrentHashMap<String, MutableSet<Int>>()
     private val scriptsWithGuis       = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
@@ -1130,11 +1130,21 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     }
 
     fun trackCommand(scriptName: String, command: DynamicCommand) {
-        commandsByScript.computeIfAbsent(scriptName) { mutableListOf() }.add(command)
+        // Registration may be triggered by scripts running on different scheduler threads.
+        commandsByScript.computeIfAbsent(scriptName) { ConcurrentHashMap.newKeySet() }.add(command)
         scheduleCommandSync()
-        if (Bukkit.getCommandMap().getCommand(command.name) !== command)
-            logger.warning("${KSLError.COMMAND_CONFLICT.tag} Команда '/${command.name}' из '${command.scriptName}' конфликтует — " +
-                "доступна как '/${name.lowercase()}:${command.name}'.")
+
+        val labels = listOf(command.name) + command.aliases
+        labels.forEach { label ->
+            if (Bukkit.getCommandMap().getCommand(label) !== command) {
+                val fallbackLabel = "${name.lowercase()}:$label"
+                val fallbackRegistered = Bukkit.getCommandMap().getCommand(fallbackLabel) === command
+                logger.warning(
+                    "${KSLError.COMMAND_CONFLICT.tag} Метка '/$label' команды из '${command.scriptName}' уже занята" +
+                        if (fallbackRegistered) " — команда доступна как '/$fallbackLabel'." else " — Bukkit не зарегистрировал эту метку."
+                )
+            }
+        }
     }
 
     fun registerPlaceholder(scriptName: String, key: String, resolver: (OfflinePlayer) -> String?) {
