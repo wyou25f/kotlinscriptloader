@@ -101,6 +101,8 @@ val verifyShadowJar by tasks.registering {
                 "ru/privateserver/ksl/std/item/ItemExtensionsKt.class",
                 "ru/privateserver/ksl/std/component/ComponentExtensionsKt.class",
                 "ru/privateserver/ksl/std/world/WorldExtensionsKt.class",
+                "ru/privateserver/ksl/std/json/JsonExtensionsKt.class",
+                "kotlinx/serialization/json/Json.class",
                 "ru/privateserver/ksl/meslib2/MesLib2.class",
                 "ru/privateserver/ksl/meslib2/MesLib2Info.class",
                 "ru/privateserver/ksl/rt/KSLCache.class",
