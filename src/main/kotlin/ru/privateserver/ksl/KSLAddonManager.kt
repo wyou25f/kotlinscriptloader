@@ -25,6 +25,8 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     private val extraImports = CopyOnWriteArrayList<String>()
     private val importOwners = ConcurrentHashMap<String, MutableSet<String>>()
     private val readyCallbacks = ConcurrentHashMap<String, CopyOnWriteArrayList<ReadyHook>>()
+    private val readyAddons = ConcurrentHashMap.newKeySet<String>()
+    private val readyLock = Any()
     private data class InstalledModule(
         val module: KSLStandardLibraryModule,
         val owner: String?,
@@ -57,6 +59,10 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
 
     override fun registerAddon(addon: KSLAddon) {
         val id = addon.addonId
+        if (id.isBlank()) {
+            plugin.logger.severe("§9[KSL] §c✘ Аддон с пустым ID не может быть зарегистрирован")
+            return
+        }
 
         if (addon.minApiVersion > KSL.API_VERSION) {
             plugin.logger.severe(
@@ -65,18 +71,26 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
             return
         }
 
-        if (addons.containsKey(id)) {
+        val existingId = registeredAddonId(id)
+        if (existingId != null) {
             plugin.logger.warning("§9[KSL] §e⚠ Аддон '$id' ${KSLError.ADDON_DUPLICATE.tag} уже загружен — старый экземпляр выгружается перед заменой")
-            unregisterAddon(id)
+            unregisterAddon(existingId)
+            if (registeredAddonId(id) != null) {
+                plugin.logger.warning("§9[KSL] §eАддон '$id' не заменён: сначала выгрузи его зависимые аддоны или модули")
+                return
+            }
         }
 
-        addons[id] = addon
+        synchronized(readyLock) {
+            addons[id] = addon
+            readyAddons.remove(id.lowercase())
+        }
         loadOrder.add(id)
         val before = services.keys.toSet()
 
         plugin.logger.info("§9[KSL] §b▸ §fЗагрузка аддона §e$id §7v${addon.addonVersion}...")
 
-        val missingDeps = addon.dependsOn.filter { !addons.containsKey(it) }
+        val missingDeps = addon.dependsOn.filter { registeredAddonId(it) == null }
         if (missingDeps.isNotEmpty()) {
             plugin.logger.warning(
                 "§9[KSL]   §e⚠ '$id' ${KSLError.ADDON_DEP_MISSING.tag} объявил зависимость от [${missingDeps.joinToString(", ")}], " +
@@ -93,7 +107,10 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
             // A half-initialised addon would otherwise stay listed as loaded, with whatever it managed to register.
             runCatching { addon.onUnload() }
             releaseOwned(id)
-            addons.remove(id)
+            synchronized(readyLock) {
+                addons.remove(id, addon)
+                readyAddons.remove(id.lowercase())
+            }
             loadOrder.remove(id)
             return
         }
@@ -103,17 +120,45 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         }
         plugin.logger.info("§9[KSL] §a✔ $id §7v${addon.addonVersion} §aзагружен")
 
-        readyCallbacks.remove(id)?.forEach { runReady(addon, it) }
+        val callbacks = synchronized(readyLock) {
+            readyAddons.add(id.lowercase())
+            readyCallbacks.remove(id.lowercase())?.toList().orEmpty()
+        }
+        callbacks.forEach { runReady(addon, it) }
     }
 
     override fun unregisterAddon(addonId: String) {
-        val addon = addons.remove(addonId) ?: return
-        loadOrder.remove(addonId)
+        val registeredId = registeredAddonId(addonId) ?: return
+        val addon = addons[registeredId] ?: return
 
-        val dependents = addons.values.filter { addonId in it.dependsOn }.map { it.addonId }
-        if (dependents.isNotEmpty()) {
-            plugin.logger.warning("§9[KSL] §e$addonId ${KSLError.ADDON_DEP_UNLOADING.tag} выгружается, хотя от него зависят: [${dependents.joinToString(", ")}]")
+        val dependentAddons = addons.values
+            .filter { it.addonId != registeredId && it.dependsOn.any { dependency -> dependency.equals(registeredId, ignoreCase = true) } }
+            .map { it.addonId }
+        if (dependentAddons.isNotEmpty()) {
+            plugin.logger.warning("§9[KSL] §e$registeredId ${KSLError.ADDON_DEP_UNLOADING.tag} не выгружен: от него зависят аддоны [${dependentAddons.joinToString(", ")}]")
+            return
         }
+
+        val ownedModuleIds = synchronized(moduleLock) {
+            standardModules.values.filter { it.owner == registeredId }.map { it.module.descriptor.id }.toSet()
+        }
+        val dependentModules = synchronized(moduleLock) {
+            standardModules.values.filter { installed ->
+                installed.module.descriptor.id !in ownedModuleIds &&
+                    installed.module.descriptor.dependencies.any { dependency -> ownedModuleIds.any { it.equals(dependency, ignoreCase = true) } }
+            }.map { it.module.descriptor.id }
+        }
+        if (dependentModules.isNotEmpty()) {
+            plugin.logger.warning("§9[KSL] §e$registeredId не выгружен: его модули нужны модулям [${dependentModules.joinToString(", ")}]")
+            return
+        }
+
+        synchronized(readyLock) {
+            if (addons[registeredId] !== addon) return
+            addons.remove(registeredId, addon)
+            readyAddons.remove(registeredId.lowercase())
+        }
+        loadOrder.remove(registeredId)
 
         runCatching { addon.onUnload() }
             .onFailure { plugin.logger.warning("§9[KSL] §e$addonId: ${KSLError.ADDON_UNLOAD_FAILED.tag} ошибка выгрузки: ${it.message}") }
@@ -278,16 +323,23 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
 
     override fun registeredAddons(): List<KSLAddon> = loadOrder.mapNotNull { addons[it] }
 
-    override fun isAddonLoaded(addonId: String): Boolean = addons.containsKey(addonId)
+    private fun registeredAddonId(addonId: String): String? =
+        addons.keys.firstOrNull { it.equals(addonId, ignoreCase = true) }
+
+    override fun isAddonLoaded(addonId: String): Boolean = registeredAddonId(addonId) != null
 
     override fun onAddonReady(addonId: String, callback: (KSLAddon) -> Unit) {
         val hook = ReadyHook(currentlyLoading.get(), callback)
-        val existing = addons[addonId]
-        if (existing != null) {
-            runReady(existing, hook)
-            return
+        val existing = synchronized(readyLock) {
+            val registeredId = registeredAddonId(addonId)
+            if (registeredId != null && registeredId.lowercase() in readyAddons) {
+                addons[registeredId]
+            } else {
+                readyCallbacks.computeIfAbsent(addonId.lowercase()) { CopyOnWriteArrayList() }.add(hook)
+                null
+            }
         }
-        readyCallbacks.computeIfAbsent(addonId) { CopyOnWriteArrayList() }.add(hook)
+        if (existing != null) runReady(existing, hook)
     }
 
     private fun runReady(addon: KSLAddon, hook: ReadyHook) {
