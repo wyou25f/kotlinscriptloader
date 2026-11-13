@@ -26,6 +26,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     private val importOwners = ConcurrentHashMap<String, MutableSet<String>>()
     private val readyCallbacks = ConcurrentHashMap<String, CopyOnWriteArrayList<ReadyHook>>()
     private val readyAddons = ConcurrentHashMap.newKeySet<String>()
+    private val loadingAddons = ConcurrentHashMap.newKeySet<String>()
     private val readyLock = Any()
     private data class InstalledModule(
         val module: KSLStandardLibraryModule,
@@ -84,6 +85,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         synchronized(readyLock) {
             addons[id] = addon
             readyAddons.remove(id.lowercase())
+            loadingAddons.add(id.lowercase())
         }
         loadOrder.add(id)
         val before = services.keys.toSet()
@@ -110,6 +112,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
             synchronized(readyLock) {
                 addons.remove(id, addon)
                 readyAddons.remove(id.lowercase())
+                loadingAddons.remove(id.lowercase())
             }
             loadOrder.remove(id)
             return
@@ -121,8 +124,13 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         plugin.logger.info("§9[KSL] §a✔ $id §7v${addon.addonVersion} §aзагружен")
 
         val callbacks = synchronized(readyLock) {
-            readyAddons.add(id.lowercase())
-            readyCallbacks.remove(id.lowercase())?.toList().orEmpty()
+            loadingAddons.remove(id.lowercase())
+            if (addons[id] !== addon) {
+                emptyList()
+            } else {
+                readyAddons.add(id.lowercase())
+                readyCallbacks.remove(id.lowercase())?.toList().orEmpty()
+            }
         }
         callbacks.forEach { runReady(addon, it) }
     }
@@ -130,6 +138,10 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     override fun unregisterAddon(addonId: String) {
         val registeredId = registeredAddonId(addonId) ?: return
         val addon = addons[registeredId] ?: return
+        if (registeredId.lowercase() in loadingAddons) {
+            plugin.logger.warning("§9[KSL] §eАддон '$registeredId' нельзя выгрузить во время выполнения onLoad()")
+            return
+        }
 
         val dependentAddons = addons.values
             .filter { it.addonId != registeredId && it.dependsOn.any { dependency -> dependency.equals(registeredId, ignoreCase = true) } }
