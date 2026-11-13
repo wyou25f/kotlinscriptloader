@@ -116,6 +116,14 @@ inline fun <reified T : Any> KSLAPI.requireService(key: String): T =
     service<T>(key)
         ?: error("KSL service '$key' of type ${T::class.java.name} is not registered")
 
+/** Short alias for [requireService]. */
+inline fun <reified T : Any> KSLAPI.serviceOrThrow(key: String): T =
+    requireService(key)
+
+/** Short alias for [addDefaultImports] when registering addon-owned script packages. */
+fun KSLAPI.addImports(vararg packages: String) =
+    addDefaultImports(*packages)
+
 /** Returns a typed integration hook, or null when no matching hook is registered. */
 inline fun <reified T : KSLHook> KSLAPI.hook(hookId: String): T? =
     getHook(hookId, T::class.java)
