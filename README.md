@@ -825,3 +825,7 @@ for the planned KSL Standard Library: future standard modules can be imported
 from the same public package family without relying on internal implementation
 classes. The API is available from the KSL plugin JAR; addon projects should
 declare that JAR as a compile-only dependency.
+The public package also exposes the shared script-definition metadata used by
+the runtime and IDE tooling. See [Public API contracts](docs/Public-API.md) and
+the [Standard Library architecture](docs/Standard-Library-Architecture.md) for
+the module SPI and dependency planner (feature modules are not shipped yet).
