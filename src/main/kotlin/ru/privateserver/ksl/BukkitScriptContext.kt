@@ -92,7 +92,7 @@ open class BukkitScriptContext(
             loadFromString(config.saveToString())
         }
         for (version in currentVersion + 1..targetVersion) {
-            migrated.migrations.getValue(version).invoke(migrated)
+            migrations.getValue(version).invoke(migrated)
             migrated.set(versionPath, version)
         }
 
