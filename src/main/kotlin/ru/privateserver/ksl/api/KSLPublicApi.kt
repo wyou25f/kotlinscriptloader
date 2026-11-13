@@ -2,12 +2,15 @@
 
 package ru.privateserver.ksl.api
 
+import ru.privateserver.ksl.BukkitScriptContext as CoreBukkitScriptContext
 import ru.privateserver.ksl.KSL as CoreKSL
 import ru.privateserver.ksl.KSLAPI as CoreKSLAPI
 import ru.privateserver.ksl.KSLAddon as CoreKSLAddon
 import ru.privateserver.ksl.KSLContextExtension as CoreKSLContextExtension
 import ru.privateserver.ksl.KSLHook as CoreKSLHook
 import ru.privateserver.ksl.KSLScriptInfo as CoreKSLScriptInfo
+import ru.privateserver.ksl.KSLShapeFactory as CoreKSLShapeFactory
+import ru.privateserver.ksl.KSLScriptEvent as CoreKSLScriptEvent
 
 /**
  * Stable public entry point for KSL integrations and script libraries.
@@ -20,6 +23,9 @@ typealias KSLAddon = CoreKSLAddon
 typealias KSLContextExtension = CoreKSLContextExtension
 typealias KSLHook = CoreKSLHook
 typealias KSLScriptInfo = CoreKSLScriptInfo
+typealias BukkitScriptContext = CoreBukkitScriptContext
+typealias KSLShapeFactory = CoreKSLShapeFactory
+typealias KSLScriptEvent = CoreKSLScriptEvent
 
 /** API compatibility level of the installed KSL build. */
 const val KSL_API_VERSION: Int = CoreKSL.API_VERSION
