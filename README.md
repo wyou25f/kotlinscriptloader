@@ -29,6 +29,7 @@ plugins/KotlinScriptLoader/
 
 - `plugin` — экземпляр `JavaPlugin`
 - `config` / `saveConfig()` — `имя_скрипта.yml`, лениво
+- `editConfig { ... }` — потокобезопасное изменение YAML под общей блокировкой; по умолчанию сохраняет файл после блока (`editConfig(save = false) { ... }` — только изменить в памяти, затем вызвать `saveConfig()` отдельно)
 - `database` — общий `HikariDataSource`
 - `onEvent<T> { }` — регистрация ивента
 - `registerCommand(name, aliases) { player, args -> }` — динамическая команда
