@@ -174,15 +174,16 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     // @key@ tokens for message()/richMessage(); owner is "script:<name>", an addon id, or "config".
     val textPlaceholders = KSLOwnedRegistry<(Player?) -> String?>()
 
-    fun registerTextPlaceholder(owner: String, key: String, resolver: (Player?) -> String?) {
+    fun registerTextPlaceholder(owner: String?, key: String, resolver: (Player?) -> String?) {
         val normalized = key.lowercase()
+        val ownerLabel = owner ?: "external"
         if (normalized in KSLTextPlaceholders.reserved) {
-            logger.warning("[$owner] ${KSLError.TEXT_PLACEHOLDER_RESERVED.tag} @$normalized@ встроен в KSL — выбери другое имя")
+            logger.warning("[$ownerLabel] ${KSLError.TEXT_PLACEHOLDER_RESERVED.tag} @$normalized@ встроен в KSL — выбери другое имя")
             return
         }
         val previous = textPlaceholders.ownerOf(normalized)
         if (textPlaceholders.contains(normalized) && previous != owner) {
-            logger.warning("[$owner] ${KSLError.PLACEHOLDER_CONFLICT.tag} Текстовый плейсхолдер @$normalized@ уже занят (${previous ?: "?"}) — будет перезаписан")
+            logger.warning("[$ownerLabel] ${KSLError.PLACEHOLDER_CONFLICT.tag} Текстовый плейсхолдер @$normalized@ уже занят (${previous ?: "?"}) — будет перезаписан")
         }
         textPlaceholders.put(normalized, resolver, owner)
     }

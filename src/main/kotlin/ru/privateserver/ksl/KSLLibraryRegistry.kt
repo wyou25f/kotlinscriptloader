@@ -1,36 +1,23 @@
 package ru.privateserver.ksl
 
-import java.util.concurrent.ConcurrentHashMap
-
 class KSLLibraryRegistry(private val plugin: KotlinScriptLoaderPlugin) {
 
-    private val exports = ConcurrentHashMap<String, Any>()
-    private val ownerByKey = ConcurrentHashMap<String, String>()
-    private val keysByScript = ConcurrentHashMap<String, MutableList<String>>()
-
-    fun export(scriptName: String, key: String, value: Any) {
-        val existingOwner = ownerByKey[key]
-        if (existingOwner != null && existingOwner != scriptName) {
-            plugin.logger.warning("[$scriptName] ${KSLError.LIBRARY_OVERWRITE.tag} export('$key') перезаписывает экспорт скрипта '$existingOwner' — используй уникальные ключи")
-        }
-        exports[key] = value
-        ownerByKey[key] = scriptName
-        keysByScript.computeIfAbsent(scriptName) { mutableListOf() }.add(key)
+    private val store = KSLExportStore { key, previousOwner, newOwner ->
+        plugin.logger.warning(
+            "[$newOwner] ${KSLError.LIBRARY_OVERWRITE.tag} export('$key') перезаписывает экспорт скрипта '${previousOwner ?: "?"}' — используй уникальные ключи"
+        )
     }
 
-    fun get(key: String): Any? = exports[key]
+    fun export(scriptName: String, key: String, value: Any) =
+        store.export(scriptName, key, value)
 
-    fun ownerOf(key: String): String? = ownerByKey[key]
+    fun get(key: String): Any? = store.get(key)
 
-    fun exportedKeys(): Set<String> = exports.keys.toSet()
+    fun ownerOf(key: String): String? = store.ownerOf(key)
 
-    fun scriptNames(): Set<String> = keysByScript.keys.toSet()
+    fun exportedKeys(): Set<String> = store.exportedKeys()
 
-    fun clearScript(scriptName: String) {
-        val keys = keysByScript.remove(scriptName) ?: return
-        keys.forEach {
-            exports.remove(it)
-            ownerByKey.remove(it)
-        }
-    }
+    fun scriptNames(): Set<String> = store.scriptNames()
+
+    fun clearScript(scriptName: String) = store.clearOwner(scriptName)
 }

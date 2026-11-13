@@ -19,8 +19,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     private val loadOrder = CopyOnWriteArrayList<String>()
     private val services = ConcurrentHashMap<String, Any>()
     private val serviceOwner = ConcurrentHashMap<String, String>()
-    private val contextExtensions = ConcurrentHashMap<String, KSLContextExtension>()
-    private val extensionOwner = ConcurrentHashMap<String, String>()
+    private val contextExtensions = KSLOwnedRegistry<KSLContextExtension>()()
     private val extraImports = CopyOnWriteArrayList<String>()
     private val importOwners = ConcurrentHashMap<String, MutableSet<String>>()
     private val readyCallbacks = ConcurrentHashMap<String, CopyOnWriteArrayList<ReadyHook>>()
@@ -122,8 +121,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         val ownedServices = serviceOwner.filterValues { it == owner }.keys.toList()
         ownedServices.forEach { services.remove(it); serviceOwner.remove(it) }
 
-        val ownedExtensions = extensionOwner.filterValues { it == owner }.keys.toList()
-        ownedExtensions.forEach { contextExtensions.remove(it); extensionOwner.remove(it) }
+        val ownedExtensions = contextExtensions.releaseOwner(owner)
 
         val releasedImports = mutableListOf<String>()
         importOwners.forEach { (import, owners) ->
@@ -183,13 +181,20 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     }
 
     override fun registerContextExtension(extension: KSLContextExtension) {
-        contextExtensions[extension.extensionId] = extension
-        currentlyLoading.get()?.let { extensionOwner[extension.extensionId] = it }
+        val id = extension.extensionId
+        val owner = currentlyLoading.get()
+        val previousOwner = contextExtensions.ownerOf(id)
+        if (contextExtensions.contains(id) && previousOwner != owner) {
+            plugin.logger.warning(
+                "§9[KSL] §e⚠ Расширение контекста '$id' (владелец: ${previousOwner ?: "не указан"}) " +
+                    "${KSLError.ADDON_OVERWRITE.tag} перезаписано вызовом ${owner ?: "вне onLoad"}"
+            )
+        }
+        contextExtensions.put(id, extension, owner)
     }
 
     override fun unregisterContextExtension(extensionId: String) {
         contextExtensions.remove(extensionId)
-        extensionOwner.remove(extensionId)
     }
 
     override fun registeredAddons(): List<KSLAddon> = loadOrder.mapNotNull { addons[it] }
@@ -313,7 +318,6 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         services.clear()
         serviceOwner.clear()
         contextExtensions.clear()
-        extensionOwner.clear()
         extraImports.clear()
         importOwners.clear()
         readyCallbacks.clear()
