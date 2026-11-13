@@ -334,6 +334,14 @@ compiler/classloader/JVM target где-то разъехались — `doctor` 
 
 ## Команды и aliases
 
+Пример:
+
+```kotlin
+registerCommand("heal", aliases = listOf("h", "restore")) { player, args ->
+    player.health = player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH)?.value ?: 20.0
+}
+```
+
 Aliases регистрируются без учёта регистра: `"Heal"` становится `heal`.
 Пустые, некорректные, повторяющиеся aliases и aliases, совпадающие с именем
 команды, пропускаются с предупреждением в консоли. Допустимы латинские буквы,
