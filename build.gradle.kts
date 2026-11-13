@@ -46,6 +46,7 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-scripting-jvm-host:$kotlinScriptingVersion")
     implementation("org.jetbrains.kotlin:kotlin-scripting-compiler-embeddable:$kotlinScriptingVersion")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
     implementation("com.zaxxer:HikariCP:5.1.0")
     implementation("org.xerial:sqlite-jdbc:3.46.1.3")

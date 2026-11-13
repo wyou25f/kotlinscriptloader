@@ -32,6 +32,13 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.sql.ResultSet
 import java.time.Duration
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonObjectBuilder
+import kotlinx.serialization.json.buildJsonObject
 
 open class BukkitScriptContext(
     val plugin: KotlinScriptLoaderPlugin,
@@ -147,6 +154,83 @@ open class BukkitScriptContext(
             }
         )
     }
+    private val jsonCodec = Json {
+        prettyPrint = true
+        explicitNulls = true
+        allowSpecialFloatingPointValues = false
+    }
+
+    private fun resolveJsonFile(fileName: String, operation: String): File {
+        require(fileName.endsWith(".json", ignoreCase = true)) {
+            "$operation expects a .json file: '$fileName'"
+        }
+        val root = plugin.scriptsFolder.canonicalFile
+        val file = File(root, fileName).canonicalFile
+        require(file.toPath() != root.toPath() && file.toPath().startsWith(root.toPath())) {
+            "${KSLError.YAML_PATH_ESCAPE.tag} $operation: '$fileName' выходит за пределы scripts/"
+        }
+        return file
+    }
+
+    /** Reads JSON from scripts/. Returns null if missing; malformed files are preserved and reported. */
+    @Synchronized
+    fun loadJson(fileName: String): JsonElement? {
+        val file = resolveJsonFile(fileName, "loadJson")
+        if (!file.isFile) return null
+        return try {
+            jsonCodec.parseToJsonElement(file.readText(Charsets.UTF_8))
+        } catch (ex: SerializationException) {
+            val backup = File(file.parentFile, "${file.name}.broken-${System.currentTimeMillis()}")
+            val saved = runCatching { file.copyTo(backup) }.isSuccess
+            throw IllegalArgumentException(
+                "Invalid JSON in '${file.name}': ${ex.message}" +
+                    if (saved) " (backup: ${backup.name})" else " (backup could not be created)",
+                ex
+            )
+        } catch (ex: IOException) {
+            throw IllegalStateException("Could not read JSON file '${file.name}': ${ex.message}", ex)
+        }
+    }
+
+    /** Reads a JSON object; returns null when missing and rejects non-object roots. */
+    @Synchronized
+    fun loadJsonObject(fileName: String): JsonObject? =
+        loadJson(fileName)?.let {
+            it as? JsonObject ?: throw IllegalArgumentException("JSON file '$fileName' must contain an object at its root")
+        }
+
+    /** Writes JSON atomically inside scripts/. Returns false and logs a warning on I/O failure. */
+    @Synchronized
+    fun saveJson(fileName: String, value: JsonElement): Boolean {
+        val file = resolveJsonFile(fileName, "saveJson")
+        return try {
+            file.parentFile?.mkdirs()
+            val temporary = File(file.parentFile, "${file.name}.tmp")
+            temporary.writeText(jsonCodec.encodeToString(JsonElement.serializer(), value), Charsets.UTF_8)
+            try {
+                Files.move(temporary.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+            } catch (ex: AtomicMoveNotSupportedException) {
+                Files.move(temporary.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
+            true
+        } catch (ex: IOException) {
+            plugin.logger.warning("[$scriptName] Не удалось сохранить JSON '$fileName': ${ex.message}")
+            false
+        }
+    }
+
+    /** Loads or creates a JSON object, applies edits and saves it atomically. Untouched keys are preserved. */
+    @Synchronized
+    fun editJsonObject(fileName: String, block: JsonObjectBuilder.() -> Unit): JsonObject {
+        val current = loadJsonObject(fileName)
+        val updated = buildJsonObject {
+            current?.forEach { (key, value) -> put(key, value) }
+            block()
+        }
+        check(saveJson(fileName, updated)) { "Could not save JSON file '$fileName'" }
+        return updated
+    }
+
     private fun resolveYamlFile(fileName: String, operation: String): File {
         val root = plugin.scriptsFolder.canonicalFile
         val file = File(root, fileName).canonicalFile

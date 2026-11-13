@@ -149,3 +149,34 @@ Reload methods report whether Bukkit dispatched the Skript command; they do not 
 
 The public KSLAPI also exposes `skriptOrNull()`, `requireSkript()`, `isSkriptEnabled()`, `skriptCommand()`, `skriptVariable()`, `setSkriptVariable()`, `deleteSkriptVariable()`, `skriptVariables()`, `skriptScripts()`, `isSkriptScriptLoaded()`, `reloadSkriptScript()`, and `reloadAllSkript()`.
 
+
+
+## JSON files and values
+
+KSL scripts can read and write JSON files in their own `scripts/` directory. Paths are checked against traversal and symbolic-link escapes, writes use an atomic replace, and malformed files are preserved (a backup is attempted before an error is raised).
+
+```kotlin
+val data = loadJsonObject("data/player.json")
+val coins = data?.int("coins", 0) ?: 0
+
+editJsonObject("data/player.json") {
+    put("coins", (coins + 10).toJsonElement())
+    put("lastSeen", System.currentTimeMillis().toJsonElement())
+}
+
+val payload = jsonObjectOf(
+    "player" to player.name,
+    "online" to true,
+    "stats" to mapOf("wins" to 12, "losses" to 3),
+    "tags" to listOf("builder", "vip")
+)
+saveJson("cache/player.json", payload)
+```
+
+- `loadJson(file)` returns any JSON root value, or `null` when the file does not exist.
+- `loadJsonObject(file)` expects an object root.
+- `saveJson(file, value)` writes a `JsonElement` and returns whether the write succeeded.
+- `editJsonObject(file) { ... }` preserves untouched keys and creates a missing object file.
+- `jsonObjectOf(...)`, `jsonArrayOf(...)`, and `toJsonElement()` convert common Kotlin primitives, maps, arrays and collections.
+- `JsonObject.string/int/long/double/bool` provide typed access with defaults; `objectValue` and `arrayValue` read nested structures.
+- File operations are synchronous. Do not use them for large files on the Bukkit server thread; use KSL async scheduling when appropriate.

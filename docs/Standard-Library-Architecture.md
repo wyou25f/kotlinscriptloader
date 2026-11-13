@@ -13,11 +13,11 @@ These packages are included in the default imports for KSL scripts:
 - `ru.privateserver.ksl.std.inventory.*`: first matching slot lookup, similar-item counting and bounded item removal for any Bukkit inventory.
 - `ru.privateserver.ksl.std.item.*`: safe cloned ItemStack amount/name/lore transformations and empty-stack checks.
 - `ru.privateserver.ksl.std.component.*`: literal Adventure text components, MiniMessage parsing and immutable text appending.
-- `ru.privateserver.ksl.std.world.*`: block, location and entity-query helpers.
+- `ru.privateserver.ksl.std.world.*`: block, location and entity-query helpers.\n- `ru.privateserver.ksl.std.json.*`: Kotlin-value conversion, JSON object/array builders and typed object accessors; file persistence is exposed by the script context.
 
 Inventory and ItemStack helpers that inspect or modify Bukkit objects must be called on the server thread. ItemStack transformation helpers return clones and leave the original stack unchanged. `toTextComponent()` treats input as literal text; use `toMiniMessageComponent()` only when the input is intentionally MiniMessage markup.
 
-The existing `ru.privateserver.ksl.dsl.*` package remains available. Its `.sec`, `.mins` and `.hours` extensions use checked arithmetic and throw on overflow instead of silently wrapping.
+The JSON standard library uses kotlinx.serialization JSON and is bundled with KSL; scripts receive `kotlinx.serialization.json.*` imports by default. JSON files are restricted to the script `scripts/` directory and saved through atomic replacement. File I/O is synchronous.\n\nThe existing `ru.privateserver.ksl.dsl.*` package remains available. Its `.sec`, `.mins` and `.hours` extensions use checked arithmetic and throw on overflow instead of silently wrapping.
 
 ## Examples
 
