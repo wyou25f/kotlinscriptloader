@@ -131,7 +131,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         val ownedModules = synchronized(moduleLock) { standardModules.values.filter { it.owner == owner }.asReversed() }
         ownedModules.forEach { installed ->
             runCatching { asOwner(owner) { installed.module.uninstall(this) } }
-                .onFailure { plugin.logger.warning("§9[KSL] module '\${installed.module.descriptor.id}' unload failed: \${it.message}") }
+                .onFailure { plugin.logger.warning("§9[KSL] module '${installed.module.descriptor.id}' unload failed: ${it.message}") }
             synchronized(moduleLock) { standardModules.remove(installed.module.descriptor.id) }
         }
 
@@ -188,18 +188,23 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         val owner = currentlyLoading.get()
         synchronized(moduleLock) {
             require(module.descriptor.id !in standardModules) {
-                "KSL standard-library module '\${module.descriptor.id}' is already registered"
+                "KSL standard-library module '${module.descriptor.id}' is already registered"
             }
             val ordered = KSLModulePlanner.resolve(standardModules.values.map { it.module } + module, KSL.API_VERSION)
             val installedNow = mutableListOf<InstalledModule>()
             try {
                 ordered.forEach { candidate ->
                     if (standardModules.containsKey(candidate.descriptor.id)) return@forEach
-                    asOwner(owner) {
-                        candidate.install(this)
-                        if (candidate.descriptor.defaultImports.isNotEmpty()) {
-                            addDefaultImports(*candidate.descriptor.defaultImports.toTypedArray())
+                    try {
+                        asOwner(owner) {
+                            candidate.install(this)
+                            if (candidate.descriptor.defaultImports.isNotEmpty()) {
+                                addDefaultImports(*candidate.descriptor.defaultImports.toTypedArray())
+                            }
                         }
+                    } catch (failure: Throwable) {
+                        runCatching { asOwner(owner) { candidate.uninstall(this) } }
+                        throw failure
                     }
                     val installed = InstalledModule(candidate, owner)
                     standardModules[candidate.descriptor.id] = installed
@@ -210,7 +215,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
                     runCatching { asOwner(owner) { installed.module.uninstall(this) } }
                     standardModules.remove(installed.module.descriptor.id)
                 }
-                throw IllegalStateException("Failed to install KSL standard-library module '\${module.descriptor.id}'", failure)
+                throw IllegalStateException("Failed to install KSL standard-library module '${module.descriptor.id}'", failure)
             }
         }
     }
@@ -222,10 +227,10 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
                 .filter { moduleId in it.module.descriptor.dependencies }
                 .map { it.module.descriptor.id }
             require(dependents.isEmpty()) {
-                "Cannot unregister KSL module '$moduleId'; required by \${dependents.joinToString()}"
+                "Cannot unregister KSL module '$moduleId'; required by ${dependents.joinToString()}"
             }
             runCatching { asOwner(installed.owner) { installed.module.uninstall(this) } }
-                .onFailure { plugin.logger.warning("§9[KSL] module '$moduleId' did not fully unload: \${it.message}") }
+                .onFailure { plugin.logger.warning("§9[KSL] module '$moduleId' did not fully unload: ${it.message}") }
             standardModules.remove(moduleId)
         }
     }
