@@ -273,6 +273,31 @@ open class BukkitScriptContext(
 
     val database: HikariDataSource get() = plugin.database
 
+    /** Validates script YAML; missing/invalid values can be replaced by schema defaults. */
+    @Synchronized
+    fun validateConfig(
+        applyDefaults: Boolean = true,
+        schema: KSLYamlSchema.() -> Unit
+    ): List<KSLYamlValidationIssue> {
+        val issues = KSLYamlSchema().apply(schema).validate(config, applyDefaults)
+        if (applyDefaults && issues.any { it.corrected }) saveConfig()
+        return issues
+    }
+
+    /** Executes a prepared SQL statement stored at the given path in this script's YAML. */
+    fun dbExecuteYaml(queryPath: String, vararg args: Any?) {
+        val sql = config.getString(queryPath)?.takeIf { it.isNotBlank() }
+            ?: throw IllegalArgumentException("SQL query is missing or blank at YAML path '$queryPath'")
+        dbExecute(sql, *args)
+    }
+
+    /** Runs a prepared SQL query stored at the given path in this script's YAML. */
+    fun dbQueryYaml(queryPath: String, vararg args: Any?, block: (ResultSet) -> Unit) {
+        val sql = config.getString(queryPath)?.takeIf { it.isNotBlank() }
+            ?: throw IllegalArgumentException("SQL query is missing or blank at YAML path '$queryPath'")
+        dbQuery(sql, *args, block = block)
+    }
+
     fun dbExecute(sql: String, vararg args: Any?) {
         plugin.dbExecutor.submit {
             try {

@@ -116,6 +116,45 @@ val version = migrateConfig(
 Функция возвращает итоговую версию; путь хранения версии можно изменить через
 `versionPath`. После публикации не переписывай старые миграции — добавляй новые номера.
 
+## Схема и проверка YAML
+
+Можно описать ожидаемые типы, значения по умолчанию и числовые границы прямо в `.kts`:
+
+```kotlin
+val issues = validateConfig {
+    string("messages.prefix", default = "&7[Server]")
+    int("homes.limit", default = 3, min = 1, max = 20)
+    bool("features.economy", default = true)
+    strings("worlds.allowed", default = listOf("world"))
+}
+
+issues.forEach { issue ->
+    logger.warning("Config '${issue.path}': ${issue.message}")
+}
+```
+
+По умолчанию отсутствующие и некорректные значения заменяются значениями из схемы и сохраняются в YAML. Передай `applyDefaults = false`, чтобы только получить список проблем без изменения файла. Диапазоны проверяются, но значения не подрезаются автоматически.
+
+## SQL-запросы из YAML
+
+Храни именованные SQL-запросы в конфиге скрипта, а параметры передавай отдельно:
+
+```yaml
+database:
+  queries:
+    create-home: "INSERT INTO homes (uuid, name) VALUES (?, ?)"
+    find-homes: "SELECT name FROM homes WHERE uuid = ?"
+```
+
+```kotlin
+dbExecuteYaml("database.queries.create-home", player.uniqueId.toString(), "base")
+dbQueryYaml("database.queries.find-homes", player.uniqueId.toString()) { rs ->
+    while (rs.next()) player.sendMessage(rs.getString("name"))
+}
+```
+
+Это использует существующий пул KSL и prepared statements: значения `?` передаются отдельно, не склеивай пользовательский ввод с SQL-строкой. Сам запрос хранится в YAML, а не выполняется YAML-парсером. Пароли и другие секреты в YAML не размещай.
+
 ## Важные нюансы
 
 1. **Главный баг, из-за которого скрипты не видели импорты вообще ничего**:

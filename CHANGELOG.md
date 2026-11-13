@@ -1,5 +1,11 @@
 # Unreleased
 
+## 🧩 YAML Schema и SQL из YAML
+
+- Добавлен `validateConfig { ... }` с проверкой типов, значений по умолчанию и диапазонов; можно отключить автоприменение через `applyDefaults = false`.
+- Добавлены `dbExecuteYaml` и `dbQueryYaml`: именованные SQL-запросы читаются из YAML и выполняются через существующий пул с параметрами prepared statement.
+
+
 ## 🧬 Версионирование YAML-конфигов
 
 - Добавлен `migrateConfig(targetVersion, versionPath, migrations)` с последовательными шагами миграции.
