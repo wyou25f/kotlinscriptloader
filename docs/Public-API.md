@@ -33,7 +33,8 @@ module contracts. It also exposes:
 - `KSLMesLib2` and `MesLib`: alternate type names for the MesLib2 facade;
 - `KSLTopics` and typed `onScriptLoaded()`, `onScriptFailed()`,
   `onScriptUnloaded()` subscriptions;
-- the `KSLModulePlanner` facade.
+- the `KSLModulePlanner` facade;
+- `registerStandardLibraryModule(module)`, `unregisterStandardLibraryModule(id)` and `standardLibraryModules()` for addon-owned module lifecycle.
 
 Script lifecycle subscriptions use KSL's event bus. Handlers execute
 synchronously on the publisher's thread; move Bukkit world/entity/inventory
@@ -88,7 +89,8 @@ an intentional API-version change and migration notes. Keep KSL's API classes
 provided by the plugin classloader and declare them as `compileOnly` in addons.
 
 The Standard Library utilities and module contracts are documented in
-[Standard Library architecture](Standard-Library-Architecture.md).
+[Standard Library architecture](Standard-Library-Architecture.md) and the
+[custom library guide](Custom-Standard-Library.md).
 
 
 ## Convenience extensions

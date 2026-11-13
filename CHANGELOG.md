@@ -5,7 +5,8 @@
 - MesLib2 получил короткие операции `publish/provide`, `find/resolve`, `contains` и `info`, включая overloads для namespace текущего скрипта.
 - Добавлены алиасы контекста `ml2`, `lib2`, `libs`; `meslib2` сохранён.
 - Public API получил алиасы `api`, `kslApi`, типы `KslApi` / `KSLPublicAPI`, а также `addImports` и `serviceOrThrow`.
-- Исправлена документация модулей: `KSLModulePlanner` только валидирует и сортирует; автоматического module loader в текущем runtime нет. Добавлены актуальные инструкции по addon-библиотекам и MesLib2.
+- Ресурсы standard-library module теперь имеют отдельную область владения: явный unregister снимает импорты и регистрации модуля, не затрагивая другие модули аддона.
+- Уточнена документация по созданию addon-библиотек и MesLib2; module planner валидирует зависимости, а runtime устанавливает зарегистрированные через KSLAPI модули и очищает их ресурсы при выгрузке.
 
 ## 🧩 MesLib2 и runtime-инструменты
 

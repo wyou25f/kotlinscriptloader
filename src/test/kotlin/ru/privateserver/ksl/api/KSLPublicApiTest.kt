@@ -62,12 +62,33 @@ class KSLPublicApiTest {
     @Test
     fun `public api aliases and helper names remain available`() {
         val installed = api()
-        assertSame(installed, installed)
         assertEquals(KSL_API_VERSION, ru.privateserver.ksl.KSL.API_VERSION)
         // These aliases are compile-time typealiases; assigning the interface checks their signatures.
         val shortName: KslApi = installed
         val publicName: KSLPublicAPI = shortName
         assertSame(installed, publicName)
+    }
+
+    @Test
+    fun `short public api helpers delegate to stable interface methods`() {
+        val imported = mutableListOf<String>()
+        val fake = Proxy.newProxyInstance(
+            KSLAPI::class.java.classLoader,
+            arrayOf(KSLAPI::class.java)
+        ) { _, method, args ->
+            when (method.name) {
+                "getService" -> "ready"
+                "addDefaultImports" -> {
+                    imported += (args!![0] as Array<*>).map { it as String }
+                    null
+                }
+                else -> error("Unexpected KSLAPI call: ${method.name}")
+            }
+        } as KSLAPI
+
+        fake.addImports("com.example.player.*", "com.example.text.*")
+        assertEquals(listOf("com.example.player.*", "com.example.text.*"), imported)
+        assertEquals("ready", fake.serviceOrThrow<String>("example.service"))
     }
 
     @Test

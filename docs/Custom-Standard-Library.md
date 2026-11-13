@@ -75,19 +75,83 @@ val label = "Maintenance".asServerTag()
 
 No explicit `import` is needed for `com.example.serverstd.*`.
 
-## Module metadata: planner, not automatic loader
+## Versioned standard-library modules
 
-KSL exposes `KSLStandardLibraryModule`, `KSLModuleDescriptor` and
-`KSLModulePlanner.resolve(...)` as a declarative module contract. The planner
-checks duplicate IDs, missing dependencies, dependency cycles and required API
-versions, then returns a deterministic dependency-first order.
+For a reusable library that should be installed with an addon, implement
+`KSLStandardLibraryModule`. Unlike a MesLib2 script export, this module is
+compiled Kotlin code packaged in your addon JAR.
 
-**The current KSL runtime does not automatically discover, install or uninstall
-these modules.** There is no `api.registerStandardLibraryModule(...)` method in
-the current `KSLAPI`. For a working custom standard library today, implement
-the addon lifecycle shown above and register packages/services in
-`onLoad(api)`. This keeps lifecycle ownership explicit and avoids relying on a
-planned module host.
+```kotlin
+class PlayerToolsModule : KSLStandardLibraryModule {
+    override val descriptor = KSLModuleDescriptor(
+        id = "example.player-tools",
+        version = "1.0.0",
+        description = "Player helper functions",
+        dependencies = setOf("example.text-tools"),
+        defaultImports = listOf("com.example.player.*")
+    )
+
+    override fun install(api: KSLAPI) {
+        api.registerService("player-tools.service", PlayerToolsService())
+    }
+
+    override fun uninstall(api: KSLAPI) {
+        api.unregisterService("player-tools.service")
+    }
+}
+```
+
+Register it from the owning addon's `onLoad`:
+
+```kotlin
+class ServerToolsAddon : JavaPlugin(), KSLAddon {
+    override val addonId = "server-tools"
+    override val addonVersion = "1.0.0"
+    private val playerTools = PlayerToolsModule()
+
+    override fun onEnable() {
+        if (!KSL.isAvailable) {
+            server.pluginManager.disablePlugin(this)
+            return
+        }
+        KSL.api.registerAddon(this)
+    }
+
+    override fun onLoad(api: KSLAPI) {
+        api.registerStandardLibraryModule(playerTools)
+    }
+
+    override fun onUnload() = Unit
+
+    override fun onDisable() {
+        if (KSL.isAvailable) KSL.api.unregisterAddon(addonId)
+    }
+}
+```
+
+KSL validates module IDs, missing dependencies, cycles and required API versions.
+It installs modules in dependency-first order. Imports from
+`descriptor.defaultImports` are registered automatically. Modules registered
+during an addon's `onLoad` are owned by that addon: unloading the addon calls
+`uninstall` in reverse order and releases module-owned services, imports,
+hooks and other KSL registrations.
+
+You can also call `api.unregisterStandardLibraryModule("example.player-tools")`
+to unload one module. KSL refuses to remove a module while another installed
+module depends on it. Keep `uninstall` symmetrical with `install`; KSL also
+cleans up KSL registrations made during the module's install callback.
+
+`KSLModulePlanner.resolve(...)` is the side-effect-free planning function used
+by the runtime before installation. It can also be used by tooling to validate
+a proposed module set without changing server state.
+
+## MesLib2 or addon module?
+
+- **Addon standard-library module:** compiled `.kt` code in a Paper addon JAR;
+  suitable for reusable extension functions, services and packages.
+- **MesLib2 script library:** an object exported by one `.kts` script and
+  consumed by other scripts on the same server; suitable for server-specific
+  logic and quick iteration.
 
 ## Lifecycle and classpath
 
