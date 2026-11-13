@@ -50,6 +50,33 @@ class KSLRuntimeUtilitiesTest {
     }
 
     @Test
+    fun `membership checks do not refresh LRU recency`() {
+        val cache = KSLRT.lru<String, Int>(2)
+        cache.put("oldest", 1)
+        cache.put("newest", 2)
+
+        assertTrue(cache.has("oldest"))
+        cache.put("third", 3)
+
+        assertFalse(cache.has("oldest"))
+        assertTrue(cache.has("newest"))
+        assertTrue(cache.has("third"))
+    }
+
+    @Test
+    fun `named runtime measurements remain available through the profiler registry`() {
+        val name = "test.runtime.measure.registry"
+        KSLRT.removeProfiler(name)
+
+        assertEquals("measured", KSLRT.measure(name) { "measured" })
+        val profiler = KSLRT.profiler(name)
+        assertEquals(1L, profiler.snapshot().calls)
+        assertTrue(name in KSLRT.profilerNames())
+        assertTrue(KSLRT.removeProfiler(name))
+        assertFalse(name in KSLRT.profilerNames())
+    }
+
+    @Test
     fun `legacy and short runtime factories point to the same utility types`() {
         assertTrue(rt === KSLRT)
         assertTrue(runtime === KSLRT)
