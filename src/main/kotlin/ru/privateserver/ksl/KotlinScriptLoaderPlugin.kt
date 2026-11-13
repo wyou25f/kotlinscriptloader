@@ -224,6 +224,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     // the background doctor/validate from compiling next to a reload.
     private var compilePermits = java.util.concurrent.Semaphore(1)
     private var compileThreads = 1
+    private var compilePool = KSLCompilePool(1)
 
     fun <T> withCompilePermit(block: () -> T): T {
         compilePermits.acquire()
@@ -237,6 +238,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private fun initCompileThreads() {
         compileThreads = config.getInt("scripts.compile-threads", 1).coerceIn(1, 8)
         compilePermits = java.util.concurrent.Semaphore(compileThreads)
+        compilePool.close()
+        compilePool = KSLCompilePool(compileThreads)
     }
 
     private val legacyColors = Regex("§[0-9A-Fa-fK-Ok-oRrXx]")
@@ -311,6 +314,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         runCatching { watchdogMonitor?.stop() }
         watchdogMonitor = null
         runCatching { scriptWatcher?.stop() }
+        runCatching { compilePool.close() }
         logger.info("$c9$bold■ KotlinScriptLoader останавливается...$r")
         runCatching { unloadAllScripts() }
             .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} Ошибка при выгрузке скриптов: ${it.message}") }
@@ -698,13 +702,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     // Compile phase: no Bukkit API, so it runs on any thread. Several files compile side by side with scripts.compile-threads > 1.
     private fun compileBatch(files: List<File>): Map<String, CompiledUnit> {
         if (compileThreads <= 1 || files.size <= 1) return files.associate { scriptId(it) to scriptRunner.compile(it) }
-        val pool = java.util.concurrent.Executors.newFixedThreadPool(compileThreads) { r -> Thread(r, "KSL-Compile").apply { isDaemon = true } }
-        try {
-            val futures = files.map { file -> pool.submit(java.util.concurrent.Callable { scriptRunner.compile(file) }) }
-            return files.indices.associate { scriptId(files[it]) to futures[it].get() }
-        } finally {
-            pool.shutdown()
-        }
+        val units = compilePool.map(files) { file -> scriptRunner.compile(file) }
+        return files.indices.associate { scriptId(files[it]) to units[it] }
     }
 
     // Swap phase (main thread): the running version is replaced only after the new one compiled,
@@ -723,10 +722,14 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             notifyAdmins("§c✘ §f$id§7: ${unit.errors.firstOrNull() ?: unit.crash?.message ?: "ошибка"} §8[${code.code}] §7(подробнее: /ksl errors)")
             return false
         }
-        unloadScript(id)
-        liveScripts.add(id)
         val startedAt = System.nanoTime()
-        val ok = scriptRunner.evaluate(unit)
+        // Always discard the previous runtime first. If evaluation fails after registering some
+        // resources, run the same cleanup again so no partial listeners/tasks/commands survive.
+        val ok = replaceScriptRuntime(
+            unload = { unloadScript(id) },
+            evaluate = { scriptRunner.evaluate(unit) }
+        )
+        if (ok) liveScripts.add(id)
         val totalMs = unit.compileMillis + (System.nanoTime() - startedAt) / 1_000_000
         loadMillisById[id] = totalMs
         scriptStamps[id] = stampOf(unit.file)
@@ -897,6 +900,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         loadConfigTextPlaceholders()
         clearTableCaches()
         readSecurityConfig()
+        initCompileThreads()
         discord = KSLDiscordHook(this).takeIf { it.channels().isNotEmpty() }
         generateAutocompleteStub()
     }
