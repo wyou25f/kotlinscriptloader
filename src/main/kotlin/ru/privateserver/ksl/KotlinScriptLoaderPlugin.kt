@@ -162,6 +162,33 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     private lateinit var scriptRunner: ScriptRunner
 
+    lateinit var workScheduler: ru.privateserver.ksl.rt.KSLWorkScheduler
+        private set
+
+    private fun initRuntimeWorkers() {
+        val workers = config.getInt("runtime.cpu-threads", (Runtime.getRuntime().availableProcessors() - 1).coerceAtLeast(1)).coerceIn(1, 64)
+        val queueCapacity = config.getInt("runtime.queue-capacity", 256).coerceIn(1, 100_000)
+        val perScriptLimit = config.getInt("runtime.max-tasks-per-script", 64).coerceIn(1, 10_000)
+        if (::workScheduler.isInitialized) workScheduler.resize(workers)
+        else workScheduler = ru.privateserver.ksl.rt.KSLWorkScheduler(workers, queueCapacity, perScriptLimit)
+    }
+
+    fun submitWorker(scriptId: String, priority: ru.privateserver.ksl.rt.KSLWorkPriority, block: () -> Unit): Long =
+        workScheduler.submit(scriptId, priority, block)
+
+    fun cancelWorker(taskId: Long): Boolean = workScheduler.cancel(taskId)
+
+    fun resizeWorkers(workers: Int): Int {
+        require(workers in 1..64) { "Количество потоков должно быть от 1 до 64." }
+        workScheduler.resize(workers)
+        config.set("runtime.cpu-threads", workers)
+        saveConfig()
+        return workers
+    }
+
+    fun runtimeSnapshot(): ru.privateserver.ksl.rt.KSLRuntimeSnapshot =
+        ru.privateserver.ksl.rt.KSLRuntimeMonitor.snapshot()
+
     private val scriptDiagnostics = KSLScriptDiagnostics()
 
     fun <T> measureScriptExecution(scriptId: String, operation: String, block: () -> T): T =
@@ -301,6 +328,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
         addonManager   = KSLAddonManager(this)
         readSecurityConfig()
+        initRuntimeWorkers()
         initCompileThreads()
         scriptRunner   = ScriptRunner(this)
 
@@ -357,6 +385,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         logger.info("$c9$bold■ KotlinScriptLoader останавливается...$r")
         runCatching { unloadAllScripts() }
             .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} Ошибка при выгрузке скриптов: ${it.message}") }
+        runCatching { if (::workScheduler.isInitialized) workScheduler.close() }
+            .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} Не удалось остановить worker scheduler: ${it.message}") }
         runCatching { addonManager.shutdown() }
             .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} Ошибка при выгрузке аддонов: ${it.message}") }
         runCatching { papiUnregister?.invoke() }
@@ -544,6 +574,10 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 appendLine()
                 appendLine("fun runAsync(block: () -> Unit): Int = 0")
                 appendLine("fun runSync(block: () -> Unit): Int = 0")
+                appendLine("fun worker(priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL, block: () -> Unit): Long = 0L")
+                appendLine("fun cpu(block: () -> Unit): Long = 0L")
+                appendLine("fun work(block: () -> Unit): Long = 0L")
+                appendLine("fun cancelWorker(taskId: Long): Boolean = false")
                 appendLine("fun cancelTask(taskId: Int) = Unit")
                 appendLine("fun delay(ticks: Long, block: () -> Unit): Int = 0")
                 appendLine("fun every(ticks: Long, initialDelay: Long = 0L, block: () -> Unit): Int = 0")
@@ -884,6 +918,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     }
 
     private fun unloadScript(scriptName: String) {
+        if (::workScheduler.isInitialized) runCatching { workScheduler.cancelOwner(scriptName) }
         scriptStamps.remove(scriptName)
         limitWarned.remove("$scriptName|L")
         limitWarned.remove("$scriptName|T")
@@ -956,6 +991,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         loadConfigTextPlaceholders()
         clearTableCaches()
         readSecurityConfig()
+        initRuntimeWorkers()
         initCompileThreads()
         discord = KSLDiscordHook(this).takeIf { it.channels().isNotEmpty() }
         generateAutocompleteStub()
