@@ -1,12 +1,20 @@
-# KSL Standard Library — architecture foundation
+# KSL Standard Library — architecture and built-in utilities
 
-**Status:** contracts and planning utilities only. No Standard Library feature modules are implemented in this phase.
+**Status:** a small set of pure Kotlin utilities is shipped. Bukkit-specific convenience modules and the module host are future work.
 
-## Goals
+## Built-in packages
 
-The future Standard Library should be distributed as independently versioned modules rather than growing the KSL core. Each module should declare its identity, version, required KSL API level, dependencies and any default imports it contributes.
+These packages are included in the default imports for KSL scripts:
 
-## Public module contract
+- `ru.privateserver.ksl.std.text.*`: Unicode-safe truncation, legacy color stripping, UUID parsing and whitespace tokenization.
+- `ru.privateserver.ksl.std.math.*`: checked clamping, range mapping and validated percentage chance.
+- `ru.privateserver.ksl.std.time.*`: explicit seconds/minutes/hours-to-ticks conversion, duration rounding and tick-to-duration conversion.
+
+The existing `ru.privateserver.ksl.dsl.*` package remains available. Its `.sec`, `.mins` and `.hours` extensions now use checked arithmetic and therefore throw on overflow instead of silently wrapping.
+
+## Module contracts
+
+The future Standard Library should be distributed as independently versioned modules rather than growing the KSL core. Each module declares its identity, version, required KSL API level, dependencies and any default imports it contributes.
 
 Implementations use:
 
@@ -14,18 +22,11 @@ Implementations use:
 - `KSLStandardLibraryModule` for install/uninstall lifecycle;
 - `KSLModulePlanner.resolve(...)` to validate a complete module set and obtain a deterministic dependency-first order before changing server state.
 
-The planner rejects duplicate IDs, missing dependencies, dependency cycles and modules requiring a newer KSL API. Uninstall should happen in reverse order. Module implementations should register services, imports, hooks and context extensions through `KSLAPI`, allowing the existing addon ownership cleanup to remain the lifecycle boundary.
+The planner rejects duplicate IDs, missing dependencies, dependency cycles and modules requiring a newer KSL API. Uninstall should happen in reverse order. Module implementations should register resources through `KSLAPI` so addon ownership and unload cleanup remain the lifecycle boundary.
 
-## Naming and imports
+## Planned module families
 
-- Module IDs use lowercase ASCII: `[a-z][a-z0-9._-]*`.
-- Module versions are declared by the module and are independent of the KSL API version.
-- Default imports must be explicit, unique and non-blank.
-- Prefer a single documented package namespace per module; avoid wildcard imports that create collisions between modules.
-
-## Future module families
-
-These are planning categories, not implemented functionality:
+These are planning categories, not shipped functionality:
 
 | Module family | Intended scope |
 | --- | --- |
@@ -38,9 +39,10 @@ These are planning categories, not implemented functionality:
 
 ## Compatibility policy
 
-- Additive API changes may increment the minor compatibility level only when binary/source compatibility is preserved.
-- Removing or changing existing public contracts requires a deliberate breaking API version.
-- A module must declare the minimum API version it needs.
-- Keep module implementations outside the KSL core wherever possible.
+- Additive API changes must preserve existing signatures.
+- Breaking changes require a deliberate API-version change and migration notes.
+- Every module declares the minimum KSL API version it needs.
+- Prefer one documented package namespace per module; avoid wildcard imports that collide.
+- Keep module implementations outside KSL core wherever possible.
 
-The current module API is a foundation for a later loader/registry. It intentionally does not auto-install modules, ship feature implementations, or change the runtime's current addon lifecycle.
+The module API is a foundation for a later loader/registry. It does not auto-install modules or change the runtime addon lifecycle.
