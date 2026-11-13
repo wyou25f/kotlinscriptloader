@@ -38,6 +38,7 @@ dependencies {
 
     implementation("org.jetbrains.kotlin:kotlin-stdlib:$kotlinScriptingVersion")
     implementation("org.jetbrains.kotlin:kotlin-reflect:$kotlinScriptingVersion")
+    implementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:$kotlinScriptingVersion")
 
     implementation("org.jetbrains.kotlin:kotlin-scripting-common:$kotlinScriptingVersion")
     implementation("org.jetbrains.kotlin:kotlin-scripting-jsr223:$kotlinScriptingVersion")

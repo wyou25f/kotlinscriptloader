@@ -283,3 +283,43 @@ class MessageService {
 - [Своя Standard Library](Custom-Standard-Library.md) — проектирование библиотеки расширений.
 - [Публичный API KSL](Public-API.md) — стабильные точки интеграции.
 - [Архитектура Standard Library](Standard-Library-Architecture.md) — встроенные пакеты и соглашения.
+
+
+## Локальные библиотеки сервера: `scripts/libs/`
+
+KSL компилирует все `.kt`-файлы в общей папке `plugins/KotlinScriptLoader/scripts/libs/` как один Kotlin source set. Вложенные каталоги поддерживаются; каждый файл может объявлять собственный `package` и обычные `import`.
+
+Пример структуры:
+
+~~~text
+scripts/
+  libs/
+    text/TextTools.kt
+    player/PlayerTools.kt
+  welcome.kts
+~~~
+
+`TextTools.kt`:
+
+~~~kotlin
+package server.libs.text
+fun String.coloredLabel(): String = "§a$this"
+~~~
+
+`PlayerTools.kt`:
+
+~~~kotlin
+package server.libs.player
+import org.bukkit.entity.Player
+import server.libs.text.coloredLabel
+fun Player.notifyServer(text: String) { sendMessage(text.coloredLabel()) }
+~~~
+
+В `.kts`-скрипте доступны обычные импорты:
+
+~~~kotlin
+import server.libs.player.notifyServer
+player?.notifyServer("Добро пожаловать!")
+~~~
+
+После изменения `.kt`-файлов выполни `/ksl reload`. Исходники компилируются совместно, поэтому могут ссылаться друг на друга. При ошибке компиляции предыдущая успешно собранная версия остаётся активной.

@@ -21,16 +21,18 @@ import kotlin.script.experimental.jvmhost.JvmScriptCompiler
  * Builds the runtime configuration from the same canonical definition IntelliJ
  * discovers. Addon-provided imports remain runtime-only and are appended here.
  */
-fun buildScriptCompilationConfig(addonManager: KSLAddonManager): ScriptCompilationConfiguration =
+fun buildScriptCompilationConfig(addonManager: KSLAddonManager, localLibraries: KSLLocalLibraryManager? = null): ScriptCompilationConfiguration =
     ScriptCompilationConfiguration(KSLScriptCompilationConfiguration) {
         val addonImports = addonManager.getExtraImports()
         if (addonImports.isNotEmpty()) defaultImports(*addonImports.toTypedArray())
         val addonClassLoaders = addonManager.getScriptClassLoaders()
-        if (addonClassLoaders.isNotEmpty()) {
+        val localLibraryLoader = localLibraries?.classLoader
+        if (addonClassLoaders.isNotEmpty() || localLibraryLoader != null) {
             jvm {
                 addonClassLoaders.forEach { classLoader ->
                     dependenciesFromClassloader(classLoader = classLoader, wholeClasspath = true)
                 }
+                localLibraryLoader?.let { dependenciesFromClassloader(classLoader = it, wholeClasspath = true) }
             }
         }
     }
@@ -41,6 +43,7 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
     private val scriptCompiler = JvmScriptCompiler()
     private val evaluator = BasicJvmScriptEvaluator()
     private val pluginClassLoader = plugin::class.java.classLoader
+    private val localLibraries = KSLLocalLibraryManager(plugin)
 
     companion object {
         private const val SLOW_LOAD_THRESHOLD_MS = 2000
@@ -56,7 +59,10 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
                 return CompiledUnit(file, id, null, textIssues, emptyList(), KSLError.SCRIPT_SANDBOX, null, elapsedMs())
             }
 
-            val compilationConfig = buildScriptCompilationConfig(plugin.addonManager)
+            localLibraries.reloadIfChanged()?.let { detail ->
+                if (detail.isNotBlank()) plugin.logger.warning("[libs] $detail")
+            }
+            val compilationConfig = buildScriptCompilationConfig(plugin.addonManager, localLibraries)
             val compile = {
                 plugin.withCompilePermit { runBlocking { scriptCompiler(file.toScriptSource(), compilationConfig) } }
             }
@@ -150,7 +156,7 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
     }
 
     private fun loaderFor(id: String): ClassLoader {
-        val addonAwareLoader = KSLAddonClassLoader(pluginClassLoader, plugin.addonManager.getScriptClassLoaders())
+        val addonAwareLoader = KSLAddonClassLoader(pluginClassLoader, plugin.addonManager.getScriptClassLoaders() + listOfNotNull(localLibraries.classLoader))
         if (!plugin.isSandboxed(id) || !plugin.sandboxStrict) return addonAwareLoader
         return KSLSandboxClassLoader(addonAwareLoader, plugin.sandboxDenyList, id) { denied ->
             plugin.logScriptProblem("[$id] ${KSLError.SANDBOX_CLASS_DENIED.tag} 🚫 Sandbox: скрипт обратился к запрещённому классу $denied")
@@ -166,7 +172,7 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
     fun selfTestCompiler(): Pair<Boolean, String> {
         return try {
             val context = BukkitScriptContext(plugin, "__selftest__")
-            val compilationConfig = buildScriptCompilationConfig(plugin.addonManager)
+            val compilationConfig = buildScriptCompilationConfig(plugin.addonManager, localLibraries)
             val evalConfig = ScriptEvaluationConfiguration {
                 implicitReceivers(context)
                 jvm { baseClassLoader(pluginClassLoader) }
