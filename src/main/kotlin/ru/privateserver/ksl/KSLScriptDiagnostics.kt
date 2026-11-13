@@ -32,7 +32,7 @@ class KSLScriptDiagnostics {
 
     fun <T> measure(scriptId: String, operation: String, block: () -> T): T {
         val metrics = scripts.computeIfAbsent(scriptId) { ConcurrentHashMap() }
-        val key = if (operation in metrics || metrics.size < MAX_OPERATIONS) operation else "other"
+        val key = if (metrics.containsKey(operation) || metrics.size < MAX_OPERATIONS) operation else "other"
         val metric = metrics.computeIfAbsent(key) { Metric() }
         val started = System.nanoTime()
         var failure: Throwable? = null
