@@ -42,6 +42,6 @@ fun World.entitiesInBox(center: Location, x: Double, y: Double = x, z: Double = 
 /** Inclusive axis-aligned region test; locations in another world never match. */
 fun Location.isInside(min: Location, max: Location): Boolean {
     if (world == null || world !== min.world || world !== max.world) return false
-    val bounds = BoundingBox.of(min, max)
+    val bounds = BoundingBox.of(min.toVector(), max.toVector())
     return bounds.contains(x, y, z)
 }

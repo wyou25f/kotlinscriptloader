@@ -87,6 +87,17 @@ val verifyShadowJar by tasks.registering {
             check(jar.getEntry("ru/privateserver/ksl/KotlinScriptLoaderPlugin.class") != null) {
                 "KotlinScriptLoaderPlugin main class is missing from the Shadow JAR"
             }
+            val requiredClasses = listOf(
+                "ru/privateserver/ksl/api/KSLApiProvider.class",
+                "ru/privateserver/ksl/api/KSLPublicApiKt.class",
+                "ru/privateserver/ksl/std/text/TextExtensionsKt.class",
+                "ru/privateserver/ksl/std/math/MathExtensionsKt.class",
+                "ru/privateserver/ksl/std/time/TimeExtensionsKt.class",
+                "ru/privateserver/ksl/std/player/PlayerExtensionsKt.class",
+                "ru/privateserver/ksl/std/world/WorldExtensionsKt.class"
+            )
+            val missing = requiredClasses.filter { jar.getEntry(it) == null }
+            check(missing.isEmpty()) { "Required KSL API/stdlib classes are missing: ${missing.joinToString()}" }
         }
         logger.lifecycle("Verified plugin JAR: ${jarFile.name} (${jarFile.length()} bytes)")
     }
