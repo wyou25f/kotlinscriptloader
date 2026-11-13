@@ -26,6 +26,13 @@ database:
   # cache: true
 
 # Папки со скриптами и перезагрузка.
+# Worker pool KSL для CPU-heavy/background задач из скриптов.
+# Число потоков ограничивает конкуренцию KSL, но не закрепляет их за физическими ядрами.
+runtime:
+  cpu-threads: 2
+  queue-capacity: 256
+  max-tasks-per-script: 64
+
 scripts:
   # Искать скрипты и в подпапках scripts/ (папки и файлы, начинающиеся с "." , и папки с "_" пропускаются).
   # Имя скрипта = путь внутри scripts/ без .kts, например economy/shop.
