@@ -74,6 +74,6 @@ class JsonStandardLibraryTest {
         val parsed = Json.parseToJsonElement(original.toString())
         assertEquals(original, parsed)
         assertTrue(parsed is JsonObject)
-        assertTrue(parsed["list"] is JsonArray)
+        assertTrue((parsed as JsonObject)["list"] is JsonArray)
     }
 }
