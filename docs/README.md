@@ -13,6 +13,7 @@
 | Создание аддона | [Addon Development](Addon-Development-Guide.md) |
 | API для Kotlin/Java аддонов | [Public API](Public-API.md) |
 | Импорты и локальные библиотеки | [Packages and Imports](Packages-and-Imports.md) |
+| MesLib2 и создание своих библиотек | [Custom Standard Library](Custom-Standard-Library.md) |
 | SQLite и SQL | [Database Guide](Database-Guide.md) |
 | Собственный модуль stdlib | [Custom Standard Library](Custom-Standard-Library.md) |
 | Ошибки и диагностика | [Troubleshooting](Troubleshooting.md) |

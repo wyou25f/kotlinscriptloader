@@ -22,13 +22,15 @@ script-info, script-event, shape-factory, script-context and Standard Library
 module contracts. It also exposes:
 
 - `ksl`: non-null API accessor that throws if KSL is not initialized;
-- `kslapi`: explicit alias for the installed non-null API;
+- `kslapi`, `kslApi` and `api`: concise aliases for the installed non-null API;
 - `kslOrNull`: safe nullable accessor for plugin load-order/shutdown edges;
 - `isKslAvailable`: availability flag;
 - `KSL_API_VERSION`: addon compatibility level;
 - `service<T>()`, `requireService<T>()`, `hook<T>()`, `requireHook<T>()`;
 - `hasHook()`, `findAddon()`, `requireAddon()`, `findScript()`,
   `requireScript()` and `isScriptLoaded()`;
+- `KslApi` and `KSLPublicAPI`: alternate type names for `KSLAPI`;
+- `KSLMesLib2` and `MesLib`: alternate type names for the MesLib2 facade;
 - `KSLTopics` and typed `onScriptLoaded()`, `onScriptFailed()`,
   `onScriptUnloaded()` subscriptions;
 - the `KSLModulePlanner` facade.
@@ -111,6 +113,20 @@ inventory state.
 
 KSL exposes `KSLCache` and `KSLProfiler` from
 `ru.privateserver.ksl.rt.*`; the script-friendly factory object is `kslrt`.
-The namespaced script library facade `meslib2` is available through the
-`BukkitScriptContext` receiver. These additions do not change existing
+The namespaced script library facade is available through the
+`BukkitScriptContext` receiver as `meslib2`, `ml2`, `lib2` or `libs`.
+Its typed operations include `publish/provide`, `find/get`, `resolve/require`,
+`contains` and `info`. These additions do not change existing
 `KSLAPI` interface signatures.
+
+
+## Short public API names
+
+For Kotlin callers, all of the following are aliases to the same installed
+`KSLAPI` instance: `ksl`, `kslapi`, `kslApi` and `api`. The type names
+`KSLAPI`, `KslApi` and `KSLPublicAPI` refer to the same interface.
+`addImports(...)` is a short extension alias for `addDefaultImports(...)`,
+and `serviceOrThrow<T>(key)` aliases `requireService<T>(key)`.
+
+These are Kotlin conveniences. Kotlin typealiases are not Java classes; Java
+addons should keep using the real `ru.privateserver.ksl.KSLAPI` interface.

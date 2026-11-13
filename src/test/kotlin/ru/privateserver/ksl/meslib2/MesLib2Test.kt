@@ -22,6 +22,21 @@ class MesLib2Test {
         assertEquals("2.0", api.info("economy", "service")?.version)
         assertEquals("provider", api.info("economy", "service")?.owner)
     }
+    @Test fun shortAliasesAndDefaultNamespaceResolveTheSameEntry() {
+        val api = facade()
+        assertEquals("provider", api.namespace)
+        api.publish("service", "ready", "2.1")
+        assertTrue(api.contains("service", "2.1"))
+        assertEquals("ready", api.find<String>("service", "2.1"))
+        assertEquals("ready", api.resolve<String>("service", "2.1"))
+        assertEquals("provider", api.info("service")?.namespace)
+    }
+    @Test fun aliasesPublishAndResolveExplicitNamespaces() {
+        val api = facade()
+        api.provide("economy", "service", "ready", "2.0")
+        assertTrue(api.contains("economy", "service", "2.0"))
+        assertEquals("ready", api.resolve<String>("economy", "service", "2.0"))
+    }
     @Test fun exportsAreRemovedWithTheirOwningScript() {
         val store = KSLExportStore()
         val api = MesLib2("provider", store::export, store::get, store::ownerOf)

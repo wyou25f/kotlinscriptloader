@@ -12,6 +12,7 @@
 - [Разработка аддонов](docs/Addon-Development-Guide.md)
 - [Базы данных](docs/Database-Guide.md)
 - [Импорты и библиотеки](docs/Packages-and-Imports.md)
+- [Создание собственных библиотек и MesLib2](docs/Custom-Standard-Library.md)
 - [Диагностика](docs/Troubleshooting.md)
 - **[Работа с ИИ: как передать нейросети контекст KSL](docs/AI-ASSISTANT-GUIDE.md)**
 

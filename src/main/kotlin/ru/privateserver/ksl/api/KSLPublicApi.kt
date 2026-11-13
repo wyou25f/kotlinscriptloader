@@ -26,6 +26,10 @@ import ru.privateserver.ksl.rt.KSLProfiler as CoreKSLProfiler
  * `import ru.privateserver.ksl.api.*`
  */
 typealias KSLAPI = CoreKSLAPI
+/** Short Kotlin-friendly name for the public addon API. */
+typealias KslApi = CoreKSLAPI
+/** Explicit name for integrations that prefer the public-contract terminology. */
+typealias KSLPublicAPI = CoreKSLAPI
 typealias KSLAddon = CoreKSLAddon
 typealias KSLContextExtension = CoreKSLContextExtension
 typealias KSLHook = CoreKSLHook
@@ -36,6 +40,9 @@ typealias KSLScriptEvent = CoreKSLScriptEvent
 typealias KSLModuleDescriptor = CoreKSLModuleDescriptor
 typealias KSLStandardLibraryModule = CoreKSLStandardLibraryModule
 typealias MesLib2 = CoreMesLib2
+/** Short aliases for the script-library facade. */
+typealias KSLMesLib2 = CoreMesLib2
+typealias MesLib = CoreMesLib2
 typealias MesLib2Info = CoreMesLib2Info
 typealias KSLCache<K, V> = CoreKSLCache<K, V>
 typealias KSLProfiler = CoreKSLProfiler
@@ -62,6 +69,13 @@ const val KSL_API_VERSION: Int = CoreKSL.API_VERSION
 
 /** The installed KSL API. Throws a descriptive error if KSL is not initialized yet. */
 val ksl: KSLAPI
+    get() = CoreKSL.api
+
+/** Additional concise aliases for the installed public API. */
+val kslApi: KSLAPI
+    get() = CoreKSL.api
+
+val api: KSLAPI
     get() = CoreKSL.api
 
 /** Explicitly named alias for the installed public API. */

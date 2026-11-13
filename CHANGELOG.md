@@ -1,5 +1,12 @@
 # Unreleased
 
+## 📚 MesLib2 и короткие API-имена
+
+- MesLib2 получил короткие операции `publish/provide`, `find/resolve`, `contains` и `info`, включая overloads для namespace текущего скрипта.
+- Добавлены алиасы контекста `ml2`, `lib2`, `libs`; `meslib2` сохранён.
+- Public API получил алиасы `api`, `kslApi`, типы `KslApi` / `KSLPublicAPI`, а также `addImports` и `serviceOrThrow`.
+- Исправлена документация модулей: `KSLModulePlanner` только валидирует и сортирует; автоматического module loader в текущем runtime нет. Добавлены актуальные инструкции по addon-библиотекам и MesLib2.
+
 ## 🧩 MesLib2 и runtime-инструменты
 
 - Добавлен `meslib2` для межскриптовых экспортов с namespace, проверкой типа и точным совпадением метки версии; экспорты очищаются вместе с владельцем при unload.

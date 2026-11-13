@@ -75,40 +75,77 @@ val label = "Maintenance".asServerTag()
 
 No explicit `import` is needed for `com.example.serverstd.*`.
 
-## Contributing a module through the public API
+## Module metadata: planner, not automatic loader
 
-An addon can publish a versioned standard-library module:
+KSL exposes `KSLStandardLibraryModule`, `KSLModuleDescriptor` and
+`KSLModulePlanner.resolve(...)` as a declarative module contract. The planner
+checks duplicate IDs, missing dependencies, dependency cycles and required API
+versions, then returns a deterministic dependency-first order.
 
-~~~kotlin
-class PlayerToolsModule : KSLStandardLibraryModule {
-    override val descriptor = KSLModuleDescriptor(
-        id = "example.player-tools",
-        version = "1.0.0",
-        description = "Player helper functions",
-        defaultImports = listOf("com.example.player.*")
-    )
-
-    override fun install(api: KSLAPI) {
-        // Register services, hooks, context extensions and other KSL contributions.
-    }
-
-    override fun uninstall(api: KSLAPI) {
-        // Release resources owned outside KSL's automatic registries, if any.
-    }
-}
-
-override fun onLoad(api: KSLAPI) {
-    api.registerStandardLibraryModule(PlayerToolsModule())
-}
-~~~
-
-Modules declare dependencies by ID. KSL validates missing dependencies, API compatibility and cycles, then installs modules in dependency-first order. Explicit removal is refused while another installed module depends on it. Modules registered during an addon's onLoad are automatically uninstalled when that addon unloads.
+**The current KSL runtime does not automatically discover, install or uninstall
+these modules.** There is no `api.registerStandardLibraryModule(...)` method in
+the current `KSLAPI`. For a working custom standard library today, implement
+the addon lifecycle shown above and register packages/services in
+`onLoad(api)`. This keeps lifecycle ownership explicit and avoids relying on a
+planned module host.
 
 ## Lifecycle and classpath
 
 KSL adds registered addon classloaders to the script compilation classpath and to the classloader used during script evaluation. KSL's own API and Bukkit classes remain parent-first, so an addon cannot replace those shared types.
 
 When an addon unloads, KSL removes the default imports and stops exposing that addon's classloader to newly compiled scripts. Scripts that already referenced addon classes should be unloaded or reloaded before the addon JAR is disabled.
+
+## Sharing a library between .kts scripts with MesLib2
+
+Use MesLib2 when the library is implemented by one KSL script and another
+script needs to consume its object. The exporter owns the value: unloading or
+reloading the exporter removes its exports. Consumers should declare
+`// @requires: exporter-script-name` so KSL loads the provider first.
+
+Provider script, for example `economy.kts`:
+
+```kotlin
+class EconomyLibrary {
+    fun balance(playerId: String): Long = 0L
+}
+
+meslib2.publish("economy", "service", EconomyLibrary(), version = "1.0.0")
+```
+
+Consumer script, for example `shop.kts`:
+
+```kotlin
+// @requires: economy
+
+val economy = meslib2.resolve<EconomyLibrary>("economy", "service", "1.0.0")
+val balance = economy.balance(player.uniqueId.toString())
+```
+
+The shorter overloads use the current script's normalized id as the default
+namespace:
+
+```kotlin
+// In economy.kts
+ml2.provide("service", EconomyLibrary())
+
+// In another script, explicitly address the provider namespace
+val economy = libs.require<EconomyLibrary>("economy", "service")
+```
+
+Available facade names in scripts are `meslib2`, `ml2`, `lib2` and `libs`.
+MesLib2 operations include `export/publish/provide`, `get/find`,
+`require/resolve`, `contains` and `info`. Versions are opaque labels matched
+exactly; they are not SemVer ranges and MesLib2 does not download external
+artifacts or compile loose source files.
+
+Choose the right delivery model:
+
+- **Addon standard library:** reusable compiled `.kt` classes, extension
+  functions and services packaged in a Paper addon JAR. Best for code shared
+  across many scripts and servers.
+- **MesLib2 script library:** a service/object exported by one `.kts` script
+  and consumed by other scripts on the same server. Best for server-specific
+  script modules and rapid iteration.
 
 ## Recommendations
 

@@ -687,6 +687,11 @@ open class BukkitScriptContext(
         )
     }
 
+    /** Short aliases for the MesLib2 script-library facade. */
+    val ml2: ru.privateserver.ksl.meslib2.MesLib2 get() = meslib2
+    val lib2: ru.privateserver.ksl.meslib2.MesLib2 get() = meslib2
+    val libs: ru.privateserver.ksl.meslib2.MesLib2 get() = meslib2
+
     inline fun <reified T : Any> library(key: String): T? = plugin.libraryRegistry.get(key) as? T
 
     inline fun <reified T : Any> requireLibrary(key: String): T =

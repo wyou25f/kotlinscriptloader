@@ -87,16 +87,20 @@ owner-aware хранилище экспортов KSL, добавляя namespac
 
 ```kotlin
 // economy.kts
-meslib2.export("economy", "service", EconomyService(), version = "2.0")
+meslib2.publish("economy", "service", EconomyService(), version = "2.0")
 
+// shop.kts
 // @requires: economy
-val economy = meslib2.require<EconomyService>("economy", "service", "2.0")
+val economy = ml2.resolve<EconomyService>("economy", "service", "2.0")
 ```
 
 Идентификаторы namespace/name должны соответствовать `[a-z][a-z0-9._-]*`.
 Версия — непрозрачная метка с точным сравнением; KSL пока не интерпретирует
-SemVer и не загружает библиотеки автоматически. Старые `export()`,
-`library<T>()` и `requireLibrary<T>()` остаются совместимыми.
+SemVer и не загружает внешние артефакты автоматически. Короткие overloads
+`publish(name, value)` и `require<T>(name)` используют namespace текущего
+скрипта. Алиасы фасада: `meslib2`, `ml2`, `lib2`, `libs`; методы-алиасы:
+`publish/provide`, `find/resolve`. Старые `export()`, `library<T>()` и
+`requireLibrary<T>()` остаются совместимыми.
 
 ## kslrt — runtime-инструменты
 
@@ -105,7 +109,7 @@ SemVer и не загружает библиотеки автоматическ�
 - `KSLCache<K, V>` — потокобезопасный LRU-кэш с лимитом размера и optional TTL;
 - `KSLProfiler` — агрегирует количество вызовов, ошибки, общее и максимальное время;
 - `kslrt.cache<K, V>(maxSize, expireAfter)` и `kslrt.profiler(name)` — фабрики;
-- `kslapi` — явный алиас для установленного `KSLAPI` (старый `ksl` сохранён).
+- `ksl`, `kslapi`, `kslApi` и `api` — алиасы установленного `KSLAPI` (старые имена сохранены).
 
 ```kotlin
 val playerCache = kslrt.cache<String, PlayerData>(maxSize = 2_000)
