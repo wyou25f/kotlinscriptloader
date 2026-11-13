@@ -93,3 +93,59 @@ if (auth != null) {
 ```
 
 TAB changes made through its API are temporary and may be reset when TAB reloads or a player reconnects. Use TAB commands/configuration for persistent formatting. AuthMe integration is intentionally read-only: KSL exposes authentication and registration status but does not collect, store, or manipulate passwords.
+
+
+## Optional Skript integration
+
+KSL provides a built-in, optional bridge to Skript. It uses Skript's public API through Skript's own classloader, so Skript is not a hard dependency and KSL still starts without it.
+
+### Access and diagnostics
+
+\`\`\`kotlin
+val skript = ksl.skriptOrNull()
+
+if (skript?.isAvailable == true) {
+    println("Skript version: \${skript.version}")
+    val status = skript.diagnostics()
+    println("Skript API ready: \${status.isReady}")
+}
+\`\`\`
+
+### Execute Skript commands
+
+Only commands registered by Skript are accepted by executeCommand. Calls must run on the server thread; use executeCommandAsync when the caller may be asynchronous.
+
+\`\`\`kotlin
+skript?.executePlayerCommand(player, "warp home")
+skript?.executeConsoleCommand("broadcast Server maintenance soon")
+skript?.executeCommandAsync(player, "heal")
+\`\`\`
+
+### Read and write Skript variables
+
+Variable names can be passed with or without curly braces. List variables are exposed as defensive map snapshots.
+
+\`\`\`kotlin
+val coins = skript?.getVariable("profile::coins")
+skript?.setVariable("profile::coins", 250)
+val inventoryData = skript?.getVariableMap("profile::items")
+skript?.deleteVariable("profile::temporary")
+\`\`\`
+
+Only global Skript variables are exposed. Values must be supported by Skript's variable serializer. Variable operations are server-thread confined.
+
+### Inspect and reload scripts
+
+\`\`\`kotlin
+val loaded = skript?.loadedScripts().orEmpty()
+val isLoaded = skript?.isScriptLoaded("events/join.sk") == true
+skript?.requestReloadScript("events/join.sk")
+skript?.requestReloadAll()
+\`\`\`
+
+Reload methods report whether Bukkit dispatched the Skript command; they do not guarantee that every line in the target script parsed successfully. Script paths are normalized and traversal paths are rejected.
+
+### Short aliases
+
+The public KSLAPI also exposes \`skriptOrNull()\`, \`requireSkript()\`, \`isSkriptEnabled()\`, \`skriptCommand()\`, \`skriptVariable()\`, \`setSkriptVariable()\`, \`deleteSkriptVariable()\`, \`skriptVariables()\`, \`skriptScripts()\`, \`isSkriptScriptLoaded()\`, \`reloadSkriptScript()\`, and \`reloadAllSkript()\`.
+

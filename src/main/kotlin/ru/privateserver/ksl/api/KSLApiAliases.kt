@@ -65,3 +65,44 @@ fun KSLAPI.reloadEverything(): Pair<Int, Int> = reloadScripts()
 fun KSLAPI.sendEvent(topic: String, payload: Any? = null): Int = publish(topic, payload)
 fun KSLAPI.listenTo(topic: String, handler: (Any?) -> Unit): AutoCloseable = subscribe(topic, handler)
 fun KSLAPI.hasPlugin(pluginName: String): Boolean = isPluginEnabled(pluginName)
+
+/** Convenience access to the optional built-in Skript integration. */
+fun KSLAPI.skriptOrNull(): KSLSkriptHook? =
+    hookOrNull("skript")
+
+/** Required Skript hook lookup with a descriptive error if Skript is unavailable. */
+fun KSLAPI.requireSkript(): KSLSkriptHook =
+    hookOrFail("skript")
+
+fun KSLAPI.isSkriptEnabled(): Boolean =
+    skriptOrNull()?.isAvailable == true
+
+fun KSLAPI.skriptCommand(sender: org.bukkit.command.CommandSender, command: String): Boolean =
+    skriptOrNull()?.executeCommand(sender, command) == true
+
+fun KSLAPI.skriptCommand(command: String): Boolean =
+    skriptOrNull()?.executeConsoleCommand(command) == true
+
+fun KSLAPI.skriptVariable(name: String): Any? =
+    skriptOrNull()?.getVariable(name)
+
+fun KSLAPI.setSkriptVariable(name: String, value: Any?): Boolean =
+    skriptOrNull()?.setVariable(name, value) == true
+
+fun KSLAPI.deleteSkriptVariable(name: String): Boolean =
+    skriptOrNull()?.deleteVariable(name) == true
+
+fun KSLAPI.skriptVariables(name: String): Map<String, Any?>? =
+    skriptOrNull()?.getVariableMap(name)
+
+fun KSLAPI.skriptScripts(): Set<String> =
+    skriptOrNull()?.loadedScripts().orEmpty()
+
+fun KSLAPI.isSkriptScriptLoaded(path: String): Boolean =
+    skriptOrNull()?.isScriptLoaded(path) == true
+
+fun KSLAPI.reloadSkriptScript(path: String): Boolean =
+    skriptOrNull()?.requestReloadScript(path) == true
+
+fun KSLAPI.reloadAllSkript(): Boolean =
+    skriptOrNull()?.requestReloadAll() == true

@@ -64,5 +64,16 @@ class KSLApiAliasesTest {
         assertEquals(2, api.sendEvent("custom.topic"))
         api.listenTo("custom.topic") { }
         assertTrue(api.hasPlugin("Paper"))
+        assertNull(api.skriptOrNull())
+        assertThrows(IllegalStateException::class.java) { api.requireSkript() }
+        assertFalse(api.isSkriptEnabled())
+        assertFalse(api.skriptCommand("warp spawn"))
+        assertNull(api.skriptVariable("profile::coins"))
+        assertFalse(api.setSkriptVariable("profile::coins", 10))
+        assertFalse(api.deleteSkriptVariable("profile::coins"))
+        assertTrue(api.skriptScripts().isEmpty())
+        assertFalse(api.isSkriptScriptLoaded("events/join"))
+        assertFalse(api.reloadSkriptScript("events/join"))
+        assertFalse(api.reloadAllSkript())
     }
 }
