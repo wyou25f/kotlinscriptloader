@@ -60,6 +60,7 @@ val KSL_SCRIPT_DEFAULT_IMPORTS: List<String> = listOf(
     "ru.privateserver.ksl.std.math.*",
     "ru.privateserver.ksl.std.time.*",
     "ru.privateserver.ksl.std.player.*",
+    "ru.privateserver.ksl.std.inventory.*",
     "ru.privateserver.ksl.std.world.*",
     "java.util.UUID",
     "java.time.*",

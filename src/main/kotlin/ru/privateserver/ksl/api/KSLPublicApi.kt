@@ -32,6 +32,13 @@ typealias KSLScriptEvent = CoreKSLScriptEvent
 typealias KSLModuleDescriptor = CoreKSLModuleDescriptor
 typealias KSLStandardLibraryModule = CoreKSLStandardLibraryModule
 
+/** Stable event-bus topic names published by KSL. */
+object KSLTopics {
+    const val SCRIPT_LOADED: String = "ksl.script.loaded"
+    const val SCRIPT_FAILED: String = "ksl.script.failed"
+    const val SCRIPT_UNLOADED: String = "ksl.script.unloaded"
+}
+
 /** Public facade for dependency planning without importing the internal subpackage. */
 object KSLModulePlanner {
     @JvmStatic
@@ -95,7 +102,39 @@ inline fun <reified T : KSLHook> KSLAPI.requireHook(hookId: String): T =
 /** Checks whether a hook is currently registered without requiring its implementation type. */
 fun KSLAPI.hasHook(hookId: String): Boolean = getHook(hookId) != null
 
-/** Returns a loaded addon by id, or fails with an actionable message. */
-fun KSLAPI.requireAddon(addonId: String): KSLAddon =
+/** Finds a loaded addon by id, ignoring case. */
+fun KSLAPI.findAddon(addonId: String): KSLAddon? =
     registeredAddons().firstOrNull { it.addonId.equals(addonId, ignoreCase = true) }
-        ?: error("KSL addon '$addonId' is not loaded")
+
+/** Returns a loaded addon or fails with an actionable message. */
+fun KSLAPI.requireAddon(addonId: String): KSLAddon =
+    findAddon(addonId) ?: error("KSL addon '$addonId' is not loaded")
+
+/** Finds a known script by id, ignoring case. Unloaded scripts are included. */
+fun KSLAPI.findScript(scriptId: String): KSLScriptInfo? =
+    scripts().firstOrNull { it.id.equals(scriptId, ignoreCase = true) }
+
+/** Returns script metadata or fails with an actionable message. */
+fun KSLAPI.requireScript(scriptId: String): KSLScriptInfo =
+    findScript(scriptId) ?: error("KSL script '$scriptId' is not known to KSL")
+
+/** Checks whether a known script is currently loaded. */
+fun KSLAPI.isScriptLoaded(scriptId: String): Boolean = findScript(scriptId)?.loaded == true
+
+/**
+ * Subscribes to a typed script lifecycle event.
+ *
+ * Handlers run synchronously on the thread that publishes the event. Keep Bukkit
+ * world/entity/inventory access on the server thread. The returned subscription
+ * should be closed when the integration no longer needs it.
+ */
+fun KSLAPI.onScriptLoaded(handler: (KSLScriptEvent) -> Unit): AutoCloseable =
+    subscribe(KSLTopics.SCRIPT_LOADED) { (it as? KSLScriptEvent)?.let(handler) }
+
+/** See [onScriptLoaded] for threading and subscription-lifecycle notes. */
+fun KSLAPI.onScriptFailed(handler: (KSLScriptEvent) -> Unit): AutoCloseable =
+    subscribe(KSLTopics.SCRIPT_FAILED) { (it as? KSLScriptEvent)?.let(handler) }
+
+/** See [onScriptLoaded] for threading and subscription-lifecycle notes. */
+fun KSLAPI.onScriptUnloaded(handler: (KSLScriptEvent) -> Unit): AutoCloseable =
+    subscribe(KSLTopics.SCRIPT_UNLOADED) { (it as? KSLScriptEvent)?.let(handler) }

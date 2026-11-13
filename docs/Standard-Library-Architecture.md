@@ -1,6 +1,6 @@
 # KSL Standard Library — architecture and built-in utilities
 
-**Status:** built-in text, math, time, player and world packages are shipped. Custom standard-library code can be provided by KSL addons; the module planner is currently a validation/planning API, not an automatic module loader.
+**Status:** built-in text, math, time, player, inventory and world packages are shipped. Custom standard-library code can be provided by KSL addons; the module planner is currently a validation/planning API, not an automatic module loader.
 
 ## Built-in packages
 
@@ -9,8 +9,11 @@ These packages are included in the default imports for KSL scripts:
 - `ru.privateserver.ksl.std.text.*`: Unicode-safe truncation, legacy color stripping, UUID parsing and whitespace tokenization.
 - `ru.privateserver.ksl.std.math.*`: checked clamping, range mapping and validated percentage chance.
 - `ru.privateserver.ksl.std.time.*`: explicit seconds/minutes/hours-to-ticks conversion, duration rounding and tick-to-duration conversion.
-- `ru.privateserver.ksl.std.player.*`: player messaging, permissions and inventory helpers.
+- `ru.privateserver.ksl.std.player.*`: player messaging, permissions and player-inventory helpers.
+- `ru.privateserver.ksl.std.inventory.*`: first matching slot lookup, similar-item counting and bounded item removal for any Bukkit inventory.
 - `ru.privateserver.ksl.std.world.*`: block, location and entity-query helpers.
+
+The inventory helpers compare item similarity without relying on stack amount. They inspect all slots in the target inventory, do not mutate the supplied comparison item, and must be called on the server thread.
 
 The existing `ru.privateserver.ksl.dsl.*` package remains available. Its `.sec`, `.mins` and `.hours` extensions use checked arithmetic and throw on overflow instead of silently wrapping.
 

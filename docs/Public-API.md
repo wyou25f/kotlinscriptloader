@@ -13,6 +13,7 @@ if (api != null) {
     val apiLevel = KSL_API_VERSION
     val economy = api.service<EconomyService>("economy")
     val luckPerms = api.hook<SomeLuckPermsHook>("luckperms")
+    val isLoaded = api.isScriptLoaded("welcome")
 }
 ```
 
@@ -25,7 +26,17 @@ module contracts. It also exposes:
 - `isKslAvailable`: availability flag;
 - `KSL_API_VERSION`: addon compatibility level;
 - `service<T>()`, `requireService<T>()`, `hook<T>()`, `requireHook<T>()`;
-- `hasHook()`, `requireAddon()`, and the `KSLModulePlanner` facade.
+- `hasHook()`, `findAddon()`, `requireAddon()`, `findScript()`,
+  `requireScript()` and `isScriptLoaded()`;
+- `KSLTopics` and typed `onScriptLoaded()`, `onScriptFailed()`,
+  `onScriptUnloaded()` subscriptions;
+- the `KSLModulePlanner` facade.
+
+Script lifecycle subscriptions use KSL's event bus. Handlers execute
+synchronously on the publisher's thread; move Bukkit world/entity/inventory
+work to the server thread when necessary. Close the returned `AutoCloseable`
+when a manually managed subscription is no longer needed. Subscriptions made
+inside an addon's `onLoad` are automatically removed when that addon unloads.
 
 ### IntelliJ completion
 

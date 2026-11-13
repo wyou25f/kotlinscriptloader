@@ -94,6 +94,7 @@ val verifyShadowJar by tasks.registering {
                 "ru/privateserver/ksl/std/math/MathExtensionsKt.class",
                 "ru/privateserver/ksl/std/time/TimeExtensionsKt.class",
                 "ru/privateserver/ksl/std/player/PlayerExtensionsKt.class",
+                "ru/privateserver/ksl/std/inventory/InventoryExtensionsKt.class",
                 "ru/privateserver/ksl/std/world/WorldExtensionsKt.class"
             )
             val missing = requiredClasses.filter { jar.getEntry(it) == null }
