@@ -19,7 +19,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     private val loadOrder = CopyOnWriteArrayList<String>()
     private val services = ConcurrentHashMap<String, Any>()
     private val serviceOwner = ConcurrentHashMap<String, String>()
-    private val contextExtensions = KSLOwnedRegistry<KSLContextExtension>()()
+    private val contextExtensions = KSLOwnedRegistry<KSLContextExtension>()
     private val extraImports = CopyOnWriteArrayList<String>()
     private val importOwners = ConcurrentHashMap<String, MutableSet<String>>()
     private val readyCallbacks = ConcurrentHashMap<String, CopyOnWriteArrayList<ReadyHook>>()
@@ -137,7 +137,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
             effectShapes.releaseOwner(owner) + entityAttributes.releaseOwner(owner) +
             plugin.placeholders.releaseOwner(owner) + plugin.textPlaceholders.releaseOwner(owner)
 
-        return ownedServices.size + ownedExtensions.size + releasedImports.size + releasedRegistryEntries
+        return ownedServices.size + ownedExtensions + releasedImports.size + releasedRegistryEntries
     }
 
     override fun registerService(key: String, instance: Any) {
@@ -297,7 +297,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     fun getServiceKeys(): Set<String> = services.keys.toSet()
 
     fun notifyContextCreated(context: BukkitScriptContext) {
-        contextExtensions.values.forEach { ext ->
+        contextExtensions.values().forEach { ext ->
             runCatching { ext.onContextCreated(context) }
                 .onFailure { plugin.logger.warning("§9[KSL] ${KSLError.ADDON_CALLBACK_FAILED.tag} ${ext.extensionId}.onContextCreated: ${it.message}") }
         }
@@ -305,7 +305,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
 
     fun notifyContextDestroyed(scriptName: String) {
         eventBus.clearOwner("script:$scriptName")
-        contextExtensions.values.forEach { ext ->
+        contextExtensions.values().forEach { ext ->
             runCatching { ext.onContextDestroyed(scriptName) }
                 .onFailure { plugin.logger.warning("§9[KSL] ${KSLError.ADDON_CALLBACK_FAILED.tag} ${ext.extensionId}.onContextDestroyed: ${it.message}") }
         }

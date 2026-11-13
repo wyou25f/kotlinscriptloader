@@ -1,4 +1,5 @@
 name: Build
+run-name: "KSL build #${{ github.run_number }} · ${{ github.sha }}"
 
 on:
   push:
@@ -25,16 +26,17 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
       - name: Build and run tests
         run: bash ./gradlew --no-daemon clean build
+      - name: Verify IntelliJ IDEA companion setup
+        run: bash ./gradlew --no-daemon -p ide -PkslJar=../build/libs/KotlinScriptLoader-1.2.0.jar verifyKslIdeSetup
       - name: Generate JAR checksum
         run: |
           JAR=$(find build/libs -maxdepth 1 -name '*.jar' -print -quit)
           test -n "$JAR"
           sha256sum "$JAR" | tee build/libs/SHA256SUMS
-
       - name: Upload plugin JAR
         uses: actions/upload-artifact@v4
         with:
-          name: KotlinScriptLoader-${{ github.sha }}
+          name: KSL-build-${{ github.run_number }}-${{ github.sha }}
           path: build/libs/*.jar
           if-no-files-found: error
           retention-days: 14
