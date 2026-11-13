@@ -84,6 +84,67 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                 }
             }
 
+            "debug" -> {
+                val target = args.getOrNull(1)?.removeSuffix(".kts")
+                if (target.isNullOrBlank()) {
+                    sender.sendMessage("§eИспользование: /ksl debug <скрипт>")
+                } else {
+                    val info = plugin.scriptInfos().firstOrNull { it.id.equals(target, ignoreCase = true) }
+                    if (info == null) {
+                        sender.sendMessage("§cСкрипт '$target' не найден.")
+                    } else {
+                        val resources = plugin.resourceSnapshot(info.id)
+                        sender.sendMessage("§9§lKSL Debug §7— §f${info.id}")
+                        sender.sendMessage("§7Состояние: ${if (info.loaded) "§aзагружен" else "§cне загружен"} §8| §7загрузка: ${if (info.loadMillis >= 0) "${info.loadMillis}мс" else "—"} §8| §7ошибки: ${info.errors}")
+                        sender.sendMessage("§7Ресурсы: listeners=${resources.listeners}, tasks=${resources.tasks}, commands=${resources.commands}, placeholders=${resources.placeholders + resources.textPlaceholders}, GUI=${if (resources.hasGui) 1 else 0}, entities=${if (resources.hasEntities) "есть" else "нет"}")
+                        val metrics = plugin.executionSnapshots(info.id)
+                        if (metrics.isEmpty()) {
+                            sender.sendMessage("§7Вызовы KSL-managed callbacks ещё не измерялись.")
+                        } else {
+                            sender.sendMessage("§bВыполнение (суммарное / среднее / максимум):")
+                            metrics.take(12).forEach { metric ->
+                                sender.sendMessage("  §f${metric.operation} §7— ${metric.calls} выз., ${metric.failures} ошибок, ${"%.2f".format(metric.totalNanos / 1_000_000.0)}мс / ${"%.2f".format(metric.averageNanos / 1_000_000.0)}мс / ${"%.2f".format(metric.maxNanos / 1_000_000.0)}мс")
+                                metric.lastFailure?.let { sender.sendMessage("    §cПоследняя ошибка: $it") }
+                            }
+                        }
+                    }
+                }
+            }
+
+            "resources" -> {
+                val target = args.getOrNull(1)?.removeSuffix(".kts")
+                val snapshots = if (target.isNullOrBlank()) plugin.resourceSnapshots()
+                    else plugin.resourceSnapshots().filter { it.scriptId.equals(target, ignoreCase = true) }
+                if (snapshots.isEmpty()) {
+                    sender.sendMessage("§eKSL: ресурсы скриптов не найдены.")
+                } else {
+                    sender.sendMessage("§9§lKSL Resources §7— ${snapshots.size} скрипт(ов)")
+                    snapshots.forEach { item ->
+                        val color = if (item.suspectedLeak) "§c" else if (item.loaded) "§a" else "§7"
+                        sender.sendMessage("$color${item.scriptId} §8— §7listeners=${item.listeners}, tasks=${item.tasks}, commands=${item.commands}, placeholders=${item.placeholders + item.textPlaceholders}, GUI=${if (item.hasGui) 1 else 0}, entities=${if (item.hasEntities) 1 else 0}")
+                        if (item.suspectedLeak) sender.sendMessage("  §cВНИМАНИЕ: у выгруженного скрипта остались отслеживаемые ресурсы.")
+                    }
+                }
+            }
+
+            "deps" -> {
+                val target = args.getOrNull(1)?.removeSuffix(".kts")
+                val dependencies = plugin.scriptDependencies().let { all ->
+                    if (target.isNullOrBlank()) all else all.filter { it.scriptId.equals(target, ignoreCase = true) }
+                }
+                if (dependencies.isEmpty()) {
+                    sender.sendMessage("§eKSL: скрипты или зависимости не найдены.")
+                } else {
+                    sender.sendMessage("§9§lKSL Dependencies §7— @requires")
+                    dependencies.forEach { item ->
+                        sender.sendMessage("§f${item.scriptId}")
+                        if (item.declared.isEmpty()) sender.sendMessage("  §7зависимостей нет")
+                        item.resolved.forEach { sender.sendMessage("  §a→ $it") }
+                        item.missing.forEach { sender.sendMessage("  §c→ $it (не найдено)") }
+                    }
+                }
+            }
+
             "addons" -> {
                 val addons = plugin.addonManager.registeredAddons()
                 if (addons.isEmpty()) {
@@ -250,6 +311,9 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
         listOf(
             "reload [скрипт|папка/|changed]" to "перезагрузить всё, один скрипт, папку или только изменённые (в фоне)",
             "scripts" to "список скриптов: статус, время загрузки, ошибки",
+            "debug <скрипт>" to "диагностика выполнения, ошибок и ресурсов скрипта",
+            "resources [скрипт]" to "отслеживаемые ресурсы и подозрительные остатки",
+            "deps [скрипт]" to "граф зависимостей @requires",
             "addons" to "загруженные аддоны",
             "services" to "зарегистрированные сервисы",
             "libraries" to "экспортированные библиотеки",
@@ -283,13 +347,16 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
     ): List<String> {
         if (!sender.hasPermission("ksl.admin")) return emptyList()
         if (args.size == 1)
-            return listOf("help", "reload", "scripts", "addons", "services", "libraries", "discord", "sandbox", "errors", "error", "doctor", "validate", "dbmigrate")
+            return listOf("help", "reload", "scripts", "debug", "resources", "deps", "addons", "services", "libraries", "discord", "sandbox", "errors", "error", "doctor", "validate", "dbmigrate")
                 .filter { it.startsWith(args[0].lowercase()) }
         if (args.size == 2 && args[0].equals("reload", ignoreCase = true)) {
             val ids = plugin.scriptIds()
             // Scripts, folders ("economy/") and the "changed" keyword.
             val folders = ids.filter { it.contains('/') }.map { it.substringBeforeLast('/') + "/" }.toSet()
             return (ids + folders + "changed").sorted().filter { it.startsWith(args[1], ignoreCase = true) }
+        }
+        if (args.size == 2 && args[0].lowercase() in setOf("debug", "resources", "deps")) {
+            return plugin.scriptIds().filter { it.startsWith(args[1].removeSuffix(".kts"), ignoreCase = true) }
         }
         if (args.size == 2 && args[0].equals("error", ignoreCase = true)) {
             return KSLError.entries.map { it.code }.filter { it.startsWith(args[1].lowercase()) }.take(40)

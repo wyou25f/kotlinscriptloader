@@ -3,6 +3,13 @@ package ru.privateserver.ksl
 import java.io.File
 import java.util.logging.Logger
 
+data class KSLScriptDependencyInfo(
+    val scriptId: String,
+    val declared: List<String>,
+    val resolved: List<String>,
+    val missing: List<String>
+)
+
 // Orders scripts so that every script loads after the ones it names in "// @requires: a, b".
 // A script is identified by its folder-relative id without the extension, e.g. "economy/shop".
 object KSLScriptOrder {
@@ -55,16 +62,25 @@ object KSLScriptOrder {
     // Flat folder: the id is the file name.
     fun sort(files: Array<File>, logger: Logger): List<File> = sort(files.toList(), { it.nameWithoutExtension }, logger)
 
+    /** Returns declared, resolved and missing script dependencies without changing load state. */
+    fun inspect(files: List<File>, idOf: (File) -> String): List<KSLScriptDependencyInfo> {
+        val ids = files.map(idOf)
+        return files.map { file ->
+            val id = idOf(file)
+            val declared = readRequires(file).distinct()
+            val resolved = declared.mapNotNull { resolve(it, ids) }.distinct()
+            val missing = declared.filter { resolve(it, ids) == null }
+            KSLScriptDependencyInfo(id, declared, resolved, missing)
+        }.sortedBy { it.scriptId }
+    }
+
     fun sort(files: List<File>, idOf: (File) -> String, logger: Logger): List<File> {
         val byId = files.associateBy(idOf)
         val ids = files.map(idOf)
-        val requires = HashMap<String, List<String>>()
-        files.forEach { file ->
-            val id = idOf(file)
-            requires[id] = readRequires(file).mapNotNull { name ->
-                resolve(name, ids) ?: run {
-                    logger.warning("[$id] ${KSLError.SCRIPT_REQUIRES_MISSING.tag} @requires: '$name' не найден среди скриптов — зависимость проигнорирована")
-                    null
+        val requires = inspect(files, idOf).associate { info ->
+            info.scriptId to info.resolved.also { _ ->
+                info.missing.forEach { name ->
+                    logger.warning("[${info.scriptId}] ${KSLError.SCRIPT_REQUIRES_MISSING.tag} @requires: '$name' не найден среди скриптов — зависимость проигнорирована")
                 }
             }
         }

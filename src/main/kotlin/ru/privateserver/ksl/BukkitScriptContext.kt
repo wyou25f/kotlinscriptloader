@@ -406,9 +406,11 @@ open class BukkitScriptContext(
     // Scheduler tasks swallow nothing: an uncaught exception would print a raw Bukkit trace every period.
     private fun guarded(where: String, block: () -> Unit) = Runnable {
         try {
-            val monitor = plugin.watchdogMonitor
-            if (monitor != null) monitor.trackOperation("script '$scriptName' task '$where'", block)
-            else block()
+            plugin.measureScriptExecution(scriptName, "task:$where") {
+                val monitor = plugin.watchdogMonitor
+                if (monitor != null) monitor.trackOperation("script '$scriptName' task '$where'", block)
+                else block()
+            }
         } catch (ex: Throwable) {
             KSLErrors.log(plugin, scriptName, where, ex, KSLError.TASK_FAILED)
         }
@@ -471,7 +473,9 @@ open class BukkitScriptContext(
         val executor = EventExecutor { _, event ->
             if (event is T) {
                 try {
-                    event.action()
+                    plugin.measureScriptExecution(scriptName, "event:${T::class.simpleName}") {
+                        event.action()
+                    }
                 } catch (ex: Throwable) {
                     KSLErrors.log(plugin, scriptName, "onEvent<${T::class.simpleName}>", ex, KSLError.EVENT_HANDLER_FAILED)
                 }

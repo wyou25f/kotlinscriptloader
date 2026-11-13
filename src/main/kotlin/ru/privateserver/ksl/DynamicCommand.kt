@@ -73,7 +73,9 @@ class DynamicCommand(
             return true
         }
         try {
-            action(sender, args)
+            plugin.measureScriptExecution(scriptName, "command:/$commandLabel") {
+                action(sender, args)
+            }
         } catch (ex: Throwable) {
             KSLErrors.log(plugin, scriptName, "command '/$commandLabel'", ex, KSLError.COMMAND_EXECUTE_FAILED)
             sender.sendMessage("§cПроизошла ошибка при выполнении команды. Администратор уже уведомлён в консоли.")

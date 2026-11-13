@@ -162,6 +162,42 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     private lateinit var scriptRunner: ScriptRunner
 
+    private val scriptDiagnostics = KSLScriptDiagnostics()
+
+    fun <T> measureScriptExecution(scriptId: String, operation: String, block: () -> T): T =
+        scriptDiagnostics.measure(scriptId, operation, block)
+
+    fun executionSnapshots(scriptId: String): List<KSLExecutionSnapshot> =
+        scriptDiagnostics.snapshots(scriptId)
+
+    fun scriptDependencies(): List<KSLScriptDependencyInfo> =
+        KSLScriptOrder.inspect(findScriptFiles(), ::scriptId)
+
+    fun resourceSnapshot(scriptId: String): KSLResourceSnapshot {
+        val activeTasks = tasksByScript[scriptId]
+        activeTasks?.removeIf { taskId ->
+            !Bukkit.getScheduler().isQueued(taskId) && !Bukkit.getScheduler().isCurrentlyRunning(taskId)
+        }
+        val listenerCount = synchronized(listenerLock) { listenersByScript[scriptId]?.size ?: 0 }
+        val textPlaceholderCount = textPlaceholders.keys().count {
+            textPlaceholders.ownerOf(it) == "script:$scriptId"
+        }
+        return KSLResourceSnapshot(
+            scriptId = scriptId,
+            loaded = scriptId in liveScripts,
+            listeners = listenerCount,
+            tasks = activeTasks?.size ?: 0,
+            commands = commandsByScript[scriptId]?.size ?: 0,
+            placeholders = placeholdersByScript[scriptId]?.distinct()?.size ?: 0,
+            textPlaceholders = textPlaceholderCount,
+            hasGui = scriptId in scriptsWithGuis,
+            hasEntities = ::entityManager.isInitialized && scriptId in entityManager.scriptNames()
+        )
+    }
+
+    fun resourceSnapshots(): List<KSLResourceSnapshot> =
+        (scriptIds() + knownScriptNames()).distinct().sorted().map(::resourceSnapshot)
+
     private val listenersByScript    = ConcurrentHashMap<String, MutableList<Listener>>()
     private val listenerLock = Any()
     private val commandsByScript     = ConcurrentHashMap<String, MutableSet<DynamicCommand>>()
