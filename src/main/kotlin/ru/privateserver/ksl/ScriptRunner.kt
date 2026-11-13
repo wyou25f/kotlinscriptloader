@@ -42,7 +42,10 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
             }
 
             val compilationConfig = buildScriptCompilationConfig(plugin.addonManager)
-            val result = plugin.withCompilePermit { runBlocking { scriptCompiler(file.toScriptSource(), compilationConfig) } }
+            val compile = {
+                plugin.withCompilePermit { runBlocking { scriptCompiler(file.toScriptSource(), compilationConfig) } }
+            }
+            val result = plugin.watchdogMonitor?.trackOperation("KSL compile '$id'", compile) ?: compile()
             val warnings = result.reports
                 .filter { it.severity == ScriptDiagnostic.Severity.WARNING }
                 .map { formatDiagnostic(it) }
@@ -96,7 +99,8 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
             }
 
             val startedAt = System.nanoTime()
-            val result = runBlocking { evaluator(compiled, evalConfig) }
+            val evaluate = { runBlocking { evaluator(compiled, evalConfig) } }
+            val result = plugin.watchdogMonitor?.trackOperation("KSL evaluate '$id'", evaluate) ?: evaluate()
 
             val ok = when (result) {
                 is ResultWithDiagnostics.Failure -> {

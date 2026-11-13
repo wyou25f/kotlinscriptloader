@@ -29,6 +29,18 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     private val dbQueueWarnAt = 5000
 
+    @Volatile
+    internal var watchdogMonitor: KSLWatchdogMonitor? = null
+        private set
+
+    private fun startWatchdogDiagnostics() {
+        if (!config.getBoolean("diagnostics.watchdog.enabled", true)) return
+        val thresholdSeconds = config.getLong("diagnostics.watchdog.threshold-seconds", 5L).coerceIn(2L, 300L)
+        val pollMillis = config.getLong("diagnostics.watchdog.poll-interval-ms", 500L).coerceIn(100L, 5_000L)
+        val maxDumps = config.getInt("diagnostics.watchdog.max-dumps", 10).coerceIn(1, 50)
+        watchdogMonitor = KSLWatchdogMonitor(this, thresholdSeconds, pollMillis, maxDumps).also { it.start() }
+    }
+
     private fun startQueueMonitor() {
         Bukkit.getScheduler().runTaskTimerAsynchronously(this, Runnable {
             val queued = dbQueueSize()
@@ -240,6 +252,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         stripColorsFromLog()
         dataFolder.mkdirs()
         saveDefaultConfig()
+        startWatchdogDiagnostics()
         loadConfigTextPlaceholders()
         KSLErrors.reset()
 
@@ -294,6 +307,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     }
 
     override fun onDisable() {
+        runCatching { watchdogMonitor?.stop() }
+        watchdogMonitor = null
         runCatching { scriptWatcher?.stop() }
         logger.info("$c9$bold■ KotlinScriptLoader останавливается...$r")
         runCatching { unloadAllScripts() }

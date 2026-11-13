@@ -65,6 +65,30 @@ PlaceholderAPI/LuckPerms/EssentialsX) — зелёным и жирным, с п�
 и закрытие БД в `runCatching`, чтобы ошибка на одном из шагов не валила весь
 disable-конвейер.
 
+## Диагностика Paper Watchdog
+
+KSL следит за heartbeat главного потока сервера отдельным daemon-потоком. Если тики не продвигаются
+дольше `diagnostics.watchdog.threshold-seconds` (по умолчанию 5 секунд), KSL сохраняет дамп
+в `plugins/KotlinScriptLoader/dumps/` до стандартного таймаута Paper Watchdog.
+
+Дамп содержит время и длительность остановки, состояние и стек главного потока, стеки остальных
+JVM-потоков, версию Java/KSL и активную операцию KSL (например, выполнение скрипта или его задачи),
+если она была зарегистрирована в момент задержки. Хранятся последние 10 дампов.
+
+Настройки в `config.yml`:
+```yaml
+diagnostics:
+  watchdog:
+    enabled: true
+    threshold-seconds: 5
+    poll-interval-ms: 500
+    max-dumps: 10
+```
+
+Это ранняя диагностика зависания, а не перехват события Paper Watchdog: она не отключает и не
+подавляет watchdog и сама по себе не устраняет причину. Сравни стек `Server thread` с активной
+операцией KSL; если в стеке другой плагин, причина может быть вне KSL.
+
 ## PlaceholderAPI / LuckPerms / EssentialsX
 
 Все три — софт-зависимости (`softdepend` в plugin.yml). Если плагин не установлен —
