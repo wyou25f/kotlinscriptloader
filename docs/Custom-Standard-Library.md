@@ -190,15 +190,18 @@ namespace:
 
 ```kotlin
 // In economy.kts
-ml2.provide("service", EconomyLibrary())
+ml2.provideLocal("service", EconomyLibrary())
 
 // In another script, explicitly address the provider namespace
-val economy = libs.require<EconomyLibrary>("economy", "service")
+val economy = libs.require("economy", "service")
 ```
 
 Available facade names in scripts are `meslib2`, `ml2`, `lib2` and `libs`.
 MesLib2 operations include `export/publish/provide`, `get/find`,
-`require/resolve`, `contains` and `info`. Versions are opaque labels matched
+`require/resolve`, `contains` and `info`. The explicit `*Local` methods
+(`publishLocal`, `provideLocal`, `findLocal`, `requireLocal`, etc.) use the
+current script's namespace and allow an optional version without ambiguous
+positional overloads. Versions are opaque labels matched
 exactly; they are not SemVer ranges and MesLib2 does not download external
 artifacts or compile loose source files.
 

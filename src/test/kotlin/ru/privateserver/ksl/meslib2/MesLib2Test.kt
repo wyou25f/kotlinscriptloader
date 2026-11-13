@@ -25,11 +25,11 @@ class MesLib2Test {
     @Test fun shortAliasesAndDefaultNamespaceResolveTheSameEntry() {
         val api = facade()
         assertEquals("provider", api.namespace)
-        api.publish("service", "ready", "2.1")
-        assertTrue(api.contains("service", "2.1"))
-        assertEquals("ready", api.find<String>("service", "2.1"))
-        assertEquals("ready", api.resolve<String>("service", "2.1"))
-        assertEquals("provider", api.info("service")?.namespace)
+        api.publish("service", "ready")
+        assertTrue(api.containsLocal("service"))
+        assertEquals("ready", api.findLocal<String>("service"))
+        assertEquals("ready", api.resolveLocal<String>("service"))
+        assertEquals("provider", api.infoLocal("service")?.namespace)
     }
     @Test fun aliasesPublishAndResolveExplicitNamespaces() {
         val api = facade()

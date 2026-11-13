@@ -96,10 +96,11 @@ val economy = ml2.resolve<EconomyService>("economy", "service", "2.0")
 
 Идентификаторы namespace/name должны соответствовать `[a-z][a-z0-9._-]*`.
 Версия — непрозрачная метка с точным сравнением; KSL пока не интерпретирует
-SemVer и не загружает внешние артефакты автоматически. Короткие overloads
-`publish(name, value)` и `require<T>(name)` используют namespace текущего
-скрипта. Алиасы фасада: `meslib2`, `ml2`, `lib2`, `libs`; методы-алиасы:
-`publish/provide`, `find/resolve`. Старые `export()`, `library<T>()` и
+SemVer и не загружает внешние артефакты автоматически. Короткие `publish(name, value)` и `provide(name, value)` используют namespace
+текущего скрипта. Для получения объекта из собственного namespace используй
+`findLocal<T>(name)` / `requireLocal<T>(name)`; версии можно задавать через
+`publishLocal` / `provideLocal`. Алиасы фасада: `meslib2`, `ml2`, `lib2`,
+`libs`; методы-алиасы: `publish/provide`, `find/resolve`. Старые `export()`, `library<T>()` и
 `requireLibrary<T>()` остаются совместимыми.
 
 ## kslrt — runtime-инструменты
