@@ -92,6 +92,7 @@ open class BukkitScriptContext(
     fun saveYaml(fileName: String, yaml: YamlConfiguration) {
         val file = resolveYamlFile(fileName, "saveYaml")
         try {
+            file.parentFile?.mkdirs()
             writeAtomically(yaml, file)
         } catch (ex: IOException) {
             plugin.logger.warning("[$scriptName] ${KSLError.YAML_SAVE_FAILED.tag} Не удалось сохранить '$fileName': ${ex.message}")
