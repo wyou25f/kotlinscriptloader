@@ -25,7 +25,11 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     private val extraImports = CopyOnWriteArrayList<String>()
     private val importOwners = ConcurrentHashMap<String, MutableSet<String>>()
     private val readyCallbacks = ConcurrentHashMap<String, CopyOnWriteArrayList<ReadyHook>>()
-    private data class InstalledModule(val module: KSLStandardLibraryModule, val owner: String?)
+    private data class InstalledModule(
+        val module: KSLStandardLibraryModule,
+        val owner: String?,
+        val resourceOwner: String
+    )
     private val standardModules = linkedMapOf<String, InstalledModule>()
     private val moduleLock = Any()
     private val mismatchWarned = ConcurrentHashMap.newKeySet<String>()
@@ -129,9 +133,11 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         val ownedExtensions = contextExtensions.releaseOwner(owner)
 
         val ownedModules = synchronized(moduleLock) { standardModules.values.filter { it.owner == owner }.asReversed() }
+        var moduleResourcesReleased = 0
         ownedModules.forEach { installed ->
-            runCatching { asOwner(owner) { installed.module.uninstall(this) } }
+            runCatching { asOwner(installed.resourceOwner) { installed.module.uninstall(this) } }
                 .onFailure { plugin.logger.warning("§9[KSL] module '${installed.module.descriptor.id}' unload failed: ${it.message}") }
+            moduleResourcesReleased += releaseOwned(installed.resourceOwner)
             synchronized(moduleLock) { standardModules.remove(installed.module.descriptor.id) }
         }
 
@@ -149,7 +155,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
             effectShapes.releaseOwner(owner) + entityAttributes.releaseOwner(owner) +
             plugin.placeholders.releaseOwner(owner) + plugin.textPlaceholders.releaseOwner(owner)
 
-        return ownedServices.size + ownedExtensions + releasedImports.size + releasedRegistryEntries + ownedModules.size
+        return ownedServices.size + ownedExtensions + releasedImports.size + releasedRegistryEntries + ownedModules.size + moduleResourcesReleased
     }
 
     override fun registerService(key: String, instance: Any) {
@@ -195,24 +201,27 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
             try {
                 ordered.forEach { candidate ->
                     if (standardModules.containsKey(candidate.descriptor.id)) return@forEach
+                    val resourceOwner = moduleResourceOwner(owner, candidate.descriptor.id)
                     try {
-                        asOwner(owner) {
+                        asOwner(resourceOwner) {
                             candidate.install(this)
                             if (candidate.descriptor.defaultImports.isNotEmpty()) {
                                 addDefaultImports(*candidate.descriptor.defaultImports.toTypedArray())
                             }
                         }
                     } catch (failure: Throwable) {
-                        runCatching { asOwner(owner) { candidate.uninstall(this) } }
+                        runCatching { asOwner(resourceOwner) { candidate.uninstall(this) } }
+                        releaseOwned(resourceOwner)
                         throw failure
                     }
-                    val installed = InstalledModule(candidate, owner)
+                    val installed = InstalledModule(candidate, owner, resourceOwner)
                     standardModules[candidate.descriptor.id] = installed
                     installedNow += installed
                 }
             } catch (failure: Throwable) {
                 installedNow.asReversed().forEach { installed ->
-                    runCatching { asOwner(owner) { installed.module.uninstall(this) } }
+                    runCatching { asOwner(installed.resourceOwner) { installed.module.uninstall(this) } }
+                    releaseOwned(installed.resourceOwner)
                     standardModules.remove(installed.module.descriptor.id)
                 }
                 throw IllegalStateException("Failed to install KSL standard-library module '${module.descriptor.id}'", failure)
@@ -229,11 +238,15 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
             require(dependents.isEmpty()) {
                 "Cannot unregister KSL module '$moduleId'; required by ${dependents.joinToString()}"
             }
-            runCatching { asOwner(installed.owner) { installed.module.uninstall(this) } }
+            runCatching { asOwner(installed.resourceOwner) { installed.module.uninstall(this) } }
                 .onFailure { plugin.logger.warning("§9[KSL] module '$moduleId' did not fully unload: ${it.message}") }
+            releaseOwned(installed.resourceOwner)
             standardModules.remove(moduleId)
         }
     }
+
+    private fun moduleResourceOwner(addonOwner: String?, moduleId: String): String =
+        "ksl-module:${addonOwner ?: "external"}:$moduleId"
 
     override fun standardLibraryModules(): List<KSLStandardLibraryModule> =
         synchronized(moduleLock) { standardModules.values.map { it.module } }
