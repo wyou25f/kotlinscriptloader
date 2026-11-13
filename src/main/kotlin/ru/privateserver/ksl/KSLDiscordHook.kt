@@ -36,7 +36,7 @@ class KSLDiscordHook(private val plugin: KotlinScriptLoaderPlugin) {
         const val MAX_FOOTER = 2048
         const val MAX_FIELDS = 25
         const val MAX_RETRIES = 2
-        const val NO_MENTIONS = ",\\"allowed_mentions\\":{\\"parse\\":[]}"
+        const val NO_MENTIONS = ",\"allowed_mentions\":{\"parse\":[]}"
     }
 
     private val client: HttpClient = HttpClient.newBuilder()
@@ -62,7 +62,7 @@ class KSLDiscordHook(private val plugin: KotlinScriptLoaderPlugin) {
     /** Completes with true only when Discord accepted the message (2xx). */
     fun sendAsync(channel: String, content: String, allowMentions: Boolean = false): CompletableFuture<Boolean> {
         val url = webhook(channel) ?: return CompletableFuture.completedFuture(false)
-        val payload = "{\\"content\\":${jsonString(content.take(MAX_CONTENT))}${if (allowMentions) "" else NO_MENTIONS}}"
+        val payload = "{\"content\":${jsonString(content.take(MAX_CONTENT))}${if (allowMentions) "" else NO_MENTIONS}}"
         return post(channel, url, payload)
     }
 
@@ -89,16 +89,16 @@ class KSLDiscordHook(private val plugin: KotlinScriptLoaderPlugin) {
         fields: List<KSLDiscordEmbedField> = emptyList()
     ): CompletableFuture<Boolean> {
         val url = webhook(channel) ?: return CompletableFuture.completedFuture(false)
-        val footerBlock = if (footer.isNotBlank()) ",\\"footer\\":{\\"text\\":${jsonString(footer.take(MAX_FOOTER))}}" else ""
+        val footerBlock = if (footer.isNotBlank()) ",\"footer\":{\"text\":${jsonString(footer.take(MAX_FOOTER))}}" else ""
         val fieldBlock = fields.take(MAX_FIELDS).takeIf { it.isNotEmpty() }?.joinToString(
-            prefix = ",\\"fields\\":[", postfix = "]"
+            prefix = ",\"fields\":[", postfix = "]"
         ) { field ->
-            "{\\"name\\":${jsonString(field.name.take(256))},\\"value\\":${jsonString(field.value.take(1024))},\\"inline\\":${field.inline}}"
+            "{\"name\":${jsonString(field.name.take(256))},\"value\":${jsonString(field.value.take(1024))},\"inline\":${field.inline}}"
         } ?: ""
         val safeColor = color.coerceIn(0, 0xFFFFFF)
-        val embed = "{\\"title\\":${jsonString(title.take(MAX_TITLE))},\\"description\\":${jsonString(description.take(MAX_DESCRIPTION))}," +
-            "\\"color\\":$safeColor$footerBlock$fieldBlock}"
-        val payload = "{\\"embeds\\":[$embed]${if (allowMentions) "" else NO_MENTIONS}}"
+        val embed = "{\"title\":${jsonString(title.take(MAX_TITLE))},\"description\":${jsonString(description.take(MAX_DESCRIPTION))}," +
+            "\"color\":$safeColor$footerBlock$fieldBlock}"
+        val payload = "{\"embeds\":[$embed]${if (allowMentions) "" else NO_MENTIONS}}"
         return post(channel, url, payload)
     }
 
