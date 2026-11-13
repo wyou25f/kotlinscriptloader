@@ -751,6 +751,24 @@ open class BukkitScriptContext(
             ?: plugin.logger.warning("[$scriptName] ${KSLError.DISCORD_NOT_CONFIGURED.tag} discordEmbed: Discord не настроен в config.yml")
     }
 
+    /** Sends a Discord message asynchronously; true means Discord returned a successful HTTP status. */
+    fun discordSendAsync(channel: String, message: String, allowMentions: Boolean = false): java.util.concurrent.CompletableFuture<Boolean> =
+        plugin.discord?.sendAsync(channel, message, allowMentions)
+            ?: java.util.concurrent.CompletableFuture.completedFuture(false)
+
+    /** Sends an embed with optional fields without blocking the Bukkit server thread. */
+    fun discordEmbedAsync(
+        channel: String,
+        title: String,
+        description: String = "",
+        color: Int = 0x5865F2,
+        footer: String = "",
+        fields: List<KSLDiscordEmbedField> = emptyList(),
+        allowMentions: Boolean = false
+    ): java.util.concurrent.CompletableFuture<Boolean> =
+        plugin.discord?.sendEmbedAsync(channel, title, description, color, footer, allowMentions, fields)
+            ?: java.util.concurrent.CompletableFuture.completedFuture(false)
+
     fun Location.playEffect(particle: Particle, builder: KSLEffectSpec.() -> Unit): Int {
         val frozen = this.clone()
         val spec = KSLEffectSpec(particle, { frozen }, plugin.addonManager.effectShapes)
