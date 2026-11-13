@@ -19,6 +19,7 @@ class KSLScriptDefinitionTest {
         assertEquals("21", KSL_SCRIPT_JVM_TARGET)
         assertEquals(BukkitScriptContext::class.java.name, KSL_SCRIPT_CONTEXT_CLASS)
         assertTrue("ru.privateserver.ksl.dsl.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
+        assertTrue("ru.privateserver.ksl.api.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("org.bukkit.entity.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("ru.privateserver.ksl.std.text.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("ru.privateserver.ksl.std.math.*" in KSL_SCRIPT_DEFAULT_IMPORTS)

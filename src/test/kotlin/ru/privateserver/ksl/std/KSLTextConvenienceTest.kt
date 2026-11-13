@@ -12,7 +12,7 @@ import ru.privateserver.ksl.std.text.toSnakeCase
 class KSLTextConvenienceTest {
     @Test
     fun `normalizes whitespace and identifier styles`() {
-        assertEquals("hello world", "  hello\\t\\nworld  ".normalizeWhitespace())
+        assertEquals("hello world", "  hello\t\nworld  ".normalizeWhitespace())
         assertEquals("http_server_id", "HTTPServerID".toSnakeCase())
         assertEquals("player_profile", "PlayerProfile".toSnakeCase())
         assertEquals("playerProfile", "player_profile".toCamelCase())
