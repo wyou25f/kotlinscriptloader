@@ -1,5 +1,12 @@
 # Unreleased
 
+## 🧰 Короткий DSL и расширенный YAML API
+
+- Добавлены короткие алиасы `cmd` / `cmdAny`, `on<T>`, `sync`, `async`, `after` и `repeat`; исходные имена методов сохранены.
+- Для дополнительных файлов из `scripts/` добавлены `editYaml(fileName) { ... }` и `saveYaml(fileName, yaml)` с атомарной записью и проверкой пути.
+- Добавлены YAML-помощники `getOrDefault`, `setIfAbsent`, `string`, `int`, `long`, `double`, `bool`, `strings` и `section(path) { ... }`.
+
+
 ## 🧩 Команды и aliases
 
 - Имена команд приводятся к нижнему регистру через `Locale.ROOT`; недопустимое имя команды отклоняется с понятной ошибкой.
