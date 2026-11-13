@@ -8,11 +8,39 @@ import java.util.Locale
 private val COMMAND_LABEL_PATTERN = Regex("[a-z0-9._-]+")
 
 private fun normalizeCommandLabel(label: String): String {
-    val normalized = label.lowercase(Locale.ROOT)
+    val normalized = label.trim().lowercase(Locale.ROOT)
     require(COMMAND_LABEL_PATTERN.matches(normalized)) {
         "Некорректное имя команды '$label': разрешены латинские буквы, цифры, '.', '_' и '-'."
     }
     return normalized
+}
+
+/**
+ * Normalizes command aliases. Each entry may contain one alias or a comma/space-separated
+ * group, which keeps configuration-driven command declarations concise.
+ */
+internal fun normalizeCommandAliases(
+    primaryName: String,
+    aliases: Iterable<String>,
+    onWarning: (String) -> Unit = {}
+): List<String> {
+    val primary = normalizeCommandLabel(primaryName)
+    val normalizedAliases = LinkedHashSet<String>()
+
+    aliases.forEach { rawEntry ->
+        rawEntry.split(Regex("[,\\s]+")).filter { it.isNotBlank() }.forEach { rawAlias ->
+            val alias = rawAlias.trim().lowercase(Locale.ROOT)
+            when {
+                !COMMAND_LABEL_PATTERN.matches(alias) ->
+                    onWarning("Некорректный alias '$rawAlias' для команды '$primary'.")
+                alias == primary ->
+                    onWarning("Alias '$rawAlias' совпадает с именем команды '$primary' и пропущен.")
+                !normalizedAliases.add(alias) ->
+                    onWarning("Повторяющийся alias '$rawAlias' для команды '$primary' пропущен.")
+            }
+        }
+    }
+    return normalizedAliases.toList()
 }
 
 class DynamicCommand(
@@ -28,21 +56,9 @@ class DynamicCommand(
 
     init {
         val primaryName = normalizeCommandLabel(name)
-        val normalizedAliases = LinkedHashSet<String>()
-
-        aliases.forEach { rawAlias ->
-            val alias = rawAlias.lowercase(Locale.ROOT)
-            when {
-                !COMMAND_LABEL_PATTERN.matches(alias) ->
-                    plugin.logger.warning("[$scriptName] Пропущен некорректный alias '$rawAlias' для команды '$primaryName'.")
-                alias == primaryName ->
-                    plugin.logger.warning("[$scriptName] Alias '$rawAlias' совпадает с именем команды '$primaryName' и пропущен.")
-                !normalizedAliases.add(alias) ->
-                    plugin.logger.warning("[$scriptName] Повторяющийся alias '$rawAlias' для команды '$primaryName' пропущен.")
-            }
+        this.aliases = normalizeCommandAliases(primaryName, aliases) { warning ->
+            plugin.logger.warning("[$scriptName] $warning")
         }
-
-        this.aliases = normalizedAliases.toList()
         this.description = "Команда скрипта $scriptName"
         if (requiredPermission != null) this.permission = requiredPermission
     }

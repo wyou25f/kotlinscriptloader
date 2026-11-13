@@ -221,6 +221,21 @@ private fun testScriptIds() {
     tmp.deleteRecursively()
 }
 
+private fun testCommandAliases() {
+    println("command aliases")
+    val warnings = mutableListOf<String>()
+    val aliases = normalizeCommandAliases(
+        "Heal",
+        listOf(" H, restore ", "HEAL", "restore", "quick-heal\tmed", "", "bad/name"),
+        warnings::add
+    )
+    check("aliases accept comma- and whitespace-separated groups", aliases == listOf("h", "restore", "quick-heal", "med"))
+    check("aliases are trimmed and case-insensitive", aliases.first() == "h")
+    check("primary-name, duplicate and invalid aliases are reported", warnings.size == 4)
+    check("invalid aliases do not enter the command map", "bad/name" !in aliases)
+    check("blank alias entries are ignored", normalizeCommandAliases("help", listOf("", "  ", ", ,")).isEmpty())
+}
+
 private fun testTextPlaceholders() {
     println("text placeholders")
     val values = mapOf("server" to "KSL", "rank" to "Admin")
@@ -463,6 +478,7 @@ fun main() {
     testScriptOrder()
     testErrorCatalog()
     testScriptIds()
+    testCommandAliases()
     testTextPlaceholders()
     testValueCache()
     testSandboxLayers()
