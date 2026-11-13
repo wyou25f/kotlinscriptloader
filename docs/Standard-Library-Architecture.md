@@ -6,7 +6,7 @@
 
 These packages are included in the default imports for KSL scripts:
 
-- `ru.privateserver.ksl.std.text.*`: Unicode-safe truncation, legacy color stripping, UUID parsing and whitespace tokenization.
+- `ru.privateserver.ksl.std.text.*`: Unicode-safe truncation, legacy color stripping, UUID parsing, whitespace tokenization/normalization, identifier case conversion and Minecraft username-shape validation.
 - `ru.privateserver.ksl.std.math.*`: checked clamping, range mapping and validated percentage chance.
 - `ru.privateserver.ksl.std.time.*`: explicit seconds/minutes/hours-to-ticks conversion, duration rounding and tick-to-duration conversion.
 - `ru.privateserver.ksl.std.player.*`: player messaging, permissions and player-inventory helpers.

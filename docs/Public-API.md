@@ -86,3 +86,21 @@ provided by the plugin classloader and declare them as `compileOnly` in addons.
 
 The Standard Library utilities and module contracts are documented in
 [Standard Library architecture](Standard-Library-Architecture.md).
+
+
+## Convenience extensions
+
+The public API package also provides small, additive helpers for addon authors:
+
+- `onlinePlayers()` and `findOnlinePlayer(name)` for online-player lookup;
+- `broadcast(String)` for literal text and `broadcast(Component)` for Adventure components;
+- `isServerThread()` for an explicit thread check;
+- `scheduleSync`, `scheduleAsync`, `scheduleSyncLater`,
+  `scheduleAsyncLater`, `scheduleSyncRepeating` and
+  `scheduleAsyncRepeating` for Bukkit tasks.
+
+These are extension functions, not new abstract `KSLAPI` members, so they do not
+require an API-version bump and do not break existing addon implementations.
+Tasks created by an addon are owned by that addon: cancel repeating or long-lived
+tasks during `onUnload`. Async callbacks must not access Bukkit world, entity or
+inventory state.
