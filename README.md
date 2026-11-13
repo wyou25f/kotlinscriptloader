@@ -2,6 +2,21 @@
 
 Приватный hot-reload загрузчик `.kts` скриптов для Paper 1.21.1 / Java 21.
 
+## Документация
+
+Полная документация находится в каталоге [docs/](docs/README.md).
+
+- [Начало работы и обзор возможностей](docs/KSL-Encyclopedia.md)
+- [Standard Library](docs/Standard-Library-Architecture.md)
+- [Public API для аддонов](docs/Public-API.md)
+- [Разработка аддонов](docs/Addon-Development-Guide.md)
+- [Базы данных](docs/Database-Guide.md)
+- [Импорты и библиотеки](docs/Packages-and-Imports.md)
+- [Диагностика](docs/Troubleshooting.md)
+- **[Работа с ИИ: как передать нейросети контекст KSL](docs/AI-ASSISTANT-GUIDE.md)**
+
+Если ИИ помогает писать код, попроси его сначала прочитать AGENTS.md и docs/AI-ASSISTANT-GUIDE.md, а затем сверить API с исходниками текущей ветки.
+
 ## Ошибки и сообщения из скриптов
 
 В `.kts` эти функции доступны напрямую через контекст скрипта:
