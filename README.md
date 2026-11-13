@@ -802,3 +802,26 @@ enum-константы `Attribute` в пользу Registry-based доступ�
 `circle`/`helix`/`lineTo`, а материализуется один раз в момент запуска эффекта,
 уже после того как весь конфигурационный блок полностью выполнился —
 порядок вызовов внутри `{ }` не имеет значения.
+
+
+## Public API namespace
+
+KSL exposes a stable import namespace for scripts and addon projects:
+
+```kotlin
+import ru.privateserver.ksl.api.*
+
+if (isKslAvailable) {
+    val scripts = ksl.scripts()
+    val apiLevel = KSL_API_VERSION
+    val economy = ksl.service<EconomyService>("economy")
+}
+```
+
+The `ru.privateserver.ksl.api` package is the public entry point for integrations.
+It currently re-exports the addon, hook, context-extension and script-info API,
+and provides typed service/hook helpers. This namespace is also the foundation
+for the planned KSL Standard Library: future standard modules can be imported
+from the same public package family without relying on internal implementation
+classes. The API is available from the KSL plugin JAR; addon projects should
+declare that JAR as a compile-only dependency.
