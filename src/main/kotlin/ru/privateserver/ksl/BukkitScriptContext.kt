@@ -44,7 +44,16 @@ open class BukkitScriptContext(
 
     val config: YamlConfiguration by lazy { loadYamlFile(configFile) }
 
-    // Synchronized: the DSL is reachable from async tasks and YamlConfiguration is not thread-safe.
+    // YamlConfiguration is not thread-safe. Use editConfig for every mutation that may
+    // overlap with another task; the lock covers both the mutation and the optional disk write.
+    @Synchronized
+    fun editConfig(save: Boolean = true, block: YamlConfiguration.() -> Unit) {
+        config.block()
+        if (save) saveConfig()
+    }
+
+    // Synchronized with editConfig so a save cannot overlap an editConfig block.
+    // Direct mutations through the public config property must still be confined to one thread.
     @Synchronized
     fun saveConfig() {
         try { writeAtomically(config, configFile) }
