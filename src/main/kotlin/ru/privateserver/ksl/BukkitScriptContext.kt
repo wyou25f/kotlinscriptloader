@@ -40,6 +40,17 @@ open class BukkitScriptContext(
 
     private val mm: MiniMessage = MiniMessage.miniMessage()
 
+    /** Non-fatal warning; execution continues. */
+    fun warn(message: String) {
+        plugin.logger.warning("[$scriptName] ⚠ $message")
+    }
+
+    /** Logs an error and aborts the current script operation, not the server. */
+    fun error(message: String): Nothing = throw KSLScriptError(message)
+
+    /** Logs a fatal error and unloads this script's runtime resources. */
+    fun fatal(message: String): Nothing = throw KSLFatalScriptError(message)
+
     private val configFile: File
         get() = File(plugin.dataFolder, "$scriptName.yml")
 

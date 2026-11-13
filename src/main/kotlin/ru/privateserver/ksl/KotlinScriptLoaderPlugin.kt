@@ -832,6 +832,20 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         knownScriptNames().forEach { unloadScript(it) }
     }
 
+    /**
+     * Fatal script signals may originate on async workers. Bukkit registrations are
+     * therefore always cleaned up on the server thread.
+     */
+    fun stopScriptAfterFatal(scriptName: String) {
+        val stop = Runnable { unloadScript(scriptName) }
+        if (Bukkit.isPrimaryThread()) {
+            stop.run()
+        } else if (isEnabled) {
+            runCatching { Bukkit.getScheduler().runTask(this, stop) }
+                .onFailure { logger.severe("[$scriptName] Не удалось запланировать остановку после fatal(): ${it.message}") }
+        }
+    }
+
     private fun unloadScript(scriptName: String) {
         scriptStamps.remove(scriptName)
         limitWarned.remove("$scriptName|L")

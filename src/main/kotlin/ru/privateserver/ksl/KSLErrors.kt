@@ -31,30 +31,46 @@ object KSLErrors {
 
     // Every logged error carries a catalog code (see KSLError); SCRIPT_RUNTIME is the generic one.
     fun log(plugin: KotlinScriptLoaderPlugin, scriptName: String, where: String, ex: Throwable, code: KSLError = KSLError.SCRIPT_RUNTIME) {
+        val signal = ex as? KSLScriptSignal
         val cause = ex.cause ?: ex
+        val message = signal?.message ?: "${cause::class.simpleName}: ${cause.message}"
         counters.computeIfAbsent(scriptName) { AtomicInteger(0) }.incrementAndGet()
-        last = LastError(scriptName, where, "${cause::class.simpleName}: ${cause.message}", System.currentTimeMillis(), code)
-
+        last = LastError(scriptName, where, message, System.currentTimeMillis(), code)
         lastDetails = emptyList()
 
-        plugin.logScriptProblem("[$scriptName] ${code.tag} ❌ Ошибка в $where: ${cause::class.simpleName}: ${cause.message}")
-        // Scripts in folders are named "folder/name", while the compiled class only carries the file name.
+        val severity = when (signal) {
+            is KSLFatalScriptError -> "☠ FATAL"
+            is KSLScriptError -> "❌ ERROR"
+            else -> "❌ Ошибка"
+        }
+        val line = "[$scriptName] ${code.tag} $severity в $where: $message"
+        if (signal is KSLFatalScriptError) {
+            plugin.logger.severe(line)
+            plugin.stopScriptAfterFatal(scriptName)
+        } else {
+            plugin.logScriptProblem(line)
+        }
+
+        // Scripts in folders are named "folder/name", while compiled class names may contain only the file name.
         val baseName = scriptName.substringAfterLast('/')
         val relevant = cause.stackTrace.filter { frame ->
             frame.fileName?.endsWith(".kts") == true ||
+                frame.fileName?.endsWith(".kt") == true ||
                 frame.className.contains(baseName, ignoreCase = true)
         }
         if (relevant.isNotEmpty()) {
             relevant.take(3).forEach { frame ->
-                val line = if (frame.lineNumber > 0) "строка ${frame.lineNumber}" else "строка ?"
-                plugin.logScriptProblem("  → $scriptName.kts, $line")
+                val source = frame.fileName ?: frame.className
+                val lineNumber = if (frame.lineNumber > 0) "строка ${frame.lineNumber}" else "строка ?"
+                val detail = "  → $source, $lineNumber"
+                if (signal is KSLFatalScriptError) plugin.logger.severe(detail) else plugin.logScriptProblem(detail)
             }
-        } else {
+        } else if (signal == null) {
             cause.stackTrace.firstOrNull()?.let {
                 plugin.logScriptProblem("  → ${it.className}.${it.methodName}(${it.fileName}:${it.lineNumber})")
             }
         }
-        plugin.logScriptProblem("  ℹ Что это значит: /ksl error ${code.code}")
+        if (signal == null) plugin.logScriptProblem("  ℹ Что это значит: /ksl error ${code.code}")
     }
 
     // A script that failed to compile (or was refused by the sandbox) is not an exception, but it is still an error to look up later.
