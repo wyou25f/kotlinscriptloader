@@ -46,3 +46,22 @@ fun KSLAPI.hasHookRegistered(hookId: String): Boolean =
 
 fun KSLAPI.pluginAvailable(pluginName: String): Boolean =
     isPluginEnabled(pluginName)
+
+/** Typed nullable lookup for optional integration hooks. */
+inline fun <reified T : KSLHook> KSLAPI.hookOrNull(hookId: String): T? =
+    getHook(hookId, T::class.java)
+
+/** Typed required lookup for an integration hook. */
+inline fun <reified T : KSLHook> KSLAPI.hookOrFail(hookId: String): T =
+    hookOrNull<T>(hookId) ?: error("KSL hook '$hookId' is not registered")
+
+fun KSLAPI.addonOrNull(addonId: String): KSLAddon? = findAddon(addonId)
+fun KSLAPI.addonOrFail(addonId: String): KSLAddon = requireAddon(addonId)
+fun KSLAPI.scriptOrNull(scriptId: String): KSLScriptInfo? = findScript(scriptId)
+fun KSLAPI.scriptOrFail(scriptId: String): KSLScriptInfo = requireScript(scriptId)
+fun KSLAPI.isScriptActive(scriptId: String): Boolean = isScriptLoaded(scriptId)
+fun KSLAPI.reloadOne(scriptId: String): Boolean = reloadScript(scriptId)
+fun KSLAPI.reloadEverything(): Pair<Int, Int> = reloadScripts()
+fun KSLAPI.sendEvent(topic: String, payload: Any? = null): Int = publish(topic, payload)
+fun KSLAPI.listenTo(topic: String, handler: (Any?) -> Unit): AutoCloseable = subscribe(topic, handler)
+fun KSLAPI.hasPlugin(pluginName: String): Boolean = isPluginEnabled(pluginName)

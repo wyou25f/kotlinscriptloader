@@ -69,3 +69,27 @@ discordEmbedAsync(
 Asynchronous Discord calls return `CompletableFuture<Boolean>`. The value is true only when Discord returns a successful HTTP status. Avoid calling `.join()` on the server thread; attach a completion handler or use an asynchronous task instead.
 
 By default, Discord mentions are disabled. Explicitly enable them only when a script intentionally needs mention parsing.
+
+## Optional TAB and AuthMe hooks
+
+Hooks are available when the corresponding plugin is installed. They are not hard dependencies.
+
+```kotlin
+val tab = hook<KSLTabHook>("tab")
+val auth = hook<KSLAuthMeHook>("authme")
+
+if (tab != null) {
+    val configuredPrefix = tab.nameTagPrefix(player, original = true)
+    tab.setTabPrefix(player, "<green>[Member]</green> ")
+    // Pass null to reset a temporary TAB API override.
+    tab.setTabPrefix(player, null)
+}
+
+if (auth != null) {
+    val authenticated = auth.isAuthenticated(player)
+    val registered = auth.isRegistered(player.name)
+    val lastLogin = auth.lastLoginTime(player.name)
+}
+```
+
+TAB changes made through its API are temporary and may be reset when TAB reloads or a player reconnects. Use TAB commands/configuration for persistent formatting. AuthMe integration is intentionally read-only: KSL exposes authentication and registration status but does not collect, store, or manipulate passwords.
