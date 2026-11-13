@@ -18,7 +18,7 @@ fun Long.hoursToTicks(): Long = Math.multiplyExact(this, 72_000L)
 fun Duration.toTicksCeiling(): Long {
     require(!isNegative) { "duration must not be negative" }
     val wholeSeconds = Math.multiplyExact(seconds, 20L)
-    val fractionalTicks = (nanos.toLong() * 20L + 999_999_999L) / 1_000_000_000L
+    val fractionalTicks = (nano.toLong() * 20L + 999_999_999L) / 1_000_000_000L
     return Math.addExact(wholeSeconds, fractionalTicks)
 }
 

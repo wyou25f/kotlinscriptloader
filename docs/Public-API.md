@@ -1,24 +1,58 @@
 # KSL Public API
 
-## Import
+## Kotlin import
 
-Kotlin scripts and addon projects can use the public namespace:
+Kotlin scripts and addon projects can use one stable namespace:
 
 ```kotlin
 import ru.privateserver.ksl.api.*
 
-if (isKslAvailable) {
-    val loadedScripts = ksl.scripts()
+val api = kslOrNull
+if (api != null) {
+    val loadedScripts = api.scripts()
     val apiLevel = KSL_API_VERSION
-    val economy = ksl.service<EconomyService>("economy")
+    val economy = api.service<EconomyService>("economy")
+    val luckPerms = api.hook<SomeLuckPermsHook>("luckperms")
 }
 ```
 
-The namespace currently provides Kotlin type aliases for the core addon, hook,
-context-extension, script-info, script-event, shape-factory and script-context
-contracts, plus typed service/hook helpers. Type aliases are Kotlin source-level
-aliases; Java integrations should use the underlying `ru.privateserver.ksl`
-interfaces directly.
+The package exports Kotlin aliases for the core addon, hook, context-extension,
+script-info, script-event, shape-factory, script-context and Standard Library
+module contracts. It also exposes:
+
+- `ksl`: non-null API accessor that throws if KSL is not initialized;
+- `kslOrNull`: safe nullable accessor for plugin load-order/shutdown edges;
+- `isKslAvailable`: availability flag;
+- `KSL_API_VERSION`: addon compatibility level;
+- `service<T>()`, `requireService<T>()`, `hook<T>()`, `requireHook<T>()`;
+- `hasHook()`, `requireAddon()`, and the `KSLModulePlanner` facade.
+
+### IntelliJ completion
+
+Add the matching KSL plugin JAR as a compile-only dependency in an IDE Gradle
+project. The JAR includes the `@KotlinScript` template and shared compilation
+configuration, including the `BukkitScriptContext` implicit receiver. See
+[IDE setup](../ide/README.md) and its completion smoke-test script.
+
+## Java integrations
+
+Kotlin `typealias` declarations are not emitted as Java classes. Java addons
+should use the actual interfaces in `ru.privateserver.ksl` and obtain the API
+through the Java-friendly facade:
+
+```java
+import ru.privateserver.ksl.KSLAPI;
+import ru.privateserver.ksl.api.KSLApiProvider;
+
+KSLAPI api = KSLApiProvider.getApi();
+if (api != null) {
+    api.scripts().forEach(script -> getLogger().info(script.getId()));
+}
+```
+
+Use the plugin JAR as a `compileOnly` dependency; do not bundle a second copy
+of KSL or its API classes into an addon. Duplicate classloaders break service
+and hook type checks.
 
 ## Script definition metadata
 
@@ -29,23 +63,15 @@ interfaces directly.
 - `KSL_SCRIPT_CONTEXT_CLASS`;
 - `KSL_SCRIPT_DEFAULT_IMPORTS`.
 
-The runtime `KSLScriptCompilationConfiguration` consumes this metadata, and
-the annotated `KSLScript` template points IntelliJ's Kotlin scripting support
-at that configuration. Addon-registered imports are appended at runtime.
+The runtime compiler extends the same base configuration with imports
+registered by loaded addons. Editor projects must add those addon JARs to their
+classpath to resolve addon-owned symbols.
 
 ## Compatibility
 
-`KSL_API_VERSION` is the compatibility level checked by addons. Additive
-changes should preserve existing signatures. Breaking changes require an
-intentional API-version change and corresponding migration notes.
+Additive changes must preserve existing signatures. Breaking changes require
+an intentional API-version change and migration notes. Keep KSL's API classes
+provided by the plugin classloader and declare them as `compileOnly` in addons.
 
-Use the plugin JAR as a `compileOnly` dependency in addon projects; do not
-bundle another copy of KSL or its API classes into an addon, because duplicate
-classloaders prevent reliable service and hook type checks.
-
-## Standard Library foundation
-
-The future Standard Library module SPI and dependency planner are documented
-in [Standard Library architecture](Standard-Library-Architecture.md). They
-provide contracts and validation tools only; no standard feature modules are
-implemented yet.
+The Standard Library utilities and module contracts are documented in
+[Standard Library architecture](Standard-Library-Architecture.md).

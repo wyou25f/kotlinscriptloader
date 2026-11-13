@@ -14,7 +14,7 @@ val kslScriptsDir = providers.gradleProperty("kslScriptsDir")
     .orElse("../plugins/KotlinScriptLoader/scripts")
 
 dependencies {
-    // The plugin JAR contains the @KotlinScript template and canonical compilation configuration.
+    // Contains the KSL @KotlinScript template, implicit receiver and public API.
     compileOnly(files(kslJarPath))
     compileOnly("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
     compileOnly("me.clip:placeholderapi:2.11.6")
@@ -24,14 +24,14 @@ dependencies {
 kotlin {
     jvmToolchain(21)
     sourceSets.main {
-        // Index live KSL scripts as part of this project for Kotlin analysis.
+        // Adds the live .kts directory to IDEA's project model for script indexing.
         kotlin.srcDir(kslScriptsDir)
     }
 }
 
 /**
- * Optional setup check. Run after placing the matching plugin JAR at -PkslJar
- * (or in ide/libs); intentionally not wired into build so a fresh clone syncs.
+ * Checks the exact template/API/stdlib classes used by the editor project.
+ * Run after placing the matching plugin JAR at -PkslJar or ide/libs.
  */
 tasks.register("verifyKslIdeSetup") {
     doLast {
@@ -44,13 +44,17 @@ tasks.register("verifyKslIdeSetup") {
                 "ru/privateserver/ksl/KSLScript.class",
                 "ru/privateserver/ksl/KSLScriptCompilationConfiguration.class",
                 "ru/privateserver/ksl/api/KSLScriptMetadataKt.class",
-                "ru/privateserver/ksl/api/KSLPublicApiKt.class"
+                "ru/privateserver/ksl/api/KSLPublicApiKt.class",
+                "ru/privateserver/ksl/api/KSLApiProvider.class",
+                "ru/privateserver/ksl/std/text/TextExtensionsKt.class",
+                "ru/privateserver/ksl/std/math/MathExtensionsKt.class",
+                "ru/privateserver/ksl/std/time/TimeExtensionsKt.class"
             ).forEach { entry ->
                 check(jar.getEntry(entry) != null) {
                     "KSL IDE support entry is missing from ${jarFile.name}: $entry"
                 }
             }
         }
-        logger.lifecycle("KSL IDE template and public API are present in ${jarFile.name}")
+        logger.lifecycle("Verified KSL script template, public API and Standard Library in ${jarFile.name}")
     }
 }
