@@ -20,7 +20,7 @@ class KSLApiAliasesTest {
                 "getService" -> "ready"
                 "registeredAddons" -> emptyList<KSLAddon>()
                 "isAddonLoaded" -> args?.get(0) == "present"
-                "scripts" -> emptyList<KSLScriptInfo>()
+                "scripts" -> listOf(KSLScriptInfo("loaded", true, 10L, 0))
                 "reloadScript" -> args?.get(0) == "welcome"
                 "reloadScripts" -> 3 to 1
                 "publish" -> {
