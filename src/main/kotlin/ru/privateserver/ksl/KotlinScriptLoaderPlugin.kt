@@ -163,6 +163,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     var authMe: KSLAuthMeHook? = null
         private set
 
+    var skript: KSLSkriptHook? = null
+        private set
+
     var discord: KSLDiscordHook? = null
         private set
 
@@ -429,6 +432,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         logger.info("$c9${bold}║$r ${c7}WorldGuard      : ${flag(worldGuard != null)}")
         logger.info("$c9${bold}║$r ${c7}TAB             : ${flag(tab != null)}")
         logger.info("$c9${bold}║$r ${c7}AuthMe          : ${flag(authMe != null)}")
+        logger.info("$c9${bold}║$r ${c7}Skript          : ${flag(skript != null)}")
         logger.info("$c9${bold}║$r ${c7}Discord         : ${if (discord != null) "${cg}✔ ${discord!!.channels().size} канал(ов)$r" else "${ce}○ не настроен$r"}")
         logger.info("$c9${bold}║$r ${c7}Аддоны          : ${if (addonsCount > 0) "${cg}✔ $addonsCount загружено$r" else "${ce}○ нет$r"}")
         logger.info("$c9${bold}║$r ${c7}Сервисы         : ${if (servicesCount > 0) "${cg}✔ $servicesCount зарегистрировано$r" else "${ce}○ нет$r"}")
@@ -529,6 +533,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         worldGuard  = integrate("WorldGuard", "WorldGuard") { KSLWorldGuardHook() }
         tab         = integrate("TAB", "TAB") { KSLTabHook() }
         authMe      = integrate("AuthMe", "AuthMe") { KSLAuthMeHook() }
+        skript      = integrate("Skript", "Skript") { KSLSkriptHook() }
     }
 
     private fun generateAutocompleteStub() {
@@ -1164,7 +1169,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             "WorldEdit" to (worldEdit != null),
             "WorldGuard" to (worldGuard != null),
             "TAB" to (tab != null),
-            "AuthMe" to (authMe != null)
+            "AuthMe" to (authMe != null),
+            "Skript" to (skript != null)
         ).forEach { (name, present) ->
             // The doctor label says EssentialsX, the plugin itself is registered as Essentials.
             val installed = Bukkit.getPluginManager().getPlugin(if (name == "EssentialsX") "Essentials" else name) != null
@@ -1177,7 +1183,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         }
 
         // Hooks contributed by addons; the built-in ones are listed above.
-        val builtinHooks = setOf("luckperms", "essentials", "vault", "skinsrestorer", "worldedit", "worldguard", "tab", "authme")
+        val builtinHooks = setOf("luckperms", "essentials", "vault", "skinsrestorer", "worldedit", "worldguard", "tab", "authme", "skript")
         addonManager.hooks().filter { it.hookId.lowercase() !in builtinHooks }.forEach { hook ->
             val enabled = addonManager.isPluginEnabled(hook.pluginName)
             lines += DiagnosticLine(
