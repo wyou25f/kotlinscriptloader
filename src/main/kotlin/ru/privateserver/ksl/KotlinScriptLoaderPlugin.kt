@@ -163,6 +163,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private lateinit var scriptRunner: ScriptRunner
 
     private val listenersByScript    = ConcurrentHashMap<String, MutableList<Listener>>()
+    private val listenerLock = Any()
     private val commandsByScript     = ConcurrentHashMap<String, MutableSet<DynamicCommand>>()
     private val placeholdersByScript = ConcurrentHashMap<String, MutableList<String>>()
     private val tasksByScript        = ConcurrentHashMap<String, MutableSet<Int>>()
@@ -856,7 +857,10 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         }.onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось отменить часть тасков: ${it.message}") }
 
         runCatching {
-            listenersByScript.remove(scriptName)?.forEach { HandlerList.unregisterAll(it) }
+            val listeners = synchronized(listenerLock) {
+                listenersByScript.remove(scriptName)?.toList().orEmpty()
+            }
+            listeners.forEach { HandlerList.unregisterAll(it) }
         }.onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось снять часть listener'ов: ${it.message}") }
 
         runCatching {
@@ -1137,16 +1141,23 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     }
 
     fun trackListener(scriptName: String, listener: Listener) {
-        val listeners = listenersByScript.computeIfAbsent(scriptName) { mutableListOf() }
-        if (listeners.size >= maxListeners) {
+        // Keep the per-script limit check and registration atomic with unloadScript().
+        val accepted = synchronized(listenerLock) {
+            val listeners = listenersByScript.computeIfAbsent(scriptName) { mutableListOf() }
+            if (listeners.size >= maxListeners) {
+                false
+            } else {
+                listeners.add(listener)
+                true
+            }
+        }
+        if (!accepted) {
             // The listener is already registered with Bukkit; take it back out.
             HandlerList.unregisterAll(listener)
             if (limitWarned.add("$scriptName|L")) {
                 logger.severe("[$scriptName] ${KSLError.SCRIPT_LIMIT_LISTENERS.tag} У скрипта уже $maxListeners обработчиков событий — новые отклоняются (security.limits.max-listeners-per-script)")
             }
-            return
         }
-        listeners.add(listener)
     }
 
     private val commandSyncQueued = java.util.concurrent.atomic.AtomicBoolean(false)
