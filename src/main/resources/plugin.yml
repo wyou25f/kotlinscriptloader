@@ -1,5 +1,6 @@
 name: KotlinScriptLoader
 version: ${version}
+libraries: ${libraries}
 main: ru.privateserver.ksl.KotlinScriptLoaderPlugin
 api-version: '1.21'
 author: PrivateServer
