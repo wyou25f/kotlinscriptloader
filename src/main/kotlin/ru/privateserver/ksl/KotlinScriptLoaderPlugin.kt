@@ -51,7 +51,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         val thresholdSeconds = config.getLong("diagnostics.watchdog.threshold-seconds", 5L).coerceIn(2L, 300L)
         val pollMillis = config.getLong("diagnostics.watchdog.poll-interval-ms", 500L).coerceIn(100L, 5_000L)
         val maxDumps = config.getInt("diagnostics.watchdog.max-dumps", 10).coerceIn(1, 50)
-        watchdogMonitor = KSLWatchdogMonitor(this, thresholdSeconds, pollMillis, maxDumps).also { it.start() }
+        val snapshots = config.getInt("diagnostics.watchdog.snapshot-count", 3).coerceIn(1, 5)
+        val snapshotInterval = config.getLong("diagnostics.watchdog.snapshot-interval-ms", 750L).coerceIn(250L, 2_000L)
+        watchdogMonitor = KSLWatchdogMonitor(this, thresholdSeconds, pollMillis, maxDumps, snapshots, snapshotInterval).also { it.start() }
     }
 
     private fun startQueueMonitor() {
