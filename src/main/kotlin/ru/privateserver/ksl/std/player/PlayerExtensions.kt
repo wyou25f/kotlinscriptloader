@@ -76,8 +76,8 @@ fun Player.giveOrDrop(item: ItemStack): Int {
 fun Player.removeItems(matcher: (ItemStack) -> Boolean): Int {
     var removed = 0
     inventory.storageContents.forEachIndexed { index, stack ->
-        if (stack != null && matcher(stack)) {
-            removed += stack.amount
+        if (stack != null && !stack.isEmptyStack() && matcher(stack)) {
+            removed = Math.addExact(removed, stack.amount)
             inventory.setItem(index, null)
         }
     }
