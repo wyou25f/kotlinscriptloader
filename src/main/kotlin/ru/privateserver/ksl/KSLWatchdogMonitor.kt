@@ -39,6 +39,8 @@ internal class KSLWatchdogMonitor(
     @Volatile private var heartbeatTask: org.bukkit.scheduler.BukkitTask? = null
     @Volatile private var lastDumpFile: File? = null
     @Volatile private var lastStallMillis: Long = 0L
+    @Volatile private var incidentStartedAtNanos: Long = 0L
+    @Volatile private var lastCapturedSnapshotCount: Int = 0
 
     private val executor: ScheduledExecutorService =
         Executors.newSingleThreadScheduledExecutor { runnable ->
@@ -66,9 +68,17 @@ internal class KSLWatchdogMonitor(
     }
 
     private fun heartbeat() {
-        lastHeartbeatNanos = System.nanoTime()
+        val now = System.nanoTime()
+        lastHeartbeatNanos = now
         if (incidentActive.compareAndSet(true, false)) {
-            plugin.logger.info("${KSLError.SYSTEM_WATCHDOG_RECOVERED.tag} Главный поток снова обрабатывает тики; последнее обнаруженное зависание: ${lastStallMillis}мс.")
+            val startedAt = incidentStartedAtNanos
+            if (startedAt > 0L) lastStallMillis = TimeUnit.NANOSECONDS.toMillis((now - startedAt).coerceAtLeast(0L))
+            incidentStartedAtNanos = 0L
+            val dumpPath = latestDump()?.let { runCatching { it.relativeTo(plugin.dataFolder).path }.getOrNull() } ?: "дамп не сохранён"
+            plugin.logger.warning(
+                "${KSLError.SYSTEM_WATCHDOG_RECOVERED.tag} Главный поток снова обрабатывает тики; " +
+                    "зависание длилось около ${lastStallMillis}мс; снимков: ${lastCapturedSnapshotCount}; дамп: $dumpPath"
+            )
         }
     }
 
@@ -86,16 +96,25 @@ internal class KSLWatchdogMonitor(
 
     private fun checkHeartbeat() {
         if (stopped.get()) return
-        val elapsed = System.nanoTime() - lastHeartbeatNanos
-        if (elapsed < thresholdNanos || !incidentActive.compareAndSet(false, true)) return
+        val observedHeartbeat = lastHeartbeatNanos
+        val elapsed = System.nanoTime() - observedHeartbeat
+        if (elapsed < thresholdNanos) return
+        incidentStartedAtNanos = observedHeartbeat
+        if (!incidentActive.compareAndSet(false, true)) return
+        if (lastHeartbeatNanos != observedHeartbeat) {
+            incidentActive.compareAndSet(true, false)
+            incidentStartedAtNanos = 0L
+            return
+        }
         lastStallMillis = TimeUnit.NANOSECONDS.toMillis(elapsed)
-        writeDump(elapsed)
+        writeDump(elapsed, observedHeartbeat)
     }
 
     private data class ThreadSnapshot(
         val capturedAt: Instant,
         val threads: List<Pair<Thread, Array<StackTraceElement>>>,
         val infos: Map<Long, ThreadInfo>,
+        val cpuTimesNanos: Map<Long, Long>,
         val deadlockedIds: Set<Long>,
         val operation: String?,
         val totalThreadCount: Int
@@ -120,16 +139,25 @@ internal class KSLWatchdogMonitor(
         val infos = runCatching {
             bean.getThreadInfo(ids, true, true).filterNotNull().associateBy { it.threadId }
         }.getOrDefault(emptyMap())
+        val cpuTimes = runCatching {
+            if (bean.isThreadCpuTimeSupported && bean.isThreadCpuTimeEnabled) {
+                ids.mapNotNull { id ->
+                    val time = bean.getThreadCpuTime(id)
+                    if (time >= 0L) id to time else null
+                }.toMap()
+            } else emptyMap()
+        }.getOrDefault(emptyMap())
         val deadlocked = runCatching { bean.findDeadlockedThreads()?.toSet() ?: emptySet() }
             .getOrDefault(emptySet())
-        return ThreadSnapshot(capturedAt, limited, infos, deadlocked, activeOperation, allStacks.size)
+        return ThreadSnapshot(capturedAt, limited, infos, cpuTimes, deadlocked, activeOperation, allStacks.size)
     }
 
-    private fun writeDump(stallNanos: Long) {
+    private fun writeDump(stallNanos: Long, observedHeartbeat: Long) {
         val detectedAt = Instant.now()
         val captured = mutableListOf<ThreadSnapshot>()
         for (index in 0 until snapshotLimit) {
             if (stopped.get() && index > 0) break
+            if (index > 0 && lastHeartbeatNanos != observedHeartbeat) break
             runCatching { captureSnapshot() }
                 .onSuccess { captured += it }
                 .onFailure { error ->
@@ -137,7 +165,7 @@ internal class KSLWatchdogMonitor(
                         plugin.logger.warning("${KSLError.SYSTEM_WATCHDOG_SNAPSHOT_FAILED.tag} Снимок ${index + 1}/$snapshotLimit не получен: ${error.message}")
                     }
                 }
-            if (index < snapshotLimit - 1 && !stopped.get()) {
+            if (index < snapshotLimit - 1 && !stopped.get() && lastHeartbeatNanos == observedHeartbeat) {
                 try {
                     Thread.sleep(snapshotDelay)
                 } catch (_: InterruptedException) {
@@ -147,11 +175,18 @@ internal class KSLWatchdogMonitor(
             }
         }
 
+        lastCapturedSnapshotCount = captured.size
+        val recoveredDuringCapture = lastHeartbeatNanos != observedHeartbeat
+        if (recoveredDuringCapture) {
+            lastStallMillis = TimeUnit.NANOSECONDS.toMillis((lastHeartbeatNanos - observedHeartbeat).coerceAtLeast(0L))
+        } else {
+            lastStallMillis = TimeUnit.NANOSECONDS.toMillis((System.nanoTime() - observedHeartbeat).coerceAtLeast(0L))
+        }
         try {
             val directory = File(plugin.dataFolder, "dumps")
             Files.createDirectories(directory.toPath())
-            val file = File(directory, "watchdog-${timestampFormat.format(detectedAt)}.txt")
-            val report = buildReport(detectedAt, stallNanos, captured, allThreadCount = captured.maxOfOrNull { it.totalThreadCount } ?: 0)
+            val file = File(directory, "watchdog-${timestampFormat.format(detectedAt)}-${System.nanoTime()}.txt")
+            val report = buildReport(detectedAt, stallNanos, captured, allThreadCount = captured.maxOfOrNull { it.totalThreadCount } ?: 0, recoveredDuringCapture = recoveredDuringCapture)
             Files.writeString(
                 file.toPath(),
                 report,
@@ -179,7 +214,8 @@ internal class KSLWatchdogMonitor(
         detectedAt: Instant,
         stallNanos: Long,
         snapshots: List<ThreadSnapshot>,
-        allThreadCount: Int
+        allThreadCount: Int,
+        recoveredDuringCapture: Boolean
     ): String = buildString {
         val runtime = Runtime.getRuntime()
         val memory = ManagementFactory.getMemoryMXBean().heapMemoryUsage
@@ -203,6 +239,7 @@ internal class KSLWatchdogMonitor(
         appendLine("Main-thread reference: ${mainThread?.name ?: "unavailable"}")
         appendLine("Snapshots captured: ${snapshots.size}/$snapshotLimit, interval=${snapshotDelay}ms")
         appendLine("JVM threads observed: $allThreadCount (capture limit $MAX_THREADS)")
+        appendLine("Main thread recovered while collecting: $recoveredDuringCapture")
         appendLine("Deadlock detected: ${deadlocks.isNotEmpty()}")
         if (deadlocks.isNotEmpty()) appendLine("Deadlocked thread ids: ${deadlocks.sorted().joinToString()}")
         appendLine()
@@ -224,11 +261,11 @@ internal class KSLWatchdogMonitor(
                 appendLine("Main thread stack unavailable in this snapshot.")
             } else {
                 appendLine("--- MAIN THREAD ---")
-                appendThread(mainEntry.first, mainEntry.second, snapshot.infos[mainEntry.first.id], snapshot.deadlockedIds)
+                appendThread(mainEntry.first, mainEntry.second, snapshot.infos[mainEntry.first.id], snapshot.deadlockedIds, snapshot.cpuTimesNanos[mainEntry.first.id])
             }
             appendLine("--- ALL THREADS (max $MAX_THREADS, max $MAX_FRAMES frames each) ---")
             snapshot.threads.filterNot { it.first === main }.forEach { (thread, stack) ->
-                appendThread(thread, stack, snapshot.infos[thread.id], snapshot.deadlockedIds)
+                appendThread(thread, stack, snapshot.infos[thread.id], snapshot.deadlockedIds, snapshot.cpuTimesNanos[thread.id])
             }
             val omitted = KSLWatchdogAnalysis.skippedThreads(snapshot.totalThreadCount, snapshot.threads.size)
             if (omitted > 0) appendLine("${KSLError.SYSTEM_WATCHDOG_THREAD_LIMIT.code}: omitted $omitted threads (capture cap $MAX_THREADS).")
@@ -241,6 +278,8 @@ internal class KSLWatchdogMonitor(
         appendLine("Main thread name: ${mainThread?.name ?: "unknown"}")
         appendLine("Last active KSL operation: ${activeOperation ?: "none"}")
         appendLine("DB queue sizes: write=${runCatching { plugin.dbQueueSize() }.getOrDefault(-1)}, read=${runCatching { plugin.dbQueryQueueSize() }.getOrDefault(-1)}")
+        appendLine("Captured snapshots: ${lastCapturedSnapshotCount}/$snapshotLimit")
+        plugin.watchdogDiagnostics().forEach { appendLine(it) }
         val mainStacks = snapshots.mapNotNull { snapshot ->
             snapshot.threads.firstOrNull { it.first === mainThread }?.second?.map { it.toString() }
         }
@@ -259,10 +298,12 @@ internal class KSLWatchdogMonitor(
         thread: Thread,
         stack: Array<StackTraceElement>,
         info: ThreadInfo?,
-        deadlockedIds: Set<Long>
+        deadlockedIds: Set<Long>,
+        cpuTimeNanos: Long?
     ) {
-        appendLine("\"${thread.name}\" id=${thread.id} state=${thread.state} daemon=${thread.isDaemon}" +
+        appendLine("\"${thread.name}\" id=${thread.id} state=${info?.threadState ?: thread.state} daemon=${thread.isDaemon}" +
             if (thread.id in deadlockedIds) " DEADLOCKED" else "")
+        cpuTimeNanos?.let { appendLine("  CPU time: ${TimeUnit.NANOSECONDS.toMillis(it)} ms") }
         info?.let {
             appendLine("  lock: ${it.lockInfo ?: "none"}")
             if (it.lockOwnerId >= 0L) appendLine("  lock owner: ${it.lockOwnerName} (id=${it.lockOwnerId})")
@@ -286,6 +327,7 @@ internal class KSLWatchdogMonitor(
 
     fun latestDump(): File? = lastDumpFile?.takeIf { it.isFile }
     fun lastStallDurationMillis(): Long = lastStallMillis
+    fun latestSnapshotCount(): Int = lastCapturedSnapshotCount
 
     fun stop() {
         if (!stopped.compareAndSet(false, true)) return
