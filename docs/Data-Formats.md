@@ -117,8 +117,8 @@ shop = true
 
 ```kotlin
 val settings = loadToml("data/settings.toml")
-val port = settings.tomlInt("port", 25565)
-val database = settings.tomlTable("database")
+val port = settings?.tomlInt("port", 25565) ?: 25565
+val database = settings?.tomlTable("database")
 val host = database?.tomlString("host", "localhost") ?: "localhost"
 ```
 

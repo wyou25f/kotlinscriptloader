@@ -138,7 +138,7 @@ max-items = 24
 
 ```kotlin
 val settings = loadToml("data/shop.toml")
-val enabled = settings.tomlTable("shop")?.tomlBoolean("enabled", true) ?: true
+val enabled = settings?.tomlTable("shop")?.tomlBoolean("enabled", true) ?: true
 ```
 
 ## 11. JSON payload
