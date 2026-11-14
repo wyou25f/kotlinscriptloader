@@ -219,9 +219,9 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
             }
 
             "errors" -> {
-                if (args.getOrNull(1).equals("list", ignoreCase = true)) {
+                if (args.getOrNull(1)?.equals("list", ignoreCase = true) == true) {
                     val categoryArg = args.getOrNull(2)
-                    val category = categoryArg?.singleOrNull()?.let(KSLErrorCategory::byLetter)
+                    val category = categoryArg?.singleOrNull()?.let { KSLErrorCategory.byLetter(it) }
                     if (categoryArg != null && category == null) {
                         sender.sendMessage("§cНеизвестная категория: $categoryArg. Используй букву из /ksl error.")
                     } else {
