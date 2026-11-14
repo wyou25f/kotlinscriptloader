@@ -15,7 +15,7 @@ class KSLClassDenyList(extra: Collection<String> = emptyList(), allowed: Collect
             "java.lang.reflect.Method", "java.lang.reflect.Field", "java.lang.reflect.Constructor",
             "java.lang.reflect.Proxy", "java.lang.reflect.AccessibleObject",
             "java.lang.invoke.MethodHandle", "java.lang.invoke.MethodHandles",
-            "java.lang.invoke.MethodHandles\$Lookup", "java.lang.invoke.VarHandle"
+            "java.lang.invoke.VarHandle"
         )
 
         val defaultPrefixes = listOf(
