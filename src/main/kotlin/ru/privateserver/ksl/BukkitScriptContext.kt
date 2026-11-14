@@ -1058,6 +1058,33 @@ open class BukkitScriptContext(
         plugin.discord?.sendEmbedAsync(channel, title, description, color, footer, allowMentions, fields)
             ?: java.util.concurrent.CompletableFuture.completedFuture(false)
 
+    // Concise Discord aliases. All paths delegate to the canonical methods above.
+    fun discord(channel: String, message: String) = discordSend(channel, message)
+    fun discordMessage(channel: String, message: String) = discordSend(channel, message)
+    fun discordAsync(channel: String, message: String, allowMentions: Boolean = false) =
+        discordSendAsync(channel, message, allowMentions)
+    fun discordMessageAsync(channel: String, message: String, allowMentions: Boolean = false) =
+        discordSendAsync(channel, message, allowMentions)
+
+    fun discordMessage(
+        channel: String,
+        title: String,
+        description: String = "",
+        color: Int = 0x5865F2,
+        footer: String = "",
+        fields: List<KSLDiscordEmbedField> = emptyList()
+    ) = discordEmbed(channel, title, description, color, footer, fields)
+
+    fun discordMessageAsync(
+        channel: String,
+        title: String,
+        description: String = "",
+        color: Int = 0x5865F2,
+        footer: String = "",
+        fields: List<KSLDiscordEmbedField> = emptyList(),
+        allowMentions: Boolean = false
+    ) = discordEmbedAsync(channel, title, description, color, footer, fields, allowMentions)
+
     fun Location.playEffect(particle: Particle, builder: KSLEffectSpec.() -> Unit): Int {
         val frozen = this.clone()
         val spec = KSLEffectSpec(particle, { frozen }, plugin.addonManager.effectShapes)
