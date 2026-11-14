@@ -167,8 +167,9 @@ log("calls=${snapshot.calls}, avgNs=${snapshot.averageNanos}")
 
 ## 11. Индекс скриптов и автодополнение
 
-KSL keeps an immutable in-memory snapshot of discovered .kts files, their IDs and
-reload completion targets. Status output and tab completion reuse that snapshot
+KSL keeps an immutable in-memory snapshot of script IDs and reload completion
+targets, not File objects. File instances are created only for explicit reload,
+validation and status operations. Tab completion reuses the compact metadata
 instead of walking the scripts directory and rebuilding folder candidates on every
 keystroke. The snapshot is refreshed by explicit discovery/reload operations and
 invalidated by filesystem watcher events.

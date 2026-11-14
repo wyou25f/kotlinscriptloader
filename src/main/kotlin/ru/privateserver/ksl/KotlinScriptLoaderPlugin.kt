@@ -950,7 +950,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     private fun stampOf(file: File): Long = file.lastModified() * 31 + file.length()
 
-    fun scriptInfos(): List<KSLScriptInfo> = scriptIds().map { id ->
+    fun scriptInfos(): List<KSLScriptInfo> = findScriptFiles().map { file ->
+        val id = scriptId(file)
         KSLScriptInfo(id, id in liveScripts, loadMillisById[id] ?: -1L, KSLErrors.countFor(id))
     }
 
