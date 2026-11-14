@@ -13,6 +13,9 @@ import org.bukkit.plugin.java.JavaPlugin
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
+internal fun isTaskOwnedBy(scriptName: String, taskId: Int, tasksByScript: Map<String, Set<Int>>): Boolean =
+    tasksByScript[scriptName]?.contains(taskId) == true
+
 class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     lateinit var database: HikariDataSource
@@ -206,7 +209,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     fun submitWorker(scriptId: String, priority: ru.privateserver.ksl.rt.KSLWorkPriority, block: () -> Unit): Long =
         workScheduler.submit(scriptId, priority, block)
 
-    fun cancelWorker(taskId: Long): Boolean = workScheduler.cancel(taskId)
+    fun cancelWorker(scriptId: String, taskId: Long): Boolean = workScheduler.cancel(scriptId, taskId)
 
     fun resizeWorkers(workers: Int): Int {
         require(workers in 1..64) { "Количество потоков должно быть от 1 до 64." }
@@ -1371,6 +1374,17 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             }
         }
     }
+
+    /** Cancels only a Bukkit task registered by the requesting script. */
+    internal fun cancelTrackedTask(scriptName: String, taskId: Int): Boolean =
+        synchronized(taskLock) {
+            val ids = tasksByScript[scriptName] ?: return@synchronized false
+            if (!isTaskOwnedBy(scriptName, taskId, tasksByScript)) return@synchronized false
+            ids.remove(taskId)
+            if (ids.isEmpty()) tasksByScript.remove(scriptName, ids)
+            Bukkit.getScheduler().cancelTask(taskId)
+            true
+        }
 
     fun trackGui(scriptName: String) {
         scriptsWithGuis.add(scriptName)

@@ -10,6 +10,7 @@ import org.bukkit.Location
 import org.bukkit.OfflinePlayer
 import org.bukkit.Material
 import org.bukkit.command.CommandSender
+import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Player
 import org.bukkit.event.Event
 import org.bukkit.event.EventPriority
@@ -163,7 +164,12 @@ fun BukkitScriptContext.onPlayerJoin(action: PlayerJoinEvent.() -> Unit) = onJoi
 fun BukkitScriptContext.onPlayerQuit(action: PlayerQuitEvent.() -> Unit) = onQuit(action)
 fun BukkitScriptContext.onPlayerRespawn(action: PlayerRespawnEvent.() -> Unit) = onRespawn(action)
 fun BukkitScriptContext.onPlayerInteract(action: PlayerInteractEvent.() -> Unit) = onInteract(action)
-fun BukkitScriptContext.onMobDeath(action: EntityDeathEvent.() -> Unit) = onEvent<EntityDeathEvent>(action = action)
+internal fun isMobDeathEntity(entity: LivingEntity): Boolean = entity !is Player
+
+fun BukkitScriptContext.onMobDeath(action: EntityDeathEvent.() -> Unit) =
+    onEvent<EntityDeathEvent> {
+        if (isMobDeathEntity(entity)) action(this)
+    }
 fun BukkitScriptContext.onEntityDamage(action: EntityDamageEvent.() -> Unit) = onEvent<EntityDamageEvent>(action = action)
 
 // Fires on Paper's async chat thread: do not touch the world directly, wrap that in sync { }.

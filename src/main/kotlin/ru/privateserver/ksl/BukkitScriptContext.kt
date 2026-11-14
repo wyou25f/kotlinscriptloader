@@ -745,7 +745,7 @@ open class BukkitScriptContext(
 
     fun cpu(block: () -> Unit): Long = worker(block = block)
     fun work(block: () -> Unit): Long = worker(block = block)
-    fun cancelWorker(taskId: Long): Boolean = internalPlugin.cancelWorker(taskId)
+    fun cancelWorker(taskId: Long): Boolean = internalPlugin.cancelWorker(scriptName, taskId)
 
     fun runSync(block: () -> Unit): Int =
         scheduleTracked("runSync", block = block) { Bukkit.getScheduler().runTask(internalPlugin, it) }
@@ -789,8 +789,7 @@ open class BukkitScriptContext(
     // Works for any id returned by delay/every/runSync/...; stopEffect is the same call for effects.
     fun cancelTask(taskId: Int) {
         if (internalPlugin.effectManager.stop(scriptName, taskId)) return
-        Bukkit.getScheduler().cancelTask(taskId)
-        internalPlugin.untrackTask(scriptName, taskId)
+        internalPlugin.cancelTrackedTask(scriptName, taskId)
     }
 
     inline fun <reified T : Event> onEvent(

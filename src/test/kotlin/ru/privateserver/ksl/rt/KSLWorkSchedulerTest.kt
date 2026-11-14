@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 class KSLWorkSchedulerTest {
     @Test
@@ -39,6 +40,40 @@ class KSLWorkSchedulerTest {
             assertThrows(RejectedExecutionException::class.java) {
                 scheduler.submit("shop") { }
             }
+        } finally {
+            release.countDown()
+            scheduler.close()
+        }
+    }
+
+    @Test
+    fun `a script cannot cancel another scripts worker task`() {
+        val scheduler = KSLWorkScheduler(workers = 1, queueCapacity = 4)
+        val started = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val blockerFinished = CountDownLatch(1)
+        val targetRan = AtomicBoolean(false)
+        try {
+            scheduler.submit("alpha") {
+                started.countDown()
+                try {
+                    release.await(2, TimeUnit.SECONDS)
+                } finally {
+                    blockerFinished.countDown()
+                }
+            }
+            assertTrue(started.await(2, TimeUnit.SECONDS))
+
+            val targetId = scheduler.submit("beta") { targetRan.set(true) }
+            assertEquals(false, scheduler.cancel("alpha", targetId))
+            assertTrue(scheduler.cancel("beta", targetId))
+
+            release.countDown()
+            assertTrue(blockerFinished.await(2, TimeUnit.SECONDS))
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
+            while (scheduler.snapshot().tracked != 0 && System.nanoTime() < deadline) Thread.yield()
+            assertEquals(false, targetRan.get())
+            assertEquals(0, scheduler.snapshot().tracked)
         } finally {
             release.countDown()
             scheduler.close()

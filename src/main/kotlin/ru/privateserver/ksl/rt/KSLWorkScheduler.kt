@@ -132,8 +132,17 @@ class KSLWorkScheduler(
         return id
     }
 
+    /** Global cancellation for trusted scheduler owners such as plugin shutdown. */
     fun cancel(taskId: Long): Boolean {
         val task = tasks[taskId] ?: return false
+        task.cancel()
+        return true
+    }
+
+    /** Script-facing cancellation is owner-scoped. */
+    fun cancel(owner: String, taskId: Long): Boolean {
+        val task = tasks[taskId] ?: return false
+        if (task.owner != owner) return false
         task.cancel()
         return true
     }

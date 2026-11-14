@@ -45,6 +45,38 @@ class KSLEffectShapesTest {
     }
 
     @Test
+    fun `arc preserves complete and multiple revolutions`() {
+        val center = Location(null, 0.0, 0.0, 0.0)
+        val full = KSLEffectShapes.arc(2.0, 0.0, 360.0, 5).points(0L, center)
+        val double = KSLEffectShapes.arc(2.0, 0.0, 720.0, 5).points(0L, center)
+
+        assertEquals(5, full.size)
+        assertTrue(full.distinctBy { (it.x * 1000).toInt() to (it.z * 1000).toInt() }.size >= 4)
+        assertEquals(full.first().x, full.last().x, 1.0e-9)
+        assertEquals(full.first().z, full.last().z, 1.0e-9)
+        assertTrue(double.distinctBy { (it.x * 1000).toInt() to (it.z * 1000).toInt() }.size >= 4)
+    }
+
+    @Test
+    fun `all new named shapes are registered as built ins`() {
+        val registry = KSLOwnedRegistry<KSLShapeFactory>()
+        KSLEffectShapes.registerDefaults(registry)
+        val center = Location(null, 0.0, 0.0, 0.0)
+        val cases = mapOf(
+            "arc" to mapOf("radius" to 2.0, "sweepDegrees" to 360.0, "points" to 12),
+            "cylinder" to mapOf("radius" to 2.0, "height" to 3.0, "pointsPerRing" to 12),
+            "cone" to mapOf("radius" to 2.0, "height" to 3.0, "points" to 12),
+            "heart" to mapOf("size" to 2.0, "points" to 24)
+        )
+        cases.forEach { (name, params) ->
+            val factory = registry.get(name)
+            assertTrue(factory != null, "Missing built-in shape: $name")
+            val points = factory!!.invoke(params, 40L).points(0L, center)
+            assertTrue(points.isNotEmpty(), "Built-in shape returned no points: $name")
+        }
+    }
+
+    @Test
     fun `arc cylinder cone and heart stay finite and bounded`() {
         val center = Location(null, 0.0, 0.0, 0.0)
         val shapes = listOf(

@@ -113,7 +113,8 @@ object KSLEffectShapes {
         return KSLEffectShape { _, _ ->
             (0 until n).map { index ->
                 val progress = index.toDouble() / (n - 1)
-                val angle = Math.toRadians(startDegrees % 360.0 + (sweepDegrees % 360.0) * progress)
+                // Reduce after multiplying by progress: reducing the sweep first turns 360° into 0°.
+                val angle = Math.toRadians(startDegrees % 360.0 + (sweepDegrees * progress) % 360.0)
                 Vector(cos(angle) * radius, 0.0, sin(angle) * radius)
             }
         }
@@ -170,6 +171,25 @@ object KSLEffectShapes {
         registry.put("helix", { p, total -> helix(p.num("radius", 1.0), p.num("turns", 3.0), p.num("height", 3.0), total) }, null)
         registry.put("sphere", { p, _ -> sphere(p.num("radius", 1.0), p.int("points", 60), p.num("spin", 0.0)) }, null)
         registry.put("square", { p, _ -> square(p.num("size", 2.0), p.int("points", 10)) }, null)
+        registry.put(
+            "arc",
+            { p, _ ->
+                arc(
+                    p.num("radius", 1.0),
+                    p.num("startDegrees", p.num("start", 0.0)),
+                    p.num("sweepDegrees", p.num("sweep", 180.0)),
+                    p.int("points", 30)
+                )
+            },
+            null
+        )
+        registry.put(
+            "cylinder",
+            { p, _ -> cylinder(p.num("radius", 1.0), p.num("height", 2.0), p.int("pointsPerRing", p.int("points", 30))) },
+            null
+        )
+        registry.put("cone", { p, _ -> cone(p.num("radius", 1.0), p.num("height", 2.0), p.int("points", 60)) }, null)
+        registry.put("heart", { p, _ -> heart(p.num("size", 1.0), p.int("points", 80)) }, null)
         registry.put("point", { _, _ -> point() }, null)
     }
 }
