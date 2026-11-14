@@ -95,7 +95,7 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
                 plugin.logScriptProblem("[$id] ${KSLError.SCRIPT_COMPILE.tag} ❌ Скрипт не скомпилировался, ошибок: ${unit.errors.size}")
                 KSLReport.compactErrors(unit.errors).forEach { plugin.logScriptProblem("  $it") }
             }
-            else -> unit.crash?.let { KSLErrors.log(plugin, id, "компиляция скрипта", it) }
+            else -> unit.crash?.let { KSLErrors.log(plugin, id, "компиляция скрипта", it, KSLError.SCRIPT_COMPILE) }
                 ?: unit.errors.forEach { plugin.logScriptProblem("[$id] ${KSLError.SCRIPT_RUNTIME.tag} $it") }
         }
         if (unit.crash == null) KSLErrors.recordFailure(id, "компиляция", unit.errors, unit.failure ?: KSLError.SCRIPT_COMPILE)
@@ -127,7 +127,7 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
                 is ResultWithDiagnostics.Success -> {
                     val rv = result.value.returnValue
                     if (rv is ResultValue.Error) {
-                        KSLErrors.log(plugin, id, "загрузка скрипта", rv.error)
+                        KSLErrors.log(plugin, id, "загрузка скрипта", rv.error, KSLError.SCRIPT_RUNTIME)
                         false
                     } else {
                         plugin.logger.info("[$id] ✅ загружен")
@@ -141,7 +141,7 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
             }
             ok
         } catch (ex: Throwable) {
-            KSLErrors.log(plugin, id, "загрузка скрипта", ex)
+            KSLErrors.log(plugin, id, "загрузка скрипта", ex, KSLError.SCRIPT_RUNTIME)
             false
         }
     }
