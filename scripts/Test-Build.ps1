@@ -1,12 +1,24 @@
 [CmdletBinding()]
-param()
+param(
+    [switch]$Detailed,
+    [switch]$NoDaemon,
+    [switch]$Offline,
+    [switch]$OpenReport
+)
 $Root = Split-Path -Parent $PSScriptRoot
-& (Join-Path $PSScriptRoot "Debug-Build.ps1") -Task test -Detailed
-$ExitCode = $LASTEXITCODE
-$Reports = Join-Path $Root "build/reports/tests/test/index.html"
-$Results = Join-Path $Root "build/test-results/test"
-Write-Host "=== Test report locations ==="
-if (Test-Path $Reports) { Write-Host "HTML report: $Reports" }
-if (Test-Path $Results) { Write-Host "JUnit XML: $Results" }
-if (-not (Test-Path $Reports) -and -not (Test-Path $Results)) { Write-Warning "No Gradle test reports found." }
-if ($ExitCode -ne 0) { exit $ExitCode }
+$Arguments = @{ GradleTasks = @("clean", "test"); ReportName = "test" }
+if ($Detailed) { $Arguments.Detailed = $true }
+if ($NoDaemon) { $Arguments.NoDaemon = $true }
+if ($Offline) { $Arguments.Offline = $true }
+& (Join-Path $PSScriptRoot "Debug-Build.ps1") @Arguments
+$Code = $LASTEXITCODE
+$Html = Join-Path $Root "build/reports/tests/test/index.html"
+$Report = Join-Path $Root "build-reports/index.html"
+$Xml = Join-Path $Root "build/test-results/test"
+Write-Host ""
+Write-Host "TEST OUTPUTS" -ForegroundColor Cyan
+if (Test-Path $Html) { Write-Host "Gradle test report: $Html" -ForegroundColor Green }
+if (Test-Path $Xml) { Write-Host "JUnit XML results:  $Xml" -ForegroundColor Green }
+if (Test-Path $Report) { Write-Host "KSL build report:   $Report" -ForegroundColor Cyan }
+if ($OpenReport -and (Test-Path $Report)) { Start-Process $Report }
+if ($Code -ne 0) { exit $Code }
