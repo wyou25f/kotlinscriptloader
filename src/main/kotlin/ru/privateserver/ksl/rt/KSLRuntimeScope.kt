@@ -72,7 +72,7 @@ class KSLRuntimeScope(val name: String) : AutoCloseable {
     ): KSLCache<K, V> = cache(maxSize, expireAfter, expireAfterAccess)
 
     fun profiler(name: String): KSLProfiler = synchronized(lock) {
-        check(!closed) { "Runtime scope '$name' is already closed" }
+        check(!closed) { "Runtime scope '${this.name}' is already closed" }
         require(name.isNotBlank()) { "Profiler name must not be blank" }
         profilers[name]?.let { return@synchronized it }
         check(profilers.size < MAX_PROFILERS_PER_SCOPE) {

@@ -90,6 +90,8 @@ plugins/KotlinScriptLoader/
 - `luckPermsGroup/Prefix/Suffix(player)`, `hasGroup(player, name)` — LuckPerms (мягкая зависимость)
 - `balance(player)`, `setBalance(player, amount)`, `isAfk(player)` — EssentialsX (мягкая зависимость)
 - `runAsync { }` / `runSync { }` — таскшедулер
+- `runtimeScope.cache/lru(...)`, `runtimeScope.profile(...)` — управляемые кэши и профилировщики с очисткой при reload
+- `own(resource)` / `onUnload { ... }` — подключение собственных ресурсов к очистке скрипта
 - `onlinePlayers()`, `onlineCount`, `maxPlayers` — снимок списка игроков и текущие лимиты сервера
 - `findPlayer(nameOrUuid)` — поиск онлайн-игрока по точному нику без учёта регистра или UUID
 - `CommandSender.sendRichMessage(text)` — MiniMessage для игрока, консоли и других отправителей

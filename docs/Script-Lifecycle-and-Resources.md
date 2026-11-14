@@ -22,11 +22,16 @@
 - runSync, runAsync, delay, every, delayAsync, everyAsync;
 - scheduler aliases sync, async, after, repeat;
 - worker, cpu, work и cancelWorker;
-- subscribe(topic) { ... } — подписка на KSL event bus.
+- subscribe(topic) { ... } — подписка на KSL event bus;
+- `runtimeScope.cache/lru(...)` — кэш с временем жизни текущего скрипта;
+- `runtimeScope.profile(...)` — scoped-профилировщик;
+- `own(resource)` и `onUnload { ... }` — управление внешними `AutoCloseable`-ресурсами и cleanup-callbacks.
 
 Задачи, зарегистрированные через KSL context, получают владельца-скрипт. При выгрузке скрипта KSL отменяет отслеживаемые Bukkit tasks и worker tasks, удаляет зарегистрированные команды и связанные обработчики/placeholder resources, а подписки, созданные скриптом, снимаются автоматически.
 
 Используй эти точки входа вместо самостоятельного Bukkit.getScheduler() или ручного добавления глобальных listener'ов, когда эквивалентный KSL DSL доступен.
+
+`runtimeScope` создаётся лениво и один на скрипт. На `/ksl reload`, удалении скрипта и shutdown он закрывается автоматически: callbacks вызываются в обратном порядке регистрации, принадлежащие scope кэши очищаются, scoped-профилировщики отбрасываются. `own(resource)` подходит для `AutoCloseable` (HTTP-клиенты, файловые watcher'ы, собственные subscriptions); `onUnload { ... }` — для API, у которого отдельного handle нет. Вернувшийся из `onUnload` handle можно закрыть заранее, чтобы снять callback и освободить захваченные им ссылки.
 
 ## 3. Пример: безопасный периодический обработчик
 

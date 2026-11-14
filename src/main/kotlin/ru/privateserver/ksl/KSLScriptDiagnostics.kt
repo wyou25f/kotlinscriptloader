@@ -67,6 +67,9 @@ class KSLScriptDiagnostics {
 
     val trackedScripts: Int get() = scripts.size
 
+    /** Current script IDs holding execution metrics. */
+    fun scriptIds(): Set<String> = scripts.keys.toSet()
+
     fun snapshots(scriptId: String): List<KSLExecutionSnapshot> =
         scripts[scriptId]?.entries?.map { (name, metric) ->
             KSLExecutionSnapshot(

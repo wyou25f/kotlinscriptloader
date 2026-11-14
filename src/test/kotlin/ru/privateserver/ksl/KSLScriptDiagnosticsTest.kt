@@ -22,6 +22,23 @@ class KSLScriptDiagnosticsTest {
     }
 
     @Test
+    fun `clearing unloaded script diagnostics releases retained metrics`() {
+        val diagnostics = KSLScriptDiagnostics()
+        diagnostics.measure("old/script", "event:Join") { Unit }
+        assertEquals(1, diagnostics.trackedScripts)
+        assertEquals(setOf("old/script"), diagnostics.scriptIds())
+        assertTrue(diagnostics.clearScript("old/script"))
+        assertEquals(0, diagnostics.trackedScripts)
+        assertTrue(diagnostics.snapshots("old/script").isEmpty())
+        assertTrue(!diagnostics.clearScript("old/script"))
+
+        diagnostics.measure("old/script", "event:Join") { Unit }
+        assertEquals(1L, diagnostics.snapshots("old/script").single().calls)
+        assertEquals(1, diagnostics.clearAll())
+        assertEquals(0, diagnostics.trackedScripts)
+    }
+
+    @Test
     fun `inspects resolved and missing script dependencies`() {
         val directory = Files.createTempDirectory("ksl-deps").toFile()
         try {

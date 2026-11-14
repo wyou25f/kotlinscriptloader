@@ -36,6 +36,17 @@ class KSLProfiler(val name: String) {
         maxNanos.accumulateAndGet(elapsedNanos) { current, measured -> maxOf(current, measured) }
     }
 
+    /** Records a duration supplied in milliseconds; overflow saturates safely. */
+    fun recordMillis(elapsedMillis: Long, failed: Boolean = false) {
+        require(elapsedMillis >= 0L) { "elapsedMillis must not be negative" }
+        val nanos = try {
+            Math.multiplyExact(elapsedMillis, 1_000_000L)
+        } catch (_: ArithmeticException) {
+            Long.MAX_VALUE
+        }
+        record(nanos, failed)
+    }
+
     inline fun <T> measure(block: () -> T): T {
         val started = System.nanoTime()
         var failed = false
@@ -51,6 +62,15 @@ class KSLProfiler(val name: String) {
 
     /** Alias that reads naturally at call sites. */
     inline fun <T> time(block: () -> T): T = measure(block)
+
+    /** Verb-style alias for timing a block. */
+    inline fun <T> timed(block: () -> T): T = measure(block)
+
+    /** Allows concise usage: profiler { calculate() }. */
+    operator fun <T> invoke(block: () -> T): T = measure(block)
+
+    /** Captures an exception in Result while still recording the failed sample. */
+    fun <T> measureResult(block: () -> T): Result<T> = runCatching { measure(block) }
 
     fun snapshot() = KSLProfileSnapshot(
         name,

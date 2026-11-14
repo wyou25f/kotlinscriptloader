@@ -41,7 +41,8 @@ try {
         "ru/privateserver/ksl/api/KSLApiProvider.class",
         "ru/privateserver/ksl/api/KSLPublicApiKt.class",
         "ru/privateserver/ksl/rt/KSLCache.class",
-        "ru/privateserver/ksl/rt/KSLProfiler.class"
+        "ru/privateserver/ksl/rt/KSLProfiler.class",
+        "ru/privateserver/ksl/rt/KSLRuntimeScope.class"
     )
     foreach ($Entry in $Required) {
         if ($Archive.GetEntry($Entry)) { Write-Host "[OK] $Entry" -ForegroundColor Green }

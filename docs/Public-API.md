@@ -135,8 +135,13 @@ inventory state.
 
 KSL exposes `KSLCache` and `KSLProfiler` from
 `ru.privateserver.ksl.rt.*`. The factory is available as `KSLRT`, with
-`kslrt`, `rt` and `runtime` aliases. The factory provides `cache()`,
-`lru()`, `profiler()`, `profile()` and `measure()`.
+`kslrt`, `rt` and `runtime` aliases. The factory provides `cache()`, `lru()`, `profiler()`, `profile()`,
+`measure()`, `timed()`, `scope()` and `resources()`. `KSLCache` also exposes
+atomic map-style updates, TTL refresh, filtered removal and immutable snapshots.
+`KSLRuntimeScope` owns caches, profilers and `AutoCloseable` cleanup callbacks;
+the implicit script context provides `runtimeScope`, `own(resource)` and
+`onUnload { ... }` so resources are released on reload. See
+[Runtime API](Runtime-API.md) for details.
 
 The namespaced script library facade is available through the
 `BukkitScriptContext` receiver as `meslib2`, `ml2`, `lib2` or `libs`.

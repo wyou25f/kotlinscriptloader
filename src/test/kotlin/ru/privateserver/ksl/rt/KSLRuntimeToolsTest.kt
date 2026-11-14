@@ -59,6 +59,52 @@ class KSLRuntimeToolsTest {
         assertEquals(0, expiring.currentSize)
     }
 
+    @Test fun cacheAtomicComputeSerializesConcurrentMisses() {
+        val cache = KSLCache<String, Int>(8)
+        val start = java.util.concurrent.CountDownLatch(1)
+        val calls = java.util.concurrent.atomic.AtomicInteger()
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(8)
+        try {
+            val results = (0 until 8).map {
+                pool.submit<Int> {
+                    start.await()
+                    cache.computeIfAbsent("shared") {
+                        Thread.sleep(20)
+                        calls.incrementAndGet()
+                    }
+                }
+            }
+            start.countDown()
+            assertEquals(List(8) { 1 }, results.map { it.get(2, java.util.concurrent.TimeUnit.SECONDS) })
+            assertEquals(1, calls.get())
+        } finally {
+            pool.shutdownNow()
+        }
+    }
+
+    @Test fun cacheSupportsComputeReplaceRefreshAndSnapshots() {
+        val cache = KSLCache<String, Int>(4, expireAfter = Duration.ofMillis(500))
+        cache["a"] = 1
+        assertEquals(2, cache.compute("a") { _, current -> (current ?: 0) + 1 })
+        assertTrue(cache.replace("a", 3))
+        assertEquals(3, cache.getAndPut("a", 4))
+        assertEquals(mapOf("a" to 4), cache.entriesSnapshot())
+        assertTrue(cache.refresh("a"))
+        assertEquals(4, cache.getAndRemove("a"))
+        assertTrue(cache.isEmpty)
+        cache.putAll(mapOf("b" to 2, "c" to 3))
+        assertTrue(cache.containsValue(3))
+        assertEquals(1, cache.removeIf { key, _ -> key == "b" })
+        assertEquals(setOf("c"), cache.keysSnapshot().toSet())
+    }
+
+    @Test fun cacheAtomicComputeCanCreateAndRemove() {
+        val cache = KSLCache<String, Int>(2)
+        assertEquals(7, cache.compute("a") { _, old -> (old ?: 0) + 7 })
+        assertNull(cache.compute("a") { _, _ -> null })
+        assertFalse(cache.containsKey("a"))
+    }
+
     @Test fun cacheRejectsNegativeAccessTtl() {
         assertThrows(IllegalArgumentException::class.java) { KSLCache<String, Int>(1, expireAfterAccess = Duration.ofNanos(-1)) }
     }
@@ -88,5 +134,12 @@ class KSLRuntimeToolsTest {
         assertEquals(1L, profiler.snapshot().failures)
         profiler.reset()
         assertEquals(0L, profiler.snapshot().calls)
+        profiler.recordMillis(2, failed = true)
+        assertEquals(2_000_000L, profiler.snapshot().totalNanos)
+        assertEquals(1L, profiler.snapshot().failures)
+        assertEquals("timed", profiler { "timed" })
+        assertEquals(3L, profiler.snapshot().calls)
+        assertTrue(profiler.measureResult { error("captured") }.isFailure)
+        assertEquals(3L, profiler.snapshot().calls)
     }
 }

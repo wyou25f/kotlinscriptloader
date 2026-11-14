@@ -839,7 +839,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 appendLine("class KSLPersistProperty<T>(private val v: T) { operator fun getValue(thisRef: Any?, property: kotlin.reflect.KProperty<*>): T = v; operator fun setValue(thisRef: Any?, property: kotlin.reflect.KProperty<*>, value: T) = Unit }")
                 appendLine("fun <T> persist(key: String, persistent: Boolean = false, default: () -> T): KSLPersistProperty<T> = KSLPersistProperty(default())")
                 appendLine()
-                appendLine("val runtimeScope: ru.privateserver.ksl.rt.KSLRuntimeScope get() = ru.privateserver.ksl.rt.KSLRT.scope(\\"autocomplete\\")")
+                appendLine("val runtimeScope: ru.privateserver.ksl.rt.KSLRuntimeScope get() = ru.privateserver.ksl.rt.KSLRT.scope(\"autocomplete\")")
                 appendLine("fun <T : AutoCloseable> own(resource: T): T = resource")
                 appendLine("fun onUnload(action: () -> Unit): AutoCloseable = AutoCloseable {}")
                 appendLine("inline fun <reified T : Any> service(key: String): T? = null")
@@ -1321,7 +1321,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     private fun knownScriptNames(): Set<String> =
         (tasksByScript.keys + listenersByScript.keys + commandsByScript.keys + placeholdersByScript.keys +
-            scriptsWithGuis + libraryRegistry.scriptNames() + entityManager.scriptNames() + scriptRuntimeScopes.keys + liveScripts).toSet()
+            scriptsWithGuis + libraryRegistry.scriptNames() + entityManager.scriptNames() + scriptRuntimeScopes.keys + scriptDiagnostics.scriptIds() + loadMillisById.keys + liveScripts).toSet()
 
     data class DiagnosticLine(val label: String, val ok: Boolean, val detail: String)
 

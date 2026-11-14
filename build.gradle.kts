@@ -129,6 +129,7 @@ val verifyShadowJar by tasks.registering {
                 "ru/privateserver/ksl/meslib2/MesLib2Info.class",
                 "ru/privateserver/ksl/rt/KSLCache.class",
                 "ru/privateserver/ksl/rt/KSLProfiler.class",
+                "ru/privateserver/ksl/rt/KSLRuntimeScope.class",
                 "ru/privateserver/ksl/rt/kslrt.class"
             )
             val missing = requiredClasses.filter { jar.getEntry(it) == null }

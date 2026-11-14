@@ -14,6 +14,7 @@ val cache = KSLRT.cache<String, Int>(512)
 val lru = kslrt.lru<String, Int>(128)
 val profiler = rt.profiler("economy.lookup")
 val sameFactory = runtime
+val scope = KSLRT.scope("shop")
 ```
 
 - `KSLRT` is the canonical factory object.
@@ -21,7 +22,8 @@ val sameFactory = runtime
 - `rt` and `runtime` are short aliases.
 - `cache()` and `lru()` create the same bounded LRU cache.
 - `profiler()` and `profile()` create the same profiler.
-- `measure(name) { ... }` measures one block and returns its result.
+- `measure(name) { ... }` and `timed(name) { ... }` measure a block and return its result.
+- `scope(name)` and alias `resources(name)` create a lifecycle-managed resource scope.
 
 KSL scripts already import the `ru.privateserver.ksl.rt.*` package by default.
 Standalone addon projects should add the KSL plugin JAR as a `compileOnly`
@@ -70,12 +72,15 @@ Available operations:
 - `keysSnapshot()`, `valuesSnapshot()`;
 - `stats()` and `resetStats()`.
 
-New convenience methods: `computeIfAbsent`, `getOrDefault`, `putIfAbsent`, `putAll` and `cleanUp` (returns how many expired entries it removed).
+Map-style and lifecycle helpers include `computeIfAbsent`, `getOrComputeAtomic`, `getOrPutIfAbsent`, `compute`, `getOrDefault`, `putIfAbsent`, `putAll`, `getAndPut`, `getAndRemove`, `replace`, `refresh`, `containsValue`, `removeIf`, `entriesSnapshot`, `isEmpty`, `isNotEmpty` and `cleanUp` (returns how many expired entries it removed).
 
 `getOrPut` runs its loader outside the cache lock. Concurrent misses for the
 same key may therefore execute the loader more than once; the first completed
 value stored in the cache wins. Do not use it for a loader with non-idempotent
-side effects.
+side effects. By contrast, `computeIfAbsent`/`getOrComputeAtomic` execute the
+loader under the cache lock at most once per key; use a short, non-blocking
+loader there (never SQL, network or Bukkit calls). `compute` also runs its
+remapping callback under the lock; returning `null` removes the key.
 
 A successful `get` refreshes access TTL and LRU recency. `containsKey`/`has`
 checks expiration without refreshing either. `cleanUp()` can proactively remove expired entries.
@@ -99,14 +104,53 @@ val snapshot = databaseProfile.stats()
 println("calls=${snapshot.calls}, average=${snapshot.averageMillis} ms")
 ```
 
-- `measure { ... }` and `time { ... }` measure a block, return its result,
+- `measure { ... }`, `time { ... }`, `timed { ... }` and `profiler { ... }` measure a block, return its result,
   and rethrow exceptions after recording the failed call.
-- `record(elapsedNanos, failed)` adds an externally measured sample.
+- `measureResult { ... }` returns a Kotlin `Result`; a thrown exception is captured after recording the failed call.
+- `record(elapsedNanos, failed)` and `recordMillis(elapsedMillis, failed)` add externally measured samples.
 - `snapshot()` and `stats()` return an immutable snapshot.
 - `reset()` and `clear()` reset accumulated counters.
 
 Snapshots include call count, failure count, successful calls, total/average/max
 nanoseconds and corresponding millisecond values.
+
+
+## Runtime scopes and automatic cleanup
+
+The context receiver of every `.kts` script exposes `runtimeScope`. It is tied
+to that script's lifetime: KSL closes it during script reload, removal or
+plugin shutdown.
+
+```kotlin
+val cache = runtimeScope.lru<String, Long>(
+    maxSize = 2_000,
+    expireAfterAccess = Duration.ofMinutes(5)
+)
+
+val profile = runtimeScope.profile("balance.load")
+val balance = profile { loadBalanceFromDatabase(playerId) }
+
+// AutoCloseable clients, subscriptions, file watchers and similar handles:
+val httpClient = own(createHttpClient())
+val externalHook = onUnload { thirdPartySubscription.close() }
+
+// Disarm a cleanup callback early if it is no longer needed:
+externalHook.close()
+```
+
+`runtimeScope.cache/lru` caches are cleared on unload. Scoped profilers and
+their history are discarded as well. `own(resource)` transfers close
+responsibility to the scope; `onUnload { ... }` registers a cleanup callback.
+Callbacks execute in reverse registration order, each at most once, and a
+failure in one cleanup does not prevent the remaining resources from closing.
+`onUnload` returns a handle: closing it unregisters the callback without
+executing it, which also releases objects captured by that callback.
+
+A scope accepts at most 256 cleanup registrations and 128 named profilers.
+The global `KSLRT.profiler()` registry remains available for shared addon-level
+measurements; remove entries with `removeProfiler(name)` or
+`clearProfilers()`. Prefer `runtimeScope.profile()` for script-specific
+measurements so they are automatically discarded on reload.
 
 ## MesLib2 — межскриптовые библиотеки
 
@@ -159,9 +203,10 @@ The cache and profiler are thread-safe utility objects. They do not make Bukkit
 objects thread-safe: world, entity, inventory and most player operations must
 still run on the server thread unless Paper documents otherwise.
 
-These utilities are independent objects. KSL does not automatically clear a
-cache or profiler created by a script; keep references scoped to the script or
-addon that owns them and discard them when that owner unloads.
+Standalone objects created through `KSLRT.cache()` or the global profiler factory
+are independent and are not automatically tied to a script. Use `runtimeScope`
+for script-owned caches/profilers, or register an external object cleanup with
+`own()` / `onUnload()`.
 
 
 ## Managed worker scheduler and runtime telemetry
