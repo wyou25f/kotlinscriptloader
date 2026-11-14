@@ -139,13 +139,15 @@ internal class KSLWatchdogMonitor(
         val infos = runCatching {
             bean.getThreadInfo(ids, true, true).filterNotNull().associateBy { it.threadId }
         }.getOrDefault(emptyMap())
-        val cpuTimes = runCatching {
+        val cpuTimes: Map<Long, Long> = runCatching {
+            val measured = mutableMapOf<Long, Long>()
             if (bean.isThreadCpuTimeSupported && bean.isThreadCpuTimeEnabled) {
-                ids.mapNotNull { id ->
+                ids.forEach { id ->
                     val time = bean.getThreadCpuTime(id)
-                    if (time >= 0L) id to time else null
-                }.toMap()
-            } else emptyMap()
+                    if (time >= 0L) measured[id] = time
+                }
+            }
+            measured
         }.getOrDefault(emptyMap())
         val deadlocked = runCatching { bean.findDeadlockedThreads()?.toSet() ?: emptySet() }
             .getOrDefault(emptySet())
@@ -287,7 +289,6 @@ internal class KSLWatchdogMonitor(
         appendLine("Last active KSL operation: ${activeOperation ?: "none"}")
         appendLine("DB queue sizes: write=${runCatching { plugin.dbQueueSize() }.getOrDefault(-1)}, read=${runCatching { plugin.dbQueryQueueSize() }.getOrDefault(-1)}")
         appendLine("Captured snapshots: ${lastCapturedSnapshotCount}/$snapshotLimit")
-        plugin.watchdogDiagnostics().forEach { appendLine(it) }
         val mainStacks = snapshots.mapNotNull { snapshot ->
             snapshot.threads.firstOrNull { it.first === mainThread }?.second?.map { it.toString() }
         }
