@@ -76,9 +76,9 @@ class MesLib2Test {
     fun listAndClearReturnSortedNamespaceSnapshots() {
         val store = KSLExportStore()
         val api = facade("provider", store)
-        api.export("economy", "wallet", "wallet")
-        api.export("economy", "account", "account")
-        api.export("chat", "formatter", "formatter")
+        api.export("economy", "wallet", "wallet", "1.0.0")
+        api.export("economy", "account", "account", "1.0.0")
+        api.export("chat", "formatter", "formatter", "1.0.0")
 
         val entries = api.list("economy")
         assertEquals(listOf("account", "wallet"), entries.map { it.name })
@@ -92,7 +92,7 @@ class MesLib2Test {
     fun exportsAreRemovedWithTheirOwningScript() {
         val store = KSLExportStore()
         val api = facade("provider", store)
-        api.export("economy", "service", "ready")
+        api.export("economy", "service", "ready", "1.0.0")
         assertEquals("ready", api.get<String>("economy", "service"))
         store.clearOwner("provider")
         assertNull(api.get<String>("economy", "service"))
@@ -107,8 +107,8 @@ class MesLib2Test {
     @Test
     fun validatesNamespaceAndName() {
         val api = facade()
-        assertThrows(IllegalArgumentException::class.java) { api.export("Bad Namespace", "service", "value") }
-        assertThrows(IllegalArgumentException::class.java) { api.export("economy", "Bad Name", "value") }
+        assertThrows(IllegalArgumentException::class.java) { api.export("Bad Namespace", "service", "value", "1.0.0") }
+        assertThrows(IllegalArgumentException::class.java) { api.export("economy", "Bad Name", "value", "1.0.0") }
         assertThrows(IllegalArgumentException::class.java) { api.exportIfAbsent("Bad Namespace", "service", "value") }
     }
 }
