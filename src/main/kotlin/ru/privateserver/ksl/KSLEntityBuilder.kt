@@ -41,6 +41,7 @@ class KSLEntityBuilder(
         item("BOOTS")?.let { eq.boots = it }
 
         dropChance?.let { chance ->
+            require(chance.isFinite() && chance in 0.0f..1.0f) { "dropChance должен быть конечным числом от 0.0 до 1.0" }
             eq.itemInMainHandDropChance = chance
             eq.itemInOffHandDropChance = chance
             eq.helmetDropChance = chance
@@ -52,11 +53,13 @@ class KSLEntityBuilder(
 
     // Base value by vanilla attribute name: attribute("attack_damage", 8.0).
     fun attribute(name: String, value: Double) {
+        require(value.isFinite()) { "Значение атрибута '$name' должно быть конечным числом" }
         require(KSLEntityAttributes.setBase(entity, name, value)) { "у ${entity.type} нет атрибута '$name'" }
     }
 
     // Multiplier of the mob's own speed: speed(1.5) is 50% faster.
     fun speed(multiplier: Double) {
+        require(multiplier.isFinite() && multiplier > 0.0) { "Множитель скорости должен быть конечным числом больше нуля" }
         require(KSLEntityAttributes.multiplyBase(entity, "movement_speed", multiplier)) { "у ${entity.type} нет атрибута movement_speed" }
     }
 
@@ -66,7 +69,11 @@ class KSLEntityBuilder(
 
     // seconds < 0 means until the mob dies.
     fun potion(type: PotionEffectType, seconds: Int = -1, amplifier: Int = 0) {
-        val ticks = if (seconds < 0) PotionEffect.INFINITE_DURATION else seconds * 20
+        require(seconds == -1 || seconds in 0..(Int.MAX_VALUE / 20)) {
+            "Длительность зелья должна быть -1 (бесконечно) или неотрицательным числом секунд без переполнения"
+        }
+        require(amplifier in 0..255) { "Уровень эффекта зелья должен быть от 0 до 255" }
+        val ticks = if (seconds == -1) PotionEffect.INFINITE_DURATION else seconds * 20
         entity.addPotionEffect(PotionEffect(type, ticks, amplifier))
     }
 

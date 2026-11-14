@@ -14,12 +14,24 @@ class KSLEffectManager(private val plugin: KotlinScriptLoaderPlugin) {
 
     fun play(scriptName: String, spec: KSLEffectSpec): Int {
         val required = spec.particle.dataType
-        if (required != Void::class.java && spec.data == null) {
+        if (required != Void::class.java) {
+            val supplied = spec.data
+            if (supplied == null) {
+                throw IllegalArgumentException(
+                    "[$scriptName] ${KSLError.EFFECT_DATA_REQUIRED.tag} playEffect: Particle.${spec.particle.name} требует data (${required.simpleName})"
+                )
+            }
+            if (!required.isInstance(supplied)) {
+                throw IllegalArgumentException(
+                    "[$scriptName] playEffect: Particle.${spec.particle.name} ожидает ${required.simpleName}, получено ${supplied.javaClass.simpleName}"
+                )
+            }
+        } else if (spec.data != null) {
             throw IllegalArgumentException(
-                "[$scriptName] ${KSLError.EFFECT_DATA_REQUIRED.tag} playEffect: Particle.${spec.particle.name} требует data (${required.simpleName}) — " +
-                    "для DUST вызови color(255, 0, 0), для остальных присвой data = ..."
+                "[$scriptName] playEffect: Particle.${spec.particle.name} не принимает дополнительные данные"
             )
         }
+        require(spec.durationTicks > 0L) { "[$scriptName] playEffect: durationTicks должен быть больше нуля" }
         val shape = spec.buildShape()
         var tick = 0L
         lateinit var task: BukkitTask
@@ -28,7 +40,10 @@ class KSLEffectManager(private val plugin: KotlinScriptLoaderPlugin) {
         if (spec.count !in 0..MAX_COUNT)
             plugin.logger.warning("[$scriptName] playEffect: ${KSLError.EFFECT_COUNT_CLAMPED.tag} count=${spec.count} вне 0..$MAX_COUNT — значение будет ограничено")
 
+        var stopped = false
         fun stop() {
+            if (stopped) return
+            stopped = true
             task.cancel()
             plugin.untrackTask(scriptName, task.taskId)
         }

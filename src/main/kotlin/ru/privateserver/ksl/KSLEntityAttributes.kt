@@ -16,6 +16,7 @@ object KSLEntityAttributes {
             ?: Registry.ATTRIBUTE.get(NamespacedKey.minecraft("generic.$name"))
 
     fun setBase(entity: LivingEntity, name: String, value: Double): Boolean {
+        require(value.isFinite()) { "Значение атрибута '$name' должно быть конечным числом" }
         val instance = find(name)?.let { entity.getAttribute(it) } ?: return false
         instance.baseValue = value
         return true
@@ -25,8 +26,11 @@ object KSLEntityAttributes {
         find(name)?.let { entity.getAttribute(it) }?.baseValue
 
     fun multiplyBase(entity: LivingEntity, name: String, factor: Double): Boolean {
+        require(factor.isFinite() && factor > 0.0) { "Множитель атрибута '$name' должен быть конечным числом больше нуля" }
         val instance = find(name)?.let { entity.getAttribute(it) } ?: return false
-        instance.baseValue = instance.baseValue * factor
+        val updated = instance.baseValue * factor
+        require(updated.isFinite()) { "Результат изменения атрибута '$name' вышел за допустимый числовой диапазон" }
+        instance.baseValue = updated
         return true
     }
 

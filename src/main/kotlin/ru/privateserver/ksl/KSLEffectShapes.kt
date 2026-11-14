@@ -28,7 +28,9 @@ object KSLEffectShapes {
     private const val MAX_POINTS = 360
 
     fun circle(radius: Double, stepDegrees: Double): KSLEffectShape {
-        val safeStep = if (stepDegrees > 0.0) stepDegrees else 15.0
+        require(radius.isFinite() && radius >= 0.0) { "Радиус круга должен быть конечным неотрицательным числом" }
+        require(stepDegrees.isFinite() && stepDegrees > 0.0) { "Шаг круга должен быть конечным числом больше нуля" }
+        val safeStep = stepDegrees
         val pointCount = (360.0 / safeStep).toInt().coerceIn(4, MAX_POINTS)
         return KSLEffectShape { tick, _ ->
             val phase = Math.toRadians(tick * safeStep)
@@ -40,6 +42,10 @@ object KSLEffectShapes {
     }
 
     fun helix(radius: Double, turns: Double, height: Double, totalTicks: Long): KSLEffectShape {
+        require(radius.isFinite() && radius >= 0.0) { "Радиус спирали должен быть конечным неотрицательным числом" }
+        require(turns.isFinite() && turns >= 0.0) { "Число витков должно быть конечным неотрицательным числом" }
+        require(height.isFinite()) { "Высота спирали должна быть конечным числом" }
+        require(totalTicks > 0L) { "Длительность спирали должна быть больше нуля" }
         return KSLEffectShape { tick, _ ->
             val progress = if (totalTicks > 0) (tick.toDouble() / totalTicks).coerceIn(0.0, 1.0) else 0.0
             val angle = Math.toRadians(progress * turns * 360.0)
@@ -64,6 +70,8 @@ object KSLEffectShapes {
 
     // Evenly spread points (Fibonacci lattice); spinDegreesPerTick rotates the whole sphere around Y.
     fun sphere(radius: Double, points: Int, spinDegreesPerTick: Double): KSLEffectShape {
+        require(radius.isFinite() && radius >= 0.0) { "Радиус сферы должен быть конечным неотрицательным числом" }
+        require(spinDegreesPerTick.isFinite()) { "Скорость вращения должна быть конечным числом" }
         val n = points.coerceIn(4, MAX_POINTS)
         val golden = Math.PI * (3.0 - sqrt(5.0))
         val base = (0 until n).map { i ->
@@ -81,6 +89,7 @@ object KSLEffectShapes {
 
     // Perimeter of a square lying flat, centred on the effect location.
     fun square(size: Double, pointsPerSide: Int): KSLEffectShape {
+        require(size.isFinite() && size >= 0.0) { "Размер квадрата должен быть конечным неотрицательным числом" }
         val n = pointsPerSide.coerceIn(1, MAX_POINTS / 4)
         val h = size / 2.0
         val perimeter = ArrayList<Vector>(n * 4)

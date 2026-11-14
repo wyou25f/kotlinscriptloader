@@ -57,7 +57,10 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
     // Used when spawning fails half-way: the entity is being removed, so nothing should reference it.
     fun forget(scriptName: String, entity: LivingEntity) {
         val uuid = entity.uniqueId
-        entitiesByScript[scriptName]?.remove(uuid)
+        entitiesByScript.computeIfPresent(scriptName) { _, ids ->
+            ids.remove(uuid)
+            if (ids.isEmpty()) null else ids
+        }
         removeOnReload.remove(uuid)
         dropHooks(uuid)
     }

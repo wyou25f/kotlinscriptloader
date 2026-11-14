@@ -65,14 +65,22 @@ class KSLEffectSpec(
         shapeBuilder = { totalTicks -> factory(map, totalTicks) }
     }
 
+    private fun validatedDustSize(size: Float): Float {
+        require(size.isFinite() && size in 0.01f..4.0f) { "Размер Dust должен быть конечным числом от 0.01 до 4.0" }
+        return size
+    }
+
     fun color(r: Int, g: Int, b: Int, size: Float = 1f) {
-        data = Particle.DustOptions(Color.fromRGB(r.coerceIn(0, 255), g.coerceIn(0, 255), b.coerceIn(0, 255)), size)
+        data = Particle.DustOptions(Color.fromRGB(r.coerceIn(0, 255), g.coerceIn(0, 255), b.coerceIn(0, 255)), validatedDustSize(size))
     }
 
     fun color(hex: String, size: Float = 1f) {
-        val rgb = hex.removePrefix("#").toIntOrNull(16)
-            ?: throw IllegalArgumentException("${KSLError.EFFECT_BAD_COLOR.tag} color: ожидался HEX вида #RRGGBB, получено '$hex'")
-        data = Particle.DustOptions(Color.fromRGB(rgb and 0xFFFFFF), size)
+        val normalized = hex.removePrefix("#")
+        require(normalized.matches(Regex("[0-9A-Fa-f]{6}"))) {
+            "${KSLError.EFFECT_BAD_COLOR.tag} color: ожидался HEX вида #RRGGBB, получено '$hex'"
+        }
+        val rgb = normalized.toInt(16)
+        data = Particle.DustOptions(Color.fromRGB(rgb), validatedDustSize(size))
     }
 
     // Several conditions combine with OR; a following entity's own "still valid" check stays in effect.
@@ -93,6 +101,8 @@ class KSLEffectSpec(
         endCallback?.invoke()
     }
 
-    internal fun buildShape(): KSLEffectShape =
-        shapeBuilder?.invoke(durationTicks) ?: KSLEffectShapes.circle(1.0, 30.0)
+    internal fun buildShape(): KSLEffectShape {
+        require(durationTicks > 0L) { "durationTicks должен быть больше нуля" }
+        return shapeBuilder?.invoke(durationTicks) ?: KSLEffectShapes.circle(1.0, 30.0)
+    }
 }
