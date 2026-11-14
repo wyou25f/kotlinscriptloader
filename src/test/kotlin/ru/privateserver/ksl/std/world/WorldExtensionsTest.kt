@@ -16,7 +16,7 @@ class WorldExtensionsTest {
  }
  @Test fun `location offset copies without mutating original`() {
   val original=Location(null,1.0,2.0,3.0); val shifted=original.offset(2.0,-1.0,4.0)
-  assertEquals(1.0,original.x); assertEquals(3.0,shifted.x); assertEquals(1.0,shifted.y); assertEquals(7.0,shifted.z)
+  assertEquals(1.0,original.getX()); assertEquals(3.0,shifted.getX()); assertEquals(1.0,shifted.getY()); assertEquals(7.0,shifted.getZ())
   assertFalse(original===shifted)
  }
  @Test fun `within radius checks world identity and distance`() {
