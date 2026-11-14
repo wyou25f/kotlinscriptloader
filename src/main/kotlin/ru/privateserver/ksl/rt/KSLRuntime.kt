@@ -60,13 +60,13 @@ object KSLRT {
 object kslrt {
     @JvmStatic
     @JvmOverloads
-    fun <K : Any, V : Any> cache(maxSize: Int, expireAfter: Duration = Duration.ZERO): KSLCache<K, V> =
-        KSLRT.cache(maxSize, expireAfter)
+    fun <K : Any, V : Any> cache(maxSize: Int, expireAfter: Duration = Duration.ZERO, expireAfterAccess: Duration = Duration.ZERO): KSLCache<K, V> =
+        KSLRT.cache(maxSize, expireAfter, expireAfterAccess)
 
     @JvmStatic
     @JvmOverloads
-    fun <K : Any, V : Any> lru(maxSize: Int, expireAfter: Duration = Duration.ZERO): KSLCache<K, V> =
-        KSLRT.lru(maxSize, expireAfter)
+    fun <K : Any, V : Any> lru(maxSize: Int, expireAfter: Duration = Duration.ZERO, expireAfterAccess: Duration = Duration.ZERO): KSLCache<K, V> =
+        KSLRT.lru(maxSize, expireAfter, expireAfterAccess)
 
     @JvmStatic
     fun profiler(name: String): KSLProfiler = KSLRT.profiler(name)
