@@ -16,6 +16,9 @@ class KSLEntityBuilder(
 
     // dropChance: 0f means the gear never drops; null keeps the vanilla chance (about 8.5% per piece).
     fun equip(template: String, dropChance: Float? = null) {
+        dropChance?.let { chance ->
+            require(chance.isFinite() && chance in 0.0f..1.0f) { "dropChance должен быть конечным числом от 0.0 до 1.0" }
+        }
         val attrs = KSLTemplateParser.parse(template)
         val eq = entity.equipment ?: return
 
@@ -41,7 +44,6 @@ class KSLEntityBuilder(
         item("BOOTS")?.let { eq.boots = it }
 
         dropChance?.let { chance ->
-            require(chance.isFinite() && chance in 0.0f..1.0f) { "dropChance должен быть конечным числом от 0.0 до 1.0" }
             eq.itemInMainHandDropChance = chance
             eq.itemInOffHandDropChance = chance
             eq.helmetDropChance = chance

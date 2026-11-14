@@ -143,13 +143,19 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
     fun onRemove(event: EntityRemoveEvent) {
         if (hooksIdle() && entitiesByScript.isEmpty() && removeOnReload.isEmpty()) return
         val entity = event.entity as? LivingEntity ?: return
-        // Saved with the chunk and coming back under the same UUID: keep the hooks and the index entry.
-        if (event.cause == EntityRemoveEvent.Cause.UNLOAD && entity.isPersistent) return
+        // UNLOAD is not a despawn: the entity may be saved with its chunk and reloaded later.
+        // isPersistent controls despawning, not whether a chunk-unloaded entity is saved.
+        if (event.cause == EntityRemoveEvent.Cause.UNLOAD) return
         val uuid = entity.uniqueId
         // Hooks can exist for entities we never spawned, so this must not depend on the owner tag.
         dropHooks(uuid)
         removeOnReload.remove(uuid)
-        ownerOf(entity)?.let { entitiesByScript[it]?.remove(uuid) }
+        ownerOf(entity)?.let { owner ->
+            entitiesByScript.computeIfPresent(owner) { _, ids ->
+                ids.remove(uuid)
+                if (ids.isEmpty()) null else ids
+            }
+        }
     }
 
     // Saved entities outlive the in-memory index (restart, script unloaded while the chunk was unloaded).
