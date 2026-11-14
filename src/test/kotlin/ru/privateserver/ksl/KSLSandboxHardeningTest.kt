@@ -11,14 +11,14 @@ class KSLSandboxHardeningTest {
 
     @Test
     fun `raw plugin and database capabilities are denied to sandboxed scripts`() {
-        KSLSandboxAccessPolicy.requireTrustedAccess("trusted.kts", sandboxed = false, "plugin")
-        KSLSandboxAccessPolicy.requireTrustedAccess("trusted.kts", sandboxed = false, "database")
+        KSLSandboxAccessPolicy.requireTrustedAccess(scriptName = "trusted.kts", sandboxed = false, capability = "plugin")
+        KSLSandboxAccessPolicy.requireTrustedAccess(scriptName = "trusted.kts", sandboxed = false, capability = "database")
 
         assertThrows(SecurityException::class.java) {
-            KSLSandboxAccessPolicy.requireTrustedAccess("untrusted.kts", sandboxed = true, "plugin")
+            KSLSandboxAccessPolicy.requireTrustedAccess(scriptName = "untrusted.kts", sandboxed = true, capability = "plugin")
         }
         assertThrows(SecurityException::class.java) {
-            KSLSandboxAccessPolicy.requireTrustedAccess("untrusted.kts", sandboxed = true, "database")
+            KSLSandboxAccessPolicy.requireTrustedAccess(scriptName = "untrusted.kts", sandboxed = true, capability = "database")
         }
     }
 
