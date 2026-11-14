@@ -69,6 +69,33 @@ class KSLDiscordHook(private val plugin: KotlinScriptLoaderPlugin) {
 
     fun channels(): Set<String> = webhooks.keys
 
+    /** Concise aliases for integrations that use message/embed terminology. */
+    fun sendMessage(channel: String, content: String, allowMentions: Boolean = false) =
+        send(channel, content, allowMentions)
+
+    fun sendMessageAsync(channel: String, content: String, allowMentions: Boolean = false) =
+        sendAsync(channel, content, allowMentions)
+
+    fun embed(
+        channel: String,
+        title: String,
+        description: String = "",
+        color: Int = 0x5865F2,
+        footer: String = "",
+        allowMentions: Boolean = false,
+        fields: List<KSLDiscordEmbedField> = emptyList()
+    ) = sendEmbed(channel, title, description, color, footer, allowMentions, fields)
+
+    fun embedAsync(
+        channel: String,
+        title: String,
+        description: String = "",
+        color: Int = 0x5865F2,
+        footer: String = "",
+        allowMentions: Boolean = false,
+        fields: List<KSLDiscordEmbedField> = emptyList()
+    ) = sendEmbedAsync(channel, title, description, color, footer, allowMentions, fields)
+
     /** Fire-and-forget compatibility API. */
     fun send(channel: String, content: String, allowMentions: Boolean = false) {
         sendAsync(channel, content, allowMentions)
