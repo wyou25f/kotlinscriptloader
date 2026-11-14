@@ -450,7 +450,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     }
 
     override fun registerTextPlaceholder(key: String, resolver: (Player?) -> String?) {
-        plugin.registerTextPlaceholder(currentlyLoading.get() ?: "addon", key, resolver)
+        plugin.registerTextPlaceholder(currentlyLoading.get(), key, resolver)
     }
 
     override fun unregisterTextPlaceholder(key: String) {
