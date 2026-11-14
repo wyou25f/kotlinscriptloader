@@ -59,12 +59,12 @@ if ($ProjectVersion -ne "1.2.1") {
 }
 
 $GradleTasks = switch ($Task) {
-    "Build"   { @("clean", "build", "koverHtmlReport", "koverXmlReport", "componentTestAudit") }
-    "Test"    { @("clean", "test", "koverHtmlReport", "koverXmlReport", "componentTestAudit") }
-    "Verify"  { @("clean", "check", "koverHtmlReport", "koverXmlReport", "componentTestAudit", "verifyShadowJar") }
-    "Quality" { @("clean", "check", "koverHtmlReport", "koverXmlReport", "componentTestAudit", "verifyShadowJar") }
+    "Build"   { @("clean", "build", "koverVerify", "koverHtmlReport", "koverXmlReport", "componentTestAudit") }
+    "Test"    { @("clean", "test", "koverVerify", "koverHtmlReport", "koverXmlReport", "componentTestAudit") }
+    "Verify"  { @("clean", "check", "koverVerify", "koverHtmlReport", "koverXmlReport", "componentTestAudit", "verifyShadowJar") }
+    "Quality" { @("clean", "check", "koverVerify", "koverHtmlReport", "koverXmlReport", "componentTestAudit", "verifyShadowJar") }
     "Audit"   { @("componentTestAudit") }
-    "Package" { @("check", "assemble", "koverHtmlReport", "koverXmlReport", "componentTestAudit", "verifyShadowJar") }
+    "Package" { @("check", "assemble", "koverVerify", "koverHtmlReport", "koverXmlReport", "componentTestAudit", "verifyShadowJar") }
     "Clean"   { @("clean") }
     "Ide"     {
         $Jar = Join-Path $Root "build/libs/KotlinScriptLoader-$ProjectVersion.jar"
@@ -73,7 +73,7 @@ $GradleTasks = switch ($Task) {
         }
         @("-p", "ide", "-PkslJar=../build/libs/KotlinScriptLoader-$ProjectVersion.jar", "verifyKslIdeSetup")
     }
-    "Release" { @("clean", "build", "koverHtmlReport", "koverXmlReport", "componentTestAudit", "verifyShadowJar") }
+    "Release" { @("clean", "build", "koverVerify", "koverHtmlReport", "koverXmlReport", "componentTestAudit", "verifyShadowJar") }
 }
 
 Write-Host ""
