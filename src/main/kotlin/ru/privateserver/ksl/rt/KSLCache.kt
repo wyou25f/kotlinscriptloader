@@ -14,7 +14,7 @@ data class KSLCacheStats(
 }
 
 /** Bounded, thread-safe LRU cache with optional expire-after-write and expire-after-access. */
-class KSLCache<K : Any, V : Any>(
+class KSLCache<K : Any, V : Any> @JvmOverloads constructor(
     val maxSize: Int,
     val expireAfter: Duration = Duration.ZERO,
     val expireAfterAccess: Duration = Duration.ZERO

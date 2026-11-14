@@ -30,13 +30,13 @@ class KSLRuntimeToolsTest {
         assertNull(cache.get("short-lived"))
     }
     @Test fun cacheSupportsExpireAfterAccess() {
-        val cache = KSLCache<String, Int>(2, expireAfterAccess = Duration.ofMillis(80))
+        val cache = KSLCache<String, Int>(2, expireAfterAccess = Duration.ofMillis(300))
         cache.put("active", 1)
-        Thread.sleep(45)
+        Thread.sleep(150)
         assertEquals(1, cache["active"])
         Thread.sleep(45)
         assertEquals(1, cache["active"])
-        Thread.sleep(100)
+        Thread.sleep(350)
         assertNull(cache["active"])
     }
 

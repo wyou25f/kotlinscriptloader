@@ -70,6 +70,8 @@ Available operations:
 - `keysSnapshot()`, `valuesSnapshot()`;
 - `stats()` and `resetStats()`.
 
+New convenience methods: `computeIfAbsent`, `getOrDefault`, `putIfAbsent`, `putAll` and `cleanUp` (returns how many expired entries it removed).
+
 `getOrPut` runs its loader outside the cache lock. Concurrent misses for the
 same key may therefore execute the loader more than once; the first completed
 value stored in the cache wins. Do not use it for a loader with non-idempotent
