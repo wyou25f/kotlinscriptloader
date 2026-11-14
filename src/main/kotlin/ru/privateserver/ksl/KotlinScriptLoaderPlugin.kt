@@ -113,6 +113,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     var consoleBlocklist: Set<String> = emptySet()
         private set
 
+    private var sandboxConsoleAllowlist: Set<String> = emptySet()
+
     private var maxListeners = 500
     private var maxTasks = 2000
     var taskFailureLimit: Int = 3
@@ -135,6 +137,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     // "/minecraft:op Steve" and "OP" are the same command.
     fun isConsoleCommandBlocked(command: String): Boolean = KSLCommandPolicy.isBlocked(command, consoleBlocklist)
 
+    fun canScriptExecuteConsole(scriptId: String, command: String): Boolean =
+        KSLCommandPolicy.isAllowedForScript(command, isSandboxed(scriptId), consoleBlocklist, sandboxConsoleAllowlist)
+
     fun readSecurityConfig() {
         sandboxEnabled = config.getBoolean("sandbox", false)
         sandboxStrict = !config.getString("security.sandbox-level", "strict").equals("text", ignoreCase = true)
@@ -144,7 +149,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             .filter { it !in allowedPatterns }.distinct()
         sandboxDenyList = KSLClassDenyList(config.getStringList("security.class-deny-extra"), config.getStringList("security.class-deny-allowed"))
         consoleBlocklist = (if (config.isList("security.console-command-blocklist")) config.getStringList("security.console-command-blocklist")
-            else listOf("op", "deop", "stop", "restart", "reload", "rl")).map { it.trim().lowercase() }.toSet()
+            else listOf("op", "deop", "stop", "restart", "reload", "rl")).map { it.trim().lowercase() }.filter { it.isNotEmpty() }.toSet()
+        sandboxConsoleAllowlist = config.getStringList("security.sandbox-console-allowlist")
+            .map { it.trim().lowercase() }.filter { it.isNotEmpty() }.toSet()
         maxListeners = config.getInt("security.limits.max-listeners-per-script", 500).coerceAtLeast(10)
         maxTasks = config.getInt("security.limits.max-tasks-per-script", 2000).coerceAtLeast(10)
         taskFailureLimit = config.getInt("runtime.task-failure-limit", 3).coerceIn(1, 20)
