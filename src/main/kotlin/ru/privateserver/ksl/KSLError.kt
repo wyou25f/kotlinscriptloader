@@ -555,6 +555,10 @@ enum class KSLError(val number: Int, val category: KSLErrorCategory, val title: 
         "Не запускай новые операции; проверь последовательность shutdown."),
     SYSTEM_DIAGNOSTICS_DISABLED(8098, KSLErrorCategory.SYSTEM, "Диагностика отключена настройкой",
         "Включи diagnostics.watchdog.enabled в config.yml и перезапусти сервер."),
+    SYSTEM_WATCHDOG_RECOVERED(745, KSLErrorCategory.SYSTEM, "Главный поток восстановился после зависания",
+        "Сервер снова обрабатывает тики. Сохрани watchdog-дамп и сравни стабильные кадры главного потока."),
+    SYSTEM_WATCHDOG_ROTATION_FAILED(7564, KSLErrorCategory.SYSTEM, "Не удалось удалить старый watchdog-дамп",
+        "Проверь права на папку dumps и свободное место; старые диагностические файлы могут остаться на диске."),
     SYSTEM_INTERNAL_INVARIANT(668, KSLErrorCategory.SYSTEM, "Нарушено внутреннее условие KSL",
         "Сохрани полный stack trace и версию сервера; сообщи разработчику KSL.");
 
