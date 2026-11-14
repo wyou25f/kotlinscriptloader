@@ -1,24 +1,31 @@
 package ru.privateserver.ksl
 
-// Classes a sandboxed script must not be able to load. This is enforced where it cannot be disguised: the script's
-// class loader refuses to hand the class out, so it does not matter how the name was built (concatenation, aliases,
-// Class.forName, reflection). Entries ending in "." are package prefixes, everything else is an exact class name.
+// Classes a sandboxed script must not be able to load. This is enforced at class-loading time,
+// so aliases and dynamically assembled class names receive the same decision. Entries ending
+// in "." are package prefixes; other entries are exact binary class names.
 class KSLClassDenyList(extra: Collection<String> = emptyList(), allowed: Collection<String> = emptyList()) {
 
     companion object {
         val defaultNames = listOf(
             "java.lang.Runtime", "java.lang.ProcessBuilder", "java.lang.Process", "java.lang.ProcessHandle",
-            "java.lang.ClassLoader", "java.net.URLClassLoader", "java.net.Socket", "java.net.ServerSocket",
-            // Reflection that can reach anything: calling a private method, setting a final field, proxies.
+            "java.lang.Thread", "java.util.Timer",
+            "java.util.concurrent.Executors", "java.util.concurrent.ScheduledExecutorService",
+            "java.util.concurrent.ThreadPoolExecutor", "java.util.concurrent.ForkJoinPool",
+            "java.lang.ClassLoader", "java.net.URLClassLoader",
             "java.lang.reflect.Method", "java.lang.reflect.Field", "java.lang.reflect.Constructor",
             "java.lang.reflect.Proxy", "java.lang.reflect.AccessibleObject",
-            // MethodHandles is the entry point; its Lookup, MethodType and LambdaMetafactory stay available
-            // because the compiler generates them for every lambda.
-            "java.lang.invoke.MethodHandles", "java.lang.invoke.VarHandle"
+            "java.lang.invoke.MethodHandle", "java.lang.invoke.MethodHandles",
+            "java.lang.invoke.MethodHandles$Lookup", "java.lang.invoke.VarHandle"
         )
 
         val defaultPrefixes = listOf(
-            "sun.misc.", "jdk.internal.", "com.sun.", "javax.script.", "javax.tools.", "java.lang.instrument.", "java.rmi.",
+            "java.lang.reflect.",
+            "java.io.",
+            "java.nio.file.",
+            "java.nio.channels.",
+            "java.net.",
+            "sun.misc.", "sun.reflect.", "jdk.internal.", "com.sun.",
+            "javax.script.", "javax.tools.", "java.lang.instrument.", "java.rmi.",
             "kotlin.reflect.full.", "kotlin.reflect.jvm.", "org.jetbrains.kotlin.",
             "org.objectweb.asm.", "javassist.", "net.bytebuddy."
         )
@@ -26,15 +33,24 @@ class KSLClassDenyList(extra: Collection<String> = emptyList(), allowed: Collect
 
     private val names: Set<String>
     private val prefixes: List<String>
+    private val allowedNames: Set<String>
+    private val allowedPrefixes: List<String>
 
     init {
-        val skip = allowed.map { it.trim() }.toSet()
-        val all = (defaultNames + defaultPrefixes + extra.map { it.trim() }).filter { it.isNotEmpty() && it !in skip }
+        val normalizedAllowed = allowed.map { it.trim() }.filter { it.isNotEmpty() }
+        allowedNames = normalizedAllowed.filterNot { it.endsWith(".") }.toSet()
+        allowedPrefixes = normalizedAllowed.filter { it.endsWith(".") }.distinct()
+
+        val all = (defaultNames + defaultPrefixes + extra.map { it.trim() })
+            .filter { it.isNotEmpty() }
         prefixes = all.filter { it.endsWith(".") }.distinct()
         names = all.filter { !it.endsWith(".") }.toSet()
     }
 
-    fun denies(binaryName: String): Boolean = binaryName in names || prefixes.any { binaryName.startsWith(it) }
+    fun denies(binaryName: String): Boolean {
+        if (binaryName in allowedNames || allowedPrefixes.any { binaryName.startsWith(it) }) return false
+        return binaryName in names || prefixes.any { binaryName.startsWith(it) }
+    }
 }
 
 // Parent of a sandboxed script's own class loader: every class the script touches is resolved through here first.
