@@ -64,8 +64,9 @@ dependencies {
     testImplementation("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
-    // The production artifact relies on Paper libraries; Gradle tests need those libraries on their own runtime classpath.
-    kotlinLibraries.forEach { testRuntimeOnly(it) }
+    // The production artifact relies on Paper libraries; tests need Kotlin and scripting APIs
+    // on both the test compilation and execution classpaths.
+    kotlinLibraries.forEach { testImplementation(it) }
 }
 
 java {
