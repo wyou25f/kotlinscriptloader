@@ -28,7 +28,7 @@ internal class KSLWatchdogMonitor(
 ) {
     private val thresholdNanos = TimeUnit.SECONDS.toNanos(thresholdSeconds.coerceIn(2L, 300L))
     private val pollMillis = pollIntervalMillis.coerceIn(100L, 5_000L)
-    private val snapshots = snapshotCount.coerceIn(1, 5)
+    private val snapshotLimit = snapshotCount.coerceIn(1, 5)
     private val snapshotDelay = snapshotIntervalMillis.coerceIn(250L, 2_000L)
     private val incidentActive = AtomicBoolean(false)
     private val stopped = AtomicBoolean(false)
@@ -125,13 +125,13 @@ internal class KSLWatchdogMonitor(
     private fun writeDump(stallNanos: Long) {
         val detectedAt = Instant.now()
         val captured = mutableListOf<ThreadSnapshot>()
-        repeat(snapshots) { index ->
+        repeat(snapshotLimit) { index ->
             if (stopped.get() && index > 0) return@repeat
             runCatching { captureSnapshot() }
                 .onSuccess { captured += it }
                 .onFailure { error ->
                     runCatching {
-                        plugin.logger.warning("${KSLError.SYSTEM_WATCHDOG_SNAPSHOT_FAILED.tag} Снимок ${index + 1}/$snapshots не получен: ${error.message}")
+                        plugin.logger.warning("${KSLError.SYSTEM_WATCHDOG_SNAPSHOT_FAILED.tag} Снимок ${index + 1}/$snapshotLimit не получен: ${error.message}")
                     }
                 }
             if (index < snapshots - 1 && !stopped.get()) {
@@ -160,7 +160,7 @@ internal class KSLWatchdogMonitor(
             pruneOldDumps(directory)
             plugin.logger.warning(
                 "${KSLError.SYSTEM_WATCHDOG_STALL.tag} Главный поток не отвечал ${TimeUnit.NANOSECONDS.toMillis(stallNanos)}мс; " +
-                    "снимков: ${captured.size}/$snapshots; дамп: ${file.relativeTo(plugin.dataFolder).path}"
+                    "снимков: ${captured.size}/$snapshotLimit; дамп: ${file.relativeTo(plugin.dataFolder).path}"
             )
             if (captured.any { it.deadlockedIds.isNotEmpty() }) {
                 plugin.logger.severe("${KSLError.SYSTEM_WATCHDOG_DEADLOCK.tag} JVM обнаружила взаимную блокировку; подробности в watchdog-дампе.")
@@ -198,7 +198,7 @@ internal class KSLWatchdogMonitor(
         appendLine("GC: ${gc.joinToString { "${it.name}(count=${it.collectionCount},timeMs=${it.collectionTime})" }}")
         appendLine("KSL DB queues: write=${runCatching { plugin.dbQueueSize() }.getOrDefault(-1)}, read=${runCatching { plugin.dbQueryQueueSize() }.getOrDefault(-1)}")
         appendLine("Main-thread reference: ${mainThread?.name ?: "unavailable"}")
-        appendLine("Snapshots captured: ${snapshots.size}/$snapshotCount, interval=${snapshotDelay}ms")
+        appendLine("Snapshots captured: ${snapshots.size}/$snapshotLimit, interval=${snapshotDelay}ms")
         appendLine("Threads at report time: ${Thread.activeCount()} (snapshot limit $MAX_THREADS)")
         appendLine("Deadlock detected: ${deadlocks.isNotEmpty()}")
         if (deadlocks.isNotEmpty()) appendLine("Deadlocked thread ids: ${deadlocks.sorted().joinToString()}")
