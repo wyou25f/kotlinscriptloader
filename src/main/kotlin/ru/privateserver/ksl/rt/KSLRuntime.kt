@@ -10,6 +10,8 @@ import java.util.concurrent.ConcurrentHashMap
  * KSL's internal script loader, compiler or classloader implementation.
  */
 object KSLRT {
+    /** Hard cap prevents scripts from creating an unbounded number of named profiler instances. */
+    const val MAX_PROFILERS: Int = 1024
     private val profilers = ConcurrentHashMap<String, KSLProfiler>()
 
     @JvmStatic
@@ -28,12 +30,18 @@ object KSLRT {
      * Returns the shared profiler for [name]. Repeated calls and [measure] use
      * the same instance so measurements remain observable after the block ends.
      */
+    @Synchronized
     fun profiler(name: String): KSLProfiler {
         require(name.isNotBlank()) { "Profiler name must not be blank" }
+        profilers[name]?.let { return it }
+        check(profilers.size < MAX_PROFILERS) {
+            "KSL profiler registry is full ($MAX_PROFILERS); remove unused profilers before registering more"
+        }
         return profilers.computeIfAbsent(name) { KSLProfiler(it) }
     }
 
     /** Removes a named profiler and its accumulated statistics. */
+    @Synchronized
     fun removeProfiler(name: String): Boolean = profilers.remove(name) != null
 
     /** Snapshot of currently registered profiler names. */

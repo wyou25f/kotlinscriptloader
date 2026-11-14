@@ -141,3 +141,8 @@ wall-clock time, а не CPU time. Сначала измеряй узкие ме
 - Every addon/module should declare the minimum KSL API version it needs.
 - Prefer one documented package namespace per library; avoid wildcard imports that collide.
 - Keep custom implementations outside KSL core wherever possible.
+
+
+## Runtime profiler limits
+
+Named `KSLRT` profilers are shared by name and use thread-safe counters. The registry is capped at 1024 names to prevent unbounded memory use from dynamically generated profiler names; call `KSLRT.removeProfiler(name)` when a dynamic profiler is no longer needed. Runtime snapshots are available through `kslRuntimeStats`, `runtimeStats()`, `runtimeMetrics` and `kslRuntimeSnapshot()`.

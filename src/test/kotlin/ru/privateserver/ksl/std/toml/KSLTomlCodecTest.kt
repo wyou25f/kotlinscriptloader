@@ -30,6 +30,26 @@ class KSLTomlCodecTest {
     }
 
     @Test
+    fun typedAccessorsAndMutableAliasesHandleParsedValues() {
+        val parsed = KSLTomlCodec.parse(
+            "name = \"KSL\"\nport = 25565\nenabled = true\nratio = 1.5\ntags = [\"a\", \"b\"]\n"
+        )
+        assertTrue(parsed.tomlHas("name"))
+        assertEquals("KSL", parsed.tomlString("name"))
+        assertEquals(25565, parsed.tomlInt("port"))
+        assertEquals(25565L, parsed.tomlLong("port"))
+        assertTrue(parsed.tomlBoolean("enabled"))
+        assertEquals(1.5, parsed.tomlDouble("ratio"))
+        assertEquals(listOf("a", "b"), parsed.tomlList("tags"))
+        assertNull(parsed.tomlTable("name"))
+
+        val mutable = KSLTomlCodec.mutableCopy(parsed)
+        assertTrue(mutable.putTomlIfAbsent("newKey", 7))
+        assertFalse(mutable.putTomlIfAbsent("newKey", 8))
+        assertEquals(7, mutable.removeToml("newKey"))
+    }
+
+    @Test
     fun rejectsInvalidTomlAndUnsupportedNull() {
         assertThrows(IllegalArgumentException::class.java) { KSLTomlCodec.parse("a = [") }
         assertThrows(IllegalStateException::class.java) { KSLTomlCodec.encode(mapOf("nothing" to null)) }

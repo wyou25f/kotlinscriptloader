@@ -75,6 +75,13 @@ val kslRuntimeStats: KSLRuntimeSnapshot
 /** Function-form alias for [kslRuntimeStats]. */
 fun runtimeStats(): KSLRuntimeSnapshot = KSLRuntimeMonitor.snapshot()
 
+/** Alternative name for integrations that expose runtime telemetry as metrics. */
+val runtimeMetrics: KSLRuntimeSnapshot
+    get() = KSLRuntimeMonitor.snapshot()
+
+/** Snapshot function with an explicit KSL prefix. */
+fun kslRuntimeSnapshot(): KSLRuntimeSnapshot = KSLRuntimeMonitor.snapshot()
+
 /** Stable event-bus topic names published by KSL. */
 object KSLTopics {
     const val SCRIPT_LOADED: String = "ksl.script.loaded"
