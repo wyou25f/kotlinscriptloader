@@ -14,6 +14,7 @@ class KSLClassDenyList(extra: Collection<String> = emptyList(), allowed: Collect
             "java.lang.ClassLoader", "java.net.URLClassLoader",
             "java.lang.reflect.Method", "java.lang.reflect.Field", "java.lang.reflect.Constructor",
             "java.lang.reflect.Proxy", "java.lang.reflect.AccessibleObject",
+            // MethodHandles stays denied; Lookup itself must remain loadable for JVM lambda linkage.
             "java.lang.invoke.MethodHandle", "java.lang.invoke.MethodHandles",
             "java.lang.invoke.VarHandle"
         )
