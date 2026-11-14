@@ -1251,6 +1251,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     // The file behind a script name, or null (with the reason logged) when the name is unusable.
     private fun resolveScriptFile(scriptName: String): File? {
         val id = scriptName.trim().removeSuffix(".kts").replace('\\', '/')
+        // A direct one-script reload can be the first command after a file was created or deleted.
+        scriptIndex.invalidate()
         val file = File(scriptsFolder, "$id.kts")
         if (!KSLScriptPathPolicy.isSafeChild(scriptsFolder, file)) {
             logger.warning("${KSLError.SCRIPT_PATH_ESCAPE.tag} Имя скрипта '$scriptName' выходит за пределы scripts/ или использует символическую ссылку")
