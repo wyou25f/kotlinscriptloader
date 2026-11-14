@@ -51,7 +51,7 @@ internal class KSLScriptIndex(
     }
 
     private fun createSnapshot(files: List<File>): Snapshot {
-        val ids = immutableList(files.map(scriptId))
+        val ids = immutableList(files.map(scriptId).sorted())
         val folders = LinkedHashSet<String>()
         ids.forEach { id ->
             val lastSeparator = id.lastIndexOf('/')
