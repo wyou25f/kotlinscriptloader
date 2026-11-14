@@ -103,7 +103,7 @@ fun Player.removeItems(amount: Int, matcher: (ItemStack) -> Boolean): Int {
         if (stack == null || stack.isEmptyStack() || !matcher(stack)) return@forEachIndexed
         val taken = minOf(stack.amount, remaining)
         val left = stack.amount - taken
-        inventory.setItem(index, if (left == 0) null else stack.clone().apply { amount = left })
+        inventory.setItem(index, if (left == 0) null else stack.clone().apply { this.amount = left })
         removed = Math.addExact(removed, taken)
         remaining -= taken
     }
