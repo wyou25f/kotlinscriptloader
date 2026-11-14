@@ -75,7 +75,13 @@ class KSLEffectManager(private val plugin: KotlinScriptLoaderPlugin) {
                         require(offset.x.isFinite() && offset.y.isFinite() && offset.z.isFinite()) {
                             "Форма эффекта вернула координаты, не являющиеся конечными числами"
                         }
-                        world.spawnParticle(spec.particle, cx + offset.x, cy + offset.y, cz + offset.z, count, spec.offsetX, spec.offsetY, spec.offsetZ, spec.extra, spec.data)
+                        val x = cx + offset.x
+                        val y = cy + offset.y
+                        val z = cz + offset.z
+                        require(x.isFinite() && y.isFinite() && z.isFinite()) {
+                            "Итоговые координаты эффекта вышли за допустимый числовой диапазон"
+                        }
+                        world.spawnParticle(spec.particle, x, y, z, count, spec.offsetX, spec.offsetY, spec.offsetZ, spec.extra, spec.data)
                     }
                 }
             } catch (ex: Throwable) {
@@ -83,7 +89,9 @@ class KSLEffectManager(private val plugin: KotlinScriptLoaderPlugin) {
                 stop()
                 return@Runnable
             }
-            tick += interval
+            // Saturate at the requested duration instead of overflowing Long and keeping
+            // an extremely long-running effect alive forever.
+            tick = if (tick > Long.MAX_VALUE - interval) spec.durationTicks else tick + interval
         }, 0L, interval)
 
         plugin.trackTask(scriptName, task.taskId)

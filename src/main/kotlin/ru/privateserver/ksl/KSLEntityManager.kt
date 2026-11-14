@@ -72,6 +72,22 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
         dropSpecs.remove(uuid)
     }
 
+    // PDC data can be changed by other plugins. Never leave a UUID indexed forever
+    // merely because its owner tag disappeared before the entity was removed.
+    private fun untrackEntity(uuid: UUID, owner: String?) {
+        if (owner != null) {
+            entitiesByScript.computeIfPresent(owner) { _, ids ->
+                ids.remove(uuid)
+                if (ids.isEmpty()) null else ids
+            }
+            return
+        }
+        entitiesByScript.entries.removeIf { entry ->
+            entry.value.remove(uuid)
+            entry.value.isEmpty()
+        }
+    }
+
     fun setDeathCallback(scriptName: String, entity: LivingEntity, callback: (LivingEntity, Player?) -> Unit) {
         deathHooks[entity.uniqueId] = Hook(scriptName, callback)
     }
@@ -150,12 +166,7 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
         // Hooks can exist for entities we never spawned, so this must not depend on the owner tag.
         dropHooks(uuid)
         removeOnReload.remove(uuid)
-        ownerOf(entity)?.let { owner ->
-            entitiesByScript.computeIfPresent(owner) { _, ids ->
-                ids.remove(uuid)
-                if (ids.isEmpty()) null else ids
-            }
-        }
+        untrackEntity(uuid, ownerOf(entity))
     }
 
     // Saved entities outlive the in-memory index (restart, script unloaded while the chunk was unloaded).
