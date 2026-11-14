@@ -539,22 +539,59 @@ open class BukkitScriptContext(
         dbQuery(yamlSqlQuery(queryPath), *args, block = block)
     }
 
-    fun dbExecute(sql: String, vararg args: Any?) {
+    /**
+     * Future-based prepared UPDATE/INSERT/DELETE. The returned future completes on the DB writer thread.
+     * Queue saturation is reported as an exceptional completion instead of blocking the caller.
+     */
+    fun dbExecuteAsync(sql: String, vararg args: Any?): java.util.concurrent.CompletableFuture<Int> =
         try {
-            plugin.dbExecutor.execute {
-                try {
-                    database.connection.use { conn ->
-                        conn.prepareStatement(sql).use { ps ->
-                            args.forEachIndexed { i, arg -> ps.setObject(i + 1, arg) }
-                            ps.executeUpdate()
-                        }
+            java.util.concurrent.CompletableFuture.supplyAsync({
+                database.connection.use { conn ->
+                    conn.prepareStatement(sql).use { ps ->
+                        args.forEachIndexed { i, arg -> ps.setObject(i + 1, arg) }
+                        ps.executeUpdate()
                     }
-                } catch (ex: Exception) {
-                    plugin.logger.warning("[$scriptName] ${KSLError.DB_SCRIPT_QUERY_FAILED.tag} dbExecute: ${ex.message}")
                 }
-            }
+            }, plugin.dbExecutor)
         } catch (ex: java.util.concurrent.RejectedExecutionException) {
-            plugin.logger.warning("[$scriptName] ${KSLError.DB_SCRIPT_QUERY_FAILED.tag} Очередь записи БД заполнена; операция отклонена")
+            java.util.concurrent.CompletableFuture.failedFuture(ex)
+        }
+
+    /**
+     * Future-based query API. [mapper] must return detached values; never return a ResultSet
+     * or JDBC object because the connection is closed before the future completes.
+     */
+    fun <T> dbQueryAsync(
+        sql: String,
+        vararg args: Any?,
+        mapper: (ResultSet) -> T
+    ): java.util.concurrent.CompletableFuture<T> =
+        try {
+            java.util.concurrent.CompletableFuture.supplyAsync({
+                database.connection.use { conn ->
+                    conn.prepareStatement(sql).use { ps ->
+                        args.forEachIndexed { i, arg -> ps.setObject(i + 1, arg) }
+                        ps.executeQuery().use(mapper)
+                    }
+                }
+            }, plugin.dbQueryExecutor)
+        } catch (ex: java.util.concurrent.RejectedExecutionException) {
+            java.util.concurrent.CompletableFuture.failedFuture(ex)
+        }
+
+    fun dbExecuteYamlAsync(queryPath: String, vararg args: Any?): java.util.concurrent.CompletableFuture<Int> =
+        dbExecuteAsync(yamlSqlQuery(queryPath), *args)
+
+    fun <T> dbQueryYamlAsync(
+        queryPath: String,
+        vararg args: Any?,
+        mapper: (ResultSet) -> T
+    ): java.util.concurrent.CompletableFuture<T> =
+        dbQueryAsync(yamlSqlQuery(queryPath), *args, mapper = mapper)
+
+    fun dbExecute(sql: String, vararg args: Any?) {
+        dbExecuteAsync(sql, *args).whenComplete { _, error ->
+            if (error != null) plugin.logger.warning("[$scriptName] ${KSLError.DB_SCRIPT_QUERY_FAILED.tag} dbExecute: ${error.cause?.message ?: error.message}")
         }
     }
 
@@ -581,6 +618,12 @@ open class BukkitScriptContext(
      * Short alias for [dbExecute]. SQL parameters are bound through a prepared statement.
      */
     fun execute(sql: String, vararg args: Any?) = dbExecute(sql, *args)
+    fun executeAsync(sql: String, vararg args: Any?) = dbExecuteAsync(sql, *args)
+    fun executeYamlAsync(queryPath: String, vararg args: Any?) = dbExecuteYamlAsync(queryPath, *args)
+    fun <T> queryAsync(sql: String, vararg args: Any?, mapper: (ResultSet) -> T) =
+        dbQueryAsync(sql, *args, mapper = mapper)
+    fun <T> queryYamlAsync(queryPath: String, vararg args: Any?, mapper: (ResultSet) -> T) =
+        dbQueryYamlAsync(queryPath, *args, mapper = mapper)
 
     /**
      * Short alias for [dbQuery]. The ResultSet is the lambda receiver, so use

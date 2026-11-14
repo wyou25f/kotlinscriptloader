@@ -264,7 +264,10 @@ database:
 Для новых скриптов есть короткие алиасы:
 
 - `execute(sql, ...args)` и `query(sql, ...args) { ... }`;
-- `executeYaml(path, ...args)` и `queryYaml(path, ...args) { ... }`.
+- `executeYaml(path, ...args)` и `queryYaml(path, ...args) { ... }`;
+- `executeAsync(...)`, `queryAsync(..., mapper = { ... })`, `executeYamlAsync(...)` и `queryYamlAsync(..., mapper = { ... })` возвращают `CompletableFuture`.
+
+Future-варианты удобны, когда нужно дождаться результата, объединить несколько операций или обработать ошибку без блокировки вызывающего потока. Mapper в `queryAsync` должен вернуть обычные Kotlin-значения/коллекции: JDBC `ResultSet` и соединение закрываются до завершения future. При переполнении ограниченной очереди future завершается с ошибкой `RejectedExecutionException`, а не создаёт бесконечную очередь.
 
 В `query { }` и `queryYaml { }` объект `ResultSet` — receiver блока, поэтому можно писать `next()` и `getLong("balance")` без переменной `rs`:
 
@@ -300,7 +303,7 @@ query("SELECT balance FROM coins WHERE uuid = ?", player.uniqueId.toString()) {
 }
 ```
 
-Не оставляй JDBC-соединения открытыми: если работаешь напрямую через `database.connection`, обязательно используй `use { }`.
+Не оставляй JDBC-соединения открытыми: если работаешь напрямую через `database.connection`, обязательно используй `use { }`. Для future API ошибки обрабатывай через `exceptionally { ... }` или `whenComplete { value, error -> ... }`; не вызывай `.join()` на основном потоке сервера.
 
 ## 11. Безопасность и бэкапы
 
