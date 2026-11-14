@@ -657,7 +657,7 @@ open class BukkitScriptContext(
         repeating: Boolean,
         taskId: java.util.concurrent.atomic.AtomicInteger,
         completed: java.util.concurrent.atomic.AtomicBoolean,
-        failures: java.util.concurrent.atomic.AtomicInteger,
+        failures: KSLTaskFailurePolicy,
         block: () -> Unit
     ) = Runnable {
         try {
@@ -666,10 +666,10 @@ open class BukkitScriptContext(
                 if (monitor != null) monitor.trackOperation("script '$scriptName' task '$where'", block)
                 else block()
             }
-            failures.set(0)
+            failures.onSuccess()
         } catch (ex: Throwable) {
             KSLErrors.log(plugin, scriptName, where, ex, KSLError.TASK_FAILED)
-            if (repeating && failures.incrementAndGet() >= MAX_CONSECUTIVE_TASK_FAILURES) {
+            if (repeating && failures.onFailure()) {
                 val id = taskId.get()
                 if (id > 0) {
                     Bukkit.getScheduler().cancelTask(id)
@@ -694,7 +694,7 @@ open class BukkitScriptContext(
     ): Int {
         val taskId = java.util.concurrent.atomic.AtomicInteger()
         val completed = java.util.concurrent.atomic.AtomicBoolean()
-        val failures = java.util.concurrent.atomic.AtomicInteger()
+        val failures = KSLTaskFailurePolicy(MAX_CONSECUTIVE_TASK_FAILURES)
         val task = schedule(guarded(where, repeating, taskId, completed, failures, block))
         taskId.set(task.taskId)
         plugin.trackTask(scriptName, task.taskId)

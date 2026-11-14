@@ -906,7 +906,10 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 var ordered = emptyList<File>()
                 val units = try {
                     ordered = KSLScriptOrder.sort(files, { scriptId(it) }, logger)
-                    compileBatch(ordered)
+                    val compiled = compileBatch(ordered)
+                    // Initialise the scripting runtime before releasing the shutdown barrier.
+                    runCatching { scriptRunner.warmUp() }
+                    compiled
                 } catch (ex: Throwable) {
                     logger.severe("${KSLError.SCRIPT_RUNTIME.tag} Фоновая компиляция не удалась: ${ex::class.simpleName}: ${ex.message}")
                     null
@@ -919,9 +922,6 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                     reloadBusy.set(false)
                     return@Runnable
                 }
-
-                // Initialise the scripting runtime here, not during the swap on the main thread.
-                runCatching { scriptRunner.warmUp() }
                 try {
                     Bukkit.getScheduler().runTask(this, Runnable {
                         try {
