@@ -24,8 +24,20 @@ jobs:
           java-version: '21'
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-      - name: Build and run tests
-        run: bash ./gradlew --no-daemon clean build
+      - name: Clean and run unit tests
+        run: bash ./gradlew --no-daemon clean test --stacktrace
+      - name: Upload test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: KSL-test-reports-${{ github.run_number }}-${{ github.sha }}
+          path: |
+            build/reports/tests/test/
+            build/test-results/test/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Assemble and verify plugin JAR
+        run: bash ./gradlew --no-daemon build -x test --stacktrace
       - name: Verify IntelliJ IDEA companion setup
         run: bash ./gradlew --no-daemon -p ide -PkslJar=../build/libs/KotlinScriptLoader-1.2.0.jar verifyKslIdeSetup
       - name: Generate JAR checksum
