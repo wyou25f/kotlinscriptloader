@@ -237,6 +237,14 @@ internal class KSLWatchdogMonitor(
         appendLine("GC: ${gc.joinToString { "${it.name}(count=${it.collectionCount},timeMs=${it.collectionTime})" }}")
         appendLine("KSL DB queues: write=${runCatching { plugin.dbQueueSize() }.getOrDefault(-1)}, read=${runCatching { plugin.dbQueryQueueSize() }.getOrDefault(-1)}")
         appendLine("Main-thread reference: ${mainThread?.name ?: "unavailable"}")
+        appendLine()
+        appendLine("=== KSL RUNTIME CONTEXT ===")
+        val runtimeContext = runCatching { plugin.watchdogDiagnostics() }
+            .getOrElse { listOf("Runtime context unavailable: ${it::class.simpleName}: ${it.message}") }
+        runtimeContext.take(MAX_CONTEXT_LINES).forEach { appendLine(it.take(MAX_CONTEXT_LINE_LENGTH)) }
+        if (runtimeContext.size > MAX_CONTEXT_LINES) {
+            appendLine("KSL context truncated: ${runtimeContext.size - MAX_CONTEXT_LINES} additional lines omitted.")
+        }
         appendLine("Snapshots captured: ${snapshots.size}/$snapshotLimit, interval=${snapshotDelay}ms")
         appendLine("JVM threads observed: $allThreadCount (capture limit $MAX_THREADS)")
         appendLine("Main thread recovered while collecting: $recoveredDuringCapture")
@@ -345,5 +353,7 @@ internal class KSLWatchdogMonitor(
     private companion object {
         const val MAX_THREADS = 300
         const val MAX_FRAMES = 80
+        const val MAX_CONTEXT_LINES = 350
+        const val MAX_CONTEXT_LINE_LENGTH = 600
     }
 }
