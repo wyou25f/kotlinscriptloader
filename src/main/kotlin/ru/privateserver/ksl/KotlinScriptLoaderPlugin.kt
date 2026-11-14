@@ -1321,7 +1321,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     private fun knownScriptNames(): Set<String> =
         (tasksByScript.keys + listenersByScript.keys + commandsByScript.keys + placeholdersByScript.keys +
-            scriptsWithGuis + libraryRegistry.scriptNames() + entityManager.scriptNames() + scriptRuntimeScopes.keys + scriptDiagnostics.scriptIds() + loadMillisById.keys + liveScripts).toSet()
+            scriptsWithGuis + libraryRegistry.scriptNames() + entityManager.scriptNames() + scriptRuntimeScopes.keys + scriptDiagnostics.scriptIds() + loadMillisById.keys + scriptStamps.keys + liveScripts).toSet()
 
     data class DiagnosticLine(val label: String, val ok: Boolean, val detail: String)
 

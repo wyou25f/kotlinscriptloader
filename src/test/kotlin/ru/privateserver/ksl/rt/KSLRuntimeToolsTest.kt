@@ -138,7 +138,7 @@ class KSLRuntimeToolsTest {
         assertEquals(2_000_000L, profiler.snapshot().totalNanos)
         assertEquals(1L, profiler.snapshot().failures)
         assertEquals("timed", profiler { "timed" })
-        assertEquals(3L, profiler.snapshot().calls)
+        assertEquals(2L, profiler.snapshot().calls)
         assertTrue(profiler.measureResult { error("captured") }.isFailure)
         assertEquals(3L, profiler.snapshot().calls)
     }

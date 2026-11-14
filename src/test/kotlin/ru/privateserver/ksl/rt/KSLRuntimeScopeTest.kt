@@ -46,6 +46,7 @@ class KSLRuntimeScopeTest {
         val calls = AtomicInteger()
         val handle = scope.onClose { calls.incrementAndGet() }
         handle.close()
+        assertEquals(0, scope.ownedResourceCount)
         scope.close()
         assertEquals(0, calls.get())
     }

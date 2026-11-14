@@ -8,7 +8,7 @@ import java.util.LinkedHashMap
  * Resources close in reverse registration order; closing is idempotent.
  */
 class KSLRuntimeScope(val name: String) : AutoCloseable {
-    private class Cleanup(val action: () -> Unit)
+    private class Cleanup(@Volatile var action: (() -> Unit)?)
 
     private val lock = Any()
     private val cleanups = ArrayList<Cleanup>()
@@ -51,7 +51,12 @@ class KSLRuntimeScope(val name: String) : AutoCloseable {
             action()
             throw IllegalStateException("Runtime scope '$name' is already closed")
         }
-        return AutoCloseable { synchronized(lock) { cleanups.remove(cleanup) } }
+        return AutoCloseable {
+            synchronized(lock) {
+                cleanups.remove(cleanup)
+                cleanup.action = null
+            }
+        }
     }
 
     fun <K : Any, V : Any> cache(
@@ -104,7 +109,10 @@ class KSLRuntimeScope(val name: String) : AutoCloseable {
             if (closed) return
             closed = true
             profilers.clear()
-            cleanups.asReversed().map { it.action }.also { cleanups.clear() }
+            cleanups.asReversed().mapNotNull { it.action }.also {
+                cleanups.forEach { cleanup -> cleanup.action = null }
+                cleanups.clear()
+            }
         }
 
         var failure: Throwable? = null
