@@ -15,7 +15,7 @@ enum class KSLErrorCategory(val letter: Char, val title: String) {
     CONFIG('i', "Конфигурация и файлы"),
     TASK('j', "Планировщик и задачи"),
     PLACEHOLDER('k', "Плейсхолдеры и тексты"),
-    SYSTEM('l', "Система и остановка плагина");
+    SYSTEM('l', "Система, диагностика и остановка плагина");
 
     companion object {
         fun byLetter(letter: Char): KSLErrorCategory? = entries.firstOrNull { it.letter == letter.lowercaseChar() }

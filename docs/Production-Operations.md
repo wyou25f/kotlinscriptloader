@@ -66,9 +66,10 @@ export KSL_DB_PASSWORD='[DB_PASSWORD]'
 - /ksl doctor — состояние подсистем.
 - /ksl runtime — runtime/heap/worker telemetry.
 - /ksl scripts — состояние скриптов, если команда доступна в текущей сборке.
-- /ksl errors — последние ошибки.
-- /ksl error <code> — описание конкретного кода.
-- dumps/ — thread dumps раннего watchdog monitor, если он сработал.
+- `/ksl errors` — последние ошибки; `/ksl errors list` — каталог причин с фильтром по категории.
+- `/ksl error <code>` — объяснение кода и что проверить.
+- `/ksl watchdog` — путь к последнему раннему дампу, если watchdog monitor сработал.
+- `dumps/` — многоснимковые thread dumps с анализом стабильных кадров, блокировок и состояния JVM.
 
 Watchdog monitor помогает собрать диагностику, но не заменяет Paper watchdog и не исправляет причину зависания.
 
