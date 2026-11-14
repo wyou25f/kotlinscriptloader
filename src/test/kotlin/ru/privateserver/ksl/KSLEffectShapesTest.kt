@@ -48,7 +48,7 @@ class KSLEffectShapesTest {
     fun `arc preserves complete and multiple revolutions`() {
         val center = Location(null, 0.0, 0.0, 0.0)
         val full = KSLEffectShapes.arc(2.0, 0.0, 360.0, 5).points(0L, center)
-        val double = KSLEffectShapes.arc(2.0, 0.0, 720.0, 5).points(0L, center)
+        val double = KSLEffectShapes.arc(2.0, 0.0, 720.0, 9).points(0L, center)
 
         assertEquals(5, full.size)
         assertTrue(full.distinctBy { (it.x * 1000).toInt() to (it.z * 1000).toInt() }.size >= 4)
