@@ -24,6 +24,14 @@ class KSLSandboxHardeningTest {
 
 
     @Test
+    fun `internal plugin capability is not exposed as a normal JVM accessor`() {
+        val getter = BukkitScriptContext::class.java.declaredMethods.single {
+            it.name.startsWith("getInternalPlugin")
+        }
+        assertTrue(getter.isSynthetic)
+    }
+
+    @Test
     fun `denies process reflection file network and raw thread APIs`() {
         val denyList = KSLClassDenyList()
 
