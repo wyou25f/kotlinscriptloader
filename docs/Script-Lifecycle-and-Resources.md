@@ -36,7 +36,7 @@ val taskId = every(ticks = 20L) {
     // Bukkit API здесь выполняется scheduler'ом на основном потоке.
 }
 
-onEvent<PlayerJoinEvent> { event ->
+onEvent<PlayerJoinEvent> {
     event.player.sendMessage("Добро пожаловать!")
 }
 ~~~

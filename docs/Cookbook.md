@@ -6,7 +6,7 @@
 
 ```kotlin
 if (featureEnabled("welcome.enabled", default = true)) {
-    onEvent<PlayerJoinEvent> { event ->
+    onEvent<PlayerJoinEvent> {
         event.player.sendRichMessage("<green>Добро пожаловать, ${event.player.name}!</green>")
     }
 }
@@ -33,7 +33,7 @@ registerCommand("announce") { sender, args ->
 
 ```kotlin
 val enabled = featureEnabled("events.double-xp", default = false)
-logger.info("Double XP enabled: $enabled")
+log("Double XP enabled: $enabled")
 val newState = toggleFeature("events.double-xp")
 ```
 
@@ -67,7 +67,7 @@ queryAsync(
     mapper = { rs -> if (rs.next()) rs.getInt("total") else 0 }
 ).whenComplete { total, error ->
     if (error != null) {
-        logger.warning("Query failed: ${error.message}")
+        logWarn("Query failed: ${error.message}")
     } else {
         runSync { player.sendMessage("Заметок: $total") }
     }
@@ -111,7 +111,7 @@ val cached = profiles[player.uniqueId.toString()]
 val profile = KSLRT.profiler("shop.price-calculation")
 val price = profile.measure { calculatePrice(player.uniqueId) }
 val stats = profile.snapshot()
-logger.info("calls=${stats.calls}, maxNs=${stats.maxNanos}")
+log("calls=${stats.calls}, maxNs=${stats.maxNanos}")
 ```
 
 Не создавай уникальное имя профиля на каждый вызов. Реестр именованных профилей ограничен.
@@ -171,7 +171,7 @@ migrateConfig(
 ```kotlin
 val auth = hook<KSLAuthMeHook>("authme")
 if (auth == null) {
-    logger.info("AuthMe не установлен; функция проверки входа отключена")
+    log("AuthMe не установлен; функция проверки входа отключена")
 } else {
     // Используй только методы, документированные для доступного hook.
 }

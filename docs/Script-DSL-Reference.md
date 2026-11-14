@@ -9,7 +9,7 @@
 - `plugin` — экземпляр JavaPlugin KSL;
 - `config` — YAML-конфигурация текущего скрипта;
 - `database` — общий HikariDataSource;
-- `logger` — логгер;
+- `log(message)`, `logWarn(message)`, `logError(message)` — логирование через KSL;
 - `onlinePlayers()`, `onlineCount`, `maxPlayers`;
 - `findPlayer(nameOrUuid)`;
 - `runSync { }`, `runAsync { }`;
@@ -22,7 +22,7 @@
 ## 2. События
 
 ```kotlin
-onEvent<PlayerJoinEvent> { event ->
+onEvent<PlayerJoinEvent> {
     val player = event.player
     player.sendRichMessage("<green>Привет, ${player.name}!</green>")
 }
@@ -34,7 +34,7 @@ onEvent<PlayerJoinEvent> { event ->
 onEvent<PlayerInteractEvent>(
     priority = EventPriority.MONITOR,
     ignoreCancelled = true
-) { event ->
+) {
     // На MONITOR наблюдай за событием; не меняй его состояние.
 }
 ```
@@ -45,11 +45,6 @@ onEvent<PlayerInteractEvent>(
 
 ```kotlin
 registerCommand("profile", aliases = listOf("p")) { sender, args ->
-    if (sender !is Player) {
-        sender.sendMessage("Команда доступна игроку.")
-        return@registerCommand
-    }
-
     if (!sender.hasPermission("server.profile")) {
         sender.sendMessage("Недостаточно прав.")
         return@registerCommand

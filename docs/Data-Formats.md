@@ -73,7 +73,7 @@ val issues = validateConfig {
     strings("worlds.allowed", default = listOf("world"))
 }
 issues.forEach { issue ->
-    logger.warning("Config '${issue.path}': ${issue.message}")
+    logWarn("Config '${issue.path}': ${issue.message}")
 }
 ```
 

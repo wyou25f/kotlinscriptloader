@@ -21,9 +21,8 @@
 ## 2. Первый скрипт
 
 ```kotlin
-onEvent<PlayerJoinEvent> { event ->
-    val player = event.player
-    player.sendMessage("<green>Добро пожаловать, <white>${player.name}</white>!</green>")
+onEvent<PlayerJoinEvent> {
+    player.sendRichMessage("<green>Добро пожаловать, <white>${player.name}</white>!</green>")
 }
 ```
 
@@ -56,8 +55,8 @@ val enabled = config.getBoolean("enabled", true)
 val message = config.getString("message") ?: "<green>Welcome!</green>"
 
 if (enabled) {
-    onEvent<PlayerJoinEvent> { event ->
-        event.player.sendRichMessage(message)
+    onEvent<PlayerJoinEvent> {
+        player.sendRichMessage(message)
     }
 }
 ```

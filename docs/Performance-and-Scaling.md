@@ -67,7 +67,7 @@ queryAsync(
     mapper = { rs -> if (rs.next()) rs.getLong("balance") else 0L }
 ).whenComplete { balance, error ->
     if (error != null) {
-        logger.warning("Не удалось загрузить баланс: ${error.message}")
+        logWarn("Не удалось загрузить баланс: ${error.message}")
     } else {
         runSync { player.sendMessage("Баланс: $balance") }
     }
@@ -100,7 +100,7 @@ execute(
 
 ```kotlin
 val count = reloadScriptConfig()
-logger.info("Перечитано запросов: $count")
+log("Перечитано запросов: $count")
 ```
 
 Если YAML изменён программно через editConfig, обнови только query cache:
@@ -160,7 +160,7 @@ val stats = cache.stats()
 val profiler = KSLRT.profiler("economy.load")
 val value = profiler.measure { loadEconomyData() }
 val snapshot = profiler.snapshot()
-logger.info("calls=${snapshot.calls}, avgNs=${snapshot.averageNanos}")
+log("calls=${snapshot.calls}, avgNs=${snapshot.averageNanos}")
 ```
 
 Реестр именованных профилировщиков ограничен 1024 именами. Для динамических профилей вызывай KSLRT.removeProfiler(name), когда профиль больше не нужен. Не создавай уникальное имя на каждый вызов.
