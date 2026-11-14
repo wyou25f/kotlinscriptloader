@@ -13,7 +13,7 @@ These packages are included in the default imports for KSL scripts:
 - `ru.privateserver.ksl.std.inventory.*`: first matching slot lookup, similar-item counting and bounded item removal for any Bukkit inventory.
 - `ru.privateserver.ksl.std.item.*`: safe cloned ItemStack amount/name/lore transformations and empty-stack checks.
 - `ru.privateserver.ksl.std.component.*`: literal Adventure text components, MiniMessage parsing and immutable text appending.
-- `ru.privateserver.ksl.std.world.*`: block, location and entity-query helpers.\n- `ru.privateserver.ksl.std.json.*`: Kotlin-value conversion, JSON object/array builders and typed object accessors; file persistence is exposed by the script context.
+- `ru.privateserver.ksl.std.world.*`: block, location and entity-query helpers.\n- `ru.privateserver.ksl.std.json.*`: Kotlin-value conversion, JSON object/array builders and typed object accessors; file persistence is exposed by the script context.\n- `ru.privateserver.ksl.std.security.*`: SHA-256 checksums, PBKDF2-HMAC-SHA256 password hashing, HMAC-SHA256, constant-time comparisons, secure random tokens and Base64 helpers.
 
 Inventory and ItemStack helpers that inspect or modify Bukkit objects must be called on the server thread. ItemStack transformation helpers return clones and leave the original stack unchanged. `toTextComponent()` treats input as literal text; use `toMiniMessageComponent()` only when the input is intentionally MiniMessage markup.
 
