@@ -51,6 +51,33 @@ class KSLSandboxHardeningTest {
     }
 
     @Test
+    fun `script paths must stay inside scripts and cannot traverse symlinks`() {
+        val root = java.nio.file.Files.createTempDirectory("ksl-script-root").toFile()
+        val outside = java.nio.file.Files.createTempDirectory("ksl-script-outside").toFile()
+        try {
+            val nested = java.io.File(root, "nested").apply { mkdirs() }
+            val normal = java.io.File(nested, "safe.kts").apply { writeText("1") }
+            val external = java.io.File(outside, "outside.kts").apply { writeText("2") }
+
+            assertTrue(KSLScriptPathPolicy.isSafeChild(root, normal))
+            assertFalse(KSLScriptPathPolicy.isSafeChild(root, external))
+
+            val link = java.io.File(root, "linked.kts").toPath()
+            try {
+                java.nio.file.Files.createSymbolicLink(link, external.toPath())
+                assertFalse(KSLScriptPathPolicy.isSafeChild(root, link.toFile()))
+            } catch (_: UnsupportedOperationException) {
+                // Symlink creation is not supported by this filesystem.
+            } catch (_: java.nio.file.FileSystemException) {
+                // Some Windows configurations disable symlink creation for unprivileged users.
+            }
+        } finally {
+            root.deleteRecursively()
+            outside.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `class loader blocks denied classes and reports each name once`() {
         val denied = mutableListOf<String>()
         val loader = KSLSandboxClassLoader(
