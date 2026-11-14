@@ -10,7 +10,8 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 if ($Task -eq "Diagnose") {
     & (Join-Path $Root "scripts/Diagnose-Environment.ps1") -Strict
-    exit $LASTEXITCODE
+    if (-not $?) { exit 1 }
+    exit 0
 }
 $DebugScript = Join-Path $Root "scripts/Debug-Build.ps1"
 if (-not (Test-Path $DebugScript)) { throw "KSL build diagnostics script is missing: $DebugScript" }
