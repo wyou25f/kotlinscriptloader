@@ -35,12 +35,21 @@ Write-Host "Log: $LogPath" -ForegroundColor Gray
 
 Push-Location $Root
 try {
-    & $Wrapper @Arguments 2>&1 |
-        ForEach-Object {
-            $Line = "$_"
-            $OutputLines.Add($Line)
-            Write-Output $Line
-        } | Tee-Object -FilePath $LogPath
+    if ($IsWindowsHost) {
+        & $Wrapper @Arguments 2>&1 |
+            ForEach-Object {
+                $Line = "$_"
+                $OutputLines.Add($Line)
+                Write-Output $Line
+            } | Tee-Object -FilePath $LogPath
+    } else {
+        & bash $Wrapper @Arguments 2>&1 |
+            ForEach-Object {
+                $Line = "$_"
+                $OutputLines.Add($Line)
+                Write-Output $Line
+            } | Tee-Object -FilePath $LogPath
+    }
     $ExitCode = $LASTEXITCODE
 } finally {
     Pop-Location
