@@ -232,6 +232,44 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     fun executionSnapshots(scriptId: String): List<KSLExecutionSnapshot> =
         scriptDiagnostics.snapshots(scriptId)
 
+    /** Read-only, bounded context collected by the watchdog diagnostics thread. */
+    fun watchdogDiagnostics(): List<String> = buildList {
+        add("=== KSL RUNTIME CONTEXT ===")
+        runCatching { runtimeSnapshot() }.onSuccess { snapshot ->
+            add("JVM: heapUsed=${snapshot.heapUsedBytes} bytes, heapMax=${snapshot.heapMaxBytes} bytes, " +
+                "nonHeapUsed=${snapshot.nonHeapUsedBytes} bytes, processors=${snapshot.processors}, " +
+                "liveThreads=${snapshot.liveThreads}, daemonThreads=${snapshot.daemonThreads}")
+            add("CPU: process=${snapshot.processCpuLoad?.let { "%.3f".format(java.util.Locale.ROOT, it) } ?: "n/a"}, " +
+                "system=${snapshot.systemCpuLoad?.let { "%.3f".format(java.util.Locale.ROOT, it) } ?: "n/a"}, " +
+                "loadAverage=${snapshot.systemLoadAverage}, gcCount=${snapshot.gcCount}, gcTimeMs=${snapshot.gcTimeMillis}")
+        }.onFailure { add("JVM snapshot unavailable: ${it::class.simpleName}: ${it.message}") }
+
+        add("DB queues: write=${runCatching { dbQueueSize() }.getOrDefault(-1)}, " +
+            "read=${runCatching { dbQueryQueueSize() }.getOrDefault(-1)}")
+        if (::workScheduler.isInitialized) {
+            runCatching { workScheduler.snapshot() }.onSuccess { workers ->
+                add("KSL workers: count=${workers.workers}, active=${workers.active}, queued=${workers.queued}, " +
+                    "tracked=${workers.tracked}, completed=${workers.completed}, rejected=${workers.rejected}")
+            }.onFailure { add("KSL worker snapshot unavailable: ${it::class.simpleName}: ${it.message}") }
+        } else {
+            add("KSL workers: not initialized")
+        }
+
+        val active = liveScripts.toList().sorted()
+        add("Loaded scripts: ${active.size}")
+        active.take(100).forEach { scriptId ->
+            val operations = runCatching { executionSnapshots(scriptId) }.getOrDefault(emptyList())
+                .sortedByDescending { it.totalNanos }
+                .take(3)
+            operations.forEach { metric ->
+                add("Script '$scriptId' / ${metric.operation}: calls=${metric.calls}, failures=${metric.failures}, " +
+                    "avgMs=${metric.averageNanos / 1_000_000.0}, maxMs=${metric.maxNanos / 1_000_000.0}, " +
+                    "lastFailure=${metric.lastFailure ?: "none"}")
+            }
+        }
+        if (active.size > 100) add("Additional loaded scripts omitted: ${active.size - 100}")
+    }
+
     fun scriptDependencies(): List<KSLScriptDependencyInfo> =
         KSLScriptOrder.inspect(findScriptFiles(), ::scriptId)
 
