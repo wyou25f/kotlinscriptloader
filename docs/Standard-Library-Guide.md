@@ -69,7 +69,7 @@ discordEmbedAsync(
 discord("general", "Server started")
 discordMessage("general", "Backup complete")
 val sent = discordAsync("general", "Async notification").thenAccept { accepted ->
-    if (!accepted) logger.warning("Discord rejected the notification")
+    if (!accepted) warn("Discord rejected the notification")
 }
 ```
 
