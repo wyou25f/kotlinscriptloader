@@ -202,7 +202,7 @@ internal class KSLWatchdogMonitor(
         appendLine("KSL DB queues: write=${runCatching { plugin.dbQueueSize() }.getOrDefault(-1)}, read=${runCatching { plugin.dbQueryQueueSize() }.getOrDefault(-1)}")
         appendLine("Main-thread reference: ${mainThread?.name ?: "unavailable"}")
         appendLine("Snapshots captured: ${snapshots.size}/$snapshotLimit, interval=${snapshotDelay}ms")
-        appendLine("Threads at report time: ${Thread.activeCount()} (snapshot limit $MAX_THREADS)")
+        appendLine("JVM threads observed: $allThreadCount (capture limit $MAX_THREADS)")
         appendLine("Deadlock detected: ${deadlocks.isNotEmpty()}")
         if (deadlocks.isNotEmpty()) appendLine("Deadlocked thread ids: ${deadlocks.sorted().joinToString()}")
         appendLine()
@@ -216,6 +216,7 @@ internal class KSLWatchdogMonitor(
 
         snapshots.forEachIndexed { index, snapshot ->
             appendLine("=== SNAPSHOT ${index + 1}/${snapshots.size} at ${snapshot.capturedAt} ===")
+            appendLine("Threads observed: ${snapshot.totalThreadCount}; captured: ${snapshot.threads.size}; omitted: ${KSLWatchdogAnalysis.skippedThreads(snapshot.totalThreadCount, snapshot.threads.size)}")
             appendLine("Active KSL operation: ${snapshot.operation ?: "none"}")
             val main = mainThread
             val mainEntry = snapshot.threads.firstOrNull { it.first === main }
@@ -229,8 +230,8 @@ internal class KSLWatchdogMonitor(
             snapshot.threads.filterNot { it.first === main }.forEach { (thread, stack) ->
                 appendThread(thread, stack, snapshot.infos[thread.id], snapshot.deadlockedIds)
             }
-            val total = snapshot.threads.size
-            if (total >= MAX_THREADS) appendLine("TRUNCATED: thread listing reached $MAX_THREADS entries; JVM may have more threads.")
+            val omitted = KSLWatchdogAnalysis.skippedThreads(snapshot.totalThreadCount, snapshot.threads.size)
+            if (omitted > 0) appendLine("${KSLError.SYSTEM_WATCHDOG_THREAD_LIMIT.code}: omitted $omitted threads (capture cap $MAX_THREADS).")
             appendLine()
         }
 
@@ -240,10 +241,16 @@ internal class KSLWatchdogMonitor(
         appendLine("Main thread name: ${mainThread?.name ?: "unknown"}")
         appendLine("Last active KSL operation: ${activeOperation ?: "none"}")
         appendLine("DB queue sizes: write=${runCatching { plugin.dbQueueSize() }.getOrDefault(-1)}, read=${runCatching { plugin.dbQueryQueueSize() }.getOrDefault(-1)}")
-        if (snapshots.size >= 2) {
-            val first = snapshots.first().threads.firstOrNull { it.first === mainThread }?.second?.firstOrNull()
-            val last = snapshots.last().threads.firstOrNull { it.first === mainThread }?.second?.firstOrNull()
-            appendLine("Main top frame first/last: ${first ?: "unknown"} -> ${last ?: "unknown"}")
+        val mainStacks = snapshots.mapNotNull { snapshot ->
+            snapshot.threads.firstOrNull { it.first === mainThread }?.second?.map { it.toString() }
+        }
+        if (mainStacks.size >= 2) {
+            val stableFrames = mainStacks.drop(1).fold(mainStacks.first()) { common, stack ->
+                KSLWatchdogAnalysis.commonPrefix(common, stack)
+            }
+            appendLine("Stable leading main-thread frames across all snapshots: ${stableFrames.size}")
+            stableFrames.take(20).forEach { appendLine("  at $it") }
+            if (stableFrames.isNotEmpty()) appendLine("These frames persisted across samples; inspect the first KSL/non-server frame, but do not assume it is automatically the root cause.")
         }
         if (allThreadCount >= MAX_THREADS) appendLine("${KSLError.SYSTEM_WATCHDOG_THREAD_LIMIT.code}: thread listing may be truncated.")
     }
