@@ -47,6 +47,7 @@
 | scripts/Debug-Build.ps1 | Запуск Gradle-задачи с логом, stacktrace и отчётом |
 | scripts/Test-Build.ps1 | Тесты плюс ссылки на HTML/JUnit-отчёты |
 | scripts/Inspect-Jar.ps1 | Проверка plugin.yml, главного класса и обязательных классов в JAR |
+| scripts/Collect-Diagnostics.ps1 | Собирает логи и отчёты в ZIP-архив для передачи на диагностику |
 | scripts/Build-Report.html | Шаблон HTML-отчёта |
 | scripts/Build-Report.css | Оформление отчёта |
 
