@@ -2,6 +2,24 @@
 
 KSL scripts receive the standard-library packages through default imports. The helpers below are available without explicit imports in ordinary `.kts` scripts.
 
+## Text, math and time helpers
+
+```kotlin
+"WelcomeHome".containsIgnoreCase("come")
+"  one\t two\nthree ".words()
+"HTTPServer-ID".toSnakeCase()
+lerp(0.0, 100.0, 0.25)
+inverseLerp(0.0, 100.0, 25.0)
+randomInt(1, 10) // 1..9
+randomLong(1L, 100L)
+randomDouble(0.0, 1.0)
+val oneDay = 1.daysToTicks()
+val roundedUp = 51L.millisecondsToTicksCeiling()
+val wholeTicks = Duration.ofMillis(999).toTicksFloor()
+```
+
+Text helpers recognize Unicode whitespace, require canonical UUID strings, and provide case-insensitive prefix/suffix/search operations without lowercasing the original string. Numeric helpers validate bounds and include overflow-aware range mapping, `lerp`, `inverseLerp` and random ranges (inclusive lower bound, exclusive upper bound). Time helpers convert seconds, minutes, hours, days, weeks and milliseconds to 20-tick-per-second server ticks with exact overflow checks. Duration conversion offers both floor and ceiling rounding.
+
 ## Player helpers
 
 ```kotlin
