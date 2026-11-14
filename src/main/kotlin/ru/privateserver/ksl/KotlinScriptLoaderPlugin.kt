@@ -115,6 +115,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     private var maxListeners = 500
     private var maxTasks = 2000
+    var taskFailureLimit: Int = 3
+        private set
     private val limitWarned = ConcurrentHashMap.newKeySet<String>()
 
     fun isSandboxed(scriptId: String): Boolean = sandboxEnabled && scriptId !in sandboxTrusted
@@ -145,6 +147,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             else listOf("op", "deop", "stop", "restart", "reload", "rl")).map { it.trim().lowercase() }.toSet()
         maxListeners = config.getInt("security.limits.max-listeners-per-script", 500).coerceAtLeast(10)
         maxTasks = config.getInt("security.limits.max-tasks-per-script", 2000).coerceAtLeast(10)
+        taskFailureLimit = config.getInt("runtime.task-failure-limit", 3).coerceIn(1, 20)
     }
 
     var papiEnabled = false

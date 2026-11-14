@@ -643,10 +643,6 @@ open class BukkitScriptContext(
         dbQueryYaml(queryPath, *args) { resultSet -> resultSet.block() }
     }
 
-    private companion object {
-        const val MAX_CONSECUTIVE_TASK_FAILURES = 3
-    }
-
     /**
      * Every scheduled callback is isolated from Bukkit's scheduler. One-shot tasks
      * release their registry entry on completion; repeating tasks are stopped after
@@ -676,7 +672,7 @@ open class BukkitScriptContext(
                     plugin.untrackTask(scriptName, id)
                 }
                 completed.set(true)
-                plugin.logger.warning("[$scriptName] Периодическая задача '$where' остановлена после $MAX_CONSECUTIVE_TASK_FAILURES последовательных ошибок")
+                plugin.logger.warning("[$scriptName] Периодическая задача '$where' остановлена после ${plugin.taskFailureLimit} последовательных ошибок")
             }
         } finally {
             if (!repeating) {
@@ -694,7 +690,7 @@ open class BukkitScriptContext(
     ): Int {
         val taskId = java.util.concurrent.atomic.AtomicInteger()
         val completed = java.util.concurrent.atomic.AtomicBoolean()
-        val failures = KSLTaskFailurePolicy(MAX_CONSECUTIVE_TASK_FAILURES)
+        val failures = KSLTaskFailurePolicy(plugin.taskFailureLimit)
         val task = schedule(guarded(where, repeating, taskId, completed, failures, block))
         taskId.set(task.taskId)
         plugin.trackTask(scriptName, task.taskId)
