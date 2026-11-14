@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string[]]$GradleTasks = @("build"),
-    [ValidateSet("build", "test", "verify", "ide", "custom")]
+    [ValidateSet("build", "test", "verify", "ide", "custom", "clean", "release")]
     [string]$ReportName = "build",
     [switch]$Detailed,
     [switch]$Offline,
