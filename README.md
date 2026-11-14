@@ -14,6 +14,7 @@
 - [Импорты и библиотеки](docs/Packages-and-Imports.md)
 - [Создание собственных библиотек и MesLib2](docs/Custom-Standard-Library.md)
 - [Диагностика](docs/Troubleshooting.md)
+- [Диагностика сборки, PowerShell-инструменты и HTML-отчёт](docs/Build-Diagnostics.md)
 - **[Работа с ИИ: как передать нейросети контекст KSL](docs/AI-ASSISTANT-GUIDE.md)**
 
 Если ИИ помогает писать код, попроси его сначала прочитать AGENTS.md и docs/AI-ASSISTANT-GUIDE.md, а затем сверить API с исходниками текущей ветки.
