@@ -221,9 +221,12 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         KSLScriptOrder.inspect(findScriptFiles(), ::scriptId)
 
     fun resourceSnapshot(scriptId: String): KSLResourceSnapshot {
-        val activeTasks = tasksByScript[scriptId]
-        activeTasks?.removeIf { taskId ->
-            !Bukkit.getScheduler().isQueued(taskId) && !Bukkit.getScheduler().isCurrentlyRunning(taskId)
+        val activeTaskCount = synchronized(taskLock) {
+            val activeTasks = tasksByScript[scriptId]
+            activeTasks?.removeIf { taskId ->
+                !Bukkit.getScheduler().isQueued(taskId) && !Bukkit.getScheduler().isCurrentlyRunning(taskId)
+            }
+            activeTasks?.size ?: 0
         }
         val listenerCount = synchronized(listenerLock) { listenersByScript[scriptId]?.size ?: 0 }
         val textPlaceholderCount = textPlaceholders.keys().count {
@@ -233,7 +236,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             scriptId = scriptId,
             loaded = scriptId in liveScripts,
             listeners = listenerCount,
-            tasks = activeTasks?.size ?: 0,
+            tasks = activeTaskCount,
             commands = commandsByScript[scriptId]?.size ?: 0,
             placeholders = placeholdersByScript[scriptId]?.distinct()?.size ?: 0,
             textPlaceholders = textPlaceholderCount,
@@ -250,6 +253,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private val commandsByScript     = ConcurrentHashMap<String, MutableSet<DynamicCommand>>()
     private val placeholdersByScript = ConcurrentHashMap<String, MutableList<String>>()
     private val tasksByScript        = ConcurrentHashMap<String, MutableSet<Int>>()
+    private val taskLock = Any()
     private val scriptsWithGuis       = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     // Owner label is "script:<name>" for scripts and the addon id for addons.
     val placeholders                 = KSLOwnedRegistry<(OfflinePlayer) -> String?>()
@@ -986,7 +990,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         limitWarned.remove("$scriptName|T")
         if (liveScripts.remove(scriptName)) addonManager.publish("ksl.script.unloaded", KSLScriptEvent(scriptName))
         runCatching {
-            tasksByScript.remove(scriptName)?.forEach { Bukkit.getScheduler().cancelTask(it) }
+            val taskIds = synchronized(taskLock) { tasksByScript.remove(scriptName)?.toList().orEmpty() }
+            taskIds.forEach { Bukkit.getScheduler().cancelTask(it) }
         }.onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось отменить часть тасков: ${it.message}") }
 
         runCatching {
@@ -1256,31 +1261,37 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         return lines
     }
 
-    // May be called from async tasks, hence the concurrent set.
+    // Registration, completion and unload share one lock so a task cannot be inserted
+    // into a fresh owner set while that script is being torn down.
     fun trackTask(scriptName: String, taskId: Int) {
-        val ids = tasksByScript.computeIfAbsent(scriptName) { ConcurrentHashMap.newKeySet() }
-        ids.add(taskId)
-        // Finished one-shot tasks would otherwise pile up for as long as the script lives.
-        fun pruneFinished() {
+        var rejected = false
+        synchronized(taskLock) {
             val scheduler = Bukkit.getScheduler()
+            val ids = tasksByScript.computeIfAbsent(scriptName) { ConcurrentHashMap.newKeySet() }
             ids.removeIf { !scheduler.isQueued(it) && !scheduler.isCurrentlyRunning(it) }
-        }
-        if (ids.size % 64 == 0) pruneFinished()
-        if (ids.size > maxTasks) {
-            pruneFinished()
-            if (ids.size > maxTasks) {
-                // A script creating tasks without end (a delay inside every, a timer per event) would grow without bound.
-                Bukkit.getScheduler().cancelTask(taskId)
-                ids.remove(taskId)
-                if (limitWarned.add("$scriptName|T")) {
-                    logger.severe("[$scriptName] ${KSLError.SCRIPT_LIMIT_TASKS.tag} У скрипта больше $maxTasks активных задач — новые отменяются (security.limits.max-tasks-per-script)")
-                }
+            if (!scheduler.isQueued(taskId) && !scheduler.isCurrentlyRunning(taskId)) {
+                if (ids.isEmpty()) tasksByScript.remove(scriptName, ids)
+                return
             }
+            if (taskId !in ids && ids.size >= maxTasks) {
+                scheduler.cancelTask(taskId)
+                rejected = true
+            } else {
+                ids.add(taskId)
+            }
+        }
+        if (rejected && limitWarned.add("$scriptName|T")) {
+            logger.severe("[$scriptName] ${KSLError.SCRIPT_LIMIT_TASKS.tag} У скрипта уже $maxTasks активных задач — новые отменяются (security.limits.max-tasks-per-script)")
         }
     }
 
     fun untrackTask(scriptName: String, taskId: Int) {
-        tasksByScript[scriptName]?.remove(taskId)
+        synchronized(taskLock) {
+            tasksByScript.computeIfPresent(scriptName) { _, ids ->
+                ids.remove(taskId)
+                if (ids.isEmpty()) null else ids
+            }
+        }
     }
 
     fun trackGui(scriptName: String) {
