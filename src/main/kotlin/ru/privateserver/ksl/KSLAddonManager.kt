@@ -500,22 +500,18 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     }
 
     fun shutdown() {
-        // Dependents were loaded after their dependencies, so unload in reverse.
-        loadOrder.reversed().forEach { unregisterAddon(it) }
-        addons.keys.toList().forEach { unregisterAddon(it) }
-        services.clear()
-        serviceOwner.clear()
-        contextExtensions.clear()
-        extraImports.clear()
-        importOwners.clear()
-        readyCallbacks.clear()
-        eventBus.clear()
-        hookRegistry.clear()
-        effectShapes.clear()
-        entityAttributes.clear()
+        // Tear down all standard modules before addons so cross-owner dependencies
+        // cannot prevent an addon from receiving onUnload during server shutdown.
         val remainingModules = synchronized(moduleLock) { standardModules.values.toList() }
+        val moduleById = remainingModules.associateBy { it.module.descriptor.id }
+        val plannedModules = runCatching {
+            KSLModulePlanner.resolve(remainingModules.map { it.module })
+        }.getOrElse {
+            remainingModules.map { installed -> installed.module }
+        }
+        val modulesInTeardownOrder = plannedModules.mapNotNull { moduleById[it.descriptor.id] }
         KSLReverseLifecycle.run(
-            remainingModules,
+            modulesInTeardownOrder,
             action = { installed ->
                 val stillInstalled = synchronized(moduleLock) {
                     standardModules.remove(installed.module.descriptor.id) != null
@@ -534,6 +530,20 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
                 )
             }
         )
+
+        // Dependents were loaded after their dependencies, so unload addons in reverse.
+        loadOrder.reversed().forEach { unregisterAddon(it) }
+        addons.keys.toList().forEach { unregisterAddon(it) }
+        services.clear()
+        serviceOwner.clear()
+        contextExtensions.clear()
+        extraImports.clear()
+        importOwners.clear()
+        readyCallbacks.clear()
+        eventBus.clear()
+        hookRegistry.clear()
+        effectShapes.clear()
+        entityAttributes.clear()
         synchronized(moduleLock) { standardModules.clear() }
     }
 }
