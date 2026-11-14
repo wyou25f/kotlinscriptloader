@@ -66,7 +66,7 @@ class MesLib2Test {
         val store = KSLExportStore()
         val provider = facade("provider", store)
         val other = facade("other", store)
-        provider.export("shared", "owned", "value")
+        provider.export("shared", "owned", "value", "1.0.0")
         assertFalse(other.remove("shared", "owned"))
         assertTrue(provider.remove("shared", "owned"))
         assertFalse(provider.contains("shared", "owned"))
