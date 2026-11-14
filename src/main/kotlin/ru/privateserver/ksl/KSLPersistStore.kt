@@ -85,7 +85,8 @@ class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
                 }
             }
         } catch (ex: Exception) {
-            plugin.logger.warning("[persist] ${KSLError.DB_PERSIST_LOAD_FAILED.tag} Не удалось загрузить '$fullKey': ${ex.message}")
+            val code = KSLErrors.classifyDatabaseFailure(ex, KSLError.DB_PERSIST_LOAD_FAILED)
+            plugin.logger.warning("[persist] ${code.tag} Не удалось загрузить '$fullKey': ${ex.message}")
             null
         }
     }
@@ -102,7 +103,8 @@ class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
                 }
             }
         } catch (ex: Exception) {
-            plugin.logger.warning("[persist] ${KSLError.DB_PERSIST_SAVE_FAILED.tag} Не удалось сохранить '$fullKey' в БД: ${ex.message} — значение осталось только в памяти до следующего рестарта")
+            val code = KSLErrors.classifyDatabaseFailure(ex, KSLError.DB_PERSIST_SAVE_FAILED)
+            plugin.logger.warning("[persist] ${code.tag} Не удалось сохранить '$fullKey' в БД: ${ex.message} — значение осталось только в памяти до следующего рестарта")
         }
     }
 

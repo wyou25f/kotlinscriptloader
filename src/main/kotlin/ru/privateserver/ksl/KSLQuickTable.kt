@@ -65,7 +65,8 @@ class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val ta
                         }
                     }
                 } catch (ex: Exception) {
-                    plugin.logger.warning("[table:$tableName] ${KSLError.DB_TABLE_FAILED.tag} set('$rowKey', '$columnKey') не удался: ${ex.message}")
+                    val code = KSLErrors.classifyDatabaseFailure(ex, KSLError.DB_TABLE_FAILED)
+                    plugin.logger.warning("[table:$tableName] ${code.tag} set('$rowKey', '$columnKey') не удался: ${ex.message}")
                 }
             })
         } catch (ex: RejectedExecutionException) {
@@ -130,7 +131,8 @@ class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val ta
         return try {
             plugin.dbCall(task).also { valueCache?.store(cacheKey(rowKey, columnKey), KSLPersistCodec.encode(it)) }
         } catch (ex: Exception) {
-            throw IllegalStateException("[table:$tableName] ${KSLError.DB_INCREMENT_FAILED.tag} increment('$rowKey', '$columnKey') не удался: ${ex.message}", ex)
+            val code = KSLErrors.classifyDatabaseFailure(ex, KSLError.DB_INCREMENT_FAILED)
+            throw IllegalStateException("[table:$tableName] ${code.tag} increment('$rowKey', '$columnKey') не удался: ${ex.message}", ex)
         }
     }
 
@@ -156,7 +158,8 @@ class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val ta
                         }
                     }
                 } catch (ex: Exception) {
-                    plugin.logger.warning("[table:$tableName] ${KSLError.DB_TABLE_FAILED.tag} delete('$rowKey') не удался: ${ex.message}")
+                    val code = KSLErrors.classifyDatabaseFailure(ex, KSLError.DB_TABLE_FAILED)
+                    plugin.logger.warning("[table:$tableName] ${code.tag} delete('$rowKey') не удался: ${ex.message}")
                 }
             }
         } catch (ex: RejectedExecutionException) {
@@ -185,7 +188,8 @@ class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val ta
                 result
             }
         } catch (ex: Exception) {
-            plugin.logger.warning("[table:$tableName] ${KSLError.DB_TABLE_FAILED.tag} row('$rowKey') не удался: ${ex.message}")
+            val code = KSLErrors.classifyDatabaseFailure(ex, KSLError.DB_TABLE_FAILED)
+            plugin.logger.warning("[table:$tableName] ${code.tag} row('$rowKey') не удался: ${ex.message}")
             emptyMap()
         }
     }
@@ -215,7 +219,8 @@ class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val ta
             }
         }
     } catch (ex: Exception) {
-        plugin.logger.warning("[table:$tableName] ${KSLError.DB_TABLE_FAILED.tag} чтение '$rowKey'/'$columnKey' не удалось: ${ex.message}")
+        val code = KSLErrors.classifyDatabaseFailure(ex, KSLError.DB_TABLE_FAILED)
+        plugin.logger.warning("[table:$tableName] ${code.tag} чтение '$rowKey'/'$columnKey' не удалось: ${ex.message}")
         null
     }
 }
