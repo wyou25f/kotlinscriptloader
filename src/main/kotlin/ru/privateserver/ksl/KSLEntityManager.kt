@@ -1,5 +1,6 @@
 package ru.privateserver.ksl
 
+import org.bukkit.scheduler.BukkitTask
 import org.bukkit.Bukkit
 import org.bukkit.NamespacedKey
 import org.bukkit.entity.LivingEntity
