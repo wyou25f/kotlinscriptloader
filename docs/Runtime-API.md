@@ -97,35 +97,50 @@ println("calls=${snapshot.calls}, average=${snapshot.averageMillis} ms")
 Snapshots include call count, failure count, successful calls, total/average/max
 nanoseconds and corresponding millisecond values.
 
-## MesLib2 concise aliases
+## MesLib2 — межскриптовые библиотеки
 
-MesLib2 remains script-scoped: exports are owned by the provider script and
-removed when that script unloads. The current script's namespace is available
-as both `namespace` and `scope`.
+MesLib2 хранит типизированные экспорты в пространстве имён. Запись принадлежит
+скрипту, который её опубликовал, и автоматически удаляется при unload этого
+скрипта. Namespace по умолчанию строится из имени текущего скрипта.
 
 ```kotlin
-// Provider
-ml2.putLocal("service", EconomyLibrary(), version = "1.0.0")
+// economy.kts — provider
+meslib2.exportLocal("service", EconomyLibrary(), version = "2.1")
 
-// Consumer
-val economy = libs.lookup<EconomyLibrary>("economy", "service", "1.0.0")
-if (libs.has("economy", "service")) {
-    val details = libs.describe("economy", "service")
-}
+// shop.kts — consumer
+val economy = meslib2.require<EconomyLibrary>("economy", "service", "2.1")
 ```
 
-The new names are aliases, not replacements:
+### Канонические методы
 
-| Purpose | Existing names | Additional concise names |
-|---|---|---|
-| Publish | `export`, `publish`, `provide` | `put` |
-| Optional lookup | `get`, `find` | `lookup` |
-| Required lookup | `require`, `resolve` | `mustGet` |
-| Existence | `contains` | `has` |
-| Metadata | `info` | `describe` |
+| Задача | Методы |
+|---|---|
+| Публикация | `export(namespace, name, value, version)`, `exportLocal(name, value, version)` |
+| Безопасная публикация без перезаписи | `exportIfAbsent(...)`, `exportIfAbsentLocal(...)` |
+| Необязательное получение | `get<T>(...)`, `getLocal<T>(...)` |
+| Обязательное получение | `require<T>(...)`, `requireLocal<T>(...)` |
+| Проверка наличия | `contains(...)`, `containsLocal(...)` |
+| Метаданные | `info(...)`, `infoLocal(...)` |
+| Удаление своего экспорта | `remove(...)`, `removeLocal(...)` |
+| Перечень и очистка namespace | `list(...)`, `listLocal()`, `clear(...)`, `clearLocal()` |
 
-The corresponding `*Local` methods address the current script's namespace.
-Versions remain opaque exact-match labels, not semantic-version ranges.
+`exportIfAbsent` выполняет проверку и публикацию атомарно: конкурентный
+поставщик не сможет незаметно заменить уже опубликованное значение.
+Удалить экспорт может только его текущий владелец. `list` возвращает
+отсортированный снимок `MesLib2Info`, включая `namespace`, `name`,
+`version`, `typeName`, `owner` и составной `key`.
+
+### Совместимость
+
+Старые имена не удалены: `publish/provide/put`, `find/lookup`,
+`resolve/mustGet`, `has`, `describe`, а также прежние локальные варианты
+по-прежнему работают. Для нового кода рекомендуется использовать канонические
+методы выше, чтобы не плодить разные названия одной операции.
+
+Версия остаётся непрозрачной меткой с точным сравнением. MesLib2 не пытается
+интерпретировать SemVer и не загружает внешние JAR автоматически. Тип объекта
+проверяется через JVM-класс; используйте общие API-типы, если провайдер и
+потребитель собраны разными classloader-ами.
 
 ## Threading and lifecycle
 

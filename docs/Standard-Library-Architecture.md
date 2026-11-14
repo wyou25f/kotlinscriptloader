@@ -87,27 +87,32 @@ The planner itself has no side effects; it only validates and orders modules. Th
 
 ## MesLib2 — межскриптовые библиотеки
 
-В каждом скрипте доступно свойство `meslib2`. Оно использует существующее
-owner-aware хранилище экспортов KSL, добавляя namespace, проверку типа и метку
-версии. Экспорты принадлежат скрипту-владельцу и автоматически удаляются при unload.
+MesLib2 — script-scoped registry для передачи объектов и сервисов между
+скриптами. Каждый экспорт имеет namespace, имя, тип и версионную метку.
+Текущий скрипт владеет собственными экспортами; они удаляются при выгрузке.
 
 ```kotlin
 // economy.kts
-meslib2.publish("economy", "service", EconomyService(), version = "2.0")
+meslib2.exportLocal("service", EconomyService(), version = "2.0")
 
 // shop.kts
 // @requires: economy
-val economy = ml2.resolve<EconomyService>("economy", "service", "2.0")
+val economy = ml2.require<EconomyService>("economy", "service", "2.0")
 ```
 
-Идентификаторы namespace/name должны соответствовать `[a-z][a-z0-9._-]*`.
-Версия — непрозрачная метка с точным сравнением; KSL пока не интерпретирует
-SemVer и не загружает внешние артефакты автоматически. Короткие `publish(name, value)` и `provide(name, value)` используют namespace
-текущего скрипта. Для получения объекта из собственного namespace используй
-`findLocal<T>(name)` / `requireLocal<T>(name)`; версии можно задавать через
-`publishLocal` / `provideLocal`. Алиасы фасада: `meslib2`, `ml2`, `lib2`,
-`libs`; методы-алиасы: `publish/provide`, `find/resolve`. Старые `export()`, `library<T>()` и
-`requireLibrary<T>()` остаются совместимыми.
+Новые скрипты должны предпочитать канонические операции:
+`export/get/require/contains/info`, а также `exportIfAbsent`,
+`remove`, `list` и `clear`. Удаление ограничено текущим владельцем,
+а `exportIfAbsent` атомарно предотвращает случайную перезапись.
+`list(namespace)` возвращает отсортированные метаданные записей.
+Старые имена `publish/provide/put/find/lookup/resolve/mustGet/has/describe`
+и их локальные формы сохранены для совместимости.
+
+Namespace и name должны соответствовать `[a-z][a-z0-9._-]*`.
+Версия — непрозрачная метка с точным сравнением; KSL не интерпретирует SemVer
+и не загружает внешние артефакты автоматически. Проверка типа основана на
+JVM-классах, поэтому для совместного использования через разные classloader-ы
+предпочитай типы из общего API.
 
 ## kslrt — runtime-инструменты
 

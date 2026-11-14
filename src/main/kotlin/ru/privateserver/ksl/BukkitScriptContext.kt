@@ -981,7 +981,10 @@ open class BukkitScriptContext(
             owner = scriptName,
             exportValue = plugin.libraryRegistry::export,
             getValue = plugin.libraryRegistry::get,
-            ownerOf = plugin.libraryRegistry::ownerOf
+            ownerOf = plugin.libraryRegistry::ownerOf,
+            removeValue = plugin.libraryRegistry::remove,
+            exportIfAbsentValue = plugin.libraryRegistry::exportIfAbsent,
+            exportedKeys = plugin.libraryRegistry::keys
         )
     }
 

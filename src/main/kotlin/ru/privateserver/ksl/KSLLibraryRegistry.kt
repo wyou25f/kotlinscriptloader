@@ -11,6 +11,15 @@ class KSLLibraryRegistry(private val plugin: KotlinScriptLoaderPlugin) {
     fun export(scriptName: String, key: String, value: Any) =
         store.export(scriptName, key, value)
 
+    fun exportIfAbsent(scriptName: String, key: String, value: Any): Boolean =
+        store.exportIfAbsent(scriptName, key, value)
+
+    fun remove(scriptName: String, key: String): Boolean =
+        store.removeOwned(scriptName, key)
+
+    fun keys(namespacePrefix: String): Set<String> =
+        store.exportedKeys().filterTo(linkedSetOf()) { it.startsWith(namespacePrefix) }
+
     fun get(key: String): Any? = store.get(key)
 
     fun ownerOf(key: String): String? = store.ownerOf(key)
