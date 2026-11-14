@@ -31,14 +31,16 @@ fun Double.mapToRange(
     require(outputMinimum.isFinite() && outputMaximum.isFinite()) { "output bounds must be finite" }
     require(inputMinimum != inputMaximum) { "input range must not be empty" }
     require(isFinite()) { "value must be finite" }
-    val inputRange = inputMaximum - inputMinimum
-    val numerator = this - inputMinimum
-    val fraction = if (inputRange.isFinite() && numerator.isFinite()) {
-        numerator / inputRange
+
+    val range = inputMaximum - inputMinimum
+    val delta = this - inputMinimum
+    val fraction = if (range.isFinite() && delta.isFinite()) {
+        delta / range
     } else {
         (this / 2.0 - inputMinimum / 2.0) / (inputMaximum / 2.0 - inputMinimum / 2.0)
     }
     require(fraction.isFinite()) { "mapped fraction overflowed" }
+
     val result = outputMinimum * (1.0 - fraction) + outputMaximum * fraction
     if (!result.isFinite()) throw ArithmeticException("mapped value is outside the finite Double range")
     return result
@@ -50,6 +52,8 @@ fun randomChance(percent: Double): Boolean {
         "percent must be finite and between 0 and 100"
     }
     return ThreadLocalRandom.current().nextDouble(100.0) < percent
+}
+
 /** Linear interpolation with finite inputs; progress may be outside 0..1 for extrapolation. */
 fun lerp(start: Double, end: Double, progress: Double): Double {
     require(start.isFinite() && end.isFinite() && progress.isFinite()) {
@@ -67,6 +71,7 @@ fun inverseLerp(start: Double, end: Double, value: Double, clamp: Boolean = fals
         "inverseLerp inputs must be finite"
     }
     require(start != end) { "input range must not be empty" }
+
     val range = end - start
     val delta = value - start
     val fraction = if (range.isFinite() && delta.isFinite()) {
@@ -96,6 +101,4 @@ fun randomDouble(minimumInclusive: Double, maximumExclusive: Double): Double {
         "random bounds must be finite and minimumInclusive must be less than maximumExclusive"
     }
     return ThreadLocalRandom.current().nextDouble(minimumInclusive, maximumExclusive)
-}
-
 }
