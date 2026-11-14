@@ -150,11 +150,30 @@ tasks.build {
     dependsOn(verifyShadowJar)
 }
 
-tasks.test {
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
     useJUnitPlatform()
+    reports {
+        junitXml.required.set(true)
+        html.required.set(true)
+    }
     testLogging {
         events("passed", "skipped", "failed")
         showStandardStreams = true
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
+}
+
+tasks.register("diagnoseBuild") {
+    group = "help"
+    description = "Prints the Java, Gradle, Kotlin and operating-system details used by this build."
+    doLast {
+        logger.lifecycle("KSL build environment")
+        logger.lifecycle("  Gradle: ${gradle.gradleVersion}")
+        logger.lifecycle("  Java: ${System.getProperty("java.version")}")
+        logger.lifecycle("  Java home: ${System.getProperty("java.home")}")
+        logger.lifecycle("  Kotlin plugin: $kotlinScriptingVersion")
+        logger.lifecycle("  OS: ${System.getProperty("os.name")} ${System.getProperty("os.version")} (${System.getProperty("os.arch")})")
+        logger.lifecycle("  Project: ${project.path} (${project.version})")
+        logger.lifecycle("  Fat JAR: $fatJar")
     }
 }
