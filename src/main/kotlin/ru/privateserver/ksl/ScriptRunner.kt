@@ -69,17 +69,17 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
             val result = plugin.watchdogMonitor?.trackOperation("KSL compile '$id'", compile) ?: compile()
             val warnings = result.reports
                 .filter { it.severity == ScriptDiagnostic.Severity.WARNING }
-                .map { formatDiagnostic(it) }
+                .map { formatDiagnostic(it, file) }
             when (result) {
                 is ResultWithDiagnostics.Failure -> CompiledUnit(
                     file, id, null,
-                    result.reports.filter { it.severity >= ScriptDiagnostic.Severity.ERROR }.map { formatDiagnostic(it) },
+                    result.reports.filter { it.severity >= ScriptDiagnostic.Severity.ERROR }.map { formatDiagnostic(it, file) },
                     warnings, KSLError.SCRIPT_COMPILE, null, elapsedMs()
                 )
                 is ResultWithDiagnostics.Success -> CompiledUnit(file, id, result.value, emptyList(), warnings, null, null, elapsedMs())
             }
         } catch (ex: Throwable) {
-            CompiledUnit(file, id, null, listOf("${ex::class.simpleName}: ${ex.message}"), emptyList(), KSLError.SCRIPT_RUNTIME, ex, elapsedMs())
+            CompiledUnit(file, id, null, listOf("${file.name}: ${ex::class.simpleName}: ${ex.message}"), emptyList(), KSLError.SCRIPT_RUNTIME, ex, elapsedMs())
         }
     }
 
@@ -120,7 +120,7 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
                 is ResultWithDiagnostics.Failure -> {
                     plugin.logScriptProblem("[$id] ${KSLError.SCRIPT_RUNTIME.tag} ❌ Не удалось выполнить скрипт:")
                     KSLReport.compactErrors(
-                        result.reports.filter { it.severity >= ScriptDiagnostic.Severity.ERROR }.map { formatDiagnostic(it) }
+                        result.reports.filter { it.severity >= ScriptDiagnostic.Severity.ERROR }.map { formatDiagnostic(it, unit.file) }
                     ).forEach { plugin.logScriptProblem("  $it") }
                     false
                 }
@@ -234,8 +234,9 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
             .map { "строка ${it.line}: запрещённый паттерн '${it.pattern}'" }
     }
 
-    private fun formatDiagnostic(d: ScriptDiagnostic): String {
+    private fun formatDiagnostic(d: ScriptDiagnostic, file: File? = null): String {
+        val source = file?.name?.let { "$it: " }.orEmpty()
         val loc = d.location
-        return if (loc != null) "строка ${loc.start.line}: ${d.message}" else d.message
+        return if (loc != null) "${source}строка ${loc.start.line}: ${d.message}" else "$source${d.message}"
     }
 }
