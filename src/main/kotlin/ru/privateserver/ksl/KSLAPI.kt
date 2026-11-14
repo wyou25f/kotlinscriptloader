@@ -12,6 +12,10 @@ interface KSLAPI {
     // Same value as KSL.API_VERSION of the installed KSL.
     val apiVersion: Int
 
+    /** Creates a YAML config in the addon's own data folder, loading defaults from its jar resources. */
+    fun createConfig(owner: JavaPlugin, fileName: String = "config.yml", copyDefaults: Boolean = true): KSLAddonConfig =
+        KSLAddonConfig.create(owner, fileName, copyDefaults)
+
     fun registerAddon(addon: KSLAddon)
     fun unregisterAddon(addonId: String)
     fun registerService(key: String, instance: Any)

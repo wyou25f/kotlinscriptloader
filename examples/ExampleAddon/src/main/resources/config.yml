@@ -1,0 +1,8 @@
+settings:
+  enabled: true
+  prefix: "&6[ExampleAddon]"
+  welcome-message: "Добро пожаловать!"
+
+features:
+  join-message: true
+  notifications: false

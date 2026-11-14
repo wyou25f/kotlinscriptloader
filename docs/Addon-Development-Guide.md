@@ -699,6 +699,60 @@ api.reloadScript("economy/shop")      // блокирующий вариант, 
 `api.warn(код, текст)` и `api.severe(код, текст)` пишут сообщение с кодом из каталога `KSLError`, чтобы `/ksl error` умел его расшифровать.
 
 
+## API v8: собственные конфиги аддонов
+
+Начиная с API v8, `KSLAPI` предоставляет `createConfig` — удобную обёртку над Bukkit YAML configuration. Конфиг хранится в папке самого аддона, а значения по умолчанию читаются из ресурса внутри его JAR.
+
+### Создание и чтение
+
+Положи `config.yml` в `src/main/resources/` аддона, затем создай конфиг:
+
+```kotlin
+class MyAddonPlugin : JavaPlugin(), KSLAddon {
+    private lateinit var settings: KSLAddonConfig
+    override val minApiVersion = 8
+
+    override fun onEnable() {
+        if (!KSL.isAvailable) { isEnabled = false; return }
+        settings = KSL.api.createConfig(this)
+        KSL.api.registerAddon(this)
+    }
+
+    override fun onLoad(api: KSLAPI) {
+        val enabled = settings.getBoolean("settings.enabled", true)
+        val prefix = settings.getString("settings.prefix", "&6[MyAddon]")
+        if (enabled) logger.info("Аддон включён, prefix=$prefix")
+    }
+
+    override fun onDisable() {
+        if (KSL.isAvailable) KSL.api.unregisterAddon(addonId)
+    }
+    override fun onUnload() = Unit
+}
+```
+
+`createConfig(this)` создаёт `plugins/MyAddon/config.yml` при первом запуске, копируя туда одноимённый ресурс из JAR. Если ресурса нет, создаётся пустой YAML-файл. По умолчанию `copyDefaults = true`: значения из ресурса доступны через getters, даже если их ещё нет в пользовательском файле.
+
+Поддерживаемые методы: `getString`, `getInt`, `getLong`, `getDouble`, `getBoolean`, `getStringList`, `contains`, `getKeys`, `getSection`, `set`, `save` и `reload`. Свойство `config` открывает исходный Bukkit `FileConfiguration` для расширенных сценариев.
+
+Можно указать другой относительный путь и отключить копирование defaults:
+
+```kotlin
+val messages = api.createConfig(this, "messages.yml", copyDefaults = false)
+messages.set("welcome", "Привет!")
+messages.save()
+messages.reload() // перечитать файл с диска
+```
+
+Абсолютные пути и пути с выходом за пределы папки аддона отклоняются. Как и обычный Bukkit config, конфигурацию следует читать и изменять в основном потоке сервера, если сторонний код не обеспечивает собственную синхронизацию.
+
+### Обычный Bukkit API по-прежнему поддерживается
+
+`KSLAddonConfig` — необязательная надстройка. Аддоны могут продолжать использовать `saveDefaultConfig()`, `config`, `saveConfig()` и `reloadConfig()` из `JavaPlugin`. Новый API не меняет и не перехватывает стандартный конфиг Bukkit.
+
+В `examples/ExampleAddon` есть полный пример: `config.yml` в ресурсах, загрузка через `KSLAPI.createConfig` и чтение параметров при запуске.
+
+---
 ## Пакеты, локальные импорты и собственные библиотеки
 
 KSL подключает classloader каждого зарегистрированного аддона к компиляции и выполнению .kts. Поэтому аддон может публиковать обычные Kotlin-пакеты, классы и top-level extension-функции. В скрипте они доступны через обычный import:

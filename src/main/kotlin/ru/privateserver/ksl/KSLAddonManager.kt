@@ -13,6 +13,8 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
 
     override val kslPlugin get() = plugin
     override val apiVersion: Int get() = KSL.API_VERSION
+    override fun createConfig(owner: org.bukkit.plugin.java.JavaPlugin, fileName: String, copyDefaults: Boolean): KSLAddonConfig =
+        KSLAddonConfig.create(owner, fileName, copyDefaults)
 
     // The owner is whoever asked, not the awaited addon: what the callback registers must be cleaned up with the asker.
     private class ReadyHook(val owner: String?, val callback: (KSLAddon) -> Unit)
