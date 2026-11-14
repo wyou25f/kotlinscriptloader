@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>KSL · Build Report</title>
+  <link rel="stylesheet" href="Build-Report.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="#"><span class="brand-mark">K</span><span>KSL <small>BUILD CENTER</small></span></a>
+      <span class="generated" id="generated">Локальный отчёт сборки</span>
+    </header>
+    <main>
+      <section class="hero">
+        <div class="eyebrow">KOTLINSCRIPTLOADER / DIAGNOSTICS</div>
+        <div class="hero-row">
+          <div><h1>Отчёт сборки</h1><p>Что выполнилось, где возникла ошибка и что передать разработчику.</p></div>
+          <div class="status" id="status"><i></i><span>ОЖИДАНИЕ ДАННЫХ</span></div>
+        </div>
+      </section>
+      <section class="metrics">
+        <article class="metric"><span>ЗАДАЧА</span><strong id="task">—</strong></article>
+        <article class="metric"><span>ВРЕМЯ</span><strong id="duration">—</strong></article>
+        <article class="metric"><span>КОД ВЫХОДА</span><strong id="exit">—</strong></article>
+        <article class="metric"><span>ЗАДАЧ GRADLE</span><strong id="count">—</strong></article>
+      </section>
+      <section class="panel">
+        <div class="section-head"><div><span class="eyebrow">01 / PIPELINE</span><h2>Этапы Gradle</h2></div><span class="muted">Из вывода сборки</span></div>
+        <div id="tasks" class="task-list"><div class="empty">Нет данных о задачах</div></div>
+      </section>
+      <section class="panel error-panel">
+        <div class="section-head"><div><span class="eyebrow">02 / FAILURE ANALYSIS</span><h2>Ошибки и важные строки</h2></div><span class="muted">До 80 совпадений</span></div>
+        <div id="failures" class="log-list"><div class="empty">Ошибок не найдено или отчёт ещё не создан</div></div>
+      </section>
+      <section class="panel">
+        <div class="section-head"><div><span class="eyebrow">03 / TESTS</span><h2>Сводка тестов</h2></div></div>
+        <div id="tests" class="test-list"><div class="empty">Сводка тестов отсутствует</div></div>
+      </section>
+      <section class="panel details">
+        <div class="section-head"><div><span class="eyebrow">04 / ENVIRONMENT</span><h2>Окружение и файлы</h2></div></div>
+        <dl>
+          <div><dt>Операционная система</dt><dd id="os">—</dd></div>
+          <div><dt>PowerShell</dt><dd id="ps">—</dd></div>
+          <div><dt>JAVA_HOME</dt><dd id="java">—</dd></div>
+          <div><dt>Начало</dt><dd id="started">—</dd></div>
+          <div><dt>Завершение</dt><dd id="finished">—</dd></div>
+          <div><dt>Лог</dt><dd id="log">—</dd></div>
+        </dl>
+      </section>
+      <footer><span>KSL Build Center</span><span>Отчёт создаётся локально · данные не отправляются в сеть</span></footer>
+    </main>
+  </div>
+  <script>
+    const report = __KSL_REPORT_JSON__;
+    const byId = id => document.getElementById(id);
+    const put = (id, value) => { byId(id).textContent = value ?? "—"; };
+    const status = report.status === "success" ? "success" : "failed";
+    byId("status").className = "status " + status;
+    byId("status").querySelector("span").textContent = status === "success" ? "СБОРКА УСПЕШНА" : "СБОРКА НЕ ПРОШЛА";
+    put("generated", "Создано: " + (report.finishedAt || "—"));
+    put("task", report.task);
+    put("duration", report.durationSeconds + " сек.");
+    put("exit", report.exitCode);
+    put("count", (report.taskOutput || []).length);
+    put("os", report.operatingSystem);
+    put("ps", report.powershell);
+    put("java", report.javaHome);
+    put("started", report.startedAt);
+    put("finished", report.finishedAt);
+    put("log", report.logFile);
+    const tasks = byId("tasks");
+    tasks.replaceChildren();
+    (report.taskOutput || []).forEach(line => {
+      const item = document.createElement("div");
+      item.className = "task-item";
+      const name = document.createElement("code");
+      name.textContent = line.replace(/^> Task\s*/, "");
+      const badge = document.createElement("span");
+      badge.className = /FAILED/.test(line) ? "tag bad" : /UP-TO-DATE|SKIPPED|NO-SOURCE/.test(line) ? "tag neutral" : "tag good";
+      badge.textContent = /FAILED/.test(line) ? "FAILED" : /UP-TO-DATE|SKIPPED|NO-SOURCE/.test(line) ? "SKIP" : "DONE";
+      item.append(name, badge); tasks.append(item);
+    });
+    const failures = byId("failures");
+    failures.replaceChildren();
+    (report.failures || []).forEach(line => {
+      const item = document.createElement("pre");
+      item.textContent = line;
+      failures.append(item);
+    });
+    if (!failures.childElementCount) {
+      const empty = document.createElement("div"); empty.className = "empty";
+      empty.textContent = "Совпадений не найдено. Полный вывод смотри в лог-файле.";
+      failures.append(empty);
+    }
+    const tests = byId("tests");
+    tests.replaceChildren();
+    (report.testSummary || []).forEach(line => {
+      const item = document.createElement("pre"); item.textContent = line; tests.append(item);
+    });
+    if (!tests.childElementCount) {
+      const empty = document.createElement("div"); empty.className = "empty";
+      empty.textContent = "Gradle не вывел сводку тестов для этой задачи.";
+      tests.append(empty);
+    }
+  </script>
+</body>
+</html>
