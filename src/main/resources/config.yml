@@ -99,5 +99,9 @@ diagnostics:
     threshold-seconds: 5
     # Частота проверки зависания отдельным daemon-потоком.
     poll-interval-ms: 500
+    # Сколько снимков зависших потоков собрать в одном отчёте (1-5).
+    snapshot-count: 3
+    # Интервал между снимками: помогает увидеть, какой stack frame не меняется.
+    snapshot-interval-ms: 750
     # Сколько последних дампов KSL хранить.
     max-dumps: 10
