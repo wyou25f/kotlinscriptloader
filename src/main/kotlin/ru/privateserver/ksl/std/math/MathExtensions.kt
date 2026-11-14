@@ -100,5 +100,15 @@ fun randomDouble(minimumInclusive: Double, maximumExclusive: Double): Double {
     require(minimumInclusive.isFinite() && maximumExclusive.isFinite() && minimumInclusive < maximumExclusive) {
         "random bounds must be finite and minimumInclusive must be less than maximumExclusive"
     }
-    return ThreadLocalRandom.current().nextDouble(minimumInclusive, maximumExclusive)
+    val unit = ThreadLocalRandom.current().nextDouble()
+    val result = if (minimumInclusive < 0.0 && maximumExclusive > 0.0) {
+        minimumInclusive * (1.0 - unit) + maximumExclusive * unit
+    } else {
+        minimumInclusive + (maximumExclusive - minimumInclusive) * unit
+    }
+    return when {
+        result < minimumInclusive -> minimumInclusive
+        result >= maximumExclusive -> Math.nextDown(maximumExclusive)
+        else -> result
+    }
 }
