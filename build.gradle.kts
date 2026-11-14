@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "ru.privateserver"
-version = "1.3.0"
+version = "1.2.0"
 
 repositories {
     mavenCentral()
@@ -59,6 +59,7 @@ dependencies {
 
     implementation("com.zaxxer:HikariCP:5.1.0")
     implementation("org.xerial:sqlite-jdbc:3.46.1.3")
+    implementation("org.tomlj:tomlj:1.1.1")
     implementation("org.mariadb.jdbc:mariadb-java-client:3.4.1")
 
     testImplementation("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
@@ -118,6 +119,9 @@ val verifyShadowJar by tasks.registering {
                 "ru/privateserver/ksl/std/json/JsonExtensionsKt.class",
                 "ru/privateserver/ksl/std/security/SecurityExtensionsKt.class",
                 "ru/privateserver/ksl/std/security/KSLSecurity.class",
+                "ru/privateserver/ksl/std/toml/KSLTomlCodec.class",
+                "ru/privateserver/ksl/std/toml/TomlExtensionsKt.class",
+                "ru/privateserver/ksl/std/StandardAliasesKt.class",
                 "ru/privateserver/ksl/meslib2/MesLib2.class",
                 "ru/privateserver/ksl/meslib2/MesLib2Info.class",
                 "ru/privateserver/ksl/rt/KSLCache.class",

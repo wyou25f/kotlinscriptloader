@@ -39,6 +39,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.buildJsonObject
+import ru.privateserver.ksl.std.toml.KSLTomlCodec
 
 open class BukkitScriptContext(
     val plugin: KotlinScriptLoaderPlugin,
@@ -229,6 +230,66 @@ open class BukkitScriptContext(
         }
         check(saveJson(fileName, updated)) { "Could not save JSON file '$fileName'" }
         return updated
+    }
+
+
+    private fun resolveTomlFile(fileName: String, operation: String): File {
+        require(fileName.endsWith(".toml", ignoreCase = true)) {
+            operation + " expects a .toml file: '" + fileName + "'"
+        }
+        val root = plugin.scriptsFolder.canonicalFile
+        val file = File(root, fileName).canonicalFile
+        require(file.toPath() != root.toPath() && file.toPath().startsWith(root.toPath())) {
+            KSLError.YAML_PATH_ESCAPE.tag + " " + operation + ": '" + fileName + "' выходит за пределы scripts/"
+        }
+        return file
+    }
+
+    /** Reads a TOML document from scripts/. Returns null when the file does not exist. */
+    @Synchronized
+    fun loadToml(fileName: String): Map<String, Any?>? {
+        val file = resolveTomlFile(fileName, "loadToml")
+        if (!file.isFile) return null
+        return try {
+            KSLTomlCodec.parse(file.readText(Charsets.UTF_8))
+        } catch (ex: Exception) {
+            val backup = File(file.parentFile, file.name + ".broken-" + System.currentTimeMillis())
+            val saved = runCatching { file.copyTo(backup) }.isSuccess
+            throw IllegalArgumentException(
+                "Invalid TOML in '" + file.name + "': " + ex.message +
+                    if (saved) " (backup: " + backup.name + ")" else " (backup could not be created)",
+                ex
+            )
+        }
+    }
+
+    /** Writes TOML atomically inside scripts/. Returns false on I/O or serialization failure. */
+    @Synchronized
+    fun saveToml(fileName: String, values: Map<String, Any?>): Boolean {
+        val file = resolveTomlFile(fileName, "saveToml")
+        return try {
+            file.parentFile?.mkdirs()
+            val temporary = File(file.parentFile, file.name + ".tmp")
+            temporary.writeText(KSLTomlCodec.encode(values), Charsets.UTF_8)
+            try {
+                Files.move(temporary.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+            } catch (ex: AtomicMoveNotSupportedException) {
+                Files.move(temporary.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
+            true
+        } catch (ex: Exception) {
+            plugin.logger.warning("[" + scriptName + "] Не удалось сохранить TOML '" + fileName + "': " + ex.message)
+            false
+        }
+    }
+
+    /** Loads, edits and atomically saves a TOML document. */
+    @Synchronized
+    fun editToml(fileName: String, block: MutableMap<String, Any?>.() -> Unit): Map<String, Any?> {
+        val values = KSLTomlCodec.mutableCopy(loadToml(fileName).orEmpty())
+        values.block()
+        check(saveToml(fileName, values)) { "Could not save TOML file '" + fileName + "'" }
+        return values
     }
 
     private fun resolveYamlFile(fileName: String, operation: String): File {
