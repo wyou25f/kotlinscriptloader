@@ -10,6 +10,20 @@ import org.junit.jupiter.api.Test
 class KSLSandboxHardeningTest {
 
     @Test
+    fun `raw plugin and database capabilities are denied to sandboxed scripts`() {
+        KSLSandboxAccessPolicy.requireTrustedAccess("trusted.kts", sandboxed = false, "plugin")
+        KSLSandboxAccessPolicy.requireTrustedAccess("trusted.kts", sandboxed = false, "database")
+
+        assertThrows(SecurityException::class.java) {
+            KSLSandboxAccessPolicy.requireTrustedAccess("untrusted.kts", sandboxed = true, "plugin")
+        }
+        assertThrows(SecurityException::class.java) {
+            KSLSandboxAccessPolicy.requireTrustedAccess("untrusted.kts", sandboxed = true, "database")
+        }
+    }
+
+
+    @Test
     fun `denies process reflection file network and raw thread APIs`() {
         val denyList = KSLClassDenyList()
 
