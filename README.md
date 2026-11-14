@@ -6,7 +6,13 @@
 
 Полная документация находится в каталоге [docs/](docs/README.md).
 
-- [Начало работы и обзор возможностей](docs/KSL-Encyclopedia.md)
+- [Быстрый старт и первый скрипт](docs/Getting-Started.md)
+- [Полный справочник Script DSL](docs/Script-DSL-Reference.md)
+- [Практические рецепты](docs/Cookbook.md)
+- [Обзор возможностей и архитектуры](docs/KSL-Encyclopedia.md)
+- [YAML, TOML и JSON](docs/Data-Formats.md)
+- [Производительность и масштабирование](docs/Performance-and-Scaling.md)
+- [Эксплуатация production-сервера](docs/Production-Operations.md)
 - [Standard Library](docs/Standard-Library-Architecture.md)
 - [Public API для аддонов](docs/Public-API.md)
 - [Разработка аддонов](docs/Addon-Development-Guide.md)

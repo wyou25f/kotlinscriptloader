@@ -1,5 +1,15 @@
 # Unreleased
 
+## 📚 Расширенная документация KSL
+
+- Добавлены отдельные руководства по быстрому старту, Script DSL, YAML/TOML/JSON, производительности и масштабированию, production-эксплуатации и практическим рецептам.
+- Обновлена навигация README и docs index.
+- Документация раскрывает ограничения DB queue/backpressure, Future-based SQL API, KSLRT worker pool и profiler registry, feature flags, комментарии языков и правила потоков Bukkit.
+- Уточнено, что комментарии Kotlin — // и /* ... */, YAML/TOML — #, JSON не поддерживает комментарии, а точка с запятой не отключает код.
+- Документы отдельно различают Script DSL, Addon Public API и внутреннюю реализацию.
+
+
+
 ## 📚 MesLib2 и короткие API-имена
 
 - MesLib2 получил короткие операции `publish/provide`, `find/resolve`, `contains` и `info`, включая overloads для namespace текущего скрипта.

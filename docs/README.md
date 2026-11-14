@@ -8,13 +8,20 @@
 
 | Задача | Документ |
 |---|---|
-| Установка, обзор и написание скриптов | [Энциклопедия KSL](KSL-Encyclopedia.md) |
+| Установка и первый скрипт | [Getting Started](Getting-Started.md) |
+| Полный Script DSL | [Script DSL Reference](Script-DSL-Reference.md) |
+| Практические рецепты | [Cookbook](Cookbook.md) |
+| Установка, общий обзор и архитектура | [Энциклопедия KSL](KSL-Encyclopedia.md) |
+| YAML, TOML, JSON и миграции | [Data Formats](Data-Formats.md) |
+| Производительность, DB очереди и worker pool | [Performance and Scaling](Performance-and-Scaling.md) |
+| Production, секреты, backup и recovery | [Production Operations](Production-Operations.md) |
 | Встроенная библиотека, MesLib2 и runtime tools | [Standard Library](Standard-Library-Architecture.md) |
 | Создание аддона | [Addon Development](Addon-Development-Guide.md) |
 | API для Kotlin/Java аддонов | [Public API](Public-API.md) |
 | Импорты и локальные библиотеки | [Packages and Imports](Packages-and-Imports.md) |
 | MesLib2 и создание своих библиотек | [Custom Standard Library](Custom-Standard-Library.md) |
-| SQLite и SQL | [Database Guide](Database-Guide.md) |
+| SQLite, MySQL/MariaDB и async SQL | [Database Guide](Database-Guide.md) |
+| Кэш и профилирование | [Runtime API](Runtime-API.md) |
 | Собственный модуль stdlib | [Custom Standard Library](Custom-Standard-Library.md) |
 | Ошибки и диагностика | [Troubleshooting](Troubleshooting.md) |
 | Коды ошибок | [Error Codes](Error-Codes.md) |
