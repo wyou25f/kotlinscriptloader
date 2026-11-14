@@ -17,7 +17,7 @@ These packages are included in the default imports for KSL scripts:
 
 Inventory and ItemStack helpers that inspect or modify Bukkit objects must be called on the server thread. ItemStack transformation helpers return clones and leave the original stack unchanged. `toTextComponent()` treats input as literal text; use `toMiniMessageComponent()` only when the input is intentionally MiniMessage markup.
 
-The JSON standard library uses kotlinx.serialization JSON and is bundled with KSL; scripts receive `kotlinx.serialization.json.*` imports by default. JSON files are restricted to the script `scripts/` directory and saved through atomic replacement. File I/O is synchronous.\n\nThe existing `ru.privateserver.ksl.dsl.*` package remains available. Its `.sec`, `.mins` and `.hours` extensions use checked arithmetic and throw on overflow instead of silently wrapping.
+The security standard library uses Java 21 cryptographic APIs and adds no external runtime dependency. Password hashing and large-file checksums should run asynchronously. SHA-256 is for integrity checks, not password storage; use the PBKDF2 helpers for passwords.\n\nThe JSON standard library uses kotlinx.serialization JSON and is bundled with KSL; scripts receive `kotlinx.serialization.json.*` imports by default. JSON files are restricted to the script `scripts/` directory and saved through atomic replacement. File I/O is synchronous.\n\nThe existing `ru.privateserver.ksl.dsl.*` package remains available. Its `.sec`, `.mins` and `.hours` extensions use checked arithmetic and throw on overflow instead of silently wrapping.
 
 ## Examples
 
