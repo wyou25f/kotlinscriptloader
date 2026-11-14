@@ -280,7 +280,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     }
 
     fun scriptDependencies(): List<KSLScriptDependencyInfo> =
-        KSLScriptOrder.inspect(indexedScriptFiles(), ::scriptId)
+        KSLScriptOrder.inspect(findScriptFiles(), ::scriptId)
 
     fun resourceSnapshot(scriptId: String): KSLResourceSnapshot {
         val activeTaskCount = synchronized(taskLock) {
@@ -928,12 +928,10 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     private val scriptIndex = KSLScriptIndex(::scanScriptFiles, ::scriptId)
 
-    /** Force a filesystem refresh; used by explicit reload/validation operations. */
-    fun findScriptFiles(): List<File> = scriptIndex.refresh().files
+    /** Force a filesystem refresh for explicit reload/validation operations without retaining File objects. */
+    fun findScriptFiles(): List<File> = scriptIndex.refreshFiles()
 
-    /** Reuse the current immutable index snapshot for status and command suggestions. */
-    fun indexedScriptFiles(): List<File> = scriptIndex.snapshot().files
-
+    /** Reuse compact metadata for status and command suggestions. */
     fun scriptIds(): List<String> = scriptIndex.snapshot().ids
 
     fun scriptReloadTargets(): List<String> = scriptIndex.snapshot().reloadTargets
@@ -952,8 +950,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     private fun stampOf(file: File): Long = file.lastModified() * 31 + file.length()
 
-    fun scriptInfos(): List<KSLScriptInfo> = indexedScriptFiles().map { file ->
-        val id = scriptId(file)
+    fun scriptInfos(): List<KSLScriptInfo> = scriptIds().map { id ->
         KSLScriptInfo(id, id in liveScripts, loadMillisById[id] ?: -1L, KSLErrors.countFor(id))
     }
 

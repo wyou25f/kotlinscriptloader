@@ -41,7 +41,7 @@ class KSLScriptIndexTest {
     }
 
     @Test
-    fun refreshAlwaysRescansAndPreservesDeterministicOrder() {
+    fun refreshFilesRescansAndPreservesDeterministicOrderWithoutCachingFileObjects() {
         val scans = AtomicInteger()
         val index = KSLScriptIndex(
             scanFiles = {
@@ -52,10 +52,12 @@ class KSLScriptIndexTest {
         )
 
         val first = index.snapshot()
-        val refreshed = index.refresh()
+        val refreshedFiles = index.refreshFiles()
+        val refreshed = index.snapshot()
         assertNotSame(first, refreshed)
         assertEquals(2, scans.get())
         assertEquals(listOf("a", "b", "c"), refreshed.ids)
-        assertTrue(refreshed.files.map { it.nameWithoutExtension } == refreshed.ids)
+        assertEquals(refreshed.ids, refreshedFiles.map { it.nameWithoutExtension })
+        assertTrue(refreshed.reloadTargets.containsAll(refreshed.ids))
     }
 }

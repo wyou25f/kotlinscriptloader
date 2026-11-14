@@ -4,17 +4,17 @@ import java.io.File
 import java.util.Collections
 
 /**
- * Caches the relatively expensive filesystem discovery result.
+ * Caches only compact script IDs and reload completion targets.
  *
- * Reads are lock-free after the first scan. Mutations are explicit: reload/validation
- * paths call [refresh], while the watcher calls [invalidate] when it observes a change.
+ * File objects and their path strings are deliberately not retained between scans:
+ * reload operations get fresh File instances, while hot tab-completion reads retain
+ * only the metadata they need.
  */
 internal class KSLScriptIndex(
     private val scanFiles: () -> List<File>,
     private val scriptId: (File) -> String
 ) {
     internal data class Snapshot(
-        val files: List<File>,
         val ids: List<String>,
         val reloadTargets: List<String>
     )
@@ -27,13 +27,20 @@ internal class KSLScriptIndex(
     fun snapshot(): Snapshot {
         cached?.let { return it }
         return synchronized(lock) {
-            cached ?: createSnapshot().also { cached = it }
+            cached ?: createSnapshot(scanFiles()).also { cached = it }
         }
     }
 
-    /** Performs a fresh directory scan and atomically replaces the cached snapshot. */
+    /** Performs a fresh directory scan and atomically replaces the cached metadata snapshot. */
     fun refresh(): Snapshot = synchronized(lock) {
-        createSnapshot().also { cached = it }
+        createSnapshot(scanFiles()).also { cached = it }
+    }
+
+    /** Returns fresh, deterministically sorted files and refreshes the compact metadata snapshot. */
+    fun refreshFiles(): List<File> = synchronized(lock) {
+        val files = sortedFiles(scanFiles())
+        cached = createSnapshot(files)
+        immutableList(files)
     }
 
     /** Invalidates the snapshot after a watcher event or other external filesystem mutation. */
@@ -43,9 +50,7 @@ internal class KSLScriptIndex(
         }
     }
 
-    private fun createSnapshot(): Snapshot {
-        val sortedFiles = scanFiles().sortedBy(scriptId)
-        val files = immutableList(sortedFiles)
+    private fun createSnapshot(files: List<File>): Snapshot {
         val ids = immutableList(files.map(scriptId))
         val folders = LinkedHashSet<String>()
         ids.forEach { id ->
@@ -53,8 +58,10 @@ internal class KSLScriptIndex(
             if (lastSeparator >= 0) folders += id.substring(0, lastSeparator + 1)
         }
         val reloadTargets = immutableList((ids + folders + "changed").distinct().sorted())
-        return Snapshot(files, ids, reloadTargets)
+        return Snapshot(ids, reloadTargets)
     }
+
+    private fun sortedFiles(files: List<File>): List<File> = files.sortedBy(scriptId)
 
     private fun <T> immutableList(values: Collection<T>): List<T> =
         Collections.unmodifiableList(ArrayList(values))
