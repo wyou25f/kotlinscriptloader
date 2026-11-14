@@ -64,6 +64,16 @@ open class BukkitScriptContext(
     internal val internalPlugin: KotlinScriptLoaderPlugin
         get() = kslPlugin
 
+    /** Per-script scope; caches, profilers and owned AutoCloseable resources close on reload. */
+    val runtimeScope: ru.privateserver.ksl.rt.KSLRuntimeScope
+        get() = internalPlugin.scriptRuntimeScope(scriptName)
+
+    /** Registers an AutoCloseable resource for automatic cleanup when this script unloads. */
+    fun <T : AutoCloseable> own(resource: T): T = runtimeScope.own(resource)
+
+    /** Registers a cleanup callback. Close the returned handle to unregister it early. */
+    fun onUnload(action: () -> Unit): AutoCloseable = runtimeScope.onClose(action)
+
     private val scriptDatabase: HikariDataSource
         get() = internalPlugin.database
 

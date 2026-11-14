@@ -225,6 +225,15 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         ru.privateserver.ksl.rt.KSLRuntimeMonitor.snapshot()
 
     private val scriptDiagnostics = KSLScriptDiagnostics()
+    private val scriptRuntimeScopes = ConcurrentHashMap<String, ru.privateserver.ksl.rt.KSLRuntimeScope>()
+
+    /** Script-owned runtime resources are closed automatically on reload/unload. */
+    fun scriptRuntimeScope(scriptId: String): ru.privateserver.ksl.rt.KSLRuntimeScope {
+        require(scriptId.isNotBlank()) { "scriptId must not be blank" }
+        return scriptRuntimeScopes.computeIfAbsent(scriptId) {
+            ru.privateserver.ksl.rt.KSLRT.scope("script:$it")
+        }
+    }
 
     fun <T> measureScriptExecution(scriptId: String, operation: String, block: () -> T): T =
         scriptDiagnostics.measure(scriptId, operation, block)
@@ -830,6 +839,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 appendLine("class KSLPersistProperty<T>(private val v: T) { operator fun getValue(thisRef: Any?, property: kotlin.reflect.KProperty<*>): T = v; operator fun setValue(thisRef: Any?, property: kotlin.reflect.KProperty<*>, value: T) = Unit }")
                 appendLine("fun <T> persist(key: String, persistent: Boolean = false, default: () -> T): KSLPersistProperty<T> = KSLPersistProperty(default())")
                 appendLine()
+                appendLine("val runtimeScope: ru.privateserver.ksl.rt.KSLRuntimeScope get() = ru.privateserver.ksl.rt.KSLRT.scope(\\"autocomplete\\")")
+                appendLine("fun <T : AutoCloseable> own(resource: T): T = resource")
+                appendLine("fun onUnload(action: () -> Unit): AutoCloseable = AutoCloseable {}")
                 appendLine("inline fun <reified T : Any> service(key: String): T? = null")
                 appendLine()
                 appendLine("fun cooldown(player: Player, key: String, seconds: Long): Boolean = true")
@@ -1109,6 +1121,10 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         scriptStamps.remove(scriptName)
         limitWarned.remove("$scriptName|L")
         limitWarned.remove("$scriptName|T")
+        loadMillisById.remove(scriptName)
+        scriptDiagnostics.clearScript(scriptName)
+        runCatching { scriptRuntimeScopes.remove(scriptName)?.close() }
+            .onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось закрыть runtime-ресурсы: ${it.message}") }
         if (liveScripts.remove(scriptName)) addonManager.publish("ksl.script.unloaded", KSLScriptEvent(scriptName))
         runCatching {
             val taskIds = synchronized(taskLock) { tasksByScript.remove(scriptName)?.toList().orEmpty() }
@@ -1305,7 +1321,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     private fun knownScriptNames(): Set<String> =
         (tasksByScript.keys + listenersByScript.keys + commandsByScript.keys + placeholdersByScript.keys +
-            scriptsWithGuis + libraryRegistry.scriptNames() + entityManager.scriptNames() + liveScripts).toSet()
+            scriptsWithGuis + libraryRegistry.scriptNames() + entityManager.scriptNames() + scriptRuntimeScopes.keys + liveScripts).toSet()
 
     data class DiagnosticLine(val label: String, val ok: Boolean, val detail: String)
 
