@@ -36,6 +36,10 @@ val leftovers = inventory.addAll(listOf(itemA, itemB))
 
 Inventory reads and mutations must run on the Bukkit server thread. `take` returns a copy of the removed stack or null. `addAll` copies input stacks and returns leftovers that did not fit.
 
+Inventory capacity methods include `spaceFor(item)`, `canFit(item, amount)` and `hasRoomFor(item)`. These account for similar partial stacks, unlike `emptySlots()`, which counts empty slots only. Predicate helpers `firstMatchingSlot` and `countMatching` are also available.
+
+Player helpers include `canFit(item, amount)`, `giveOrDrop(item)` (returns the number dropped), and `removeItems(amount) { predicate }` for storage-only removal. `feed` rejects non-finite saturation values.
+
 ## Item helpers
 
 ```kotlin

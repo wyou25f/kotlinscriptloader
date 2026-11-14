@@ -19,6 +19,36 @@ fun Inventory.firstSimilarSlot(item: ItemStack): Int {
  * Counts all items similar to [item] across this inventory's slots.
  * Inventory access must happen on the server thread.
  */
+/**
+ * Returns how many additional items similar to [item] this inventory can hold.
+ * Existing stack limits and the inventory maximum are both respected.
+ */
+fun Inventory.spaceFor(item: ItemStack): Int {
+    require(!item.type.isAir && item.amount > 0) { "item must not be empty" }
+    val targetLimit = minOf(item.maxStackSize, maxStackSize)
+    var capacity = 0
+    for (slot in 0 until size) {
+        val current = getItem(slot)
+        val available = when {
+            current == null || current.type.isAir || current.amount <= 0 -> targetLimit
+            current.isSimilar(item) -> (minOf(targetLimit, current.maxStackSize) - current.amount).coerceAtLeast(0)
+            else -> 0
+        }
+        capacity = Math.addExact(capacity, available)
+    }
+    return capacity
+}
+
+/** True when [amount] more items similar to [item] can fit without dropping anything. */
+fun Inventory.canFit(item: ItemStack, amount: Int = item.amount): Boolean {
+    require(amount >= 0) { "amount must not be negative" }
+    require(!item.type.isAir && item.amount > 0) { "item must not be empty" }
+    return amount <= spaceFor(item)
+}
+
+/** True when this inventory can accept at least one more item similar to [item]. */
+fun Inventory.hasRoomFor(item: ItemStack): Boolean = canFit(item, 1)
+
 fun Inventory.countSimilar(item: ItemStack): Int {
     var total = 0
     for (slot in 0 until size) {
@@ -62,8 +92,22 @@ fun Inventory.removeSimilar(item: ItemStack, amount: Int): Int {
 fun Inventory.emptySlots(): Int =
     (0 until size).count { getItem(it).let { stack -> stack == null || stack.type.isAir || stack.amount <= 0 } }
 
-/** True when no slot can accept another item. */
+/** True when there is no completely empty slot. Partial similar stacks may still have room. */
 fun Inventory.isFull(): Boolean = firstEmpty() == -1
+
+/** Returns the first slot whose non-empty item matches [predicate], or -1 when absent. */
+fun Inventory.firstMatchingSlot(predicate: (ItemStack) -> Boolean): Int =
+    (0 until size).firstOrNull { slot ->
+        val stack = getItem(slot)
+        stack != null && stack.amount > 0 && !stack.type.isAir && predicate(stack)
+    } ?: -1
+
+/** Counts non-empty stacks matching [predicate]. */
+fun Inventory.countMatching(predicate: (ItemStack) -> Boolean): Int =
+    (0 until size).count { slot ->
+        val stack = getItem(slot)
+        stack != null && stack.amount > 0 && !stack.type.isAir && predicate(stack)
+    }
 
 /** Returns all slot indices whose non-empty stack matches [predicate]. */
 fun Inventory.slotsMatching(predicate: (ItemStack) -> Boolean): List<Int> =

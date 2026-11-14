@@ -34,7 +34,43 @@ fun Player.isInventoryFull(): Boolean = inventory.firstEmpty() == -1
  * Adds an item to the player's inventory and returns items that did not fit.
  * Bukkit inventory access must happen on the server thread.
  */
-fun Player.give(item: ItemStack): Map<Int, ItemStack> = inventory.addItem(item.clone())
+fun Player.give(item: ItemStack): Map<Int, ItemStack> {
+    require(!item.isEmptyStack()) { "item must not be empty" }
+    return inventory.addItem(item.clone()).mapValues { (_, stack) -> stack.clone() }
+}
+
+/** Checks whether [amount] more items can fit in the player's storage inventory. */
+fun Player.canFit(item: ItemStack, amount: Int = item.amount): Boolean {
+    require(amount >= 0) { "amount must not be negative" }
+    require(!item.isEmptyStack()) { "item must not be empty" }
+    val contents = inventory.storageContents
+    val targetLimit = minOf(item.maxStackSize, inventory.maxStackSize)
+    var capacity = 0
+    contents.forEach { current ->
+        val available = when {
+            current == null || current.isEmptyStack() -> targetLimit
+            current.isSimilar(item) -> (minOf(targetLimit, current.maxStackSize) - current.amount).coerceAtLeast(0)
+            else -> 0
+        }
+        capacity = Math.addExact(capacity, available)
+    }
+    return amount <= capacity
+}
+
+/**
+ * Adds a copy to storage and naturally drops any remainder at the player's location.
+ * Returns the number of items dropped on the ground.
+ */
+fun Player.giveOrDrop(item: ItemStack): Int {
+    require(!item.isEmptyStack()) { "item must not be empty" }
+    val leftovers = inventory.addItem(item.clone()).values
+    var dropped = 0
+    leftovers.forEach { stack ->
+        dropped = Math.addExact(dropped, stack.amount)
+        world.dropItemNaturally(location, stack.clone())
+    }
+    return dropped
+}
 
 /** Removes matching items from the player's storage inventory. */
 fun Player.removeItems(matcher: (ItemStack) -> Boolean): Int {
@@ -49,11 +85,34 @@ fun Player.removeItems(matcher: (ItemStack) -> Boolean): Int {
 }
 
 /** Counts matching items in the player's storage inventory. */
-fun Player.countItems(matcher: (ItemStack) -> Boolean): Int =
-    inventory.storageContents.filterNotNull().filter(matcher).sumOf(ItemStack::getAmount)
+fun Player.countItems(matcher: (ItemStack) -> Boolean): Int {
+    var total = 0
+    inventory.storageContents.filterNotNull().forEach { stack ->
+        if (!stack.isEmptyStack() && matcher(stack)) total = Math.addExact(total, stack.amount)
+    }
+    return total
+}
+
+/** Removes at most [amount] matching items from storage slots only. */
+fun Player.removeItems(amount: Int, matcher: (ItemStack) -> Boolean): Int {
+    require(amount >= 0) { "amount must not be negative" }
+    var remaining = amount
+    var removed = 0
+    inventory.storageContents.forEachIndexed { index, stack ->
+        if (remaining == 0) return@forEachIndexed
+        if (stack == null || stack.isEmptyStack() || !matcher(stack)) return@forEachIndexed
+        val taken = minOf(stack.amount, remaining)
+        val left = stack.amount - taken
+        inventory.setItem(index, if (left == 0) null else stack.clone().apply { amount = left })
+        removed = Math.addExact(removed, taken)
+        remaining -= taken
+    }
+    return removed
+}
 
 /** Restores food and saturation, clamping both to Bukkit's supported ranges. */
 fun Player.feed(food: Int = 20, saturation: Float = 5f) {
+    require(saturation.isFinite()) { "saturation must be finite" }
     foodLevel = food.coerceIn(0, 20)
     this.saturation = saturation.coerceIn(0f, foodLevel.toFloat())
 }
