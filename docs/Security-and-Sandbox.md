@@ -35,10 +35,10 @@ Sandbox нужен не от злоумышленника с полным дос
 
 | Что | Классы |
 |---|---|
-| Запуск процессов и JVM | `Runtime`, `ProcessBuilder`, `Process`, `ProcessHandle` |
+| Запуск процессов и JVM | `Runtime`, `ProcessBuilder`, `Process`, `ProcessHandle`, `Thread`, `Timer`, основные executor-пулы |
 | Загрузка чужого кода | `ClassLoader`, `URLClassLoader` |
-| Рефлексия | `reflect.Method`, `Field`, `Constructor`, `Proxy`, `AccessibleObject`, `invoke.MethodHandles`, `VarHandle` |
-| Сырые сокеты | `Socket`, `ServerSocket` |
+| Рефлексия | весь пакет `java.lang.reflect.`, `invoke.MethodHandle`, `MethodHandles`, `MethodHandles$Lookup`, `VarHandle` |
+| Файлы и сеть | пакеты `java.io.`, `java.nio.file.`, `java.nio.channels.`, `java.net.` |
 | Внутренности | пакеты `sun.misc.`, `jdk.internal.`, `com.sun.`, `javax.script.`, `javax.tools.`, `java.rmi.` |
 | Рефлексия Kotlin и компилятор | пакеты `kotlin.reflect.full.`, `kotlin.reflect.jvm.`, `org.jetbrains.kotlin.`, ASM, Javassist, ByteBuddy |
 
@@ -50,7 +50,7 @@ Sandbox нужен не от злоумышленника с полным дос
 Проверить, что изоляция работает именно на твоём сервере: `/ksl doctor`, пункт **«Изоляция классов (sandbox)»**.
 Он запускает пробный скрипт, который пытается загрузить `Runtime`. Если пункт красный, используй `security.sandbox-level: text`.
 
-Если скрипт нарушил запрет, в консоли будет строка с кодом `0695a` с именем класса (один раз на класс).
+Если скрипт нарушил запрет, в консоли будет строка с кодом `0695a` с именем класса (один раз на класс). Точный класс можно вернуть в allow-list через `security.class-deny-allowed`; пакетный префикс разрешается записью с точкой на конце, например `java.io.`. Разрешение пакета снимает запрет со всех его классов.
 
 ### Слой 3. Консольные команды и лимиты
 - `executeConsole(...)` выполняет команду **с правами консоли**. Команды из `security.console-command-blocklist` (по умолчанию
@@ -105,5 +105,5 @@ security:
   Если такой скрипт тебе нужен, добавь его в `sandbox-trusted` или `class-deny-allowed`.
 - Sandbox не изолирует вызовы к Bukkit и KSL DSL: `Bukkit.shutdown()`, `Bukkit.getBanList(...)`, `dbExecute("DROP TABLE ...")`
   скрипту доступны. Для таких случаев нужны права доступа к скриптам, а не sandbox.
-- Запрет проверяется по имени класса: если у чужой библиотеки совпало имя с запрещённым пакетом, добавь исключение в `class-deny-allowed`.
+- Запрет проверяется по имени класса: если у чужой библиотеки совпало имя с запрещённым пакетом, добавь точечное исключение в `class-deny-allowed`. Для пакета можно указать префикс с точкой на конце, но это снимает запрет со всего пакета.
 - Если у тебя высокие требования к безопасности, запускай недоверенный код в отдельном процессе или контейнере.
