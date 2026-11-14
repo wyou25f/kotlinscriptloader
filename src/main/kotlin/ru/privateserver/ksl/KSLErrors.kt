@@ -11,7 +11,10 @@ object KSLErrors {
         return 1L
     }
 
-    inline fun <T> hookSafe(hookName: String, default: T, code: KSLError = KSLError.ADDON_CALLBACK_FAILED, block: () -> T): T {
+    inline fun <T> hookSafe(hookName: String, default: T, block: () -> T): T =
+        hookSafe(hookName, default, KSLError.ADDON_CALLBACK_FAILED, block)
+
+    inline fun <T> hookSafe(hookName: String, default: T, code: KSLError, block: () -> T): T {
         return try {
             block()
         } catch (ex: Throwable) {
@@ -32,7 +35,7 @@ object KSLErrors {
     // Every logged error carries a catalog code (see KSLError); SCRIPT_RUNTIME is the generic one.
     fun log(plugin: KotlinScriptLoaderPlugin, scriptName: String, where: String, ex: Throwable, code: KSLError = KSLError.SCRIPT_RUNTIME) {
         val signal = ex as? KSLScriptSignal
-        val cause = generateSequence(ex) { it.cause }.lastOrNull() ?: ex
+        val cause = deepestCause(ex)
         val message = signal?.message ?: "${cause::class.simpleName}: ${cause.message}"
         counters.computeIfAbsent(scriptName) { AtomicInteger(0) }.incrementAndGet()
         last = LastError(scriptName, where, message, System.currentTimeMillis(), code)
@@ -78,6 +81,17 @@ object KSLErrors {
         counters.computeIfAbsent(scriptName) { AtomicInteger(0) }.incrementAndGet()
         last = LastError(scriptName, where, errors.firstOrNull() ?: "ошибка без описания", System.currentTimeMillis(), code)
         lastDetails = errors
+    }
+
+    internal fun deepestCause(error: Throwable): Throwable {
+        val seen = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Throwable, Boolean>())
+        var current = error
+        seen.add(current)
+        while (true) {
+            val next = current.cause ?: return current
+            if (!seen.add(next)) return current
+            current = next
+        }
     }
 
     fun countFor(scriptName: String): Int = counters[scriptName]?.get() ?: 0
