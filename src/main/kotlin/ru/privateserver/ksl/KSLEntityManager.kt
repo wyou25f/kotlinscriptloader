@@ -134,8 +134,12 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
         // The mob is gone after this event; its damage hooks would only be dead weight.
         damagedHooks.remove(uuid)
         attackHooks.remove(uuid)
-        val hook = deathHooks.remove(uuid) ?: return
-        runHook(hook.scriptName, "entity onDeath") { hook.callback(event.entity, event.entity.killer) }
+        val hook = deathHooks.remove(uuid)
+        // Death is terminal for a scripted living entity. Release its in-memory ownership
+        // immediately instead of relying on a later EntityRemoveEvent ordering.
+        removeOnReload.remove(uuid)
+        untrackEntity(uuid, ownerOf(event.entity))
+        hook?.let { runHook(it.scriptName, "entity onDeath") { it.callback(event.entity, event.entity.killer) } }
     }
 
     @EventHandler(ignoreCancelled = true)
