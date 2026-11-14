@@ -198,12 +198,17 @@ loadAllScripts()
 | Алиас | Что делает |
 |---|---|
 | `on<Event> { }` | то же, что `onEvent<Event> { }`; опционально `priority`, `ignoreCancelled` |
+| `onPlayerJoin`, `onPlayerQuit`, `onPlayerRespawn`, `onPlayerInteract` | именованные обработчики событий игроков |
+| `onMobDeath`, `onEntityDamage` | события смерти и получения урона сущностями |
 | `command("name") { player, args -> }` | `registerCommand`, только игроки |
 | `commandAny("name") { sender, args -> }` | команда, доступная и консоли |
 | `later(20) { }`, `laterAsync(20) { }` | `delay`, `delayAsync` |
+| `afterAsync(20) { }`, `repeatAsync(20) { }` | `delayAsync`, `everyAsync` |
 | `sync { }`, `async { }` | `runSync`, `runAsync` (возвращают id задачи) |
 | `cancelTask(id)` | отмена любой задачи по id из `delay`/`every`/`sync`/... |
-| `5.sec`, `2.mins` | секунды и минуты в тиках (`100L`, `2400L`) |
+| `5.sec`, `2.mins`, `20.ticks`, `1.minute`, `2.hours`, `1.day` | единицы времени в серверных тиках (`20.ticks == 20L`) |
+| `mob(...)`, `mobs(...)`, `shopkeeper(...)` | короткие имена для спавна моба, группы мобов и торговца |
+| `Location.effect(...)`, `Entity.effect(...)` | короткие формы запуска эффекта частиц |
 | `sender.msg("<green>текст")` | MiniMessage-сообщение игроку или консоли |
 | `player.actionBar("...")` | MiniMessage в action bar |
 | `item(Material.DIAMOND, "<aqua>Имя", listOf("<gray>строка"), 3)` | предмет с MiniMessage-именем и лором без курсива |
