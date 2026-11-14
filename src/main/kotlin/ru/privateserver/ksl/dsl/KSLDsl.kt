@@ -101,11 +101,11 @@ fun Player.giveItem(stack: ItemStack): Boolean {
 
 // ---- script context ----
 
-fun BukkitScriptContext.log(message: String) = plugin.logger.info("[$scriptName] $message")
+fun BukkitScriptContext.log(message: String) = internalPlugin.logger.info("[$scriptName] $message")
 
-fun BukkitScriptContext.logWarn(message: String) = plugin.logger.warning("[$scriptName] $message")
+fun BukkitScriptContext.logWarn(message: String) = internalPlugin.logger.warning("[$scriptName] $message")
 
-fun BukkitScriptContext.logError(message: String) = plugin.logger.severe("[$scriptName] $message")
+fun BukkitScriptContext.logError(message: String) = internalPlugin.logger.severe("[$scriptName] $message")
 
 fun BukkitScriptContext.later(ticks: Long, block: () -> Unit): Int = delay(ticks, block)
 
@@ -168,10 +168,10 @@ fun BukkitScriptContext.textPlaceholder(key: String, resolver: (Player?) -> Stri
 
 // ---- hooks (integrations registered by KSL or by addons) ----
 
-fun BukkitScriptContext.hasHook(hookId: String): Boolean = plugin.addonManager.getHook(hookId) != null
+fun BukkitScriptContext.hasHook(hookId: String): Boolean = internalPlugin.addonManager.getHook(hookId) != null
 
 inline fun <reified T : KSLHook> BukkitScriptContext.hook(hookId: String): T? =
-    plugin.addonManager.getHook(hookId, T::class.java)
+    internalPlugin.addonManager.getHook(hookId, T::class.java)
 
 inline fun <reified T : KSLHook> BukkitScriptContext.requireHook(hookId: String): T =
     hook<T>(hookId) ?: error("Хук '$hookId' недоступен: установлен ли плагин и загружен ли аддон с этим хуком?")
