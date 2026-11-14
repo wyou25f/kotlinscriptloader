@@ -124,8 +124,11 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
 
     @EventHandler
     fun onDeath(event: EntityDeathEvent) {
-        if (hooksIdle()) return
         val uuid = event.entity.uniqueId
+        val owner = ownerOf(event.entity)
+        val tracked = (owner != null && entitiesByScript[owner]?.contains(uuid) == true) ||
+            removeOnReload.containsKey(uuid)
+        if (hooksIdle() && !tracked) return
         dropSpecs.remove(uuid)?.let { spec ->
             if (!spec.keepDefault) event.drops.clear()
             event.drops.addAll(spec.items.map { it.clone() })
@@ -138,7 +141,7 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
         // Death is terminal for a scripted living entity. Release its in-memory ownership
         // immediately instead of relying on a later EntityRemoveEvent ordering.
         removeOnReload.remove(uuid)
-        untrackEntity(uuid, ownerOf(event.entity))
+        untrackEntity(uuid, owner)
         hook?.let { runHook(it.scriptName, "entity onDeath") { it.callback(event.entity, event.entity.killer) } }
     }
 
