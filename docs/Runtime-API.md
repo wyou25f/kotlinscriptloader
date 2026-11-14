@@ -29,11 +29,17 @@ dependency and import the package explicitly.
 
 ## Cache
 
+```kotlin
+import java.time.Duration
+```
+
 `KSLCache<K, V>` is a thread-safe, bounded LRU cache with optional
-expire-after-write TTL. A zero TTL disables expiration.
+expire-after-write and expire-after-access TTLs. Both default to zero, which
+disables that expiration policy. The third constructor/factory argument is
+`expireAfterAccess`; existing two-argument calls remain source-compatible.
 
 ```kotlin
-val balances = KSLRT.cache<String, Long>(maxSize = 10_000)
+val balances = KSLRT.cache<String, Long>(maxSize = 10_000, expireAfterAccess = Duration.ofMinutes(5))
 
 balances["player-uuid"] = 250L
 val balance = balances["player-uuid"] ?: 0L
@@ -68,6 +74,9 @@ Available operations:
 same key may therefore execute the loader more than once; the first completed
 value stored in the cache wins. Do not use it for a loader with non-idempotent
 side effects.
+
+A successful `get` refreshes access TTL and LRU recency. `containsKey`/`has`
+checks expiration without refreshing either. `cleanUp()` can proactively remove expired entries.
 
 Cache statistics expose `hits`, `misses`, `evictions`, current `size`,
 total `requests` and `hitRate`. Clearing entries preserves counters;

@@ -34,6 +34,7 @@ class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
 
     fun <T> set(fullKey: String, value: T, persistent: Boolean) {
         // Fail fast on the caller thread; a background warning would silently lose the write.
+        if (persistent) require(splitKey(fullKey) != null) { "Persistent key '$fullKey' must use script:key format" }
         val encoded = if (persistent) {
             KSLPersistCodec.encode(value) ?: throw IllegalArgumentException(
                 "[persist] Тип ${value?.let { it::class.simpleName }} ${KSLError.DB_UNSUPPORTED_TYPE.tag} не поддерживается для persistent = true у ключа '$fullKey' — " +
@@ -108,7 +109,11 @@ class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
     private fun splitKey(fullKey: String): Pair<String, String>? {
         val idx = fullKey.indexOf(':')
         if (idx == -1) return null
-        return fullKey.substring(0, idx) to fullKey.substring(idx + 1)
+        val scriptName = fullKey.substring(0, idx)
+        val key = fullKey.substring(idx + 1)
+        plugin.dialect.requireKeyLength("script_name", scriptName)
+        plugin.dialect.requireKeyLength("key", key)
+        return scriptName to key
     }
 
     private fun decode(raw: String?): Any? = KSLPersistCodec.decode(raw)

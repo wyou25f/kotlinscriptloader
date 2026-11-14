@@ -17,6 +17,13 @@ class KSLTableStore(private val plugin: KotlinScriptLoaderPlugin) {
 
 class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val tableName: String) {
 
+    init { plugin.dialect.requireKeyLength("table_name", tableName) }
+
+    private fun validateKeys(rowKey: String, columnKey: String? = null) {
+        plugin.dialect.requireKeyLength("row_key", rowKey)
+        columnKey?.let { plugin.dialect.requireKeyLength("column_key", it) }
+    }
+
     // The dialect is fixed once the database is initialised, so the statement is built once per table.
     private val upsertSql by lazy {
         plugin.dialect.upsert("ksl_table", listOf("table_name", "row_key", "column_key", "value"), listOf("table_name", "row_key", "column_key"))
@@ -33,6 +40,7 @@ class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val ta
     private val writes = KSLWriteCoalescer()
 
     fun set(rowKey: String, columnKey: String, value: Any?) {
+        validateKeys(rowKey, columnKey)
         val encoded = KSLPersistCodec.encode(value) ?: throw IllegalArgumentException(
             "[table:$tableName] Тип ${value?.let { it::class.simpleName }} ${KSLError.DB_UNSUPPORTED_TYPE.tag} не поддерживается — " +
                 "поддерживаются String, Int, Long, Double, Boolean, null"
@@ -85,6 +93,7 @@ class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val ta
     // NOTE: increment() and all reads wait for the DB queue so they observe earlier set()/delete() calls;
     // that can block the caller while a large backlog drains.
     fun increment(rowKey: String, columnKey: String, amount: Long = 1L): Long {
+        validateKeys(rowKey, columnKey)
         writes.barrier()
         val task: () -> Long = {
             plugin.database.connection.use { conn: Connection ->
@@ -104,7 +113,7 @@ class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val ta
                         }
                     }
                 }
-                val updated = current + amount
+                val updated = Math.addExact(current, amount)
                 conn.prepareStatement(
                     upsertSql
                 ).use { ps ->
@@ -126,6 +135,7 @@ class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val ta
     }
 
     fun delete(rowKey: String, columnKey: String? = null) {
+        validateKeys(rowKey, columnKey)
         // Deleting a whole row would need an index of its columns; emptying the cache is rare and simpler.
         valueCache?.clear()
         // Writes queued before the delete must not be merged with ones made after it.
@@ -154,7 +164,9 @@ class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val ta
         }
     }
 
-    fun row(rowKey: String): Map<String, Any?> = try {
+    fun row(rowKey: String): Map<String, Any?> {
+        validateKeys(rowKey)
+        return try {
         plugin.dbCall {
             val result = mutableMapOf<String, Any?>()
             plugin.database.connection.use { conn: Connection ->
@@ -175,9 +187,11 @@ class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val ta
     } catch (ex: Exception) {
         plugin.logger.warning("[table:$tableName] ${KSLError.DB_TABLE_FAILED.tag} row('$rowKey') не удался: ${ex.message}")
         emptyMap()
+        }
     }
 
     private fun readRaw(rowKey: String, columnKey: String): String? {
+        validateKeys(rowKey, columnKey)
         val cache = valueCache ?: return readRawFromDb(rowKey, columnKey)
         val key = cacheKey(rowKey, columnKey)
         if (cache.has(key)) return cache.value(key)

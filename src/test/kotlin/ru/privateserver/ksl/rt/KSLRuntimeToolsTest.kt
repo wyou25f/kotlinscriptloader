@@ -49,8 +49,8 @@ class KSLRuntimeToolsTest {
         cache.putAll(mapOf("c" to 3))
         assertEquals(setOf("a", "b", "c"), cache.keysSnapshot().toSet())
         assertTrue(cache.invalidate("b"))
-        assertEquals(2, cache.cleanUp())
-        assertEquals(0, cache.currentSize)
+        assertEquals(0, cache.cleanUp())
+        assertEquals(2, cache.currentSize)
     }
 
     @Test fun cacheRejectsNegativeAccessTtl() {
