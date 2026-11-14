@@ -16,6 +16,7 @@
 - [Standard Library](docs/Standard-Library-Architecture.md)
 - [Public API для аддонов](docs/Public-API.md)
 - [Разработка аддонов](docs/Addon-Development-Guide.md)
+- [Жизненный цикл скриптов и hot-reload](docs/Script-Lifecycle-and-Resources.md)
 - [Базы данных](docs/Database-Guide.md)
 - [Импорты и библиотеки](docs/Packages-and-Imports.md)
 - [Создание собственных библиотек и MesLib2](docs/Custom-Standard-Library.md)

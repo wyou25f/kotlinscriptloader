@@ -195,6 +195,8 @@ enabled = true
 
 ## 14. Соседние руководства
 
+- [Жизненный цикл скриптов, hot-reload и владение ресурсами](Script-Lifecycle-and-Resources.md)
+
 - [Standard Library](Standard-Library-Architecture.md)
 - [Runtime API](Runtime-API.md)
 - [Database Guide](Database-Guide.md)

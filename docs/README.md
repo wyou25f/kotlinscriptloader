@@ -22,6 +22,7 @@
 | MesLib2 и создание своих библиотек | [Custom Standard Library](Custom-Standard-Library.md) |
 | SQLite, MySQL/MariaDB и async SQL | [Database Guide](Database-Guide.md) |
 | Кэш и профилирование | [Runtime API](Runtime-API.md) |
+| Жизненный цикл, hot-reload и владение ресурсами | [Script Lifecycle and Resources](Script-Lifecycle-and-Resources.md) |
 | Собственный модуль stdlib | [Custom Standard Library](Custom-Standard-Library.md) |
 | Ошибки и диагностика | [Troubleshooting](Troubleshooting.md) |
 | Коды ошибок | [Error Codes](Error-Codes.md) |
@@ -39,6 +40,7 @@
 - [Public API](Public-API.md) — внешние контракты.
 - [Standard Library architecture](Standard-Library-Architecture.md) — пакеты и модульная система.
 - [Addon Development](Addon-Development-Guide.md) — жизненный цикл аддона.
+- [Script Lifecycle and Resources](Script-Lifecycle-and-Resources.md) — владение ресурсами скриптов и безопасный hot-reload.
 - [Troubleshooting](Troubleshooting.md) — диагностика.
 
 Перед изменением API изучи реализации и тесты. Не делай внутренний класс публичным только ради удобства одного скрипта. Сохраняй hot-reload и корректное освобождение ресурсов.

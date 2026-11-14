@@ -116,6 +116,9 @@ reloadYamlSqlQueries()
 
 ## 8. Worker pool KSLRT
 
+runAsync и worker решают разные задачи. runAsync отправляет задачу в async scheduler Bukkit и возвращает Bukkit task ID (Int). worker использует ограниченный KSL worker pool, поддерживает приоритеты и возвращает worker task ID (Long). Для CPU-heavy задач и контролируемой очереди предпочитай worker; для простой фоновой операции, совместимой с Bukkit async scheduler, используй runAsync. Ни один вариант не разрешает обращаться к Bukkit world/player/inventory state из фонового потока.
+
+
 Для CPU-heavy и blocking задач без Bukkit state доступен управляемый worker pool:
 
 ```kotlin
