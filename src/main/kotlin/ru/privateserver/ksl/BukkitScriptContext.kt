@@ -629,7 +629,7 @@ open class BukkitScriptContext(
      * Short alias for [dbQuery]. The ResultSet is the lambda receiver, so use
      * `next()`, `getLong("balance")`, etc. directly inside the block.
      *
-     * The callback runs on KSL's database executor, not the Bukkit main thread.
+     * The callback runs on KSL's database reader pool, not the Bukkit main thread.
      */
     fun query(sql: String, vararg args: Any?, block: ResultSet.() -> Unit) {
         dbQuery(sql, *args) { resultSet -> resultSet.block() }

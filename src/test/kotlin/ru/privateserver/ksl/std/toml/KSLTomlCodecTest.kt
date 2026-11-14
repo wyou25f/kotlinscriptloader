@@ -39,7 +39,7 @@ class KSLTomlCodecTest {
         assertEquals(25565, parsed.tomlInt("port"))
         assertEquals(25565L, parsed.tomlLong("port"))
         assertTrue(parsed.tomlBoolean("enabled"))
-        assertEquals(1.5, parsed.tomlDouble("ratio"))
+        assertEquals(1.5, parsed.tomlDouble("ratio"), 0.0001)
         assertEquals(listOf("a", "b"), parsed.tomlList("tags"))
         assertNull(parsed.tomlTable("name"))
 

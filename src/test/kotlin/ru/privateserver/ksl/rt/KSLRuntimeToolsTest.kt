@@ -29,6 +29,23 @@ class KSLRuntimeToolsTest {
         Thread.sleep(30)
         assertNull(cache.get("short-lived"))
     }
+    @Test fun profilerRegistryRejectsUnboundedNamesAndAllowsCleanup() {
+        val created = mutableListOf<String>()
+        val prefix = "capacity-test-${System.nanoTime()}-"
+        try {
+            while (KSLRT.profilerNames().size < KSLRT.MAX_PROFILERS) {
+                val name = prefix + created.size
+                KSLRT.profiler(name)
+                created += name
+            }
+            assertThrows(IllegalStateException::class.java) {
+                KSLRT.profiler(prefix + "overflow")
+            }
+        } finally {
+            created.forEach { KSLRT.removeProfiler(it) }
+        }
+    }
+
     @Test fun profilerRecordsFailuresAndResets() {
         val profiler = KSLProfiler("test")
         assertEquals("ok", profiler.measure { "ok" })

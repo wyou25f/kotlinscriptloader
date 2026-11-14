@@ -485,8 +485,13 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         return try {
             val parsed = readDatabaseSettings()
             settings = parsed
-            dbQueryExecutor.corePoolSize = parsed.poolSize
-            dbQueryExecutor.maximumPoolSize = parsed.poolSize
+            if (parsed.poolSize > dbQueryExecutor.maximumPoolSize) {
+                dbQueryExecutor.maximumPoolSize = parsed.poolSize
+                dbQueryExecutor.corePoolSize = parsed.poolSize
+            } else {
+                dbQueryExecutor.corePoolSize = parsed.poolSize
+                dbQueryExecutor.maximumPoolSize = parsed.poolSize
+            }
             val cfg = HikariConfig().apply {
                 poolName        = "ksl-pool"
                 maximumPoolSize = parsed.poolSize
