@@ -64,6 +64,13 @@ discordEmbedAsync(
     description = "A player connected",
     fields = listOf(KSLDiscordEmbedField("Player", player.name))
 )
+
+ // Short aliases are also available:
+discord("general", "Server started")
+discordMessage("general", "Backup complete")
+val sent = discordAsync("general", "Async notification").thenAccept { accepted ->
+    if (!accepted) logger.warning("Discord rejected the notification")
+}
 ```
 
 Asynchronous Discord calls return `CompletableFuture<Boolean>`. The value is true only when Discord returns a successful HTTP status. Avoid calling `.join()` on the server thread; attach a completion handler or use an asynchronous task instead.
