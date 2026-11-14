@@ -78,7 +78,7 @@ jobs:
           retention-days: 14
 
       - name: Verify IntelliJ IDEA companion setup
-        run: bash ./gradlew --no-daemon -p ide -PkslJar=../build/libs/KotlinScriptLoader-1.2.0.jar verifyKslIdeSetup
+        run: bash ./gradlew --no-daemon -p ide -PkslJar=../build/libs/KotlinScriptLoader-1.2.1.jar verifyKslIdeSetup
 
       - name: Generate JAR checksum
         shell: bash
