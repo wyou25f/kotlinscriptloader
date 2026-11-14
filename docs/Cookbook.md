@@ -7,7 +7,7 @@
 ```kotlin
 if (featureEnabled("welcome.enabled", default = true)) {
     onEvent<PlayerJoinEvent> {
-        event.player.sendRichMessage("<green>Добро пожаловать, ${event.player.name}!</green>")
+        player.sendRichMessage("<green>Добро пожаловать, ${player.name}!</green>")
     }
 }
 ```

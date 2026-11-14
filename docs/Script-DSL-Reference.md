@@ -23,7 +23,6 @@
 
 ```kotlin
 onEvent<PlayerJoinEvent> {
-    val player = event.player
     player.sendRichMessage("<green>Привет, ${player.name}!</green>")
 }
 ```

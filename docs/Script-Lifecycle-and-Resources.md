@@ -37,7 +37,7 @@ val taskId = every(ticks = 20L) {
 }
 
 onEvent<PlayerJoinEvent> {
-    event.player.sendMessage("Добро пожаловать!")
+    player.sendMessage("Добро пожаловать!")
 }
 ~~~
 
