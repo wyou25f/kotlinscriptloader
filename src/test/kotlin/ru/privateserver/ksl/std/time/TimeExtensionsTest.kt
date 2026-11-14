@@ -20,4 +20,17 @@ class TimeExtensionsTest {
   assertThrows(ArithmeticException::class.java){Long.MAX_VALUE.hoursToTicks()}
   assertThrows(ArithmeticException::class.java){Long.MAX_VALUE.ticksToDuration()}
  }
+ @Test fun `calendar and millisecond conversions use exact arithmetic` () {
+  assertEquals(1_728_000L, 1.daysToTicks())
+  assertEquals(12_096_000L, 1L.weeksToTicks())
+  assertEquals(2L, 51L.millisecondsToTicksCeiling())
+  assertEquals(1L, 51L.millisecondsToTicksFloor())
+  assertEquals(0L, 49L.millisecondsToTicksFloor())
+  assertEquals(1L, 49L.millisecondsToTicksCeiling())
+  assertEquals(-1L, (-1L).millisecondsToTicksFloor())
+  assertEquals(0L, (-1L).millisecondsToTicksCeiling())
+  assertEquals(19L, Duration.ofMillis(999).toTicksFloor())
+  assertThrows(ArithmeticException::class.java) { Long.MAX_VALUE.daysToTicks() }
+ }
+
 }

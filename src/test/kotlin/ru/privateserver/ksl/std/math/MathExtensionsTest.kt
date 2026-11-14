@@ -23,4 +23,21 @@ class MathExtensionsTest {
   assertThrows(IllegalArgumentException::class.java){randomChance(100.1)}
   assertThrows(IllegalArgumentException::class.java){randomChance(Double.NaN)}
  }
+ @Test fun `mapping remains stable for extreme finite bounds` () {
+  assertEquals(0.5, 0.0.mapToRange(-Double.MAX_VALUE, Double.MAX_VALUE, 0.0, 1.0), 1e-9)
+  assertEquals(0.0, lerp(-Double.MAX_VALUE, Double.MAX_VALUE, 0.5), 1e-9)
+  assertEquals(0.5, inverseLerp(-Double.MAX_VALUE, Double.MAX_VALUE, 0.0), 1e-9)
+  assertEquals(1.0, inverseLerp(10.0, 0.0, 0.0), 1e-9)
+  assertEquals(0.0, inverseLerp(10.0, 0.0, 20.0, clamp = true), 1e-9)
+ }
+ @Test fun `random helpers validate bounds and return in range` () {
+  assertEquals(2, randomInt(2, 3))
+  assertEquals(5L, randomLong(5L, 6L))
+  val sample = randomDouble(-2.0, 2.0)
+  assertTrue(sample >= -2.0 && sample < 2.0)
+  assertThrows(IllegalArgumentException::class.java) { randomInt(1, 1) }
+  assertThrows(IllegalArgumentException::class.java) { randomLong(2L, 1L) }
+  assertThrows(IllegalArgumentException::class.java) { randomDouble(Double.NaN, 1.0) }
+ }
+
 }
