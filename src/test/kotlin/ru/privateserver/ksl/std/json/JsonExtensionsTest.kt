@@ -31,4 +31,25 @@ class JsonExtensionsTest {
   assertThrows(IllegalArgumentException::class.java){mapOf(1 to "bad").toJsonElement()}
   assertThrows(IllegalArgumentException::class.java){Any().toJsonElement()}
  }
+ @Test fun \`string accessors do not coerce numeric or boolean values\`() {
+  assertNull(JsonPrimitive(42).stringOrNull())
+  assertNull(JsonPrimitive(true).stringOrNull())
+  assertEquals("42", JsonPrimitive("42").stringOrNull())
+ }
+ @Test fun \`primitive arrays and sequences convert to json arrays\`() {
+  assertEquals("[1,2,3]", intArrayOf(1,2,3).toJsonElement().toString())
+  assertEquals("[true,false]", sequenceOf(true,false).toJsonElement().toString())
+  assertEquals("[\"a\",\"b\"]", charArrayOf('a','b').toJsonElement().toString())
+ }
+ @Test fun \`required JSON accessors are strict and array accessors are safe\`() {
+  val obj = jsonObjectOf("text" to "hello", "count" to 5, "enabled" to true)
+  assertEquals(true, obj.hasKey("count"))
+  assertEquals("hello", obj.requireString("text"))
+  assertEquals(5, obj.requireInt("count"))
+  assertEquals(true, obj.requireBoolean("enabled"))
+  assertEquals(5, jsonArrayOf(5, "x").intAt(0))
+  assertNull(jsonArrayOf(5, "x").intAt(9))
+  org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException::class.java) { obj.requireString("count") }
+ }
+
 }

@@ -3,13 +3,13 @@ package ru.privateserver.ksl.std.text
 import java.util.Locale
 
 /** Collapses all whitespace runs into one ordinary space and trims the ends. */
-fun String.normalizeWhitespace(): String = trim().replace(Regex("\\s+"), " ")
+fun String.normalizeWhitespace(): String = words().joinToString(" ")
 
 /**
  * Converts common camelCase, PascalCase, whitespace and hyphen-separated names
  * to snake_case. Existing underscores are preserved.
  */
-fun String.toSnakeCase(): String = trim()
+fun String.toSnakeCase(): String = normalizeWhitespace()
     .replace(Regex("([A-Z]+)([A-Z][a-z])"), "$1_$2")
     .replace(Regex("([a-z0-9])([A-Z])"), "$1_$2")
     .replace(Regex("[\\s-]+"), "_")
@@ -17,7 +17,7 @@ fun String.toSnakeCase(): String = trim()
 
 /** Converts underscore-, hyphen- or whitespace-separated words to lower camelCase. */
 fun String.toCamelCase(): String {
-    val parts = trim().split(Regex("[\\s_-]+")).filter(String::isNotEmpty)
+    val parts = normalizeWhitespace().split(Regex("[\\s_-]+")).filter(String::isNotEmpty)
     if (parts.isEmpty()) return ""
     return parts.first().lowercase(Locale.ROOT) + parts.drop(1).joinToString("") { part ->
         part.lowercase(Locale.ROOT).replaceFirstChar { it.titlecase(Locale.ROOT) }

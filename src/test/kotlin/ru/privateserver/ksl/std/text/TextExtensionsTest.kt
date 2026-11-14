@@ -28,4 +28,19 @@ class TextExtensionsTest {
   assertEquals("","   ".toCamelCase()); assertTrue("Player_123".isMinecraftUsername())
   assertFalse("ab".isMinecraftUsername()); assertFalse("player-name".isMinecraftUsername()); assertFalse("this_name_is_far_too_long".isMinecraftUsername())
  }
+ @Test fun \`strict UUID and Unicode whitespace edge cases are covered\`() {
+  assertNull("1-1-1-1-1".toUuidOrNull())
+  assertFalse("1-1-1-1-1".isUuid())
+  assertEquals(listOf("one","two"), "one\u00A0two".words())
+  assertEquals("one two", " one\u00A0\t two ".normalizeWhitespace())
+ }
+ @Test fun \`case insensitive helpers preserve original text\`() {
+  assertTrue("WelcomeHome".containsIgnoreCase("comeh"))
+  assertTrue("WelcomeHome".startsWithIgnoreCase("wel"))
+  assertTrue("WelcomeHome".endsWithIgnoreCase("HOME"))
+  assertEquals("Home", "WelcomeHome".removePrefixIgnoreCase("welcome"))
+  assertEquals("Welcome", "WelcomeHome".removeSuffixIgnoreCase("HOME"))
+  assertEquals("WelcomeHome", "WelcomeHome".removePrefixIgnoreCase("missing"))
+ }
+
 }

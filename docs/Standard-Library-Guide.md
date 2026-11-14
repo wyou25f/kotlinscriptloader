@@ -185,7 +185,9 @@ saveJson("cache/player.json", payload)
 - `saveJson(file, value)` writes a `JsonElement` and returns whether the write succeeded.
 - `editJsonObject(file) { ... }` preserves untouched keys and creates a missing object file.
 - `jsonObjectOf(...)`, `jsonArrayOf(...)`, and `toJsonElement()` convert common Kotlin primitives, maps, arrays and collections.
-- `JsonObject.string/int/long/double/bool` provide typed access with defaults; `objectValue` and `arrayValue` read nested structures.
+- `JsonObject.string/int/long/double/bool` provide typed access with defaults; `requireString/requireInt/requireLong/requireDouble/requireBoolean` reject absent or mistyped fields. `objectValue` and `arrayValue` read nested structures.
+- `JsonArray.stringAt/intAt/longAt/doubleAt/boolAt` read typed elements safely. `stringOrNull()` accepts only JSON string primitives and never coerces numbers or booleans.
+- `toJsonElement()` also accepts primitive Kotlin arrays and lazy `Sequence`; generic `Number` values are checked against the JSON numeric grammar.
 - File operations are synchronous. Do not use them for large files on the Bukkit server thread; use KSL async scheduling when appropriate.
 
 
