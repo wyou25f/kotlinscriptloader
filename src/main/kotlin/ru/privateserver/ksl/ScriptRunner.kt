@@ -199,6 +199,9 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
     }
 
     fun sandboxProbe(): Pair<Boolean, String> {
+        if (!plugin.isSandboxed("__sandbox_probe__")) {
+            return true to "Sandbox выключена или probe script доверенный; проверка ограничений пропущена"
+        }
         return try {
             val context = BukkitScriptContext(plugin, "__sandbox_probe__")
             val loader = KSLSandboxClassLoader(pluginClassLoader, KSLClassDenyList(), "__sandbox_probe__") { }
@@ -207,7 +210,7 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
                 implicitReceivers(context)
                 jvm { baseClassLoader(loader) }
             }
-            val probe = if (plugin.isSandboxed("__sandbox_probe__")) {
+            val probe = if (plugin.sandboxStrict) {
                 """
                     val runtimeBlocked = try {
                         Runtime.getRuntime().availableProcessors()
@@ -220,7 +223,11 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
                     if (runtimeBlocked && pluginBlocked && databaseBlocked) "blocked" else "open"
                 """.trimIndent()
             } else {
-                "try { Runtime.getRuntime().availableProcessors(); \"open\" } catch (t: Throwable) { \"blocked\" }"
+                """
+                    val pluginBlocked = runCatching { plugin }.exceptionOrNull() is SecurityException
+                    val databaseBlocked = runCatching { database }.exceptionOrNull() is SecurityException
+                    if (pluginBlocked && databaseBlocked) "blocked" else "open"
+                """.trimIndent()
             }
             val result = plugin.withCompilePermit { host.eval(probe.toScriptSource("ksl_sandbox_probe.kts"), compilationConfig, evalConfig) }
             when (result) {
@@ -229,9 +236,9 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
                 is ResultWithDiagnostics.Success -> {
                     val rv = result.value.returnValue
                     when {
-                        rv is ResultValue.Value && rv.value == "blocked" -> true to "Runtime, raw plugin и raw database недоступны sandboxed-скрипту"
+                        rv is ResultValue.Value && rv.value == "blocked" -> true to if (plugin.sandboxStrict) "Runtime, raw plugin и raw database недоступны sandboxed-скрипту" else "raw plugin и raw database недоступны; текстовый режим не включает запрет классов"
                         rv is ResultValue.Value && rv.value == "open" ->
-                            false to "sandbox probe не смог заблокировать Runtime или raw-доступ к plugin/database; проверь security.sandbox-level и sandbox access policy"
+                            false to "sandbox probe не смог заблокировать ожидаемые raw-доступы или классы; проверь security.sandbox-level и sandbox access policy"
                         rv is ResultValue.Error -> false to "проба упала: ${rv.error.message}"
                         else -> false to "неожиданный результат: $rv"
                     }
