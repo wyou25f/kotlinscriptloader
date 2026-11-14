@@ -21,11 +21,21 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     @Volatile private var dbThread: Thread? = null
 
     // A plain ThreadPoolExecutor rather than newSingleThreadExecutor(): the queue length is needed for diagnostics.
+    // Writes remain serialized to preserve ordering. A bounded queue prevents an overloaded database
+    // from turning sustained traffic into unbounded heap growth.
     val dbExecutor = java.util.concurrent.ThreadPoolExecutor(
-        1, 1, 0L, java.util.concurrent.TimeUnit.MILLISECONDS, java.util.concurrent.LinkedBlockingQueue<Runnable>()
-    ) { runnable -> Thread(runnable, "KSL-DB").apply { isDaemon = true }.also { dbThread = it } }
+        1, 1, 0L, java.util.concurrent.TimeUnit.MILLISECONDS,
+        java.util.concurrent.LinkedBlockingQueue<Runnable>(10_000)
+    ) { runnable -> Thread(runnable, "KSL-DB-Writer").apply { isDaemon = true }.also { dbThread = it } }
+
+    // Read queries use a separate bounded pool so slow reads do not block ordered writes.
+    val dbQueryExecutor = java.util.concurrent.ThreadPoolExecutor(
+        4, 4, 0L, java.util.concurrent.TimeUnit.MILLISECONDS,
+        java.util.concurrent.LinkedBlockingQueue<Runnable>(10_000)
+    ) { runnable -> Thread(runnable, "KSL-DB-Reader").apply { isDaemon = true } }
 
     fun dbQueueSize(): Int = dbExecutor.queue.size
+    fun dbQueryQueueSize(): Int = dbQueryExecutor.queue.size
 
     private val dbQueueWarnAt = 5000
 
@@ -44,8 +54,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private fun startQueueMonitor() {
         Bukkit.getScheduler().runTaskTimerAsynchronously(this, Runnable {
             val queued = dbQueueSize()
-            if (queued >= dbQueueWarnAt) {
-                logger.warning("${KSLError.DB_QUEUE_LARGE.tag} В очереди записи БД $queued операций — БД не успевает за скриптами")
+            val readQueued = dbQueryQueueSize()
+            if (queued >= dbQueueWarnAt || readQueued >= dbQueueWarnAt) {
+                logger.warning("${KSLError.DB_QUEUE_LARGE.tag} Очереди БД: запись=$queued, чтение=$readQueued — БД не успевает за скриптами")
             }
         }, 600L, 600L)
     }
@@ -402,9 +413,14 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} Ошибка при снятии PlaceholderAPI expansion: ${it.message}") }
         runCatching {
             dbExecutor.shutdown()
+            dbQueryExecutor.shutdown()
             if (!dbExecutor.awaitTermination(3, java.util.concurrent.TimeUnit.SECONDS)) {
                 val dropped = dbExecutor.shutdownNow().size
                 if (dropped > 0) logger.warning("${KSLError.DB_WRITES_LOST.tag} DB-очередь не успела завершиться: потеряно записей — $dropped")
+            }
+            if (!dbQueryExecutor.awaitTermination(3, java.util.concurrent.TimeUnit.SECONDS)) {
+                val dropped = dbQueryExecutor.shutdownNow().size
+                if (dropped > 0) logger.warning("DB read queue did not finish before shutdown: dropped $dropped queries")
             }
         }.onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} Не удалось корректно остановить DB-очередь: ${it.message}") }
         runCatching { if (::database.isInitialized) database.close() }
@@ -469,9 +485,17 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         return try {
             val parsed = readDatabaseSettings()
             settings = parsed
+            dbQueryExecutor.corePoolSize = parsed.poolSize
+            dbQueryExecutor.maximumPoolSize = parsed.poolSize
             val cfg = HikariConfig().apply {
                 poolName        = "ksl-pool"
                 maximumPoolSize = parsed.poolSize
+                connectionTimeout = 10_000L
+                validationTimeout = 5_000L
+                if (parsed.dialect.isRemote) {
+                    maxLifetime = 1_500_000L
+                    keepaliveTime = 30_000L
+                }
                 // Scripts get the raw pool; one unclosed connection starves everything else.
                 leakDetectionThreshold = 10_000L
                 if (parsed.dialect == KSLDialect.SQLITE) {
@@ -485,7 +509,6 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                     driverClassName = "org.mariadb.jdbc.Driver"
                     username        = parsed.user
                     password        = parsed.password
-                    connectionTimeout = 10_000L
                 }
             }
             dialect = parsed.dialect
@@ -1155,7 +1178,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         sandbox?.let { (ok, detail) -> lines += DiagnosticLine("Изоляция классов (sandbox)", ok, detail) }
 
         val queued = dbQueueSize()
-        lines += DiagnosticLine("Очередь записи БД", queued < dbQueueWarnAt, "$queued в очереди")
+        val readQueued = dbQueryQueueSize()
+        lines += DiagnosticLine("Очереди БД", queued < dbQueueWarnAt && readQueued < dbQueueWarnAt,
+            "запись: $queued, чтение: $readQueued (каждая очередь ограничена 10000 задачами)")
 
         val commandOk = Bukkit.getCommandMap().getCommand("ksl") != null
         lines += DiagnosticLine("Команда /ksl", commandOk, if (commandOk) "зарегистрирована" else "не найдена в commandMap")

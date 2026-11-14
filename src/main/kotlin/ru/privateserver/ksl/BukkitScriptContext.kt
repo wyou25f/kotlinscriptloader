@@ -496,32 +496,40 @@ open class BukkitScriptContext(
     }
 
     fun dbExecute(sql: String, vararg args: Any?) {
-        plugin.dbExecutor.submit {
-            try {
-                database.connection.use { conn ->
-                    conn.prepareStatement(sql).use { ps ->
-                        args.forEachIndexed { i, arg -> ps.setObject(i + 1, arg) }
-                        ps.executeUpdate()
+        try {
+            plugin.dbExecutor.execute {
+                try {
+                    database.connection.use { conn ->
+                        conn.prepareStatement(sql).use { ps ->
+                            args.forEachIndexed { i, arg -> ps.setObject(i + 1, arg) }
+                            ps.executeUpdate()
+                        }
                     }
+                } catch (ex: Exception) {
+                    plugin.logger.warning("[$scriptName] ${KSLError.DB_SCRIPT_QUERY_FAILED.tag} dbExecute: ${ex.message}")
                 }
-            } catch (ex: Exception) {
-                plugin.logger.warning("[$scriptName] ${KSLError.DB_SCRIPT_QUERY_FAILED.tag} dbExecute: ${ex.message}")
             }
+        } catch (ex: java.util.concurrent.RejectedExecutionException) {
+            plugin.logger.warning("[$scriptName] ${KSLError.DB_SCRIPT_QUERY_FAILED.tag} Очередь записи БД заполнена; операция отклонена")
         }
     }
 
     fun dbQuery(sql: String, vararg args: Any?, block: (ResultSet) -> Unit) {
-        plugin.dbExecutor.submit {
-            try {
-                database.connection.use { conn ->
-                    conn.prepareStatement(sql).use { ps ->
-                        args.forEachIndexed { i, arg -> ps.setObject(i + 1, arg) }
-                        ps.executeQuery().use(block)
+        try {
+            plugin.dbQueryExecutor.execute {
+                try {
+                    database.connection.use { conn ->
+                        conn.prepareStatement(sql).use { ps ->
+                            args.forEachIndexed { i, arg -> ps.setObject(i + 1, arg) }
+                            ps.executeQuery().use(block)
+                        }
                     }
+                } catch (ex: Exception) {
+                    plugin.logger.warning("[$scriptName] ${KSLError.DB_SCRIPT_QUERY_FAILED.tag} dbQuery: ${ex.message}")
                 }
-            } catch (ex: Exception) {
-                plugin.logger.warning("[$scriptName] ${KSLError.DB_SCRIPT_QUERY_FAILED.tag} dbQuery: ${ex.message}")
             }
+        } catch (ex: java.util.concurrent.RejectedExecutionException) {
+            plugin.logger.warning("[$scriptName] ${KSLError.DB_SCRIPT_QUERY_FAILED.tag} Очередь чтения БД заполнена; запрос отклонён")
         }
     }
 
