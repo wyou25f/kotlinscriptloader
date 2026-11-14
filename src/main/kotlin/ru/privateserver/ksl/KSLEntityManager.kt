@@ -75,13 +75,16 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
     // PDC data can be changed by other plugins. Never leave a UUID indexed forever
     // merely because its owner tag disappeared before the entity was removed.
     private fun untrackEntity(uuid: UUID, owner: String?) {
+        var removedFromOwner = false
         if (owner != null) {
             entitiesByScript.computeIfPresent(owner) { _, ids ->
-                ids.remove(uuid)
+                removedFromOwner = ids.remove(uuid)
                 if (ids.isEmpty()) null else ids
             }
-            return
         }
+        if (removedFromOwner) return
+
+        // The tag may have been overwritten, so fall back to the index itself.
         entitiesByScript.entries.removeIf { entry ->
             entry.value.remove(uuid)
             entry.value.isEmpty()
