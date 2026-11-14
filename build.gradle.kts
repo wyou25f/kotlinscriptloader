@@ -205,6 +205,23 @@ tasks.matching { it.name == "koverHtmlReport" || it.name == "koverXmlReport" }.c
 }
 
 /**
+ * Package-level audit row. Kept at script scope to avoid local-class codegen issues
+ * in Gradle's Kotlin DSL task action.
+ */
+data class ComponentAuditRow(
+    val packageName: String,
+    val sourceFiles: Int,
+    val testFiles: Int,
+    val testCases: Int
+)
+
+fun componentPackageName(root: File, sourceFile: File): String =
+    sourceFile.relativeTo(root).parentFile
+        ?.invariantSeparatorsPath
+        ?.replace("/", ".")
+        .orEmpty()
+
+/**
  * Every production Kotlin package must have a matching test package.
  * This is a package-level guard, not a claim that every method is covered;
  * use the Kover report for detailed line coverage.
@@ -219,53 +236,53 @@ tasks.register("componentTestAudit") {
         val reportDirectory = layout.buildDirectory.dir("reports/quality").get().asFile
         reportDirectory.mkdirs()
 
-        fun packageName(root: File, sourceFile: File): String =
-            sourceFile.relativeTo(root).parentFile
-                ?.invariantSeparatorsPath
-                ?.replace("/", ".")
-                .orEmpty()
-
         val sourceFiles = sourceRoot.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
         val testFiles = testRoot.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
-        data class AuditRow(val packageName: String, val sourceFiles: Int, val testFiles: Int, val testCases: Int)
+        val testAnnotation = Regex("""(?m)^\\s*@(?:org\\.junit\\.jupiter\\.api\\.)?(?:Test|ParameterizedTest|RepeatedTest|TestFactory)\\b""")
+        val testsByPackage = testFiles.groupBy { componentPackageName(testRoot, it) }
+        val sourcePackages = sourceFiles.groupBy { componentPackageName(sourceRoot, it) }.toSortedMap()
 
-        val testAnnotation = Regex("""(?m)^\s*@(?:org\.junit\.jupiter\.api\.)?(?:Test|ParameterizedTest|RepeatedTest|TestFactory)\b""")
-        val testsByPackage = testFiles.groupBy { packageName(testRoot, it) }
-        val rows = sourceFiles.groupBy { packageName(sourceRoot, it) }
-            .toSortedMap()
-            .map { (pkg, files) ->
-                val packageTests = testsByPackage[pkg].orEmpty()
-                val testCases = packageTests.sumOf { file -> testAnnotation.findAll(file.readText()).count() }
-                AuditRow(pkg, files.size, packageTests.size, testCases)
+        val rows = sourcePackages.map { entry ->
+            val pkg = entry.key
+            val packageTests = testsByPackage[pkg].orEmpty()
+            var testCases = 0
+            packageTests.forEach { testFile ->
+                testCases += testAnnotation.findAll(testFile.readText()).count()
             }
-        val uncovered = rows.filter { it.testFiles == 0 || it.testCases == 0 }
+            ComponentAuditRow(pkg, entry.value.size, packageTests.size, testCases)
+        }
+        val uncovered = rows.filter { row -> row.testFiles == 0 || row.testCases == 0 }
 
-        val markdown = buildString {
-            appendLine("# KSL component test audit")
-            appendLine()
-            appendLine("Package-level test presence only. A package test does not prove every method is covered.")
-            appendLine("Use the Kover HTML report for line-level coverage and inspect individual test cases.")
-            appendLine()
-            appendLine("| Production package | Source files | Test files | Test cases | Status |")
-            appendLine("|---|---:|---:|---:|---|")
-            rows.forEach { row ->
-                appendLine("| `${row.packageName}` | ${row.sourceFiles} | ${row.testFiles} | ${row.testCases} | ${if (row.testFiles > 0 && row.testCases > 0) "COVERED" else "MISSING"} |")
-            }
-            appendLine()
-            appendLine("**Summary:** ${rows.size - uncovered.size}/${rows.size} packages have test files with recognized JUnit test cases.")
-            if (uncovered.isNotEmpty()) {
-                appendLine()
-                appendLine("## Packages without executable test cases")
-                uncovered.forEach { row -> appendLine("- `${row.packageName}` (${row.sourceFiles} production files, ${row.testFiles} test files, ${row.testCases} recognized test cases)") }
+        val report = StringBuilder()
+        report.appendLine("# KSL component test audit")
+        report.appendLine()
+        report.appendLine("Package-level test presence only. A package test does not prove every method is covered.")
+        report.appendLine("Use the Kover HTML report for line-level coverage and inspect individual test cases.")
+        report.appendLine()
+        report.appendLine("| Production package | Source files | Test files | Test cases | Status |")
+        report.appendLine("|---|---:|---:|---:|---|")
+        rows.forEach { row ->
+            val status = if (row.testFiles > 0 && row.testCases > 0) "COVERED" else "MISSING"
+            report.appendLine("| `\u0024{row.packageName}` | \u0024{row.sourceFiles} | \u0024{row.testFiles} | \u0024{row.testCases} | \u0024status |")
+        }
+        report.appendLine()
+        report.appendLine("**Summary:** \u0024{rows.size - uncovered.size}/\u0024{rows.size} packages have test files with recognized JUnit test cases.")
+        if (uncovered.isNotEmpty()) {
+            report.appendLine()
+            report.appendLine("## Packages without executable test cases")
+            uncovered.forEach { row ->
+                report.appendLine("- `\u0024{row.packageName}` (\u0024{row.sourceFiles} production files, \u0024{row.testFiles} test files, \u0024{row.testCases} recognized test cases)")
             }
         }
-        reportDirectory.resolve("component-test-audit.md").writeText(markdown)
-        logger.lifecycle("Component test audit: ${rows.size - uncovered.size}/${rows.size} production packages have recognized JUnit test cases.")
+
+        reportDirectory.resolve("component-test-audit.md").writeText(report.toString())
+        logger.lifecycle("Component test audit: \u0024{rows.size - uncovered.size}/\u0024{rows.size} production packages have recognized JUnit test cases.")
 
         if (uncovered.isNotEmpty()) {
             throw GradleException(
-                "Packages missing test files or recognized JUnit test cases: ${uncovered.joinToString { it.packageName }}. " +
-                    "See build/reports/quality/component-test-audit.md"
+                "Packages missing test files or recognized JUnit test cases: " +
+                    uncovered.joinToString { row -> row.packageName } +
+                    ". See build/reports/quality/component-test-audit.md"
             )
         }
     }
