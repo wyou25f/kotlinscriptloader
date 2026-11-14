@@ -109,7 +109,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         if (result.isFailure) {
             plugin.logger.severe("§9[KSL] §c✘ ${KSLError.ADDON_LOAD_FAILED.tag} Ошибка загрузки '$id': ${result.exceptionOrNull()?.message}")
             // A half-initialised addon would otherwise stay listed as loaded, with whatever it managed to register.
-            runCatching { addon.onUnload() }
+            runCatching { asOwner(id) { addon.onUnload() } }
             releaseOwned(id)
             synchronized(readyLock) {
                 addons.remove(id, addon)
@@ -174,7 +174,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         }
         loadOrder.remove(registeredId)
 
-        runCatching { addon.onUnload() }
+        runCatching { asOwner(registeredId) { addon.onUnload() } }
             .onFailure { plugin.logger.warning("§9[KSL] §e$addonId: ${KSLError.ADDON_UNLOAD_FAILED.tag} ошибка выгрузки: ${it.message}") }
 
         val cleanedUp = releaseOwned(registeredId)
@@ -476,6 +476,27 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         hookRegistry.clear()
         effectShapes.clear()
         entityAttributes.clear()
+        val remainingModules = synchronized(moduleLock) { standardModules.values.toList() }
+        KSLReverseLifecycle.run(
+            remainingModules,
+            action = { installed ->
+                val stillInstalled = synchronized(moduleLock) {
+                    standardModules.remove(installed.module.descriptor.id) != null
+                }
+                if (stillInstalled) {
+                    try {
+                        asOwner(installed.resourceOwner) { installed.module.uninstall(this) }
+                    } finally {
+                        releaseOwned(installed.resourceOwner)
+                    }
+                }
+            },
+            onFailure = { installed, error ->
+                plugin.logger.warning(
+                    "§9[KSL] module '${installed.module.descriptor.id}' shutdown failed: ${error.message}"
+                )
+            }
+        )
         synchronized(moduleLock) { standardModules.clear() }
     }
 }
