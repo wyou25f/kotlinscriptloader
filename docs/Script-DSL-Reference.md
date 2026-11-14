@@ -6,9 +6,9 @@
 
 Каждый скрипт выполняется с implicit receiver `BukkitScriptContext`. Типичные свойства:
 
-- `plugin` — экземпляр JavaPlugin KSL;
+- `plugin` — экземпляр JavaPlugin KSL, доступен только доверенным/несандбоксированным скриптам; в sandboxed-скриптах чтение свойства выбрасывает `SecurityException`;
 - `config` — YAML-конфигурация текущего скрипта;
-- `database` — общий HikariDataSource;
+- `database` — сырой общий HikariDataSource, доступен только доверенным/несандбоксированным скриптам; для sandboxed-скриптов используй методы KSL для SQL.
 - `log(message)`, `logWarn(message)`, `logError(message)` — логирование через KSL;
 - `onlinePlayers()`, `onlineCount`, `maxPlayers`;
 - `findPlayer(nameOrUuid)`;
