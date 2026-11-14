@@ -140,6 +140,10 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     override fun unregisterAddon(addonId: String) {
         val registeredId = registeredAddonId(addonId) ?: return
         val addon = addons[registeredId] ?: return
+        if (!KSLResourceOwnershipPolicy.mayUnregister(currentlyLoading.get(), registeredId)) {
+            plugin.logger.warning("§9[KSL] Аддон '$registeredId' не выгружен: другой аддон не может управлять его жизненным циклом")
+            return
+        }
         if (registeredId.lowercase() in loadingAddons) {
             plugin.logger.warning("§9[KSL] §eАддон '$registeredId' нельзя выгрузить во время выполнения onLoad()")
             return
@@ -231,6 +235,10 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     }
 
     override fun unregisterService(key: String) {
+        if (!KSLResourceOwnershipPolicy.mayUnregister(currentlyLoading.get(), serviceOwner[key])) {
+            plugin.logger.warning("§9[KSL] Сервис '$key' не удалён: он принадлежит другому владельцу")
+            return
+        }
         services.remove(key)
         serviceOwner.remove(key)
     }
@@ -291,6 +299,10 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     override fun unregisterStandardLibraryModule(moduleId: String) {
         synchronized(moduleLock) {
             val installed = standardModules[moduleId] ?: return
+            if (!KSLResourceOwnershipPolicy.mayUnregister(currentlyLoading.get(), installed.owner)) {
+                plugin.logger.warning("§9[KSL] Модуль '$moduleId' не удалён: он принадлежит другому владельцу")
+                return
+            }
             val dependents = standardModules.values
                 .filter { moduleId in it.module.descriptor.dependencies }
                 .map { it.module.descriptor.id }
@@ -332,6 +344,10 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     }
 
     override fun unregisterContextExtension(extensionId: String) {
+        if (!KSLResourceOwnershipPolicy.mayUnregister(currentlyLoading.get(), contextExtensions.ownerOf(extensionId))) {
+            plugin.logger.warning("§9[KSL] Расширение контекста '$extensionId' не удалено: оно принадлежит другому владельцу")
+            return
+        }
         contextExtensions.remove(extensionId)
     }
 
@@ -393,7 +409,14 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         hookRegistry.putOwned("Хук", hook.hookId.lowercase(), hook)
     }
 
-    override fun unregisterHook(hookId: String) = hookRegistry.remove(hookId.lowercase())
+    override fun unregisterHook(hookId: String) {
+        val key = hookId.lowercase()
+        if (!KSLResourceOwnershipPolicy.mayUnregister(currentlyLoading.get(), hookRegistry.ownerOf(key))) {
+            plugin.logger.warning("§9[KSL] Хук '$hookId' не удалён: он принадлежит другому владельцу")
+            return
+        }
+        hookRegistry.remove(key)
+    }
 
     override fun getHook(hookId: String): KSLHook? = hookRegistry.get(hookId.lowercase())
 
@@ -417,13 +440,27 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         plugin.placeholders.putOwned("Плейсхолдер", key.lowercase(), resolver)
     }
 
-    override fun unregisterPlaceholder(key: String) = plugin.placeholders.remove(key.lowercase())
+    override fun unregisterPlaceholder(key: String) {
+        val normalized = key.lowercase()
+        if (!KSLResourceOwnershipPolicy.mayUnregister(currentlyLoading.get(), plugin.placeholders.ownerOf(normalized))) {
+            plugin.logger.warning("§9[KSL] Placeholder '$key' не удалён: он принадлежит другому владельцу")
+            return
+        }
+        plugin.placeholders.remove(normalized)
+    }
 
     override fun registerTextPlaceholder(key: String, resolver: (Player?) -> String?) {
         plugin.registerTextPlaceholder(currentlyLoading.get() ?: "addon", key, resolver)
     }
 
-    override fun unregisterTextPlaceholder(key: String) = plugin.textPlaceholders.remove(key.lowercase())
+    override fun unregisterTextPlaceholder(key: String) {
+        val normalized = key.lowercase()
+        if (!KSLResourceOwnershipPolicy.mayUnregister(currentlyLoading.get(), plugin.textPlaceholders.ownerOf(normalized))) {
+            plugin.logger.warning("§9[KSL] Текстовый placeholder '$key' не удалён: он принадлежит другому владельцу")
+            return
+        }
+        plugin.textPlaceholders.remove(normalized)
+    }
 
     override fun registerEffectShape(name: String, factory: KSLShapeFactory) {
         effectShapes.putOwned("Форма эффекта", name.lowercase(), factory)
