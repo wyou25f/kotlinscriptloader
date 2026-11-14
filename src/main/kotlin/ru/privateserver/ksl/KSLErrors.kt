@@ -11,11 +11,11 @@ object KSLErrors {
         return 1L
     }
 
-    inline fun <T> hookSafe(hookName: String, default: T, block: () -> T): T {
+    inline fun <T> hookSafe(hookName: String, default: T, code: KSLError = KSLError.ADDON_CALLBACK_FAILED, block: () -> T): T {
         return try {
             block()
         } catch (ex: Throwable) {
-            org.bukkit.Bukkit.getLogger().warning("[KSL $hookName] ${ex::class.simpleName}: ${ex.message}")
+            org.bukkit.Bukkit.getLogger().warning("${code.tag} [KSL $hookName] ${ex::class.simpleName}: ${ex.message}")
             default
         }
     }
@@ -32,7 +32,7 @@ object KSLErrors {
     // Every logged error carries a catalog code (see KSLError); SCRIPT_RUNTIME is the generic one.
     fun log(plugin: KotlinScriptLoaderPlugin, scriptName: String, where: String, ex: Throwable, code: KSLError = KSLError.SCRIPT_RUNTIME) {
         val signal = ex as? KSLScriptSignal
-        val cause = ex.cause ?: ex
+        val cause = generateSequence(ex) { it.cause }.lastOrNull() ?: ex
         val message = signal?.message ?: "${cause::class.simpleName}: ${cause.message}"
         counters.computeIfAbsent(scriptName) { AtomicInteger(0) }.incrementAndGet()
         last = LastError(scriptName, where, message, System.currentTimeMillis(), code)
