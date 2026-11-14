@@ -23,7 +23,7 @@ import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
-import org.bukkit.plugin.EventExecutor
+import org.bukkit.internalPlugin.EventExecutor
 import org.bukkit.scheduler.BukkitTask
 import java.io.File
 import java.io.IOException
@@ -42,15 +42,35 @@ import kotlinx.serialization.json.buildJsonObject
 import ru.privateserver.ksl.std.toml.KSLTomlCodec
 
 open class BukkitScriptContext(
-    val plugin: KotlinScriptLoaderPlugin,
+    plugin: KotlinScriptLoaderPlugin,
     val scriptName: String
 ) {
+
+    private val kslPlugin = plugin
+
+    /**
+     * Raw plugin access is retained for trusted scripts and addon compatibility.
+     * Sandboxed scripts must use the explicit KSL context API instead.
+     */
+    val plugin: KotlinScriptLoaderPlugin
+        get() {
+            KSLSandboxAccessPolicy.requireTrustedAccess(scriptName, kslPlugin.isSandboxed(scriptName), "plugin")
+            return kslPlugin
+        }
+
+    @PublishedApi
+    @get:JvmSynthetic
+    internal val internalPlugin: KotlinScriptLoaderPlugin
+        get() = kslPlugin
+
+    private val scriptDatabase: HikariDataSource
+        get() = internalPlugin.database
 
     private val mm: MiniMessage = MiniMessage.miniMessage()
 
     /** Non-fatal warning; execution continues. */
     fun warn(message: String) {
-        plugin.logger.warning("[$scriptName] ⚠ $message")
+        internalPlugin.logger.warning("[$scriptName] ⚠ $message")
     }
 
     /** Logs an error and aborts the current script operation, not the server. */
@@ -60,7 +80,7 @@ open class BukkitScriptContext(
     fun fatal(message: String): Nothing = throw KSLFatalScriptError(message)
 
     private val configFile: File
-        get() = File(plugin.dataFolder, "$scriptName.yml")
+        get() = File(internalPlugin.dataFolder, "$scriptName.yml")
 
     val config: YamlConfiguration by lazy { loadYamlFile(configFile) }
 
@@ -153,7 +173,7 @@ open class BukkitScriptContext(
     @Synchronized
     fun saveConfig() {
         try { writeAtomically(config, configFile) }
-        catch (ex: IOException) { plugin.logger.warning("[$scriptName] ${KSLError.YAML_SAVE_FAILED.tag} Не удалось сохранить $scriptName.yml: ${ex.message}") }
+        catch (ex: IOException) { internalPlugin.logger.warning("[$scriptName] ${KSLError.YAML_SAVE_FAILED.tag} Не удалось сохранить $scriptName.yml: ${ex.message}") }
     }
 
     /**
@@ -196,7 +216,7 @@ open class BukkitScriptContext(
         require(fileName.endsWith(".json", ignoreCase = true)) {
             "$operation expects a .json file: '$fileName'"
         }
-        val root = plugin.scriptsFolder.canonicalFile
+        val root = internalPlugin.scriptsFolder.canonicalFile
         val file = File(root, fileName).canonicalFile
         require(file.toPath() != root.toPath() && file.toPath().startsWith(root.toPath())) {
             "${KSLError.YAML_PATH_ESCAPE.tag} $operation: '$fileName' выходит за пределы scripts/"
@@ -246,7 +266,7 @@ open class BukkitScriptContext(
             }
             true
         } catch (ex: IOException) {
-            plugin.logger.warning("[$scriptName] Не удалось сохранить JSON '$fileName': ${ex.message}")
+            internalPlugin.logger.warning("[$scriptName] Не удалось сохранить JSON '$fileName': ${ex.message}")
             false
         }
     }
@@ -268,7 +288,7 @@ open class BukkitScriptContext(
         require(fileName.endsWith(".toml", ignoreCase = true)) {
             operation + " expects a .toml file: '" + fileName + "'"
         }
-        val root = plugin.scriptsFolder.canonicalFile
+        val root = internalPlugin.scriptsFolder.canonicalFile
         val file = File(root, fileName).canonicalFile
         require(file.toPath() != root.toPath() && file.toPath().startsWith(root.toPath())) {
             KSLError.YAML_PATH_ESCAPE.tag + " " + operation + ": '" + fileName + "' выходит за пределы scripts/"
@@ -309,7 +329,7 @@ open class BukkitScriptContext(
             }
             true
         } catch (ex: Exception) {
-            plugin.logger.warning("[" + scriptName + "] Не удалось сохранить TOML '" + fileName + "': " + ex.message)
+            internalPlugin.logger.warning("[" + scriptName + "] Не удалось сохранить TOML '" + fileName + "': " + ex.message)
             false
         }
     }
@@ -324,7 +344,7 @@ open class BukkitScriptContext(
     }
 
     private fun resolveYamlFile(fileName: String, operation: String): File {
-        val root = plugin.scriptsFolder.canonicalFile
+        val root = internalPlugin.scriptsFolder.canonicalFile
         val file = File(root, fileName).canonicalFile
         // Canonical paths also prevent escaping scripts/ through ../ or symbolic links.
         require(file.toPath() != root.toPath() && file.toPath().startsWith(root.toPath())) {
@@ -357,7 +377,7 @@ open class BukkitScriptContext(
             file.parentFile?.mkdirs()
             writeAtomically(yaml, file)
         } catch (ex: IOException) {
-            plugin.logger.warning("[$scriptName] ${KSLError.YAML_SAVE_FAILED.tag} Не удалось сохранить '$fileName': ${ex.message}")
+            internalPlugin.logger.warning("[$scriptName] ${KSLError.YAML_SAVE_FAILED.tag} Не удалось сохранить '$fileName': ${ex.message}")
         }
     }
 
@@ -371,12 +391,12 @@ open class BukkitScriptContext(
             // the next save would then overwrite the user's file with defaults.
             val backup = File(file.parentFile, "${file.name}.broken-${System.currentTimeMillis()}")
             val saved = runCatching { file.copyTo(backup) }.isSuccess
-            plugin.logger.severe(
+            internalPlugin.logger.severe(
                 "[$scriptName] ${KSLError.YAML_BROKEN.tag} ${file.name} содержит ошибку YAML (${ex.message?.lineSequence()?.firstOrNull()}). " +
                     if (saved) "Копия: ${backup.name}, используется пустой конфиг." else "Копию сделать не удалось, используется пустой конфиг."
             )
         } catch (ex: IOException) {
-            plugin.logger.severe("[$scriptName] ${KSLError.YAML_READ_FAILED.tag} Не удалось прочитать ${file.name}: ${ex.message}")
+            internalPlugin.logger.severe("[$scriptName] ${KSLError.YAML_READ_FAILED.tag} Не удалось прочитать ${file.name}: ${ex.message}")
         }
         return yaml
     }
@@ -417,10 +437,10 @@ open class BukkitScriptContext(
                     .replace("@ping@", player.ping.toString())
             }
             replacements.forEach { (key, value) -> text = text.replace("@$key@", formatPlaceholderValue(value)) }
-            text = KSLTextPlaceholders.apply(text) { key -> plugin.resolveTextPlaceholder(key, player) }
+            text = KSLTextPlaceholders.apply(text) { key -> internalPlugin.resolveTextPlaceholder(key, player) }
         }
 
-        if (player != null && plugin.papiEnabled && text.indexOf('%') >= 0) {
+        if (player != null && internalPlugin.papiEnabled && text.indexOf('%') >= 0) {
             text = KSLPapiResolver.resolve(player, text)
         }
 
@@ -428,7 +448,7 @@ open class BukkitScriptContext(
             unmatchedPlaceholderRegex.findAll(text).forEach { match ->
                 val warnKey = "$path:${match.value}"
                 if (warnedPlaceholders.add(warnKey)) {
-                    plugin.logger.warning("[$scriptName] ${KSLError.PLACEHOLDER_UNMATCHED.tag} В '$path' остался незаменённый плейсхолдер ${match.value} — проверь имя ключа в message()/messageList()/richMessage() или зарегистрируй textPlaceholder")
+                    internalPlugin.logger.warning("[$scriptName] ${KSLError.PLACEHOLDER_UNMATCHED.tag} В '$path' остался незаменённый плейсхолдер ${match.value} — проверь имя ключа в message()/messageList()/richMessage() или зарегистрируй textPlaceholder")
                 }
             }
         }
@@ -438,7 +458,7 @@ open class BukkitScriptContext(
 
     // @key@ in message()/richMessage(); removed when the script unloads. Names of built-in tokens are reserved.
     fun registerTextPlaceholder(key: String, resolver: (Player?) -> String?) =
-        plugin.registerTextPlaceholder("script:$scriptName", key, resolver)
+        internalPlugin.registerTextPlaceholder("script:$scriptName", key, resolver)
 
     fun YamlConfiguration.message(path: String, vararg replacements: Pair<String, Any?>): String {
         val raw = getString(path) ?: return path
@@ -514,9 +534,13 @@ open class BukkitScriptContext(
         target.block()
     }
 
-    fun table(name: String): KSLQuickTable = plugin.tableStore.table(name)
+    fun table(name: String): KSLQuickTable = internalPlugin.tableStore.table(name)
 
-    val database: HikariDataSource get() = plugin.database
+    val database: HikariDataSource
+        get() {
+            KSLSandboxAccessPolicy.requireTrustedAccess(scriptName, internalPlugin.isSandboxed(scriptName), "database")
+            return internalPlugin.database
+        }
 
     /** Validates script YAML; missing/invalid values can be replaced by schema defaults. */
     @Synchronized
@@ -546,13 +570,13 @@ open class BukkitScriptContext(
     fun dbExecuteAsync(sql: String, vararg args: Any?): java.util.concurrent.CompletableFuture<Int> =
         try {
             java.util.concurrent.CompletableFuture.supplyAsync({
-                database.connection.use { conn ->
+                scriptDatabase.connection.use { conn ->
                     conn.prepareStatement(sql).use { ps ->
                         args.forEachIndexed { i, arg -> ps.setObject(i + 1, arg) }
                         ps.executeUpdate()
                     }
                 }
-            }, plugin.dbExecutor)
+            }, internalPlugin.dbExecutor)
         } catch (ex: java.util.concurrent.RejectedExecutionException) {
             java.util.concurrent.CompletableFuture.failedFuture(ex)
         }
@@ -568,13 +592,13 @@ open class BukkitScriptContext(
     ): java.util.concurrent.CompletableFuture<T> =
         try {
             java.util.concurrent.CompletableFuture.supplyAsync({
-                database.connection.use { conn ->
+                scriptDatabase.connection.use { conn ->
                     conn.prepareStatement(sql).use { ps ->
                         args.forEachIndexed { i, arg -> ps.setObject(i + 1, arg) }
                         ps.executeQuery().use(mapper)
                     }
                 }
-            }, plugin.dbQueryExecutor)
+            }, internalPlugin.dbQueryExecutor)
         } catch (ex: java.util.concurrent.RejectedExecutionException) {
             java.util.concurrent.CompletableFuture.failedFuture(ex)
         }
@@ -591,26 +615,26 @@ open class BukkitScriptContext(
 
     fun dbExecute(sql: String, vararg args: Any?) {
         dbExecuteAsync(sql, *args).whenComplete { _, error ->
-            if (error != null) plugin.logger.warning("[$scriptName] ${KSLError.DB_SCRIPT_QUERY_FAILED.tag} dbExecute: ${error.cause?.message ?: error.message}")
+            if (error != null) internalPlugin.logger.warning("[$scriptName] ${KSLError.DB_SCRIPT_QUERY_FAILED.tag} dbExecute: ${error.cause?.message ?: error.message}")
         }
     }
 
     fun dbQuery(sql: String, vararg args: Any?, block: (ResultSet) -> Unit) {
         try {
-            plugin.dbQueryExecutor.execute {
+            internalPlugin.dbQueryExecutor.execute {
                 try {
-                    database.connection.use { conn ->
+                    scriptDatabase.connection.use { conn ->
                         conn.prepareStatement(sql).use { ps ->
                             args.forEachIndexed { i, arg -> ps.setObject(i + 1, arg) }
                             ps.executeQuery().use(block)
                         }
                     }
                 } catch (ex: Exception) {
-                    plugin.logger.warning("[$scriptName] ${KSLError.DB_SCRIPT_QUERY_FAILED.tag} dbQuery: ${ex.message}")
+                    internalPlugin.logger.warning("[$scriptName] ${KSLError.DB_SCRIPT_QUERY_FAILED.tag} dbQuery: ${ex.message}")
                 }
             }
         } catch (ex: java.util.concurrent.RejectedExecutionException) {
-            plugin.logger.warning("[$scriptName] ${KSLError.DB_SCRIPT_QUERY_FAILED.tag} Очередь чтения БД заполнена; запрос отклонён")
+            internalPlugin.logger.warning("[$scriptName] ${KSLError.DB_SCRIPT_QUERY_FAILED.tag} Очередь чтения БД заполнена; запрос отклонён")
         }
     }
 
@@ -657,27 +681,27 @@ open class BukkitScriptContext(
         block: () -> Unit
     ) = Runnable {
         try {
-            plugin.measureScriptExecution(scriptName, "task:$where") {
-                val monitor = plugin.watchdogMonitor
+            internalPlugin.measureScriptExecution(scriptName, "task:$where") {
+                val monitor = internalPlugin.watchdogMonitor
                 if (monitor != null) monitor.trackOperation("script '$scriptName' task '$where'", block)
                 else block()
             }
             failures.onSuccess()
         } catch (ex: Throwable) {
-            KSLErrors.log(plugin, scriptName, where, ex, KSLError.TASK_FAILED)
+            KSLErrors.log(internalPlugin, scriptName, where, ex, KSLError.TASK_FAILED)
             if (repeating && failures.onFailure()) {
                 val id = taskId.get()
                 if (id > 0) {
                     Bukkit.getScheduler().cancelTask(id)
-                    plugin.untrackTask(scriptName, id)
+                    internalPlugin.untrackTask(scriptName, id)
                 }
                 completed.set(true)
-                plugin.logger.warning("[$scriptName] Периодическая задача '$where' остановлена после ${plugin.taskFailureLimit} последовательных ошибок")
+                internalPlugin.logger.warning("[$scriptName] Периодическая задача '$where' остановлена после ${internalPlugin.taskFailureLimit} последовательных ошибок")
             }
         } finally {
             if (!repeating) {
                 completed.set(true)
-                taskId.get().takeIf { it > 0 }?.let { plugin.untrackTask(scriptName, it) }
+                taskId.get().takeIf { it > 0 }?.let { internalPlugin.untrackTask(scriptName, it) }
             }
         }
     }
@@ -690,12 +714,12 @@ open class BukkitScriptContext(
     ): Int {
         val taskId = java.util.concurrent.atomic.AtomicInteger()
         val completed = java.util.concurrent.atomic.AtomicBoolean()
-        val failures = KSLTaskFailurePolicy(plugin.taskFailureLimit)
+        val failures = KSLTaskFailurePolicy(internalPlugin.taskFailureLimit)
         val task = schedule(guarded(where, repeating, taskId, completed, failures, block))
         taskId.set(task.taskId)
-        plugin.trackTask(scriptName, task.taskId)
+        internalPlugin.trackTask(scriptName, task.taskId)
         // A very short async task may finish before its id is published.
-        if (completed.get()) plugin.untrackTask(scriptName, task.taskId)
+        if (completed.get()) internalPlugin.untrackTask(scriptName, task.taskId)
         return task.taskId
     }
 
@@ -704,17 +728,17 @@ open class BukkitScriptContext(
 
     /** Runs work on KSL's bounded priority-aware worker pool. Bukkit world access belongs in runSync(). */
     fun worker(priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL, block: () -> Unit): Long =
-        plugin.submitWorker(scriptName, priority) {
+        internalPlugin.submitWorker(scriptName, priority) {
             try {
-                plugin.measureScriptExecution(scriptName, "worker:$priority", block)
+                internalPlugin.measureScriptExecution(scriptName, "worker:$priority", block)
             } catch (ex: Throwable) {
-                KSLErrors.log(plugin, scriptName, "worker:$priority", ex, KSLError.TASK_FAILED)
+                KSLErrors.log(internalPlugin, scriptName, "worker:$priority", ex, KSLError.TASK_FAILED)
             }
         }
 
     fun cpu(block: () -> Unit): Long = worker(block = block)
     fun work(block: () -> Unit): Long = worker(block = block)
-    fun cancelWorker(taskId: Long): Boolean = plugin.cancelWorker(taskId)
+    fun cancelWorker(taskId: Long): Boolean = internalPlugin.cancelWorker(taskId)
 
     fun runSync(block: () -> Unit): Int =
         scheduleTracked("runSync", block = block) { Bukkit.getScheduler().runTask(plugin, it) }
@@ -723,7 +747,7 @@ open class BukkitScriptContext(
         scheduleTracked("delay", block = block) { Bukkit.getScheduler().runTaskLater(plugin, it, ticks) }
 
     fun every(ticks: Long, initialDelay: Long = 0L, block: () -> Unit): Int {
-        val period = KSLErrors.validPeriod(plugin, scriptName, "every", ticks)
+        val period = KSLErrors.validPeriod(internalPlugin, scriptName, "every", ticks)
         return scheduleTracked("every", repeating = true, block = block) { Bukkit.getScheduler().runTaskTimer(plugin, it, initialDelay, period) }
     }
 
@@ -739,7 +763,7 @@ open class BukkitScriptContext(
         scheduleTracked("delayAsync", block = block) { Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, it, ticks) }
 
     fun everyAsync(ticks: Long, initialDelay: Long = 0L, block: () -> Unit): Int {
-        val period = KSLErrors.validPeriod(plugin, scriptName, "everyAsync", ticks)
+        val period = KSLErrors.validPeriod(internalPlugin, scriptName, "everyAsync", ticks)
         return scheduleTracked("everyAsync", repeating = true, block = block) {
             Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, it, initialDelay, period)
         }
@@ -755,7 +779,7 @@ open class BukkitScriptContext(
     // Works for any id returned by delay/every/runSync/...; stopEffect is the same call for effects.
     fun cancelTask(taskId: Int) {
         Bukkit.getScheduler().cancelTask(taskId)
-        plugin.untrackTask(scriptName, taskId)
+        internalPlugin.untrackTask(scriptName, taskId)
     }
 
     inline fun <reified T : Event> onEvent(
@@ -767,16 +791,16 @@ open class BukkitScriptContext(
         val executor = EventExecutor { _, event ->
             if (event is T) {
                 try {
-                    plugin.measureScriptExecution(scriptName, "event:${T::class.simpleName}") {
+                    internalPlugin.measureScriptExecution(scriptName, "event:${T::class.simpleName}") {
                         event.action()
                     }
                 } catch (ex: Throwable) {
-                    KSLErrors.log(plugin, scriptName, "onEvent<${T::class.simpleName}>", ex, KSLError.EVENT_HANDLER_FAILED)
+                    KSLErrors.log(internalPlugin, scriptName, "onEvent<${T::class.simpleName}>", ex, KSLError.EVENT_HANDLER_FAILED)
                 }
             }
         }
-        Bukkit.getPluginManager().registerEvent(T::class.java, listener, priority, executor, plugin, ignoreCancelled)
-        plugin.trackListener(scriptName, listener)
+        Bukkit.getPluginManager().registerEvent(T::class.java, listener, priority, executor, internalPlugin, ignoreCancelled)
+        internalPlugin.trackListener(scriptName, listener)
     }
 
     inline fun <reified T : Event> on(
@@ -795,7 +819,7 @@ open class BukkitScriptContext(
         val completer: ((CommandSender, Array<String>) -> List<String>)? = tabComplete?.let { tab ->
             { sender: CommandSender, args: Array<String> -> if (sender is Player) tab(sender, args) else emptyList() }
         }
-        addCommand(DynamicCommand(name, aliases, scriptName, plugin, permission, completer, true) { sender, args ->
+        addCommand(DynamicCommand(name, aliases, scriptName, internalPlugin, permission, completer, true) { sender, args ->
             action(sender as Player, args)
         })
     }
@@ -817,7 +841,7 @@ open class BukkitScriptContext(
         tabComplete: ((CommandSender, Array<String>) -> List<String>)? = null,
         action: (CommandSender, Array<String>) -> Unit
     ) {
-        addCommand(DynamicCommand(name, aliases, scriptName, plugin, permission, tabComplete, false, action))
+        addCommand(DynamicCommand(name, aliases, scriptName, internalPlugin, permission, tabComplete, false, action))
     }
 
     /** Short alias for registerCommandAny(). */
@@ -830,15 +854,15 @@ open class BukkitScriptContext(
     ) = registerCommandAny(name, aliases, permission, tabComplete, action)
 
     private fun addCommand(command: DynamicCommand) {
-        Bukkit.getCommandMap().register(plugin.name.lowercase(), command)
-        plugin.trackCommand(scriptName, command)
+        Bukkit.getCommandMap().register(internalPlugin.name.lowercase(), command)
+        internalPlugin.trackCommand(scriptName, command)
     }
 
     // Subscriptions are dropped automatically when the script unloads.
     fun subscribe(topic: String, handler: (Any?) -> Unit): AutoCloseable =
-        plugin.addonManager.subscribeFromScript(scriptName, topic, handler)
+        internalPlugin.addonManager.subscribeFromScript(scriptName, topic, handler)
 
-    fun publish(topic: String, payload: Any? = null): Int = plugin.addonManager.publish(topic, payload)
+    fun publish(topic: String, payload: Any? = null): Int = internalPlugin.addonManager.publish(topic, payload)
 
     fun parseMM(text: String): Component = mm.deserialize(text)
 
@@ -901,90 +925,90 @@ open class BukkitScriptContext(
     }
 
     var Player.balance: Double?
-        get() = plugin.essentials?.balance(this)
-        set(value) { if (value != null) plugin.essentials?.setBalance(this, value) }
+        get() = internalPlugin.essentials?.balance(this)
+        set(value) { if (value != null) internalPlugin.essentials?.setBalance(this, value) }
 
     val Player.group: String?
-        get() = plugin.luckPerms?.primaryGroup(this)
+        get() = internalPlugin.luckPerms?.primaryGroup(this)
 
     val Player.prefix: String?
-        get() = plugin.luckPerms?.prefix(this)
+        get() = internalPlugin.luckPerms?.prefix(this)
 
     fun ItemStack.setTag(key: String, value: String) {
         val meta = itemMeta ?: return
-        meta.persistentDataContainer.set(NamespacedKey(plugin, key), PersistentDataType.STRING, value)
+        meta.persistentDataContainer.set(NamespacedKey(internalPlugin, key), PersistentDataType.STRING, value)
         itemMeta = meta
     }
 
     fun ItemStack.getTag(key: String): String? =
-        itemMeta?.persistentDataContainer?.get(NamespacedKey(plugin, key), PersistentDataType.STRING)
+        itemMeta?.persistentDataContainer?.get(NamespacedKey(internalPlugin, key), PersistentDataType.STRING)
 
     fun ItemStack.hasTag(key: String): Boolean =
-        itemMeta?.persistentDataContainer?.has(NamespacedKey(plugin, key), PersistentDataType.STRING) == true
+        itemMeta?.persistentDataContainer?.has(NamespacedKey(internalPlugin, key), PersistentDataType.STRING) == true
 
     fun registerPlaceholder(key: String, resolver: (OfflinePlayer) -> String?) {
-        if (!plugin.papiEnabled) {
-            plugin.logger.warning("[$scriptName] ${KSLError.PAPI_MISSING.tag} PlaceholderAPI не найден — плейсхолдер '$key' пропущен"); return
+        if (!internalPlugin.papiEnabled) {
+            internalPlugin.logger.warning("[$scriptName] ${KSLError.PAPI_MISSING.tag} PlaceholderAPI не найден — плейсхолдер '$key' пропущен"); return
         }
-        plugin.registerPlaceholder(scriptName, key, resolver)
+        internalPlugin.registerPlaceholder(scriptName, key, resolver)
     }
 
-    fun luckPermsGroup(player: Player): String? = plugin.luckPerms?.primaryGroup(player)
-    fun luckPermsPrefix(player: Player): String? = plugin.luckPerms?.prefix(player)
-    fun luckPermsSuffix(player: Player): String? = plugin.luckPerms?.suffix(player)
-    fun hasGroup(player: Player, group: String): Boolean = plugin.luckPerms?.isInGroup(player, group) ?: false
+    fun luckPermsGroup(player: Player): String? = internalPlugin.luckPerms?.primaryGroup(player)
+    fun luckPermsPrefix(player: Player): String? = internalPlugin.luckPerms?.prefix(player)
+    fun luckPermsSuffix(player: Player): String? = internalPlugin.luckPerms?.suffix(player)
+    fun hasGroup(player: Player, group: String): Boolean = internalPlugin.luckPerms?.isInGroup(player, group) ?: false
 
-    fun balance(player: Player): Double? = plugin.essentials?.balance(player)
-    fun setBalance(player: Player, amount: Double) { plugin.essentials?.setBalance(player, amount) }
-    fun isAfk(player: Player): Boolean = plugin.essentials?.isAfk(player) ?: false
+    fun balance(player: Player): Double? = internalPlugin.essentials?.balance(player)
+    fun setBalance(player: Player, amount: Double) { internalPlugin.essentials?.setBalance(player, amount) }
+    fun isAfk(player: Player): Boolean = internalPlugin.essentials?.isAfk(player) ?: false
 
-    fun weSelection(player: Player): Pair<org.bukkit.Location, org.bukkit.Location>? = plugin.worldEdit?.selection(player)
-    fun weSelectionVolume(player: Player): Long? = plugin.worldEdit?.selectionVolume(player)
-    fun weFillSelection(player: Player, material: org.bukkit.Material): Int? = plugin.worldEdit?.fillSelection(player, material)
-    fun weHasClipboard(player: Player): Boolean = plugin.worldEdit?.hasClipboard(player) ?: false
+    fun weSelection(player: Player): Pair<org.bukkit.Location, org.bukkit.Location>? = internalPlugin.worldEdit?.selection(player)
+    fun weSelectionVolume(player: Player): Long? = internalPlugin.worldEdit?.selectionVolume(player)
+    fun weFillSelection(player: Player, material: org.bukkit.Material): Int? = internalPlugin.worldEdit?.fillSelection(player, material)
+    fun weHasClipboard(player: Player): Boolean = internalPlugin.worldEdit?.hasClipboard(player) ?: false
 
-    fun wgRegionsAt(location: org.bukkit.Location): List<String> = plugin.worldGuard?.regionsAt(location) ?: emptyList()
-    fun wgIsInRegion(location: org.bukkit.Location, regionId: String): Boolean = plugin.worldGuard?.isInRegion(location, regionId) ?: false
-    fun wgCanBuild(player: Player, location: org.bukkit.Location): Boolean = plugin.worldGuard?.canBuild(player, location) ?: true
-    fun wgCanPvp(player: Player, location: org.bukkit.Location): Boolean = plugin.worldGuard?.canPvp(player, location) ?: true
-    fun wgFlag(location: org.bukkit.Location, flagName: String, player: Player? = null): String? = plugin.worldGuard?.flagValue(location, flagName, player)
+    fun wgRegionsAt(location: org.bukkit.Location): List<String> = internalPlugin.worldGuard?.regionsAt(location) ?: emptyList()
+    fun wgIsInRegion(location: org.bukkit.Location, regionId: String): Boolean = internalPlugin.worldGuard?.isInRegion(location, regionId) ?: false
+    fun wgCanBuild(player: Player, location: org.bukkit.Location): Boolean = internalPlugin.worldGuard?.canBuild(player, location) ?: true
+    fun wgCanPvp(player: Player, location: org.bukkit.Location): Boolean = internalPlugin.worldGuard?.canPvp(player, location) ?: true
+    fun wgFlag(location: org.bukkit.Location, flagName: String, player: Player? = null): String? = internalPlugin.worldGuard?.flagValue(location, flagName, player)
 
-    fun vaultBalance(player: OfflinePlayer): Double? = plugin.vault?.balance(player)
-    fun vaultDeposit(player: OfflinePlayer, amount: Double): Boolean = plugin.vault?.deposit(player, amount) ?: false
-    fun vaultWithdraw(player: OfflinePlayer, amount: Double): Boolean = plugin.vault?.withdraw(player, amount) ?: false
-    fun vaultHas(player: OfflinePlayer, amount: Double): Boolean = plugin.vault?.has(player, amount) ?: false
-    fun vaultFormat(amount: Double): String = plugin.vault?.format(amount) ?: amount.toString()
-    fun vaultHasPermission(player: Player, node: String): Boolean = plugin.vault?.hasPermission(player, node) ?: player.hasPermission(node)
-    fun vaultGroup(player: Player): String? = plugin.vault?.playerGroup(player)
-    fun vaultInGroup(player: Player, group: String): Boolean = plugin.vault?.playerInGroup(player, group) ?: false
+    fun vaultBalance(player: OfflinePlayer): Double? = internalPlugin.vault?.balance(player)
+    fun vaultDeposit(player: OfflinePlayer, amount: Double): Boolean = internalPlugin.vault?.deposit(player, amount) ?: false
+    fun vaultWithdraw(player: OfflinePlayer, amount: Double): Boolean = internalPlugin.vault?.withdraw(player, amount) ?: false
+    fun vaultHas(player: OfflinePlayer, amount: Double): Boolean = internalPlugin.vault?.has(player, amount) ?: false
+    fun vaultFormat(amount: Double): String = internalPlugin.vault?.format(amount) ?: amount.toString()
+    fun vaultHasPermission(player: Player, node: String): Boolean = internalPlugin.vault?.hasPermission(player, node) ?: player.hasPermission(node)
+    fun vaultGroup(player: Player): String? = internalPlugin.vault?.playerGroup(player)
+    fun vaultInGroup(player: Player, group: String): Boolean = internalPlugin.vault?.playerInGroup(player, group) ?: false
 
-    fun setSkin(player: Player, skinName: String): Boolean = plugin.skinRestorer?.setSkin(player, skinName) ?: false
+    fun setSkin(player: Player, skinName: String): Boolean = internalPlugin.skinRestorer?.setSkin(player, skinName) ?: false
     fun setSkinRaw(player: Player, value: String, signature: String): Boolean =
-        plugin.skinRestorer?.setSkinRaw(player, value, signature) ?: false
+        internalPlugin.skinRestorer?.setSkinRaw(player, value, signature) ?: false
 
     fun cooldown(player: Player, key: String, seconds: Long): Boolean =
-        plugin.cooldownStore.tryUse("$scriptName:$key:${player.uniqueId}", seconds)
+        internalPlugin.cooldownStore.tryUse("$scriptName:$key:${player.uniqueId}", seconds)
 
     fun cooldownRemaining(player: Player, key: String, seconds: Long): Long =
-        plugin.cooldownStore.remaining("$scriptName:$key:${player.uniqueId}", seconds)
+        internalPlugin.cooldownStore.remaining("$scriptName:$key:${player.uniqueId}", seconds)
 
     fun resetCooldown(player: Player, key: String) =
-        plugin.cooldownStore.reset("$scriptName:$key:${player.uniqueId}")
+        internalPlugin.cooldownStore.reset("$scriptName:$key:${player.uniqueId}")
 
     fun export(key: String, value: Any) {
-        plugin.libraryRegistry.export(scriptName, key, value)
+        internalPlugin.libraryRegistry.export(scriptName, key, value)
     }
 
     /** Namespaced, typed and version-labelled exports shared between scripts. */
     val meslib2: ru.privateserver.ksl.meslib2.MesLib2 by lazy(LazyThreadSafetyMode.PUBLICATION) {
         ru.privateserver.ksl.meslib2.MesLib2(
             owner = scriptName,
-            exportValue = plugin.libraryRegistry::export,
-            getValue = plugin.libraryRegistry::get,
-            ownerOf = plugin.libraryRegistry::ownerOf,
-            removeValue = plugin.libraryRegistry::remove,
-            exportIfAbsentValue = plugin.libraryRegistry::exportIfAbsent,
-            exportedKeys = plugin.libraryRegistry::keys
+            exportValue = internalPlugin.libraryRegistry::export,
+            getValue = internalPlugin.libraryRegistry::get,
+            ownerOf = internalPlugin.libraryRegistry::ownerOf,
+            removeValue = internalPlugin.libraryRegistry::remove,
+            exportIfAbsentValue = internalPlugin.libraryRegistry::exportIfAbsent,
+            exportedKeys = internalPlugin.libraryRegistry::keys
         )
     }
 
@@ -993,28 +1017,28 @@ open class BukkitScriptContext(
     val lib2: ru.privateserver.ksl.meslib2.MesLib2 get() = meslib2
     val libs: ru.privateserver.ksl.meslib2.MesLib2 get() = meslib2
 
-    inline fun <reified T : Any> library(key: String): T? = plugin.libraryRegistry.get(key) as? T
+    inline fun <reified T : Any> library(key: String): T? = internalPlugin.libraryRegistry.get(key) as? T
 
     inline fun <reified T : Any> requireLibrary(key: String): T =
         library<T>(key) ?: error("Библиотека '$key' не найдена — проверь, что скрипт с export(\"$key\", ...) загружен раньше (см. @requires)")
 
     fun gui(title: String, rows: Int = 3, builder: KSLGuiInstance.() -> Unit): KSLGuiInstance {
-        val instance = KSLGuiInstance(scriptName, plugin, rows, title)
-        plugin.trackGui(scriptName)
+        val instance = KSLGuiInstance(scriptName, internalPlugin, rows, title)
+        internalPlugin.trackGui(scriptName)
         instance.builder()
         return instance
     }
 
     fun <T> persist(key: String, persistent: Boolean = false, default: () -> T): KSLPersistProperty<T> =
-        plugin.persistStore.property(scriptName, key, persistent, default)
+        internalPlugin.persistStore.property(scriptName, key, persistent, default)
 
     fun executeConsole(command: String) {
         // The one DSL call that runs with full console rights; op, stop and similar are refused by default.
-        if (!plugin.canScriptExecuteConsole(scriptName, command)) {
-            plugin.logger.warning("[$scriptName] ${KSLError.COMMAND_BLOCKED.tag} Консольная команда '${command.trim().substringBefore(' ')}' заблокирована правилами безопасности")
+        if (!internalPlugin.canScriptExecuteConsole(scriptName, command)) {
+            internalPlugin.logger.warning("[$scriptName] ${KSLError.COMMAND_BLOCKED.tag} Консольная команда '${command.trim().substringBefore(' ')}' заблокирована правилами безопасности")
             return
         }
-        plugin.logger.info("[KSL] Скрипт '$scriptName' выполняет консольную команду: $command")
+        internalPlugin.logger.info("[KSL] Скрипт '$scriptName' выполняет консольную команду: $command")
         if (org.bukkit.Bukkit.isPrimaryThread()) {
             org.bukkit.Bukkit.dispatchCommand(org.bukkit.Bukkit.getConsoleSender(), command)
         } else {
@@ -1022,11 +1046,11 @@ open class BukkitScriptContext(
         }
     }
 
-    inline fun <reified T : Any> service(key: String): T? = plugin.addonManager.getService(key) as? T
+    inline fun <reified T : Any> service(key: String): T? = internalPlugin.addonManager.getService(key) as? T
 
     fun discordSend(channel: String, message: String) {
-        plugin.discord?.send(channel, message)
-            ?: plugin.logger.warning("[$scriptName] ${KSLError.DISCORD_NOT_CONFIGURED.tag} discordSend: Discord не настроен в config.yml")
+        internalPlugin.discord?.send(channel, message)
+            ?: internalPlugin.logger.warning("[$scriptName] ${KSLError.DISCORD_NOT_CONFIGURED.tag} discordSend: Discord не настроен в config.yml")
     }
 
     fun discordEmbed(
@@ -1038,13 +1062,13 @@ open class BukkitScriptContext(
         fields: List<KSLDiscordEmbedField> = emptyList(),
         allowMentions: Boolean = false
     ) {
-        plugin.discord?.sendEmbed(channel, title, description, color, footer, allowMentions, fields)
-            ?: plugin.logger.warning("[$scriptName] ${KSLError.DISCORD_NOT_CONFIGURED.tag} discordEmbed: Discord не настроен в config.yml")
+        internalPlugin.discord?.sendEmbed(channel, title, description, color, footer, allowMentions, fields)
+            ?: internalPlugin.logger.warning("[$scriptName] ${KSLError.DISCORD_NOT_CONFIGURED.tag} discordEmbed: Discord не настроен в config.yml")
     }
 
     /** Sends a Discord message asynchronously; true means Discord returned a successful HTTP status. */
     fun discordSendAsync(channel: String, message: String, allowMentions: Boolean = false): java.util.concurrent.CompletableFuture<Boolean> =
-        plugin.discord?.sendAsync(channel, message, allowMentions)
+        internalPlugin.discord?.sendAsync(channel, message, allowMentions)
             ?: java.util.concurrent.CompletableFuture.completedFuture(false)
 
     /** Sends an embed with optional fields without blocking the Bukkit server thread. */
@@ -1057,7 +1081,7 @@ open class BukkitScriptContext(
         fields: List<KSLDiscordEmbedField> = emptyList(),
         allowMentions: Boolean = false
     ): java.util.concurrent.CompletableFuture<Boolean> =
-        plugin.discord?.sendEmbedAsync(channel, title, description, color, footer, allowMentions, fields)
+        internalPlugin.discord?.sendEmbedAsync(channel, title, description, color, footer, allowMentions, fields)
             ?: java.util.concurrent.CompletableFuture.completedFuture(false)
 
     // Concise Discord aliases. All paths delegate to the canonical methods above.
@@ -1089,9 +1113,9 @@ open class BukkitScriptContext(
 
     fun Location.playEffect(particle: Particle, builder: KSLEffectSpec.() -> Unit): Int {
         val frozen = this.clone()
-        val spec = KSLEffectSpec(particle, { frozen }, plugin.addonManager.effectShapes)
+        val spec = KSLEffectSpec(particle, { frozen }, internalPlugin.addonManager.effectShapes)
         spec.builder()
-        return plugin.effectManager.play(scriptName, spec)
+        return internalPlugin.effectManager.play(scriptName, spec)
     }
 
     fun Entity.playEffect(particle: Particle, follow: Boolean = false, builder: KSLEffectSpec.() -> Unit): Int {
@@ -1102,10 +1126,10 @@ open class BukkitScriptContext(
             val frozen = entity.location.clone()
             ({ frozen })
         }
-        val spec = KSLEffectSpec(particle, supplier, plugin.addonManager.effectShapes)
+        val spec = KSLEffectSpec(particle, supplier, internalPlugin.addonManager.effectShapes)
         if (follow) spec.stopCondition = { !entity.isValid }
         spec.builder()
-        return plugin.effectManager.play(scriptName, spec)
+        return internalPlugin.effectManager.play(scriptName, spec)
     }
 
     fun stopEffect(taskId: Int) = cancelTask(taskId)
@@ -1120,7 +1144,7 @@ open class BukkitScriptContext(
         val typeName = attrs["TYPE"]
         val type = typeName?.let { runCatching { EntityType.valueOf(it.uppercase()) }.getOrNull() }
             ?: EntityType.ZOMBIE.also {
-                if (typeName != null) plugin.logger.warning("[$scriptName] ${KSLError.ENTITY_UNKNOWN_TYPE.tag} spawnCustomEntity: неизвестный TYPE:$typeName — использую ZOMBIE")
+                if (typeName != null) internalPlugin.logger.warning("[$scriptName] ${KSLError.ENTITY_UNKNOWN_TYPE.tag} spawnCustomEntity: неизвестный TYPE:$typeName — использую ZOMBIE")
             }
         val world = location.world ?: error("${KSLError.ENTITY_NO_WORLD.tag} spawnCustomEntity: у локации нет мира")
         val spawned = world.spawnEntity(location, type)
@@ -1129,7 +1153,7 @@ open class BukkitScriptContext(
             error("${KSLError.ENTITY_NOT_LIVING.tag} spawnCustomEntity: TYPE:${type.name} — не LivingEntity (нужен живой моб вроде ZOMBIE/SKELETON/COW), заспавненная сущность удалена")
         }
 
-        plugin.entityManager.trackSpawn(scriptName, entity, removeOnReload)
+        internalPlugin.entityManager.trackSpawn(scriptName, entity, removeOnReload)
         try {
             attrs["NAME"]?.let { name ->
                 entity.customName(parseMM(name))
@@ -1142,7 +1166,7 @@ open class BukkitScriptContext(
                     entity.setMaxHealth(hp)
                     entity.health = hp
                 } else {
-                    plugin.logger.warning("[$scriptName] ${KSLError.ENTITY_BAD_HP.tag} spawnCustomEntity: HP:$hp вне (0, 1024] — игнорирую")
+                    internalPlugin.logger.warning("[$scriptName] ${KSLError.ENTITY_BAD_HP.tag} spawnCustomEntity: HP:$hp вне (0, 1024] — игнорирую")
                 }
             }
             attrs["AI"]?.toBooleanStrictOrNull()?.let { entity.setAI(it) }
@@ -1152,19 +1176,19 @@ open class BukkitScriptContext(
             // Template keys beyond the core ones come from the attribute registry (built-ins and addons).
             attrs.forEach { (key, value) ->
                 if (key in KSLEntityAttributes.coreKeys) return@forEach
-                val handler = plugin.addonManager.entityAttributes.get(key)
+                val handler = internalPlugin.addonManager.entityAttributes.get(key)
                 if (handler == null) {
-                    val known = (KSLEntityAttributes.coreKeys + plugin.addonManager.entityAttributes.keys()).sorted()
-                    plugin.logger.warning("[$scriptName] ${KSLError.ENTITY_UNKNOWN_ATTRIBUTE.tag} spawnCustomEntity: неизвестный атрибут $key (доступны: ${known.joinToString(", ")})")
+                    val known = (KSLEntityAttributes.coreKeys + internalPlugin.addonManager.entityAttributes.keys()).sorted()
+                    internalPlugin.logger.warning("[$scriptName] ${KSLError.ENTITY_UNKNOWN_ATTRIBUTE.tag} spawnCustomEntity: неизвестный атрибут $key (доступны: ${known.joinToString(", ")})")
                     return@forEach
                 }
                 runCatching { handler(entity, value) }
-                    .onFailure { plugin.logger.warning("[$scriptName] ${KSLError.ENTITY_ATTRIBUTE_FAILED.tag} spawnCustomEntity: $key:$value — ${it.message}") }
+                    .onFailure { internalPlugin.logger.warning("[$scriptName] ${KSLError.ENTITY_ATTRIBUTE_FAILED.tag} spawnCustomEntity: $key:$value — ${it.message}") }
             }
-            KSLEntityBuilder(entity, plugin, scriptName).builder()
+            KSLEntityBuilder(entity, internalPlugin, scriptName).builder()
         } catch (ex: Throwable) {
             // Do not leave a half-initialised mob in the world.
-            plugin.entityManager.forget(scriptName, entity)
+            internalPlugin.entityManager.forget(scriptName, entity)
             entity.remove()
             throw ex
         }
@@ -1172,6 +1196,6 @@ open class BukkitScriptContext(
     }
 
     fun LivingEntity.behavior(builder: KSLEntityBehaviorBuilder.() -> Unit) {
-        KSLEntityBehaviorBuilder(plugin, scriptName, this).builder()
+        KSLEntityBehaviorBuilder(internalPlugin, scriptName, this).builder()
     }
 }
