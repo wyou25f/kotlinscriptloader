@@ -55,6 +55,14 @@ work to the server thread when necessary. Close the returned `AutoCloseable`
 when a manually managed subscription is no longer needed. Subscriptions made
 inside an addon's `onLoad` are automatically removed when that addon unloads.
 
+During addon lifecycle callbacks, unregister operations only remove resources
+owned by the current addon; an addon cannot remove another addon's services,
+hooks, placeholders, context extensions or Standard Library modules by key.
+Calls made outside an addon lifecycle context remain host-level operations.
+Standard Library modules are uninstalled in reverse dependency order during
+KSL shutdown before addon teardown, so cross-owner module dependencies do not
+silently skip an addon's `onUnload`.
+
 ### IntelliJ completion
 
 Add the matching KSL plugin JAR as a compile-only dependency in an IDE Gradle
