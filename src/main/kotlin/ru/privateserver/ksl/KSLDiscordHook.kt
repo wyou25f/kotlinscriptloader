@@ -8,6 +8,21 @@ import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
+// Reject malformed or non-Discord URLs before they can fail an async send call.
+internal fun isDiscordWebhookUrl(value: String): Boolean = try {
+    val uri = URI(value)
+    val host = uri.host?.lowercase()
+    uri.scheme.equals("https", ignoreCase = true) &&
+        (host == "discord.com" || host == "discordapp.com") &&
+        (uri.port == -1 || uri.port == 443) &&
+        uri.userInfo == null &&
+        uri.fragment == null &&
+        uri.path.startsWith("/api/webhooks/") &&
+        uri.path.removePrefix("/api/webhooks/").isNotBlank()
+} catch (_: Exception) {
+    false
+}
+
 // JSON string literal for the webhook payload. Control characters below 0x20 must be escaped too.
 internal fun jsonString(value: String): String {
     val out = StringBuilder(value.length + 2).append('"')
@@ -47,7 +62,7 @@ class KSLDiscordHook(private val plugin: KotlinScriptLoaderPlugin) {
         val section = plugin.config.getConfigurationSection("discord.webhooks") ?: return@run emptyMap()
         section.getKeys(false)
             .associateWith { section.getString(it, "") ?: "" }
-            .filterValues { it.startsWith("https://discord.com/api/webhooks/") || it.startsWith("https://discordapp.com/api/webhooks/") }
+            .filterValues(::isDiscordWebhookUrl)
     }
 
     fun isConfigured(channel: String): Boolean = webhooks.containsKey(channel)
@@ -108,35 +123,55 @@ class KSLDiscordHook(private val plugin: KotlinScriptLoaderPlugin) {
     }
 
     // Webhook URLs contain secret tokens: never include URLs or request bodies in logs.
+    // Retries are chained asynchronously: never block HttpClient's completion thread with join().
     private fun post(channel: String, url: String, json: String, attempt: Int = 0): CompletableFuture<Boolean> {
-        val request = HttpRequest.newBuilder()
-            .uri(URI.create(url))
-            .header("Content-Type", "application/json")
-            .header("User-Agent", "KotlinScriptLoader/${plugin.description.version}")
-            .POST(HttpRequest.BodyPublishers.ofString(json))
-            .timeout(Duration.ofSeconds(10))
-            .build()
+        val request = try {
+            HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Content-Type", "application/json")
+                .header("User-Agent", "KotlinScriptLoader/${plugin.description.version}")
+                .POST(HttpRequest.BodyPublishers.ofString(json))
+                .timeout(Duration.ofSeconds(10))
+                .build()
+        } catch (ex: Exception) {
+            plugin.logger.warning("[Discord] ${KSLError.DISCORD_SEND_FAILED.tag} Некорректный webhook для канала '$channel': ${ex.javaClass.simpleName}")
+            return CompletableFuture.completedFuture(false)
+        }
 
         return client.sendAsync(request, HttpResponse.BodyHandlers.discarding()).handle { response, ex ->
             when {
+                ex != null && attempt < MAX_RETRIES -> retry(channel, url, json, attempt, backoffMillis(attempt))
                 ex != null -> {
                     plugin.logger.warning("[Discord] ${KSLError.DISCORD_SEND_FAILED.tag} Ошибка отправки в канал '$channel': ${ex.javaClass.simpleName}")
-                    false
+                    CompletableFuture.completedFuture(false)
                 }
                 response.statusCode() == 429 && attempt < MAX_RETRIES -> {
                     val seconds = response.headers().firstValue("retry-after").orElse("1").toDoubleOrNull() ?: 1.0
                     val delayMs = (seconds * 1000).toLong().coerceIn(100L, 10_000L)
-                    CompletableFuture.supplyAsync(
-                        { true },
-                        CompletableFuture.delayedExecutor(delayMs, TimeUnit.MILLISECONDS)
-                    ).thenCompose { post(channel, url, json, attempt + 1) }.join()
+                    retry(channel, url, json, attempt, delayMs)
                 }
-                response.statusCode() in 200..299 -> true
+                response.statusCode() in 500..599 && attempt < MAX_RETRIES ->
+                    retry(channel, url, json, attempt, backoffMillis(attempt))
+                response.statusCode() in 200..299 -> CompletableFuture.completedFuture(true)
                 else -> {
                     plugin.logger.warning("[Discord] ${KSLError.DISCORD_HTTP_ERROR.tag} HTTP ${response.statusCode()} при отправке в канал '$channel'")
-                    false
+                    CompletableFuture.completedFuture(false)
                 }
             }
-        }
+        }.thenCompose { it }
     }
+
+    private fun backoffMillis(attempt: Int): Long = (500L shl attempt.coerceIn(0, 4)).coerceAtMost(5_000L)
+
+    private fun retry(
+        channel: String,
+        url: String,
+        json: String,
+        attempt: Int,
+        delayMs: Long
+    ): CompletableFuture<Boolean> =
+        CompletableFuture.supplyAsync(
+            { post(channel, url, json, attempt + 1) },
+            CompletableFuture.delayedExecutor(delayMs, TimeUnit.MILLISECONDS)
+        ).thenCompose { it }
 }

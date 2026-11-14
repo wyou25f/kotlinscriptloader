@@ -1,6 +1,7 @@
 package ru.privateserver.ksl
 
 import java.sql.Connection
+import java.util.concurrent.RejectedExecutionException
 import kotlin.reflect.KProperty
 
 class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
@@ -43,10 +44,16 @@ class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
         if (encoded != null) {
             // A value written every tick would otherwise queue twenty UPDATEs per second; one queued write carries the newest.
             val ticket = writes.offer(fullKey, encoded) ?: return
-            plugin.dbExecutor.submit(Runnable {
-                val value = writes.take(ticket)?.value ?: return@Runnable
-                saveToDb(fullKey, value)
-            })
+            try {
+                plugin.dbExecutor.submit(Runnable {
+                    val value = writes.take(ticket)?.value ?: return@Runnable
+                    saveToDb(fullKey, value)
+                })
+            } catch (ex: RejectedExecutionException) {
+                // Do not leave a coalescer ticket stranded: a later set() must be able to enqueue again.
+                writes.take(ticket)
+                plugin.logger.warning("[persist] ${KSLError.DB_QUEUE_LARGE.tag} Очередь БД заполнена: '$fullKey' остался только в памяти и не будет сохранён")
+            }
         }
     }
 
