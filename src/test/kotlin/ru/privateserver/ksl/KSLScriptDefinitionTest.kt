@@ -27,6 +27,12 @@ class KSLScriptDefinitionTest {
             result is ResultWithDiagnostics.Failure,
             "KSL scripts must not be able to compile direct access to internalPlugin"
         )
+        if (result is ResultWithDiagnostics.Failure) {
+            assertTrue(
+                result.reports.any { it.message.contains("internalPlugin", ignoreCase = true) },
+                "Compilation should fail specifically because internalPlugin is not visible: ${result.reports}"
+            )
+        }
     }
 
     @Test
