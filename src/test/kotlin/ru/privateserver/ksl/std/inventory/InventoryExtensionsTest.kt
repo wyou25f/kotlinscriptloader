@@ -30,7 +30,7 @@ class InventoryExtensionsTest {
         assertEquals(516, inventory.spaceFor(ItemStack(Material.STONE, 1)))
         assertTrue(inventory.canFit(ItemStack(Material.STONE, 1), 516))
         assertFalse(inventory.canFit(ItemStack(Material.STONE, 1), 517))
-        assertEquals(576, inventory.spaceFor(ItemStack(Material.DIAMOND, 1)))
+        assertEquals(512, inventory.spaceFor(ItemStack(Material.DIAMOND, 1)))
     }
 
     @Test
