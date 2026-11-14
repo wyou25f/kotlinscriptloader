@@ -51,6 +51,12 @@ class KSLRuntimeToolsTest {
         assertTrue(cache.invalidate("b"))
         assertEquals(0, cache.cleanUp())
         assertEquals(2, cache.currentSize)
+
+        val expiring = KSLCache<String, Int>(2, expireAfter = Duration.ofMillis(10))
+        expiring.put("old", 1)
+        Thread.sleep(25)
+        assertEquals(1, expiring.cleanUp())
+        assertEquals(0, expiring.currentSize)
     }
 
     @Test fun cacheRejectsNegativeAccessTtl() {

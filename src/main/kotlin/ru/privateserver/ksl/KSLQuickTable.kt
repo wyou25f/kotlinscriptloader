@@ -167,26 +167,26 @@ class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val ta
     fun row(rowKey: String): Map<String, Any?> {
         validateKeys(rowKey)
         return try {
-        plugin.dbCall {
-            val result = mutableMapOf<String, Any?>()
-            plugin.database.connection.use { conn: Connection ->
-                conn.prepareStatement(
-                    "SELECT column_key, value FROM ksl_table WHERE table_name = ? AND row_key = ?"
-                ).use { ps ->
-                    ps.setString(1, tableName)
-                    ps.setString(2, rowKey)
-                    ps.executeQuery().use { rs ->
-                        while (rs.next()) {
-                            result[rs.getString("column_key")] = KSLPersistCodec.decode(rs.getString("value"))
+            plugin.dbCall {
+                val result = mutableMapOf<String, Any?>()
+                plugin.database.connection.use { conn: Connection ->
+                    conn.prepareStatement(
+                        "SELECT column_key, value FROM ksl_table WHERE table_name = ? AND row_key = ?"
+                    ).use { ps ->
+                        ps.setString(1, tableName)
+                        ps.setString(2, rowKey)
+                        ps.executeQuery().use { rs ->
+                            while (rs.next()) {
+                                result[rs.getString("column_key")] = KSLPersistCodec.decode(rs.getString("value"))
+                            }
                         }
                     }
                 }
+                result
             }
-            result
-        }
-    } catch (ex: Exception) {
-        plugin.logger.warning("[table:$tableName] ${KSLError.DB_TABLE_FAILED.tag} row('$rowKey') не удался: ${ex.message}")
-        emptyMap()
+        } catch (ex: Exception) {
+            plugin.logger.warning("[table:$tableName] ${KSLError.DB_TABLE_FAILED.tag} row('$rowKey') не удался: ${ex.message}")
+            emptyMap()
         }
     }
 
