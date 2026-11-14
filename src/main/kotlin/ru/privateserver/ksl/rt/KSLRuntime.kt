@@ -16,14 +16,14 @@ object KSLRT {
 
     @JvmStatic
     @JvmOverloads
-    fun <K : Any, V : Any> cache(maxSize: Int, expireAfter: Duration = Duration.ZERO): KSLCache<K, V> =
-        KSLCache(maxSize, expireAfter)
+    fun <K : Any, V : Any> cache(maxSize: Int, expireAfter: Duration = Duration.ZERO, expireAfterAccess: Duration = Duration.ZERO): KSLCache<K, V> =
+        KSLCache(maxSize, expireAfter, expireAfterAccess)
 
     /** Alias for [cache], emphasizing the LRU eviction policy. */
     @JvmStatic
     @JvmOverloads
-    fun <K : Any, V : Any> lru(maxSize: Int, expireAfter: Duration = Duration.ZERO): KSLCache<K, V> =
-        cache(maxSize, expireAfter)
+    fun <K : Any, V : Any> lru(maxSize: Int, expireAfter: Duration = Duration.ZERO, expireAfterAccess: Duration = Duration.ZERO): KSLCache<K, V> =
+        cache(maxSize, expireAfter, expireAfterAccess)
 
     @JvmStatic
     /**

@@ -25,6 +25,16 @@ class KSLRuntimeUtilitiesTest {
     }
 
     @Test
+    fun `runtime cache factories expose access expiration`() {
+        val direct = KSLRT.cache<String, Int>(2, expireAfterAccess = java.time.Duration.ofMillis(20))
+        val alias = kslrt.lru<String, Int>(2, expireAfterAccess = java.time.Duration.ofMillis(20))
+        direct.put("a", 1)
+        alias.put("b", 2)
+        assertEquals(1, direct["a"])
+        assertEquals(2, alias["b"])
+    }
+
+    @Test
     fun `cache reports hit rate and can reset counters`() {
         val cache = kslrt.cache<String, String>(4)
         cache.put("a", "value")
