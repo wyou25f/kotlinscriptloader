@@ -16,10 +16,6 @@ fun Inventory.firstSimilarSlot(item: ItemStack): Int {
 }
 
 /**
- * Counts all items similar to [item] across this inventory's slots.
- * Inventory access must happen on the server thread.
- */
-/**
  * Returns how many additional items similar to [item] this inventory can hold.
  * Existing stack limits and the inventory maximum are both respected.
  */
@@ -49,6 +45,10 @@ fun Inventory.canFit(item: ItemStack, amount: Int = item.amount): Boolean {
 /** True when this inventory can accept at least one more item similar to [item]. */
 fun Inventory.hasRoomFor(item: ItemStack): Boolean = canFit(item, 1)
 
+/**
+ * Counts all items similar to [item] across this inventory's slots.
+ * Inventory access must happen on the server thread.
+ */
 fun Inventory.countSimilar(item: ItemStack): Int {
     var total = 0
     for (slot in 0 until size) {
