@@ -4,52 +4,29 @@ param(
     [string]$Task = "Build",
     [switch]$NoDaemon,
     [switch]$Offline,
-    [switch]$Info
+    [switch]$Detailed
 )
-
 $ErrorActionPreference = "Stop"
-$repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-Set-Location $repoRoot
+$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$DebugScript = Join-Path $Root "scripts/Debug-Build.ps1"
+if (-not (Test-Path $DebugScript)) { throw "KSL build diagnostics script is missing: $DebugScript" }
 
-function Find-Java21 {
-    $candidates = @()
-    if ($env:JAVA_HOME) { $candidates += $env:JAVA_HOME }
-    $candidates += @(
-        "C:\Program Files\Eclipse Adoptium\jdk-21.0.12.8-hotspot",
-        "C:\Program Files\Eclipse Adoptium\jdk-21",
-        "C:\Program Files\Java\jdk-21"
-    )
-    foreach ($candidate in $candidates) {
-        if ($candidate -and (Test-Path (Join-Path $candidate "bin\java.exe"))) {
-            $version = (& (Join-Path $candidate "bin\java.exe") -version 2>&1 | Out-String)
-            if ($version -match 'version "21\.') { return $candidate }
-        }
-    }
-    $command = Get-Command java -ErrorAction SilentlyContinue
-    if ($command) {
-        $version = (& java -version 2>&1 | Out-String)
-        if ($version -match 'version "21\.') { return (Split-Path (Split-Path $command.Source -Parent) -Parent) }
-    }
-    throw "JDK 21 was not found. Set JAVA_HOME to a JDK 21 installation."
+$GradleTasks = switch ($Task) {
+    "Build"   { @("clean", "build") }
+    "Test"    { @("clean", "test") }
+    "Verify"  { @("clean", "check", "verifyShadowJar") }
+    "Clean"   { @("clean") }
+    "Ide"     { @("-p", "ide", "-PkslJar=../build/libs/KotlinScriptLoader-1.2.0.jar", "verifyKslIdeSetup") }
+    "Release" { @("clean", "build", "-PverifyRelease=true") }
 }
-
-$env:JAVA_HOME = Find-Java21
-$env:Path = "$(Join-Path $env:JAVA_HOME 'bin');$env:Path"
-$gradleArgs = @("--console=plain")
-if ($NoDaemon) { $gradleArgs += "--no-daemon" }
-if ($Offline) { $gradleArgs += "--offline" }
-if ($Info) { $gradleArgs += "--info" }
-
-switch ($Task) {
-    "Build"   { $gradleArgs += @("clean", "build") }
-    "Test"    { $gradleArgs += @("test") }
-    "Verify"  { $gradleArgs += @("clean", "check", "verifyShadowJar") }
-    "Clean"   { $gradleArgs += @("clean") }
-    "Ide"     { $gradleArgs += @("-p", "ide", "verifyKslIdeSetup") }
-    "Release" { $gradleArgs += @("clean", "build", "verifyShadowJar") }
-}
-
-Write-Host "KSL task: $Task"
-Write-Host "Using JDK: $env:JAVA_HOME"
-& (Join-Path $repoRoot "gradlew.bat") @gradleArgs
-if ($LASTEXITCODE -ne 0) { throw "Gradle failed with exit code $LASTEXITCODE" }
+Write-Host ""
+Write-Host "  K O T L I N S C R I P T L O A D E R" -ForegroundColor Cyan
+Write-Host "  Build controller" -ForegroundColor DarkCyan
+Write-Host "  Task: $Task" -ForegroundColor White
+Write-Host ""
+$Arguments = @{ GradleTasks = $GradleTasks; ReportName = $Task.ToLowerInvariant() }
+if ($NoDaemon) { $Arguments.NoDaemon = $true }
+if ($Offline) { $Arguments.Offline = $true }
+if ($Detailed) { $Arguments.Detailed = $true }
+& $DebugScript @Arguments
+exit $LASTEXITCODE
