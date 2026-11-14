@@ -25,10 +25,11 @@ class KSLSandboxHardeningTest {
 
     @Test
     fun `internal plugin capability is not exposed as a normal JVM accessor`() {
-        val getter = BukkitScriptContext::class.java.declaredMethods.single {
+        val getters = BukkitScriptContext::class.java.declaredMethods.filter {
             it.name.startsWith("getInternalPlugin")
         }
-        assertTrue(getter.isSynthetic)
+        assertTrue(getters.isNotEmpty(), "Expected the internal plugin accessor to exist")
+        assertTrue(getters.all { it.isSynthetic }, "Internal plugin accessors must be JVM-synthetic")
     }
 
     @Test
