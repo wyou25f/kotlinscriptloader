@@ -43,9 +43,9 @@ jobs:
         shell: pwsh
         run: ./build.ps1 -Task Diagnose
 
-      - name: Clean and run unit tests
+      - name: Run strict quality gate
         shell: pwsh
-        run: ./build.ps1 -Task Test -NoDaemon -Detailed
+        run: ./build.ps1 -Task Quality -NoDaemon -Detailed
 
       - name: Upload build and test diagnostics
         if: always()
@@ -56,6 +56,8 @@ jobs:
             build-reports/
             build/reports/tests/test/
             build/test-results/test/
+            build/reports/kover/
+            build/reports/quality/
             build/reports/problems/
           if-no-files-found: warn
           retention-days: 14

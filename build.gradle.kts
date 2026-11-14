@@ -3,6 +3,7 @@ import java.util.zip.ZipFile
 plugins {
     kotlin("jvm") version "2.0.21"
     id("com.gradleup.shadow") version "9.4.2"
+    id("org.jetbrains.kotlinx.kover") version "0.9.8"
 }
 
 group = "ru.privateserver"
@@ -182,5 +183,71 @@ tasks.register("diagnoseBuild") {
         logger.lifecycle("  OS: ${System.getProperty("os.name")} ${System.getProperty("os.version")} (${System.getProperty("os.arch")})")
         logger.lifecycle("  Project: ${project.path} (${project.version})")
         logger.lifecycle("  Fat JAR: $fatJar")
+    }
+}
+
+
+// Kover reports expose Kotlin line coverage after the same test run used by the quality gate.
+tasks.matching { it.name == "koverHtmlReport" || it.name == "koverXmlReport" }.configureEach {
+    dependsOn(tasks.test)
+}
+
+/**
+ * Every production Kotlin package must have a matching test package.
+ * This is a package-level guard, not a claim that every method is covered;
+ * use the Kover report for detailed line coverage.
+ */
+tasks.register("componentTestAudit") {
+    group = "verification"
+    description = "Checks that every production Kotlin package has matching tests and writes an audit report."
+
+    doLast {
+        val sourceRoot = file("src/main/kotlin")
+        val testRoot = file("src/test/kotlin")
+        val reportDirectory = layout.buildDirectory.dir("reports/quality").get().asFile
+        reportDirectory.mkdirs()
+
+        fun packageName(root: File, sourceFile: File): String =
+            sourceFile.relativeTo(root).parentFile
+                ?.invariantSeparatorsPath
+                ?.replace("/", ".")
+                .orEmpty()
+
+        val sourceFiles = sourceRoot.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
+        val testFiles = testRoot.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
+        val testsByPackage = testFiles.groupBy { packageName(testRoot, it) }
+        val rows = sourceFiles.groupBy { packageName(sourceRoot, it) }
+            .toSortedMap()
+            .map { (pkg, files) -> Triple(pkg, files.size, testsByPackage[pkg].orEmpty().size) }
+        val uncovered = rows.filter { it.third == 0 }
+
+        val markdown = buildString {
+            appendLine("# KSL component test audit")
+            appendLine()
+            appendLine("Package-level test presence only. A package test does not prove every method is covered.")
+            appendLine("Use the Kover HTML report for line-level coverage and inspect individual test cases.")
+            appendLine()
+            appendLine("| Production package | Source files | Test files | Status |")
+            appendLine("|---|---:|---:|---|")
+            rows.forEach { (pkg, sourceCount, testCount) ->
+                appendLine("| `$pkg` | $sourceCount | $testCount | ${if (testCount > 0) "COVERED" else "MISSING"} |")
+            }
+            appendLine()
+            appendLine("**Summary:** ${rows.size - uncovered.size}/${rows.size} packages have direct test-package coverage.")
+            if (uncovered.isNotEmpty()) {
+                appendLine()
+                appendLine("## Packages without direct tests")
+                uncovered.forEach { appendLine("- `${it.first}` (${it.second} production files)") }
+            }
+        }
+        reportDirectory.resolve("component-test-audit.md").writeText(markdown)
+        logger.lifecycle("Component test audit: ${rows.size - uncovered.size}/${rows.size} production packages have direct tests.")
+
+        if (uncovered.isNotEmpty()) {
+            throw GradleException(
+                "Missing package-level tests for: ${uncovered.joinToString { it.first }}. " +
+                    "See build/reports/quality/component-test-audit.md"
+            )
+        }
     }
 }

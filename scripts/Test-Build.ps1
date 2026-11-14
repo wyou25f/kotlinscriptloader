@@ -6,7 +6,7 @@ param(
     [switch]$OpenReport
 )
 $Root = Split-Path -Parent $PSScriptRoot
-$Arguments = @{ GradleTasks = @("clean", "test"); ReportName = "test" }
+$Arguments = @{ GradleTasks = @("clean", "check", "koverHtmlReport", "koverXmlReport", "componentTestAudit"); ReportName = "verify" }
 if ($Detailed) { $Arguments.Detailed = $true }
 if ($NoDaemon) { $Arguments.NoDaemon = $true }
 if ($Offline) { $Arguments.Offline = $true }

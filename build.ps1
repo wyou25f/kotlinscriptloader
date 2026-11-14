@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet("Build", "Test", "Verify", "Package", "Clean", "Ide", "Release", "Diagnose")]
+    [ValidateSet("Build", "Test", "Verify", "Quality", "Audit", "Package", "Clean", "Ide", "Release", "Diagnose")]
     [string]$Task = "Build",
     [switch]$NoDaemon,
     [switch]$Offline,
@@ -59,10 +59,12 @@ if ($ProjectVersion -ne "1.2.1") {
 }
 
 $GradleTasks = switch ($Task) {
-    "Build"   { @("clean", "build") }
-    "Test"    { @("clean", "test") }
-    "Verify"  { @("clean", "check", "verifyShadowJar") }
-    "Package" { @("assemble", "verifyShadowJar") }
+    "Build"   { @("clean", "build", "koverHtmlReport", "koverXmlReport", "componentTestAudit") }
+    "Test"    { @("clean", "test", "koverHtmlReport", "koverXmlReport", "componentTestAudit") }
+    "Verify"  { @("clean", "check", "koverHtmlReport", "koverXmlReport", "componentTestAudit", "verifyShadowJar") }
+    "Quality" { @("clean", "check", "koverHtmlReport", "koverXmlReport", "componentTestAudit", "verifyShadowJar") }
+    "Audit"   { @("componentTestAudit") }
+    "Package" { @("check", "assemble", "koverHtmlReport", "koverXmlReport", "componentTestAudit", "verifyShadowJar") }
     "Clean"   { @("clean") }
     "Ide"     {
         $Jar = Join-Path $Root "build/libs/KotlinScriptLoader-$ProjectVersion.jar"
@@ -71,7 +73,7 @@ $GradleTasks = switch ($Task) {
         }
         @("-p", "ide", "-PkslJar=../build/libs/KotlinScriptLoader-$ProjectVersion.jar", "verifyKslIdeSetup")
     }
-    "Release" { @("clean", "build", "verifyShadowJar") }
+    "Release" { @("clean", "build", "koverHtmlReport", "koverXmlReport", "componentTestAudit", "verifyShadowJar") }
 }
 
 Write-Host ""
@@ -97,7 +99,7 @@ if ($BuildExitCode -ne 0) {
     exit $BuildExitCode
 }
 
-if ($Task -in @("Build", "Verify", "Package", "Release")) {
+if ($Task -in @("Build", "Verify", "Quality", "Package", "Release")) {
     $ExpectedJar = Join-Path $Root "build/libs/KotlinScriptLoader-$ProjectVersion.jar"
     if (-not (Test-Path $ExpectedJar -PathType Leaf)) {
         Stop-Build "Gradle succeeded but the expected plugin JAR is missing: $ExpectedJar"
@@ -107,6 +109,17 @@ if ($Task -in @("Build", "Verify", "Package", "Release")) {
         Stop-Build "Generated plugin JAR is suspiciously small ($($JarInfo.Length) bytes): $ExpectedJar"
     }
     Write-Host "Strict artifact check passed: $($JarInfo.Name), $($JarInfo.Length) bytes." -ForegroundColor Green
+}
+if ($Task -in @("Build", "Test", "Verify", "Quality", "Package", "Release")) {
+    $CoverageReport = Join-Path $Root "build/reports/kover/html/index.html"
+    $ComponentAudit = Join-Path $Root "build/reports/quality/component-test-audit.md"
+    if (-not (Test-Path $CoverageReport -PathType Leaf)) {
+        Stop-Build "Kover coverage report is missing: $CoverageReport"
+    }
+    if (-not (Test-Path $ComponentAudit -PathType Leaf)) {
+        Stop-Build "Component test audit report is missing: $ComponentAudit"
+    }
+    Write-Host "Quality reports generated: Kover coverage + component test audit." -ForegroundColor Green
 }
 
 exit 0
