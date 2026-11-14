@@ -54,8 +54,11 @@ Sandbox нужен не от злоумышленника с полным дос
 
 ### Слой 3. Консольные команды и лимиты
 - `executeConsole(...)` выполняет команду **с правами консоли**. Команды из `security.console-command-blocklist` (по умолчанию
-  `op`, `deop`, `stop`, `restart`, `reload`, `rl`) скрипту не разрешены; регистр, `/`, `minecraft:` и пробелы не обходят список.
-  Блокировка действует **всегда**, независимо от `sandbox: true`. Попытка пишет в лог код `5322c`.
+  `op`, `deop`, `stop`, `restart`, `reload`, `rl`) запрещены всегда; регистр, `/`, `minecraft:` и пробелы не обходят список.
+- Для скрипта с включённой песочницей доступ к консоли **закрыт по умолчанию**. При необходимости можно разрешить отдельные корневые команды через
+  `security.sandbox-console-allowlist` (например, `[say, tell]`). Глобальный blocklist имеет приоритет над allowlist.
+  Доверенные скрипты из `security.sandbox-trusted` не считаются sandboxed и сохраняют прежнее поведение.
+- Попытка выполнить запрещённую команду пишет в лог код `5322c`.
 - Один скрипт не может создать больше `max-listeners-per-script` обработчиков событий (500) и `max-tasks-per-script` активных задач (2000).
   Лишние отклоняются и пишется код `6752a` или `3008a`.
   Это защита от скрипта, который в цикле или внутри события регистрирует новые обработчики.
@@ -75,6 +78,7 @@ security:
   class-deny-extra: [com.example.Secret, org.apache.commons.exec.]   # точное имя или пакет с точкой на конце
   class-deny-allowed: [java.lang.Runtime]   # снять запрет с класса из списка по умолчанию
   console-command-blocklist: [op, deop, stop, restart, reload, rl, ban]
+  sandbox-console-allowlist: [say, tell] # sandboxed scripts may run only these console commands
   limits:
     max-listeners-per-script: 500
     max-tasks-per-script: 2000
