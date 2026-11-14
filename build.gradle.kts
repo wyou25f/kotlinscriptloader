@@ -229,7 +229,7 @@ tasks.register("componentTestAudit") {
         val testFiles = testRoot.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
         data class AuditRow(val packageName: String, val sourceFiles: Int, val testFiles: Int, val testCases: Int)
 
-        val testAnnotation = Regex("""(?m)^\\s*@(?:org\\.junit\\.jupiter\\.api\\.)?(?:Test|ParameterizedTest|RepeatedTest|TestFactory)\\b""")
+        val testAnnotation = Regex("""(?m)^\s*@(?:org\.junit\.jupiter\.api\.)?(?:Test|ParameterizedTest|RepeatedTest|TestFactory)\b""")
         val testsByPackage = testFiles.groupBy { packageName(testRoot, it) }
         val rows = sourceFiles.groupBy { packageName(sourceRoot, it) }
             .toSortedMap()
