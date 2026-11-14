@@ -47,11 +47,15 @@ try {
         if ($Archive.GetEntry($Entry)) { Write-Host "[OK] $Entry" -ForegroundColor Green }
         else { Write-Host "[FAIL] $Entry" -ForegroundColor Red; $Issues.Add("Required entry missing: $Entry") }
     }
-    if ($Yaml -match '(?m)^libraries:\s*\[\s*\]' -and $KotlinCount -gt 0) {
-        $Issues.Add("Thin-JAR descriptor declares no libraries but Kotlin runtime is embedded")
-    }
-    if ($Yaml -match '(?m)^libraries:\s*\[' -and $Yaml -notmatch '(?m)^libraries:\s*\[\s*\]' -and $KotlinCount -eq 0) {
+    $DeclaresExternalLibraries = $Yaml -match '(?m)^libraries:\s*\[' -and $Yaml -notmatch '(?m)^libraries:\s*\[\s*\]'
+    if ($DeclaresExternalLibraries -and $KotlinCount -gt 0) {
+        $Issues.Add("JAR embeds Kotlin runtime but plugin.yml also declares external Kotlin libraries")
+    } elseif (-not $DeclaresExternalLibraries -and $KotlinCount -eq 0) {
+        $Issues.Add("Neither embedded Kotlin runtime nor external Paper libraries were detected")
+    } elseif ($DeclaresExternalLibraries) {
         Write-Host "[OK] Thin-JAR dependency declaration found" -ForegroundColor Green
+    } else {
+        Write-Host "[OK] Embedded Kotlin runtime found (fat JAR)" -ForegroundColor Green
     }
     $Details.Add([pscustomobject]@{
         file = [IO.Path]::GetFileName($JarPath)
