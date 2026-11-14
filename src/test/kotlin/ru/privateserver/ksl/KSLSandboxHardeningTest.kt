@@ -25,9 +25,10 @@ class KSLSandboxHardeningTest {
             "java.net.URL",
             "java.lang.Thread",
             "java.util.concurrent.Executors",
-            "java.lang.invoke.MethodHandles\$Lookup"
         ).forEach { assertTrue(denyList.denies(it), "Expected $it to be denied") }
 
+        // JVM lambda linkage needs this type; the public MethodHandles entry point remains denied.
+        assertFalse(denyList.denies("java.lang.invoke.MethodHandles\$Lookup"))
         assertFalse(denyList.denies("java.lang.String"))
         assertFalse(denyList.denies("java.util.List"))
     }
