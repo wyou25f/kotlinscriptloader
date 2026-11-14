@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test
 
 private var passed = 0
 private var failed = 0
+private val failedChecks = mutableListOf<String>()
 
 private fun check(name: String, condition: Boolean) {
     if (condition) {
@@ -15,6 +16,7 @@ private fun check(name: String, condition: Boolean) {
         println("  OK   $name")
     } else {
         failed++
+        failedChecks += name
         println("  FAIL $name")
     }
 }
@@ -466,6 +468,11 @@ private fun testScriptOrder() {
 }
 
 fun main() {
+    // Keep repeated invocations deterministic inside the same test JVM.
+    passed = 0
+    failed = 0
+    failedChecks.clear()
+
     testPersistCodec()
     testCooldownStore()
     testSandboxRules()
@@ -488,7 +495,11 @@ fun main() {
     testReportFormatting()
     println()
     println("TOTAL: $passed passed, $failed failed")
-    if (failed > 0) throw AssertionError("$failed self-test(s) failed")
+    if (failed > 0) {
+        throw AssertionError(
+            "$failed self-test(s) failed:\n" + failedChecks.joinToString("\n") { " - $it" }
+        )
+    }
 }
 
 class PureLogicSelfTest {
