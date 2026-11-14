@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.math.BigDecimal
 import java.math.BigInteger
+import java.time.OffsetTime
 
 class KSLTomlCodecTest {
     @Test
@@ -49,6 +50,14 @@ class KSLTomlCodecTest {
         assertTrue(mutable.putTomlIfAbsent("newKey", 7))
         assertFalse(mutable.putTomlIfAbsent("newKey", 8))
         assertEquals(7, mutable.removeToml("newKey"))
+    }
+
+    @Test
+    fun roundTripsTomlOffsetTimeValues() {
+        val parsed = KSLTomlCodec.parse("server-time = 07:32:00Z\n")
+
+        assertEquals(OffsetTime.parse("07:32:00Z"), parsed["server-time"])
+        assertEquals(parsed, KSLTomlCodec.parse(KSLTomlCodec.encode(parsed)))
     }
 
     @Test

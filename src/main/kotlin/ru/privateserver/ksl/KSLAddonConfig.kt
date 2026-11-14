@@ -64,8 +64,7 @@ class KSLAddonConfig private constructor(
     /** Writes the current configuration to this addon's data folder. */
     @Synchronized
     fun save() {
-        file.parentFile?.mkdirs()
-        yaml.save(file)
+        KSLAddonYamlFile.save(yaml, file)
     }
 
     /** Reloads the file from disk, discarding unsaved in-memory changes. */
@@ -76,10 +75,16 @@ class KSLAddonConfig private constructor(
     }
 
     private fun loadConfiguration(): YamlConfiguration {
-        val loaded = YamlConfiguration.loadConfiguration(file)
+        val loaded = KSLAddonYamlFile.load(file, owner.logger)
         owner.getResource(resourcePath)?.use { stream ->
             InputStreamReader(stream, StandardCharsets.UTF_8).use { reader ->
-                loaded.setDefaults(YamlConfiguration.loadConfiguration(reader))
+                val defaults = YamlConfiguration()
+                try {
+                    defaults.load(reader)
+                } catch (ex: org.bukkit.configuration.InvalidConfigurationException) {
+                    throw IllegalStateException("Invalid default YAML resource '${resourcePath}' for ${owner.name}", ex)
+                }
+                loaded.setDefaults(defaults)
             }
         }
         if (copyDefaults) loaded.options().copyDefaults(true)

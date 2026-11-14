@@ -11,6 +11,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.OffsetDateTime
+import java.time.OffsetTime
 
 /** TOML codec: scalar values, arrays and nested tables; arrays of tables are rejected. */
 object KSLTomlCodec {
@@ -79,7 +80,7 @@ object KSLTomlCodec {
             require(item.isFinite()) { "TOML does not support non-finite numbers" }
             item.toString()
         }
-        is LocalDate, is LocalTime, is LocalDateTime, is OffsetDateTime -> item.toString()
+        is LocalDate, is LocalTime, is LocalDateTime, is OffsetDateTime, is OffsetTime -> item.toString()
         is List<*> -> item.joinToString(prefix = "[", postfix = "]") {
             require(it != null && it !is Map<*, *>) {
                 "TOML arrays cannot contain null values or inline tables in this writer"
