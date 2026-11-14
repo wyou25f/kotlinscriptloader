@@ -125,8 +125,8 @@ internal class KSLWatchdogMonitor(
     private fun writeDump(stallNanos: Long) {
         val detectedAt = Instant.now()
         val captured = mutableListOf<ThreadSnapshot>()
-        repeat(snapshotLimit) { index ->
-            if (stopped.get() && index > 0) return@repeat
+        for (index in 0 until snapshotLimit) {
+            if (stopped.get() && index > 0) break
             runCatching { captureSnapshot() }
                 .onSuccess { captured += it }
                 .onFailure { error ->
@@ -134,7 +134,7 @@ internal class KSLWatchdogMonitor(
                         plugin.logger.warning("${KSLError.SYSTEM_WATCHDOG_SNAPSHOT_FAILED.tag} Снимок ${index + 1}/$snapshotLimit не получен: ${error.message}")
                     }
                 }
-            if (index < snapshots - 1 && !stopped.get()) {
+            if (index < snapshotLimit - 1 && !stopped.get()) {
                 try {
                     Thread.sleep(snapshotDelay)
                 } catch (_: InterruptedException) {
@@ -148,7 +148,7 @@ internal class KSLWatchdogMonitor(
             val directory = File(plugin.dataFolder, "dumps")
             Files.createDirectories(directory.toPath())
             val file = File(directory, "watchdog-${timestampFormat.format(detectedAt)}.txt")
-            val report = buildReport(detectedAt, stallNanos, captured, allThreadCount = Thread.activeCount())
+            val report = buildReport(detectedAt, stallNanos, captured, allThreadCount = captured.maxOfOrNull { it.threads.size } ?: 0)
             Files.writeString(
                 file.toPath(),
                 report,
