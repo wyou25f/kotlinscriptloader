@@ -816,8 +816,16 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         val root = scriptsFolder
         val depth = if (config.getBoolean("scripts.recursive", true)) 8 else 1
         return root.walkTopDown().maxDepth(depth)
-            .onEnter { it == root || !(it.name.startsWith(".") || it.name.startsWith("_")) }
-            .filter { it.isFile && it.extension == "kts" && !it.name.startsWith(".") }
+            .onEnter {
+                it == root || (
+                    !(it.name.startsWith(".") || it.name.startsWith("_")) &&
+                        KSLScriptPathPolicy.isSafeChild(root, it)
+                    )
+            }
+            .filter {
+                it.isFile && it.extension == "kts" && !it.name.startsWith(".") &&
+                    KSLScriptPathPolicy.isSafeChild(root, it)
+            }
             .sortedBy { scriptId(it) }
             .toList()
     }
@@ -1124,8 +1132,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private fun resolveScriptFile(scriptName: String): File? {
         val id = scriptName.trim().removeSuffix(".kts").replace('\\', '/')
         val file = File(scriptsFolder, "$id.kts")
-        if (!file.canonicalFile.toPath().startsWith(scriptsFolder.canonicalFile.toPath())) {
-            logger.warning("${KSLError.SCRIPT_PATH_ESCAPE.tag} Имя скрипта '$scriptName' выходит за пределы scripts/")
+        if (!KSLScriptPathPolicy.isSafeChild(scriptsFolder, file)) {
+            logger.warning("${KSLError.SCRIPT_PATH_ESCAPE.tag} Имя скрипта '$scriptName' выходит за пределы scripts/ или использует символическую ссылку")
             return null
         }
         if (!file.isFile) {
