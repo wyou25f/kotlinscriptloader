@@ -28,7 +28,7 @@ try {
     foreach ($Source in $Candidates) {
         if (-not (Test-Path $Source)) { continue }
         $Name = if ($Source.StartsWith((Join-Path $Root "build-reports"))) { "build-reports" }
-            elseif ($Source -like "*reports/tests/test") { "gradle-test-html" }
+            elseif ($Source -eq (Join-Path $Root "build/reports/tests/test")) { "gradle-test-html" }
             else { "junit-xml" }
         $Destination = Join-Path $Stage $Name
         Copy-Item $Source $Destination -Recurse -Force
