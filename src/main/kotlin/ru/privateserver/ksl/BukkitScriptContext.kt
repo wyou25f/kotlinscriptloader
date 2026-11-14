@@ -643,44 +643,92 @@ open class BukkitScriptContext(
         dbQueryYaml(queryPath, *args) { resultSet -> resultSet.block() }
     }
 
-    // Scheduler tasks swallow nothing: an uncaught exception would print a raw Bukkit trace every period.
-    private fun guarded(where: String, block: () -> Unit) = Runnable {
+    private companion object {
+        const val MAX_CONSECUTIVE_TASK_FAILURES = 3
+    }
+
+    /**
+     * Every scheduled callback is isolated from Bukkit's scheduler. One-shot tasks
+     * release their registry entry on completion; repeating tasks are stopped after
+     * repeated consecutive failures instead of running a broken callback forever.
+     */
+    private fun guarded(
+        where: String,
+        repeating: Boolean,
+        taskId: java.util.concurrent.atomic.AtomicInteger,
+        completed: java.util.concurrent.atomic.AtomicBoolean,
+        failures: java.util.concurrent.atomic.AtomicInteger,
+        block: () -> Unit
+    ) = Runnable {
         try {
             plugin.measureScriptExecution(scriptName, "task:$where") {
                 val monitor = plugin.watchdogMonitor
                 if (monitor != null) monitor.trackOperation("script '$scriptName' task '$where'", block)
                 else block()
             }
+            failures.set(0)
         } catch (ex: Throwable) {
             KSLErrors.log(plugin, scriptName, where, ex, KSLError.TASK_FAILED)
+            if (repeating && failures.incrementAndGet() >= MAX_CONSECUTIVE_TASK_FAILURES) {
+                val id = taskId.get()
+                if (id > 0) {
+                    Bukkit.getScheduler().cancelTask(id)
+                    plugin.untrackTask(scriptName, id)
+                }
+                completed.set(true)
+                plugin.logger.warning("[$scriptName] Периодическая задача '$where' остановлена после $MAX_CONSECUTIVE_TASK_FAILURES последовательных ошибок")
+            }
+        } finally {
+            if (!repeating) {
+                completed.set(true)
+                taskId.get().takeIf { it > 0 }?.let { plugin.untrackTask(scriptName, it) }
+            }
         }
     }
 
-    private fun track(task: BukkitTask): Int {
+    private fun scheduleTracked(
+        where: String,
+        repeating: Boolean = false,
+        block: () -> Unit,
+        schedule: (Runnable) -> BukkitTask
+    ): Int {
+        val taskId = java.util.concurrent.atomic.AtomicInteger()
+        val completed = java.util.concurrent.atomic.AtomicBoolean()
+        val failures = java.util.concurrent.atomic.AtomicInteger()
+        val task = schedule(guarded(where, repeating, taskId, completed, failures, block))
+        taskId.set(task.taskId)
         plugin.trackTask(scriptName, task.taskId)
+        // A very short async task may finish before its id is published.
+        if (completed.get()) plugin.untrackTask(scriptName, task.taskId)
         return task.taskId
     }
 
     fun runAsync(block: () -> Unit): Int =
-        track(Bukkit.getScheduler().runTaskAsynchronously(plugin, guarded("runAsync", block)))
+         scheduleTracked("runAsync", block = block) { Bukkit.getScheduler().runTaskAsynchronously(plugin, it) }
 
     /** Runs work on KSL's bounded priority-aware worker pool. Bukkit world access belongs in runSync(). */
     fun worker(priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL, block: () -> Unit): Long =
-        plugin.submitWorker(scriptName, priority) { plugin.measureScriptExecution(scriptName, "worker:$priority", block) }
+        plugin.submitWorker(scriptName, priority) {
+            try {
+                plugin.measureScriptExecution(scriptName, "worker:$priority", block)
+            } catch (ex: Throwable) {
+                KSLErrors.log(plugin, scriptName, "worker:$priority", ex, KSLError.TASK_FAILED)
+            }
+        }
 
     fun cpu(block: () -> Unit): Long = worker(block = block)
     fun work(block: () -> Unit): Long = worker(block = block)
     fun cancelWorker(taskId: Long): Boolean = plugin.cancelWorker(taskId)
 
     fun runSync(block: () -> Unit): Int =
-        track(Bukkit.getScheduler().runTask(plugin, guarded("runSync", block)))
+        scheduleTracked("runSync", block = block) { Bukkit.getScheduler().runTask(plugin, it) }
 
     fun delay(ticks: Long, block: () -> Unit): Int =
-        track(Bukkit.getScheduler().runTaskLater(plugin, guarded("delay", block), ticks))
+        scheduleTracked("delay", block = block) { Bukkit.getScheduler().runTaskLater(plugin, it, ticks) }
 
     fun every(ticks: Long, initialDelay: Long = 0L, block: () -> Unit): Int {
         val period = KSLErrors.validPeriod(plugin, scriptName, "every", ticks)
-        return track(Bukkit.getScheduler().runTaskTimer(plugin, guarded("every", block), initialDelay, period))
+        return scheduleTracked("every", repeating = true, block = block) { Bukkit.getScheduler().runTaskTimer(plugin, it, initialDelay, period) }
     }
 
     /**
@@ -692,11 +740,13 @@ open class BukkitScriptContext(
         every(ticks = period, initialDelay = initialDelay, block = block)
 
     fun delayAsync(ticks: Long, block: () -> Unit): Int =
-        track(Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, guarded("delayAsync", block), ticks))
+        scheduleTracked("delayAsync", block = block) { Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, it, ticks) }
 
     fun everyAsync(ticks: Long, initialDelay: Long = 0L, block: () -> Unit): Int {
         val period = KSLErrors.validPeriod(plugin, scriptName, "everyAsync", ticks)
-        return track(Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, guarded("everyAsync", block), initialDelay, period))
+        return scheduleTracked("everyAsync", repeating = true, block = block) {
+            Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, it, initialDelay, period)
+        }
     }
 
     // Short DSL aliases; original method names remain available.
