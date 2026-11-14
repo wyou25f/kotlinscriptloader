@@ -38,6 +38,7 @@ class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val ta
 
     // Repeated set() of the same cell while an earlier write is still queued becomes one write of the newest value.
     private val writes = KSLWriteCoalescer()
+    private val operationGate = KSLTableOperationGate()
 
     fun set(rowKey: String, columnKey: String, value: Any?) {
         validateKeys(rowKey, columnKey)
@@ -45,34 +46,36 @@ class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val ta
             "[table:$tableName] Тип ${value?.let { it::class.simpleName }} ${KSLError.DB_UNSUPPORTED_TYPE.tag} не поддерживается — " +
                 "поддерживаются String, Int, Long, Double, Boolean, null"
         )
-        // Write-through: a read right after this set() sees the new value without waiting for the queue.
-        valueCache?.store(cacheKey(rowKey, columnKey), encoded)
-        // null: a write for this cell is already queued and will pick the newest value up.
-        val ticket = writes.offer(cacheKey(rowKey, columnKey), encoded) ?: return
-        try {
-            plugin.dbExecutor.submit(Runnable {
-                val taken = writes.take(ticket) ?: return@Runnable
-                try {
-                    plugin.database.connection.use { conn: Connection ->
-                        conn.prepareStatement(
-                            upsertSql
-                        ).use { ps ->
-                            ps.setString(1, tableName)
-                            ps.setString(2, rowKey)
-                            ps.setString(3, columnKey)
-                            ps.setString(4, taken.value)
-                            ps.executeUpdate()
+        operationGate.withLock {
+            // Write-through: a read right after this set() sees the new value without waiting for the queue.
+            valueCache?.store(cacheKey(rowKey, columnKey), encoded)
+            // null: a write for this cell is already queued and will pick the newest value up.
+            val ticket = writes.offer(cacheKey(rowKey, columnKey), encoded) ?: return@withLock
+            try {
+                plugin.dbExecutor.submit(Runnable {
+                    val taken = writes.take(ticket) ?: return@Runnable
+                    try {
+                        plugin.database.connection.use { conn: Connection ->
+                            conn.prepareStatement(
+                                upsertSql
+                            ).use { ps ->
+                                ps.setString(1, tableName)
+                                ps.setString(2, rowKey)
+                                ps.setString(3, columnKey)
+                                ps.setString(4, taken.value)
+                                ps.executeUpdate()
+                            }
                         }
+                    } catch (ex: Exception) {
+                        val code = KSLErrors.classifyDatabaseFailure(ex, KSLError.DB_TABLE_FAILED)
+                        plugin.logger.warning("[table:$tableName] ${code.tag} set('$rowKey', '$columnKey') не удался: ${ex.message}")
                     }
-                } catch (ex: Exception) {
-                    val code = KSLErrors.classifyDatabaseFailure(ex, KSLError.DB_TABLE_FAILED)
-                    plugin.logger.warning("[table:$tableName] ${code.tag} set('$rowKey', '$columnKey') не удался: ${ex.message}")
-                }
-            })
-        } catch (ex: RejectedExecutionException) {
-            // Remove the pending marker so a subsequent set() can enqueue instead of being coalesced forever.
-            writes.take(ticket)
-            plugin.logger.warning("[table:$tableName] ${KSLError.DB_QUEUE_LARGE.tag} Очередь БД заполнена: '$rowKey'/'$columnKey' осталось только в кэше и не будет сохранено")
+                })
+            } catch (ex: RejectedExecutionException) {
+                // Remove the pending marker so a subsequent set() can enqueue instead of being coalesced forever.
+                writes.take(ticket)
+                plugin.logger.warning("[table:$tableName] ${KSLError.DB_QUEUE_LARGE.tag} Очередь БД заполнена: '$rowKey'/'$columnKey' осталось только в кэше и не будет сохранено")
+            }
         }
     }
 
@@ -95,7 +98,6 @@ class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val ta
     // that can block the caller while a large backlog drains.
     fun increment(rowKey: String, columnKey: String, amount: Long = 1L): Long {
         validateKeys(rowKey, columnKey)
-        writes.barrier()
         val task: () -> Long = {
             plugin.database.connection.use { conn: Connection ->
                 val current = conn.prepareStatement(
@@ -128,69 +130,76 @@ class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val ta
             }
         }
         // A fake 0 on failure looks like a reset counter to the script; surface the error instead.
-        return try {
-            plugin.dbCall(task).also { valueCache?.store(cacheKey(rowKey, columnKey), KSLPersistCodec.encode(it)) }
-        } catch (ex: Exception) {
-            val code = KSLErrors.classifyDatabaseFailure(ex, KSLError.DB_INCREMENT_FAILED)
-            throw IllegalStateException("[table:$tableName] ${code.tag} increment('$rowKey', '$columnKey') не удался: ${ex.message}", ex)
+        return operationGate.withLock {
+            writes.barrier()
+            try {
+                plugin.dbCall(task).also { valueCache?.store(cacheKey(rowKey, columnKey), KSLPersistCodec.encode(it)) }
+            } catch (ex: Exception) {
+                val code = KSLErrors.classifyDatabaseFailure(ex, KSLError.DB_INCREMENT_FAILED)
+                throw IllegalStateException("[table:$tableName] ${code.tag} increment('$rowKey', '$columnKey') не удался: ${ex.message}", ex)
+            }
         }
     }
 
     fun delete(rowKey: String, columnKey: String? = null) {
         validateKeys(rowKey, columnKey)
-        // Deleting a whole row would need an index of its columns; emptying the cache is rare and simpler.
-        valueCache?.clear()
-        // Writes queued before the delete must not be merged with ones made after it.
-        writes.barrier()
-        try {
-            plugin.dbExecutor.submit {
-                try {
-                    plugin.database.connection.use { conn: Connection ->
-                        val sql = if (columnKey != null)
-                            "DELETE FROM ksl_table WHERE table_name = ? AND row_key = ? AND column_key = ?"
-                        else
-                            "DELETE FROM ksl_table WHERE table_name = ? AND row_key = ?"
-                        conn.prepareStatement(sql).use { ps ->
-                            ps.setString(1, tableName)
-                            ps.setString(2, rowKey)
-                            if (columnKey != null) ps.setString(3, columnKey)
-                            ps.executeUpdate()
+        operationGate.withLock {
+            // Deleting a whole row would need an index of its columns; emptying the cache is rare and simpler.
+            valueCache?.clear()
+            // Writes queued before the delete must not be merged with ones made after it.
+            writes.barrier()
+            try {
+                plugin.dbExecutor.submit {
+                    try {
+                        plugin.database.connection.use { conn: Connection ->
+                            val sql = if (columnKey != null)
+                                "DELETE FROM ksl_table WHERE table_name = ? AND row_key = ? AND column_key = ?"
+                            else
+                                "DELETE FROM ksl_table WHERE table_name = ? AND row_key = ?"
+                            conn.prepareStatement(sql).use { ps ->
+                                ps.setString(1, tableName)
+                                ps.setString(2, rowKey)
+                                if (columnKey != null) ps.setString(3, columnKey)
+                                ps.executeUpdate()
+                            }
                         }
+                    } catch (ex: Exception) {
+                        val code = KSLErrors.classifyDatabaseFailure(ex, KSLError.DB_TABLE_FAILED)
+                        plugin.logger.warning("[table:$tableName] ${code.tag} delete('$rowKey') не удался: ${ex.message}")
                     }
-                } catch (ex: Exception) {
-                    val code = KSLErrors.classifyDatabaseFailure(ex, KSLError.DB_TABLE_FAILED)
-                    plugin.logger.warning("[table:$tableName] ${code.tag} delete('$rowKey') не удался: ${ex.message}")
                 }
+            } catch (ex: RejectedExecutionException) {
+                plugin.logger.warning("[table:$tableName] ${KSLError.DB_QUEUE_LARGE.tag} Очередь БД заполнена: delete('$rowKey') не поставлен в очередь")
             }
-        } catch (ex: RejectedExecutionException) {
-            plugin.logger.warning("[table:$tableName] ${KSLError.DB_QUEUE_LARGE.tag} Очередь БД заполнена: delete('$rowKey') не поставлен в очередь")
         }
     }
 
     fun row(rowKey: String): Map<String, Any?> {
         validateKeys(rowKey)
-        return try {
-            plugin.dbCall {
-                val result = mutableMapOf<String, Any?>()
-                plugin.database.connection.use { conn: Connection ->
-                    conn.prepareStatement(
-                        "SELECT column_key, value FROM ksl_table WHERE table_name = ? AND row_key = ?"
-                    ).use { ps ->
-                        ps.setString(1, tableName)
-                        ps.setString(2, rowKey)
-                        ps.executeQuery().use { rs ->
-                            while (rs.next()) {
-                                result[rs.getString("column_key")] = KSLPersistCodec.decode(rs.getString("value"))
+        return operationGate.withLock {
+            try {
+                plugin.dbCall {
+                    val result = mutableMapOf<String, Any?>()
+                    plugin.database.connection.use { conn: Connection ->
+                        conn.prepareStatement(
+                            "SELECT column_key, value FROM ksl_table WHERE table_name = ? AND row_key = ?"
+                        ).use { ps ->
+                            ps.setString(1, tableName)
+                            ps.setString(2, rowKey)
+                            ps.executeQuery().use { rs ->
+                                while (rs.next()) {
+                                    result[rs.getString("column_key")] = KSLPersistCodec.decode(rs.getString("value"))
+                                }
                             }
                         }
                     }
+                    result
                 }
-                result
+            } catch (ex: Exception) {
+                val code = KSLErrors.classifyDatabaseFailure(ex, KSLError.DB_TABLE_FAILED)
+                plugin.logger.warning("[table:$tableName] ${code.tag} row('$rowKey') не удался: ${ex.message}")
+                emptyMap()
             }
-        } catch (ex: Exception) {
-            val code = KSLErrors.classifyDatabaseFailure(ex, KSLError.DB_TABLE_FAILED)
-            plugin.logger.warning("[table:$tableName] ${code.tag} row('$rowKey') не удался: ${ex.message}")
-            emptyMap()
         }
     }
 
@@ -205,22 +214,24 @@ class KSLQuickTable(private val plugin: KotlinScriptLoaderPlugin, private val ta
         return raw
     }
 
-    private fun readRawFromDb(rowKey: String, columnKey: String): String? = try {
-        plugin.dbCall {
-            plugin.database.connection.use { conn: Connection ->
-                conn.prepareStatement(
-                    "SELECT value FROM ksl_table WHERE table_name = ? AND row_key = ? AND column_key = ?"
-                ).use { ps ->
-                    ps.setString(1, tableName)
-                    ps.setString(2, rowKey)
-                    ps.setString(3, columnKey)
-                    ps.executeQuery().use { rs -> if (rs.next()) rs.getString("value") else null }
+    private fun readRawFromDb(rowKey: String, columnKey: String): String? = operationGate.withLock {
+        try {
+            plugin.dbCall {
+                plugin.database.connection.use { conn: Connection ->
+                    conn.prepareStatement(
+                        "SELECT value FROM ksl_table WHERE table_name = ? AND row_key = ? AND column_key = ?"
+                    ).use { ps ->
+                        ps.setString(1, tableName)
+                        ps.setString(2, rowKey)
+                        ps.setString(3, columnKey)
+                        ps.executeQuery().use { rs -> if (rs.next()) rs.getString("value") else null }
+                    }
                 }
             }
+        } catch (ex: Exception) {
+            val code = KSLErrors.classifyDatabaseFailure(ex, KSLError.DB_TABLE_FAILED)
+            plugin.logger.warning("[table:$tableName] ${code.tag} чтение '$rowKey'/'$columnKey' не удалось: ${ex.message}")
+            null
         }
-    } catch (ex: Exception) {
-        val code = KSLErrors.classifyDatabaseFailure(ex, KSLError.DB_TABLE_FAILED)
-        plugin.logger.warning("[table:$tableName] ${code.tag} чтение '$rowKey'/'$columnKey' не удалось: ${ex.message}")
-        null
     }
 }
