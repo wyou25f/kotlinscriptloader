@@ -24,6 +24,7 @@ class KSLScriptWatcher(private val plugin: KotlinScriptLoaderPlugin) {
     }
 
     private val pending = ConcurrentHashMap<String, Long>()
+    private val stopped = java.util.concurrent.atomic.AtomicBoolean(false)
     // Keep ids for files already loaded or observed: after a directory is deleted, its children are no longer on disk.
     private val knownScripts = ConcurrentHashMap.newKeySet<String>()
     private val watched = ConcurrentHashMap<WatchKey, Path>()
@@ -31,7 +32,10 @@ class KSLScriptWatcher(private val plugin: KotlinScriptLoaderPlugin) {
     private var thread: Thread? = null
     private var flushTask: BukkitTask? = null
 
+    @Synchronized
     fun start() {
+        check(!stopped.get()) { "Script watcher has already been stopped" }
+        if (service != null) return
         val watchService = FileSystems.getDefault().newWatchService()
         service = watchService
         knownScripts.addAll(plugin.scriptIds())
@@ -40,10 +44,20 @@ class KSLScriptWatcher(private val plugin: KotlinScriptLoaderPlugin) {
         flushTask = Bukkit.getScheduler().runTaskTimer(plugin, Runnable { flush() }, 20L, 10L)
     }
 
+    @Synchronized
     fun stop() {
+        if (!stopped.compareAndSet(false, true)) return
         flushTask?.cancel()
+        flushTask = null
         runCatching { service?.close() }
         thread?.interrupt()
+        if (Thread.currentThread() !== thread) {
+            runCatching { thread?.join(1_000L) }
+        }
+        thread = null
+        service = null
+        watched.clear()
+        pending.clear()
     }
 
     private fun isIgnored(dir: File): Boolean = dir.name.startsWith(".") || dir.name.startsWith("_")
@@ -65,7 +79,10 @@ class KSLScriptWatcher(private val plugin: KotlinScriptLoaderPlugin) {
                 val dir = watched[key]
                 if (dir != null) {
                     for (event in key.pollEvents()) {
-                        if (event.kind() == OVERFLOW) continue
+                        if (event.kind() == OVERFLOW) {
+                            rescan()
+                            continue
+                        }
                         val child = dir.resolve(event.context() as Path).toFile()
                         when {
                             event.kind() == ENTRY_CREATE && child.isDirectory && !isIgnored(child) -> {
@@ -85,8 +102,18 @@ class KSLScriptWatcher(private val plugin: KotlinScriptLoaderPlugin) {
         }
     }
 
+    private fun rescan() {
+        if (stopped.get()) return
+        val current = plugin.scriptIds().toSet()
+        val now = System.currentTimeMillis()
+        (knownScripts - current).forEach { pending[it] = now }
+        current.forEach { id -> pending[id] = now }
+        knownScripts.clear()
+        knownScripts.addAll(current)
+    }
+
     private fun record(file: File) {
-        if (file.extension != "kts" || file.name.startsWith(".")) return
+        if (stopped.get() || file.extension != "kts" || file.name.startsWith(".")) return
         val id = plugin.scriptId(file)
         knownScripts.add(id)
         pending[id] = System.currentTimeMillis()
@@ -95,6 +122,7 @@ class KSLScriptWatcher(private val plugin: KotlinScriptLoaderPlugin) {
     // Deleting a directory produces one event for the directory, not one event per child file.
     // Use ids remembered before deletion so scripts from the removed subtree are unloaded too.
     private fun recordDeletedDirectory(directory: File) {
+        if (stopped.get()) return
         val relative = runCatching {
             plugin.scriptsFolder.toPath().relativize(directory.toPath()).toString()
                 .replace(File.separatorChar, '/').trimEnd('/')
@@ -106,7 +134,7 @@ class KSLScriptWatcher(private val plugin: KotlinScriptLoaderPlugin) {
 
     // Runs on the main thread twice a second.
     private fun flush() {
-        if (pending.isEmpty()) return
+        if (stopped.get() || pending.isEmpty()) return
         val now = System.currentTimeMillis()
         val ready = pending.filterValues { now - it >= QUIET_MS }.keys.sorted()
         ready.forEach { id ->
@@ -114,11 +142,15 @@ class KSLScriptWatcher(private val plugin: KotlinScriptLoaderPlugin) {
             if (File(plugin.scriptsFolder, "$id.kts").isFile) {
                 knownScripts.add(id)
                 plugin.logger.info("[$id] Файл изменён — перезагружаю только его")
-                plugin.reloadScriptAsync(id) { }
+                plugin.reloadScriptAsync(id) { result ->
+                    if (result == null && !stopped.get()) pending[id] = System.currentTimeMillis()
+                }
             } else {
                 knownScripts.remove(id)
-                plugin.logger.info("[$id] Файл удалён — скрипт выгружен")
-                plugin.removeScript(id)
+                plugin.logger.info("[$id] Файл удалён — скрипт выгружается")
+                plugin.removeScriptAsync(id) { result ->
+                    if (result == null && !stopped.get()) pending[id] = System.currentTimeMillis()
+                }
             }
         }
     }

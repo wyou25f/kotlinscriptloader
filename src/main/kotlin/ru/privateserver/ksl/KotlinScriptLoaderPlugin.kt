@@ -1166,8 +1166,16 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         }
     }
 
-    // Used by the file watcher when a script file disappears.
-    fun removeScript(scriptName: String) = unloadScript(scriptName)
+    // File watcher mutations share the same reload gate as full and per-script reloads.
+    fun removeScript(scriptName: String) {
+        reloadNow(emptyList(), listOf(scriptName))
+    }
+
+    fun removeScriptAsync(scriptName: String, done: (Boolean?) -> Unit) {
+        runAsyncReload(emptyList(), listOf(scriptName)) { summary ->
+            done(summary?.let { it.removed > 0 })
+        }
+    }
 
     private fun knownScriptNames(): Set<String> =
         (tasksByScript.keys + listenersByScript.keys + commandsByScript.keys + placeholdersByScript.keys +
