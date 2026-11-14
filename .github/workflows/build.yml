@@ -1,5 +1,5 @@
 name: Build
-run-name: "KSL build #\${{ github.run_number }} · \${{ github.sha }}"
+run-name: "KSL build #${{ github.run_number }} · ${{ github.sha }}"
 
 on:
   push:
@@ -47,7 +47,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: KSL-diagnostics-\${{ github.run_number }}-\${{ github.sha }}
+          name: KSL-diagnostics-${{ github.run_number }}-${{ github.sha }}
           path: |
             build-reports/
             build/reports/tests/test/
@@ -73,7 +73,7 @@ jobs:
       - name: Upload plugin JAR
         uses: actions/upload-artifact@v4
         with:
-          name: KSL-build-\${{ github.run_number }}-\${{ github.sha }}
+          name: KSL-build-${{ github.run_number }}-${{ github.sha }}
           path: build/libs/*.jar
           if-no-files-found: error
           retention-days: 14
