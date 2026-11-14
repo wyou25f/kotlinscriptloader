@@ -44,7 +44,8 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
         deathHooks.values.map { it.scriptName } +
         damagedHooks.values.map { it.scriptName } +
         attackHooks.values.map { it.scriptName } +
-        dropSpecs.values.map { it.scriptName }
+        dropSpecs.values.map { it.scriptName } +
+        tickTasks.values.flatMap { tasks -> tasks.map { it.scriptName } }
 
     fun trackSpawn(scriptName: String, entity: LivingEntity, removeEntityOnReload: Boolean) {
         val pdc = entity.persistentDataContainer
@@ -139,7 +140,7 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
 
     // Death, damage and removal events fire for every entity on the server; with no scripted mobs they should cost nothing.
     private fun hooksIdle(): Boolean =
-        deathHooks.isEmpty() && damagedHooks.isEmpty() && attackHooks.isEmpty() && dropSpecs.isEmpty()
+        deathHooks.isEmpty() && damagedHooks.isEmpty() && attackHooks.isEmpty() && dropSpecs.isEmpty() && tickTasks.isEmpty()
 
     @EventHandler
     fun onDeath(event: EntityDeathEvent) {
@@ -218,6 +219,13 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
     }
 
     fun cleanupForScript(scriptName: String) {
+        tickTasks.entries.toList().forEach { (uuid, tasks) ->
+            tasks.filter { it.scriptName == scriptName }.forEach { tracked ->
+                tracked.callback.cancel()
+                plugin.untrackTask(scriptName, tracked.callback.taskId)
+                untrackTickTask(scriptName, uuid, tracked.callback.taskId)
+            }
+        }
         deathHooks.values.removeIf { it.scriptName == scriptName }
         damagedHooks.values.removeIf { it.scriptName == scriptName }
         attackHooks.values.removeIf { it.scriptName == scriptName }
