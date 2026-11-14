@@ -80,10 +80,10 @@ plugins/KotlinScriptLoader/
 `BukkitScriptContext` — implicit receiver скрипта (через `kotlin-scripting-jvm-host`,
 не через JSR223 bindings), поэтому всё ниже доступно прямо по имени, без префиксов и импортов:
 
-- `plugin` — экземпляр `JavaPlugin`
+- `plugin` — экземпляр `JavaPlugin`, только для доверенных скриптов; sandboxed-скрипт получает `SecurityException` при чтении
 - `config` / `saveConfig()` — `имя_скрипта.yml`, лениво
 - `editConfig { ... }` — потокобезопасное изменение YAML под общей блокировкой; по умолчанию сохраняет файл после блока (`editConfig(save = false) { ... }` — только изменить в памяти, затем вызвать `saveConfig()` отдельно)
-- `database` — общий `HikariDataSource`
+- `database` — общий `HikariDataSource`, только для доверенных скриптов; sandboxed-скрипту доступны SQL-методы KSL, но не raw pool
 - `onEvent<T> { }` — регистрация ивента
 - `registerCommand(name, aliases) { player, args -> }` — динамическая команда
 - `registerPlaceholder(key) { player -> "..." }` — плейсхолдер `%ksl_key%` для PlaceholderAPI
