@@ -2,6 +2,10 @@ package ru.privateserver.ksl
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import kotlinx.coroutines.runBlocking
+import kotlin.script.experimental.host.toScriptSource
+import kotlin.script.experimental.api.ResultWithDiagnostics
+import kotlin.script.experimental.jvmhost.JvmScriptCompiler
 import org.junit.jupiter.api.Test
 import ru.privateserver.ksl.api.KSL_SCRIPT_CONTEXT_CLASS
 import ru.privateserver.ksl.api.KSL_SCRIPT_DEFAULT_IMPORTS
@@ -10,6 +14,21 @@ import ru.privateserver.ksl.api.KSL_SCRIPT_JVM_TARGET
 import kotlin.script.experimental.annotations.KotlinScript
 
 class KSLScriptDefinitionTest {
+    @Test
+    fun `script source cannot access the internal plugin capability`() {
+        val result = runBlocking {
+            JvmScriptCompiler()(
+                "internalPlugin".toScriptSource("sandbox_internal_access.kts"),
+                KSLScriptCompilationConfiguration
+            )
+        }
+
+        assertTrue(
+            result is ResultWithDiagnostics.Failure,
+            "KSL scripts must not be able to compile direct access to internalPlugin"
+        )
+    }
+
     @Test
     fun `script template exposes the canonical runtime definition to IDE tooling`() {
         val definition = KSLScript::class.java.getAnnotation(KotlinScript::class.java)
