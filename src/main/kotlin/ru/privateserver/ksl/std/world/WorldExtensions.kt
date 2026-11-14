@@ -5,6 +5,7 @@ import org.bukkit.Material
 import org.bukkit.World
 import org.bukkit.block.Block
 import org.bukkit.entity.Entity
+import org.bukkit.util.BoundingBox
 
 /** Gets a block using integer block coordinates. */
 fun World.blockAt(x: Int, y: Int, z: Int): Block = getBlockAt(x, y, z)
