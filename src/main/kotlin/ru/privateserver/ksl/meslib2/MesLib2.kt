@@ -32,6 +32,9 @@ class MesLib2 internal constructor(
     fun export(name: String, value: Any, version: String = "1.0.0") =
         export(namespace, name, value, version)
 
+    fun exportLocal(name: String, value: Any, version: String = "1.0.0") =
+        export(namespace, name, value, version)
+
     /** Atomically publishes only if no value currently exists at this key. */
     fun exportIfAbsent(namespace: String, name: String, value: Any, version: String = "1.0.0"): Boolean {
         validate(namespace, "namespace")

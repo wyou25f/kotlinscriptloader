@@ -37,6 +37,8 @@ class MesLib2Test {
         assertEquals("ready", api.findLocal<String>("service"))
         assertEquals("ready", api.resolveLocal<String>("service"))
         assertEquals("provider", api.infoLocal("service")?.namespace)
+        api.exportLocal("local-export", "local-value", "1.2")
+        assertEquals("local-value", api.getLocal<String>("local-export", "1.2"))
         api.provide("economy", "service", "ready", "2.0")
         assertTrue(api.contains("economy", "service", "2.0"))
         assertEquals("ready", api.resolve<String>("economy", "service", "2.0"))
