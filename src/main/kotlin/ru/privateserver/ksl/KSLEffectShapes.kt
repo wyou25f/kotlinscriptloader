@@ -61,7 +61,8 @@ object KSLEffectShapes {
     }
 
     fun line(target: () -> Location, points: Int): KSLEffectShape {
-        val steps = points.coerceIn(1, MAX_POINTS)
+        // The returned list includes both endpoints, so reserve one slot for the start point.
+        val steps = points.coerceIn(1, MAX_POINTS - 1)
         return KSLEffectShape { _, center ->
             val to = target()
             if (to.world != center.world) return@KSLEffectShape emptyList()

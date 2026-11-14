@@ -790,6 +790,10 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 appendLine()
                 appendLine("class KSLEntityBuilder { fun equip(template: String, dropChance: Float? = null) = Unit; fun attribute(name: String, value: Double) = Unit; fun speed(multiplier: Double) = Unit; fun damage(value: Double) = Unit; fun armor(value: Double) = Unit; fun potion(type: org.bukkit.potion.PotionEffectType, seconds: Int = -1, amplifier: Int = 0) = Unit; fun glow(on: Boolean = true) = Unit; fun silent(on: Boolean = true) = Unit; fun invulnerable(on: Boolean = true) = Unit; fun drops(vararg items: ItemStack, exp: Int? = null, keepDefault: Boolean = false) = Unit }")
                 appendLine("class KSLEntityBehaviorBuilder { fun onTick(period: Long, initialDelay: Long = 0L, block: (org.bukkit.entity.LivingEntity) -> Unit) = Unit; fun onDeath(block: (org.bukkit.entity.LivingEntity, Player?) -> Unit) = Unit; fun onDamaged(block: (org.bukkit.entity.LivingEntity, org.bukkit.event.entity.EntityDamageEvent) -> Unit) = Unit; fun onAttack(block: (org.bukkit.entity.LivingEntity, org.bukkit.event.entity.EntityDamageByEntityEvent) -> Unit) = Unit }")
+                appendLine("class KSLShopkeeperBuilder { var profession: org.bukkit.entity.Villager.Profession = org.bukkit.entity.Villager.Profession.LIBRARIAN; var villagerType: org.bukkit.entity.Villager.Type = org.bukkit.entity.Villager.Type.PLAINS; var level: Int = 5; var experience: Int = 1; var aiEnabled: Boolean = false; var invulnerable: Boolean = true; var silent: Boolean = true; fun trade(cost: ItemStack, result: ItemStack, secondCost: ItemStack? = null, maxUses: Int = Int.MAX_VALUE, rewardExperience: Boolean = false, villagerExperience: Int = 0, priceMultiplier: Float = 0f, ignoreDiscounts: Boolean = true) = Unit }")
+                appendLine("fun spawnCustomEntities(location: org.bukkit.Location, template: String, amount: Int, perTick: Int = 1, intervalTicks: Long = 1L, removeOnReload: Boolean = true, builder: KSLEntityBuilder.() -> Unit = {}): Int = 0")
+                appendLine("fun spawnShopkeeper(location: org.bukkit.Location, name: String, removeOnReload: Boolean = true, builder: KSLShopkeeperBuilder.() -> Unit): org.bukkit.entity.Villager = throw UnsupportedOperationException()")
+                appendLine("fun openShopkeeper(player: Player, villager: org.bukkit.entity.Villager, force: Boolean = true): Boolean = false")
                 appendLine("fun spawnCustomEntity(location: org.bukkit.Location, template: String, removeOnReload: Boolean = true, builder: KSLEntityBuilder.() -> Unit = {}): org.bukkit.entity.LivingEntity = throw UnsupportedOperationException()")
                 appendLine("fun org.bukkit.entity.LivingEntity.behavior(builder: KSLEntityBehaviorBuilder.() -> Unit) = Unit")
             }
@@ -1028,6 +1032,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     private fun unloadScript(scriptName: String) {
         if (::workScheduler.isInitialized) runCatching { workScheduler.cancelOwner(scriptName) }
+        if (::effectManager.isInitialized) runCatching { effectManager.cleanupForScript(scriptName) }
         scriptStamps.remove(scriptName)
         limitWarned.remove("$scriptName|L")
         limitWarned.remove("$scriptName|T")

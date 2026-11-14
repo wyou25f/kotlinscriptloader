@@ -234,7 +234,49 @@ loadAllScripts()
 | `stopWhen { условие }` | досрочная остановка; несколько условий складываются через ИЛИ |
 | `onEnd { ... }` | один раз после окончания по времени или `stopWhen` |
 
-`count` ограничен 0..100 на точку.
+`count` ограничен 0..100 на точку. Для одной формы действует бюджет не более 2048 частиц за тик и не более 360 точек; если комбинация точек и `count` превышает бюджет, KSL уменьшает количество частиц на точку и пишет предупреждение. У скрипта может быть до 16 активных эффектов одновременно (общий предел KSL — 128).
+
+### `spawnCustomEntity` и пакетный спавн
+
+`spawnCustomEntity(location, template) { ... }` создаёт одну живую сущность. Неизвестный `TYPE` теперь завершается понятной ошибкой вместо незаметного подменивания на ZOMBIE. Не-spawnable и неживые типы отклоняются до попытки спавна. Вызов должен идти в главном потоке Bukkit; из фоновой задачи передавай его через `runSync { ... }`.
+
+Если нужно создать много мобов, не делай большой цикл `repeat(500) { spawnCustomEntity(...) }` при загрузке скрипта. Используй пакетный вариант: он создаёт ограниченное число сущностей за тик и возвращает ID задачи:
+
+```kotlin
+val taskId = spawnCustomEntities(
+    location = player.location,
+    template = "TYPE:ZOMBIE NAME:\"<red>Страж</red>\" HP:40 AI:TRUE",
+    amount = 100,
+    perTick = 2,
+    intervalTicks = 1L
+) {
+    potion(PotionEffectType.SPEED, seconds = 30)
+}
+```
+
+### `spawnShopkeeper`
+
+`spawnShopkeeper(location, name) { ... }` создаёт настоящего жителя с обычным торговым интерфейсом Minecraft: игрок нажимает ПКМ по жителю и открывает сделки. Для открытия окна из команды или другого события используй `openShopkeeper(player, villager, force = true)`. Это не отдельный инвентарь-симуляция и не копия внутренней реализации Shopkeepers — KSL использует Bukkit/Paper Merchant API.
+
+Настройки билдера:
+
+- `profession`, `villagerType`, `level`, `experience`;
+- `aiEnabled`, `invulnerable`, `silent`;
+- `trade(cost, result, secondCost = null, maxUses = Int.MAX_VALUE, ...)` — одна или две оплаты и один результат.
+
+По умолчанию сделки не дают опыт, не дорожают от спроса и не учитывают индивидуальные скидки; количество использований практически не ограничено. Уровень жителя — 1..5, опыт — не меньше 1, сделки — до 64. Житель сохраняется при выгрузке чанка; при reload KSL удаляет его, если `removeOnReload = true` (значение по умолчанию).
+
+Пример:
+
+```kotlin
+spawnShopkeeper(player.location, "<gold><bold>Торговец</bold></gold>") {
+    profession = Villager.Profession.LIBRARIAN
+    villagerType = Villager.Type.PLAINS
+    level = 5
+    trade(ItemStack(Material.EMERALD, 8), ItemStack(Material.DIAMOND))
+    trade(ItemStack(Material.GOLD_INGOT, 16), ItemStack(Material.GOLDEN_APPLE))
+}
+```
 
 ### `spawnCustomEntity`
 

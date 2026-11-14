@@ -18,6 +18,7 @@ import org.bukkit.entity.Entity
 import org.bukkit.entity.EntityType
 import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Player
+import org.bukkit.entity.Villager
 import org.bukkit.event.Event
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
@@ -67,6 +68,12 @@ open class BukkitScriptContext(
         get() = internalPlugin.database
 
     private val mm: MiniMessage = MiniMessage.miniMessage()
+
+    private fun requirePrimaryThread(operation: String) {
+        check(Bukkit.isPrimaryThread()) {
+            "[$scriptName] $operation требует главного потока сервера; используй runSync { ... }"
+        }
+    }
 
     /** Non-fatal warning; execution continues. */
     fun warn(message: String) {
@@ -778,6 +785,7 @@ open class BukkitScriptContext(
 
     // Works for any id returned by delay/every/runSync/...; stopEffect is the same call for effects.
     fun cancelTask(taskId: Int) {
+        if (internalPlugin.effectManager.stop(scriptName, taskId)) return
         Bukkit.getScheduler().cancelTask(taskId)
         internalPlugin.untrackTask(scriptName, taskId)
     }
@@ -1112,6 +1120,7 @@ open class BukkitScriptContext(
     ) = discordEmbedAsync(channel, title, description, color, footer, fields, allowMentions)
 
     fun Location.playEffect(particle: Particle, builder: KSLEffectSpec.() -> Unit): Int {
+        requirePrimaryThread("playEffect")
         val frozen = this.clone()
         val spec = KSLEffectSpec(particle, { frozen }, internalPlugin.addonManager.effectShapes)
         spec.builder()
@@ -1119,6 +1128,7 @@ open class BukkitScriptContext(
     }
 
     fun Entity.playEffect(particle: Particle, follow: Boolean = false, builder: KSLEffectSpec.() -> Unit): Int {
+        requirePrimaryThread("playEffect")
         val entity = this
         val supplier: () -> Location = if (follow) {
             { entity.location }
@@ -1140,14 +1150,34 @@ open class BukkitScriptContext(
         removeOnReload: Boolean = true,
         builder: KSLEntityBuilder.() -> Unit = {}
     ): LivingEntity {
+        requirePrimaryThread("spawnCustomEntity")
+        require(location.x.isFinite() && location.y.isFinite() && location.z.isFinite() && location.yaw.isFinite() && location.pitch.isFinite()) {
+            "[$scriptName] spawnCustomEntity: координаты и поворот должны быть конечными числами"
+        }
         val attrs = KSLTemplateParser.parse(template)
-        val typeName = attrs["TYPE"]
-        val type = typeName?.let { runCatching { EntityType.valueOf(it.uppercase()) }.getOrNull() }
-            ?: EntityType.ZOMBIE.also {
-                if (typeName != null) internalPlugin.logger.warning("[$scriptName] ${KSLError.ENTITY_UNKNOWN_TYPE.tag} spawnCustomEntity: неизвестный TYPE:$typeName — использую ZOMBIE")
+        val typeName = attrs["TYPE"]?.trim()?.takeIf { it.isNotEmpty() }
+        val type = if (typeName == null) {
+            EntityType.ZOMBIE
+        } else {
+            runCatching { EntityType.valueOf(typeName.uppercase()) }.getOrElse {
+                throw IllegalArgumentException(
+                    "[$scriptName] ${KSLError.ENTITY_UNKNOWN_TYPE.tag} spawnCustomEntity: неизвестный TYPE:'$typeName'. Укажи имя EntityType, например ZOMBIE или VILLAGER.",
+                    it
+                )
             }
+        }
+        require(type.isSpawnable && type.isAlive) {
+            "[$scriptName] spawnCustomEntity: TYPE:${type.name} нельзя создать как живую сущность. Укажи спавнимый живой тип, например ZOMBIE, SKELETON или COW."
+        }
         val world = location.world ?: error("${KSLError.ENTITY_NO_WORLD.tag} spawnCustomEntity: у локации нет мира")
-        val spawned = world.spawnEntity(location, type)
+        val spawned = try {
+            world.spawnEntity(location, type)
+        } catch (ex: Throwable) {
+            throw IllegalStateException(
+                "[$scriptName] spawnCustomEntity: Paper не смог создать ${type.name} в ${world.name} на ${location.blockX},${location.blockY},${location.blockZ}: ${ex.message}",
+                ex
+            )
+        }
         val entity = spawned as? LivingEntity ?: run {
             spawned.remove()
             error("${KSLError.ENTITY_NOT_LIVING.tag} spawnCustomEntity: TYPE:${type.name} — не LivingEntity (нужен живой моб вроде ZOMBIE/SKELETON/COW), заспавненная сущность удалена")
@@ -1193,6 +1223,93 @@ open class BukkitScriptContext(
             throw ex
         }
         return entity
+    }
+
+    /**
+     * Spawns a bounded number of custom mobs over multiple ticks instead of creating
+     * the entire batch during script evaluation or one command callback.
+     *
+     * Returns the repeating task id; it is cancelled automatically when the batch ends
+     * or when the owning script is unloaded.
+     */
+    fun spawnCustomEntities(
+        location: Location,
+        template: String,
+        amount: Int,
+        perTick: Int = 1,
+        intervalTicks: Long = 1L,
+        removeOnReload: Boolean = true,
+        builder: KSLEntityBuilder.() -> Unit = {}
+    ): Int {
+        requirePrimaryThread("spawnCustomEntities")
+        require(amount in 1..10_000) { "[$scriptName] spawnCustomEntities: amount должен быть от 1 до 10000" }
+        require(perTick in 1..10) { "[$scriptName] spawnCustomEntities: perTick должен быть от 1 до 10" }
+        require(location.world != null) { "[$scriptName] spawnCustomEntities: у локации нет мира" }
+        val frozen = location.clone()
+        var spawned = 0
+        var taskId = -1
+        taskId = every(ticks = intervalTicks) {
+            try {
+                repeat((amount - spawned).coerceAtMost(perTick)) {
+                    spawnCustomEntity(frozen, template, removeOnReload, builder)
+                    spawned++
+                }
+                if (spawned >= amount) cancelTask(taskId)
+            } catch (ex: Throwable) {
+                cancelTask(taskId)
+                throw ex
+            }
+        }
+        return taskId
+    }
+
+    /**
+     * Creates a stationary, persistent villager with a native Minecraft merchant GUI.
+     * Trades are configured once and owned by the script for predictable reload cleanup.
+     */
+    fun spawnShopkeeper(
+        location: Location,
+        name: String,
+        removeOnReload: Boolean = true,
+        builder: KSLShopkeeperBuilder.() -> Unit
+    ): Villager {
+        requirePrimaryThread("spawnShopkeeper")
+        require(name.isNotBlank()) { "[$scriptName] spawnShopkeeper: имя не должно быть пустым" }
+        require(location.x.isFinite() && location.y.isFinite() && location.z.isFinite() && location.yaw.isFinite() && location.pitch.isFinite()) {
+            "[$scriptName] spawnShopkeeper: координаты и поворот должны быть конечными числами"
+        }
+        val world = location.world ?: error("[$scriptName] spawnShopkeeper: у локации нет мира")
+        val spawned = try {
+            world.spawnEntity(location, EntityType.VILLAGER)
+        } catch (ex: Throwable) {
+            throw IllegalStateException(
+                "[$scriptName] spawnShopkeeper: Paper не смог создать Villager в ${world.name} на ${location.blockX},${location.blockY},${location.blockZ}: ${ex.message}",
+                ex
+            )
+        }
+        val villager = spawned as? Villager ?: run {
+            spawned.remove()
+            error("[$scriptName] spawnShopkeeper: Paper не вернул сущность Villager")
+        }
+
+        internalPlugin.entityManager.trackSpawn(scriptName, villager, removeOnReload)
+        try {
+            villager.customName(parseMM(name))
+            villager.isCustomNameVisible = true
+            KSLShopkeeperBuilder(villager).apply(builder).apply()
+        } catch (ex: Throwable) {
+            internalPlugin.entityManager.forget(scriptName, villager)
+            villager.remove()
+            throw ex
+        }
+        return villager
+    }
+
+    /** Opens the built-in villager trade screen for a player and one of this script's merchants. */
+    fun openShopkeeper(player: Player, villager: Villager, force: Boolean = true): Boolean {
+        requirePrimaryThread("openShopkeeper")
+        if (!villager.isValid) return false
+        return player.openMerchant(villager, force) != null
     }
 
     fun LivingEntity.behavior(builder: KSLEntityBehaviorBuilder.() -> Unit) {
