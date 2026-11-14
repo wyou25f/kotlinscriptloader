@@ -92,6 +92,11 @@ class KSLPublicApiTest {
     }
 
     @Test
+    fun `addon config is exported from the public api package`() {
+        assertEquals("ru.privateserver.ksl.KSLAddonConfig", KSLAddonConfig::class.java.name)
+    }
+
+    @Test
     fun `typed lifecycle subscription filters payloads and uses stable topic`() {
         var subscribedTopic: String? = null
         var callback: ((Any?) -> Unit)? = null

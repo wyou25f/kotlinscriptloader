@@ -1138,6 +1138,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         scriptDiagnostics.clearScript(scriptName)
         runCatching { scriptRuntimeScopes.remove(scriptName)?.close() }
             .onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось закрыть runtime-ресурсы: ${it.message}") }
+        if (::persistStore.isInitialized) runCatching { persistStore.clearScript(scriptName) }
+            .onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось очистить кеш persist: ${it.message}") }
         if (liveScripts.remove(scriptName)) addonManager.publish("ksl.script.unloaded", KSLScriptEvent(scriptName))
         runCatching {
             val taskIds = synchronized(taskLock) { tasksByScript.remove(scriptName)?.toList().orEmpty() }

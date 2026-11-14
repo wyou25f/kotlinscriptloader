@@ -1,5 +1,7 @@
 package ru.privateserver.ksl
 
+import java.math.BigInteger
+
 import org.bukkit.configuration.file.YamlConfiguration
 
 /** A single validation result. corrected is true when applyDefaults replaced the value. */
@@ -32,14 +34,18 @@ class KSLYamlSchema {
     fun int(path: String, default: Int, min: Int? = null, max: Int? = null) {
         require(min == null || max == null || min <= max) { "min must be <= max" }
         add(path, default, "integer${range(min, max)}") {
-            it is Int && (min == null || it >= min) && (max == null || it <= max)
+            val number = integerValue(it)
+            number != null &&
+                number >= (min?.toLong() ?: Int.MIN_VALUE.toLong()) &&
+                number <= (max?.toLong() ?: Int.MAX_VALUE.toLong())
         }
     }
 
     fun long(path: String, default: Long, min: Long? = null, max: Long? = null) {
         require(min == null || max == null || min <= max) { "min must be <= max" }
         add(path, default, "long${range(min, max)}") {
-            it is Long && (min == null || it >= min) && (max == null || it <= max)
+            val number = integerValue(it)
+            number != null && (min == null || number >= min) && (max == null || number <= max)
         }
     }
 
@@ -80,6 +86,16 @@ class KSLYamlSchema {
             }
         }
         return issues
+    }
+
+    /**
+     * YAML may deserialize integral values as Int, Long or BigInteger depending on magnitude.
+     * Accept only exact integral values; never truncate floating-point values or overflow.
+     */
+    private fun integerValue(value: Any?): Long? = when (value) {
+        is Byte, is Short, is Int, is Long -> (value as Number).toLong()
+        is BigInteger -> runCatching { value.longValueExact() }.getOrNull()
+        else -> null
     }
 
     private fun range(min: Number?, max: Number?): String = when {

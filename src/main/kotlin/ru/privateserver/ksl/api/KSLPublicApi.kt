@@ -4,6 +4,7 @@ package ru.privateserver.ksl.api
 
 import ru.privateserver.ksl.BukkitScriptContext as CoreBukkitScriptContext
 import ru.privateserver.ksl.KSL as CoreKSL
+import ru.privateserver.ksl.KSLAddonConfig as CoreKSLAddonConfig
 import ru.privateserver.ksl.KSLAPI as CoreKSLAPI
 import ru.privateserver.ksl.KSLAddon as CoreKSLAddon
 import ru.privateserver.ksl.KSLContextExtension as CoreKSLContextExtension
@@ -34,6 +35,8 @@ import ru.privateserver.ksl.rt.KSLRuntimeMonitor
  * `import ru.privateserver.ksl.api.*`
  */
 typealias KSLAPI = CoreKSLAPI
+/** YAML configuration wrapper returned by [KSLAPI.createConfig]. */
+typealias KSLAddonConfig = CoreKSLAddonConfig
 /** Short Kotlin-friendly name for the public addon API. */
 typealias KslApi = CoreKSLAPI
 /** Short alias for integrations that prefer a minimal import name. */

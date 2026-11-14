@@ -270,7 +270,7 @@ updateToml("data/settings.toml") { this["maintenance"] = false }
 
 TOML writes are atomic and paths are confined to the script's `scripts/` directory. Malformed input is preserved and backed up before an error is reported. The writer supports scalar values, arrays and nested tables; arrays of tables and null values are rejected explicitly. File operations are synchronous, so large files should be handled asynchronously.
 
-Typed accessors include `tomlHas`, `tomlString`, `tomlInt`, `tomlLong`, `tomlDouble`, `tomlBoolean`, `tomlTable` and `tomlList`. Mutable maps also provide `putTomlIfAbsent` and `removeToml`.
+Typed accessors include `tomlHas`, `tomlString`, `tomlInt`, `tomlLong`, `tomlDouble`, `tomlBoolean`, `tomlTable` and `tomlList`. Integer accessors do not truncate fractional numbers or wrap out-of-range values; they return the supplied default instead. Mutable maps also provide `putTomlIfAbsent` and `removeToml`.
 
 ## YAML helpers and feature flags
 

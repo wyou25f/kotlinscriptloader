@@ -114,9 +114,26 @@ object KSLTomlCodec {
 /** Typed, default-friendly accessors for values returned by [KSLTomlCodec.parse]. */
 fun Map<String, Any?>.tomlHas(key: String): Boolean = containsKey(key)
 fun Map<String, Any?>.tomlString(key: String, default: String = ""): String = this[key] as? String ?: default
-fun Map<String, Any?>.tomlLong(key: String, default: Long = 0L): Long = (this[key] as? Number)?.toLong() ?: default
-fun Map<String, Any?>.tomlInt(key: String, default: Int = 0): Int = (this[key] as? Number)?.toInt() ?: default
+fun Map<String, Any?>.tomlLong(key: String, default: Long = 0L): Long =
+    (this[key] as? Number)?.exactLongOrNull() ?: default
+fun Map<String, Any?>.tomlInt(key: String, default: Int = 0): Int =
+    (this[key] as? Number)?.exactIntOrNull() ?: default
 fun Map<String, Any?>.tomlDouble(key: String, default: Double = 0.0): Double = (this[key] as? Number)?.toDouble() ?: default
+
+private fun Number.exactLongOrNull(): Long? = when (this) {
+    is Byte, is Short, is Int, is Long -> toLong()
+    is BigInteger -> runCatching { longValueExact() }.getOrNull()
+    is BigDecimal -> runCatching { longValueExact() }.getOrNull()
+    else -> null
+}
+
+private fun Number.exactIntOrNull(): Int? = when (this) {
+    is Byte, is Short, is Int -> toInt()
+    is Long -> takeIf { it in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong() }?.toInt()
+    is BigInteger -> runCatching { intValueExact() }.getOrNull()
+    is BigDecimal -> runCatching { intValueExact() }.getOrNull()
+    else -> null
+}
 fun Map<String, Any?>.tomlBoolean(key: String, default: Boolean = false): Boolean = this[key] as? Boolean ?: default
 @Suppress("UNCHECKED_CAST")
 fun Map<String, Any?>.tomlTable(key: String): Map<String, Any?>? = this[key] as? Map<String, Any?>

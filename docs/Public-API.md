@@ -37,6 +37,7 @@ module contracts. It also exposes:
 - `emit(topic, payload)` and `on(topic) { }` aliases for the event bus;
 - `pluginAvailable(name)` for checking an installed plugin;
 - `KslApi` and `KSLPublicAPI`: alternate type names for `KSLAPI`;
+- `KSLAddonConfig`: YAML configuration wrapper returned by `KSLAPI.createConfig(...)`;
 - `KSLMesLib2` and `MesLib`: alternate type names for the MesLib2 facade;
 - `KSLTopics` and typed `onScriptLoaded()`, `onScriptFailed()`,
   `onScriptUnloaded()` subscriptions;

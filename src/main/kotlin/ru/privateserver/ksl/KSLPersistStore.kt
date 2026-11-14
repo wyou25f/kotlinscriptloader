@@ -6,31 +6,15 @@ import kotlin.reflect.KProperty
 
 class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
 
-    // ConcurrentHashMap rejects null values; box them to keep nullable properties working.
-    private object Null
-    private val memory = java.util.concurrent.ConcurrentHashMap<String, Any>()
+    private val memory = KSLPersistMemoryCache()
 
     fun <T> property(scriptName: String, key: String, persistent: Boolean, default: () -> T): KSLPersistProperty<T> =
         KSLPersistProperty(this, scriptName, key, persistent, default)
 
-    fun <T> get(fullKey: String, persistent: Boolean, default: () -> T): T {
-        // compute() serializes the initial load with set() for this key. Unlike computeIfAbsent(),
-        // it permits a null result, which leaves failed database reads uncached and retryable.
-        val cached = memory.compute(fullKey) { _, current ->
-            current ?: run {
-                // A stored nullable value is different from a missing row: preserve persisted nulls.
-                val loaded = if (persistent) loadFromDb(fullKey) else null
-                when {
-                    persistent && loaded == null -> null // Read failed: leave the key uncached so it can retry.
-                    loaded?.first == true -> loaded.second ?: Null
-                    else -> default() ?: Null
-                }
-            }
-        } ?: return default()
-
-        @Suppress("UNCHECKED_CAST")
-        return (if (cached === Null) null else cached) as T
-    }
+    fun <T> get(fullKey: String, persistent: Boolean, default: () -> T): T =
+        memory.get(fullKey, default) {
+            if (persistent) loadFromDb(fullKey) else null
+        }
 
     fun <T> set(fullKey: String, value: T, persistent: Boolean) {
         // Fail fast on the caller thread; a background warning would silently lose the write.
@@ -41,7 +25,7 @@ class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
                     "поддерживаются только String, Int, Long, Double, Boolean, null"
             )
         } else null
-        memory[fullKey] = value ?: Null
+        memory.set(fullKey, value)
         if (encoded != null) {
             // A value written every tick would otherwise queue twenty UPDATEs per second; one queued write carries the newest.
             val ticket = writes.offer(fullKey, encoded) ?: return
@@ -66,7 +50,7 @@ class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
     }
 
     fun clearScript(scriptName: String) {
-        memory.keys.removeIf { it.startsWith("$scriptName:") }
+        memory.clearScript(scriptName)
     }
 
     // Pair.first tells whether the row exists; Pair.second may legitimately be null.
