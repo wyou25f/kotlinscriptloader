@@ -12,6 +12,13 @@
 
 # Unreleased
 
+## 🔒 Ограничение raw-доступа в sandbox
+
+- Свойства `BukkitScriptContext.plugin` и `database` теперь выбрасывают `SecurityException` для sandboxed-скриптов; доверенные скрипты сохраняют прежний доступ.
+- Внутренние методы KSL используют скрытый JVM-synthetic accessor, чтобы не зависеть от публичного getter.
+- Добавлены тесты политики доступа и синтетичности accessor; это сужает прямой доступ к инфраструктуре, но не превращает in-process sandbox в границу JVM-изоляции.
+
+
 ## 🧩 Public Config API для аддонов
 
 - Добавлен `KSLAddonConfig` и `KSLAPI.createConfig(...)` для YAML-конфигов в собственной папке аддона.
