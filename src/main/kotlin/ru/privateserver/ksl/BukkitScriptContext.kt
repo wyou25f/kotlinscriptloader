@@ -23,7 +23,7 @@ import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
-import org.bukkit.internalPlugin.EventExecutor
+import org.bukkit.plugin.EventExecutor
 import org.bukkit.scheduler.BukkitTask
 import java.io.File
 import java.io.IOException
@@ -724,7 +724,7 @@ open class BukkitScriptContext(
     }
 
     fun runAsync(block: () -> Unit): Int =
-         scheduleTracked("runAsync", block = block) { Bukkit.getScheduler().runTaskAsynchronously(plugin, it) }
+         scheduleTracked("runAsync", block = block) { Bukkit.getScheduler().runTaskAsynchronously(internalPlugin, it) }
 
     /** Runs work on KSL's bounded priority-aware worker pool. Bukkit world access belongs in runSync(). */
     fun worker(priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL, block: () -> Unit): Long =
@@ -741,14 +741,14 @@ open class BukkitScriptContext(
     fun cancelWorker(taskId: Long): Boolean = internalPlugin.cancelWorker(taskId)
 
     fun runSync(block: () -> Unit): Int =
-        scheduleTracked("runSync", block = block) { Bukkit.getScheduler().runTask(plugin, it) }
+        scheduleTracked("runSync", block = block) { Bukkit.getScheduler().runTask(internalPlugin, it) }
 
     fun delay(ticks: Long, block: () -> Unit): Int =
-        scheduleTracked("delay", block = block) { Bukkit.getScheduler().runTaskLater(plugin, it, ticks) }
+        scheduleTracked("delay", block = block) { Bukkit.getScheduler().runTaskLater(internalPlugin, it, ticks) }
 
     fun every(ticks: Long, initialDelay: Long = 0L, block: () -> Unit): Int {
         val period = KSLErrors.validPeriod(internalPlugin, scriptName, "every", ticks)
-        return scheduleTracked("every", repeating = true, block = block) { Bukkit.getScheduler().runTaskTimer(plugin, it, initialDelay, period) }
+        return scheduleTracked("every", repeating = true, block = block) { Bukkit.getScheduler().runTaskTimer(internalPlugin, it, initialDelay, period) }
     }
 
     /**
@@ -760,12 +760,12 @@ open class BukkitScriptContext(
         every(ticks = period, initialDelay = initialDelay, block = block)
 
     fun delayAsync(ticks: Long, block: () -> Unit): Int =
-        scheduleTracked("delayAsync", block = block) { Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, it, ticks) }
+        scheduleTracked("delayAsync", block = block) { Bukkit.getScheduler().runTaskLaterAsynchronously(internalPlugin, it, ticks) }
 
     fun everyAsync(ticks: Long, initialDelay: Long = 0L, block: () -> Unit): Int {
         val period = KSLErrors.validPeriod(internalPlugin, scriptName, "everyAsync", ticks)
         return scheduleTracked("everyAsync", repeating = true, block = block) {
-            Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, it, initialDelay, period)
+            Bukkit.getScheduler().runTaskTimerAsynchronously(internalPlugin, it, initialDelay, period)
         }
     }
 
