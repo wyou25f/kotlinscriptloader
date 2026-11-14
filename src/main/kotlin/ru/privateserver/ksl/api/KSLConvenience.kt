@@ -1,9 +1,11 @@
 package ru.privateserver.ksl.api
 
 import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.minimessage.MiniMessage
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import org.bukkit.scheduler.BukkitTask
+import java.util.UUID
 
 /**
  * Small convenience layer for addon authors. These are extensions rather than
@@ -19,11 +21,24 @@ fun KSLAPI.onlinePlayers(): List<Player> = Bukkit.getOnlinePlayers().toList()
 /** Finds an online player by their exact name. */
 fun KSLAPI.findOnlinePlayer(name: String): Player? = Bukkit.getPlayerExact(name)
 
+/** Finds an online player by UUID. */
+fun KSLAPI.findOnlinePlayer(uniqueId: UUID): Player? = Bukkit.getPlayer(uniqueId)
+
+/** Checks whether a player UUID currently belongs to an online player. */
+fun KSLAPI.isPlayerOnline(uniqueId: UUID): Boolean = Bukkit.getPlayer(uniqueId)?.isOnline == true
+
+/** Number of currently online players. */
+fun KSLAPI.onlinePlayerCount(): Int = Bukkit.getOnlinePlayers().size
+
 /** Sends literal text to every online player. MiniMessage markup is not interpreted. */
 fun KSLAPI.broadcast(message: String): Int = Bukkit.broadcast(Component.text(message))
 
 /** Sends an Adventure component to every online player. */
 fun KSLAPI.broadcast(component: Component): Int = Bukkit.broadcast(component)
+
+/** Sends MiniMessage-formatted text to every online player. */
+fun KSLAPI.broadcastRich(message: String): Int =
+    Bukkit.broadcast(MiniMessage.miniMessage().deserialize(message))
 
 /** Whether the current caller is on the Bukkit server thread. */
 fun KSLAPI.isServerThread(): Boolean = Bukkit.isPrimaryThread()

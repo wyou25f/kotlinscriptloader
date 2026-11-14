@@ -110,8 +110,8 @@ The Standard Library utilities and module contracts are documented in
 
 The public API package also provides small, additive helpers for addon authors:
 
-- `onlinePlayers()` and `findOnlinePlayer(name)` for online-player lookup;
-- `broadcast(String)` for literal text and `broadcast(Component)` for Adventure components;
+- `onlinePlayers()`, `onlinePlayerCount()`, `findOnlinePlayer(name/uuid)` and `isPlayerOnline(uuid)` for online-player lookup;
+- `broadcast(String)` for literal text, `broadcast(Component)` for Adventure components and `broadcastRich(String)` for MiniMessage;
 - `isServerThread()` for an explicit thread check;
 - `scheduleSync`, `scheduleAsync`, `scheduleSyncLater`,
   `scheduleAsyncLater`, `scheduleSyncRepeating` and
