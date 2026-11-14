@@ -238,7 +238,7 @@ tasks.register("componentTestAudit") {
 
         val sourceFiles = sourceRoot.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
         val testFiles = testRoot.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
-        val testAnnotation = Regex("""(?m)^\\s*@(?:org\\.junit\\.jupiter\\.api\\.)?(?:Test|ParameterizedTest|RepeatedTest|TestFactory)\\b""")
+        val testAnnotation = Regex("""(?m)^\s*@(?:org\.junit\.jupiter\.api\.)?(?:Test|ParameterizedTest|RepeatedTest|TestFactory)\b""")
         val testsByPackage = testFiles.groupBy { componentPackageName(testRoot, it) }
         val sourcePackages = sourceFiles.groupBy { componentPackageName(sourceRoot, it) }.toSortedMap()
 
