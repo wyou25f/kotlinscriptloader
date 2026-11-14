@@ -280,7 +280,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     }
 
     fun scriptDependencies(): List<KSLScriptDependencyInfo> =
-        KSLScriptOrder.inspect(findScriptFiles(), ::scriptId)
+        KSLScriptOrder.inspect(indexedScriptFiles(), ::scriptId)
 
     fun resourceSnapshot(scriptId: String): KSLResourceSnapshot {
         val activeTaskCount = synchronized(taskLock) {
@@ -299,7 +299,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             loaded = scriptId in liveScripts,
             listeners = listenerCount,
             tasks = activeTaskCount,
-            commands = commandsByScript[scriptId]?.size ?: 0,
+            commands = trackedCommandCount(scriptId),
             placeholders = placeholdersByScript[scriptId]?.distinct()?.size ?: 0,
             textPlaceholders = textPlaceholderCount,
             hasGui = scriptId in scriptsWithGuis,
@@ -312,7 +312,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     private val listenersByScript    = ConcurrentHashMap<String, MutableList<Listener>>()
     private val listenerLock = Any()
-    private val commandsByScript     = ConcurrentHashMap<String, MutableSet<DynamicCommand>>()
+    private val commandsByScript     = ConcurrentHashMap<String, MutableList<DynamicCommand>>()
+    private val commandLock = Any()
     private val placeholdersByScript = ConcurrentHashMap<String, MutableList<String>>()
     private val tasksByScript        = ConcurrentHashMap<String, MutableSet<Int>>()
     private val taskLock = Any()
@@ -908,7 +909,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     fun scriptId(file: File): String = file.relativeTo(scriptsFolder).invariantSeparatorsPath.removeSuffix(".kts")
 
     // Every .kts under scripts/ (sub-folders included, up to 8 levels). Dot-files and folders starting with "." or "_" are skipped.
-    fun findScriptFiles(): List<File> {
+    private fun scanScriptFiles(): List<File> {
         val root = scriptsFolder
         val depth = if (config.getBoolean("scripts.recursive", true)) 8 else 1
         return root.walkTopDown().maxDepth(depth)
@@ -922,11 +923,22 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 it.isFile && it.extension == "kts" && !it.name.startsWith(".") &&
                     KSLScriptPathPolicy.isSafeChild(root, it)
             }
-            .sortedBy { scriptId(it) }
             .toList()
     }
 
-    fun scriptIds(): List<String> = findScriptFiles().map { scriptId(it) }
+    private val scriptIndex = KSLScriptIndex(::scanScriptFiles, ::scriptId)
+
+    /** Force a filesystem refresh; used by explicit reload/validation operations. */
+    fun findScriptFiles(): List<File> = scriptIndex.refresh().files
+
+    /** Reuse the current immutable index snapshot for status and command suggestions. */
+    fun indexedScriptFiles(): List<File> = scriptIndex.snapshot().files
+
+    fun scriptIds(): List<String> = scriptIndex.snapshot().ids
+
+    fun scriptReloadTargets(): List<String> = scriptIndex.snapshot().reloadTargets
+
+    internal fun invalidateScriptIndex() = scriptIndex.invalidate()
 
     // Last seen state of each script file; lets /ksl reload changed skip everything that did not change.
     private val scriptStamps = ConcurrentHashMap<String, Long>()
@@ -940,7 +952,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     private fun stampOf(file: File): Long = file.lastModified() * 31 + file.length()
 
-    fun scriptInfos(): List<KSLScriptInfo> = findScriptFiles().map { file ->
+    fun scriptInfos(): List<KSLScriptInfo> = indexedScriptFiles().map { file ->
         val id = scriptId(file)
         KSLScriptInfo(id, id in liveScripts, loadMillisById[id] ?: -1L, KSLErrors.countFor(id))
     }
@@ -1077,7 +1089,10 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     fun verifyTrackedCommands(): List<String> {
         val broken = mutableListOf<String>()
-        commandsByScript.values.flatten().forEach { cmd ->
+        val commands = synchronized(commandLock) {
+            commandsByScript.values.flatMap { it.toList() }
+        }
+        commands.forEach { cmd ->
             val bare = Bukkit.getCommandMap().getCommand(cmd.name)
             val prefixed = Bukkit.getCommandMap().getCommand("${name.lowercase()}:${cmd.name}")
             if (bare !== cmd && prefixed !== cmd) broken.add(cmd.name)
@@ -1139,7 +1154,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         }.onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось снять часть listener'ов: ${it.message}") }
 
         runCatching {
-            val commands = commandsByScript.remove(scriptName)?.toSet() ?: emptySet()
+            val commands = synchronized(commandLock) {
+                commandsByScript.remove(scriptName)?.toList().orEmpty()
+            }
             if (commands.isNotEmpty()) unregisterCommands(commands)
         }.onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось снять часть команд: ${it.message}") }
 
@@ -1167,12 +1184,14 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             .onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось очистить кулдауны скрипта: ${it.message}") }
     }
 
-    private fun unregisterCommands(commands: Set<Command>) {
+    private fun unregisterCommands(commands: Collection<DynamicCommand>) {
         if (commands.isEmpty()) return
+        val commandSet = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Command, Boolean>())
+        commandSet.addAll(commands)
         scheduleCommandSync()
-        val viaApi = runCatching { removeOurCommands(Bukkit.getCommandMap().knownCommands, commands) }
+        val viaApi = runCatching { removeOurCommands(Bukkit.getCommandMap().knownCommands, commandSet) }
         if (viaApi.isSuccess) return
-        val viaReflection = runCatching { removeOurCommands(reflectKnownCommands(), commands) }
+        val viaReflection = runCatching { removeOurCommands(reflectKnownCommands(), commandSet) }
         if (viaReflection.isFailure)
             logger.warning("${KSLError.COMMAND_MAP_UNAVAILABLE.tag} commandMap недоступен для изменения — старые команды сохранятся до рестарта.")
     }
@@ -1482,13 +1501,18 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         }
     }
 
+    private fun trackedCommandCount(scriptName: String): Int =
+        synchronized(commandLock) { commandsByScript[scriptName]?.size ?: 0 }
+
     fun trackCommand(scriptName: String, command: DynamicCommand) {
-        // Registration may be triggered by scripts running on different scheduler threads.
-        commandsByScript.computeIfAbsent(scriptName) { ConcurrentHashMap.newKeySet() }.add(command)
+        // A small array-backed owner list is cheaper than a separate ConcurrentHashMap per script.
+        synchronized(commandLock) {
+            val owned = commandsByScript.getOrPut(scriptName) { ArrayList(1) }
+            if (owned.none { it === command }) owned.add(command)
+        }
         scheduleCommandSync()
 
-        val labels = listOf(command.name) + command.aliases
-        labels.forEach { label ->
+        for (label in sequenceOf(command.name).plus(command.aliases)) {
             if (Bukkit.getCommandMap().getCommand(label) !== command) {
                 val fallbackLabel = "${name.lowercase()}:$label"
                 val fallbackRegistered = Bukkit.getCommandMap().getCommand(fallbackLabel) === command

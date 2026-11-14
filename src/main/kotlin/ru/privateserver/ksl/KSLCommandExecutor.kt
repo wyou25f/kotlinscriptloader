@@ -7,6 +7,21 @@ import org.bukkit.command.CommandExecutor
 import org.bukkit.command.CommandSender
 import org.bukkit.command.TabCompleter
 
+private val KSL_ROOT_COMMANDS = listOf(
+    "help", "reload", "scripts", "debug", "resources", "deps", "runtime", "perf",
+    "memory", "cpu", "addons", "services", "libraries", "discord", "sandbox",
+    "errors", "error", "watchdog", "doctor", "validate", "dbmigrate"
+)
+private val KSL_WORKER_COMMANDS = setOf("runtime", "perf", "memory", "cpu")
+private val KSL_SCRIPT_COMMANDS = setOf("debug", "resources", "deps")
+private val KSL_WORKER_COMPLETIONS = listOf("workers")
+private val KSL_WORKER_COUNTS = (1..64).map(Int::toString)
+private val KSL_ERROR_LIST_COMPLETIONS = listOf("list")
+private val KSL_ERROR_CATEGORY_COMPLETIONS =
+    listOf("all") + KSLErrorCategory.entries.map { it.letter.toString() }
+private val KSL_ERROR_CODE_COMPLETIONS = KSLError.entries.map { it.code }
+private val KSL_DB_MIGRATE_COMPLETIONS = listOf("confirm")
+
 class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : CommandExecutor, TabCompleter {
 
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<String>): Boolean {
@@ -401,34 +416,33 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
     ): List<String> {
         if (!sender.hasPermission("ksl.admin")) return emptyList()
         if (args.size == 1)
-            return listOf("help", "reload", "scripts", "debug", "resources", "deps", "runtime", "perf", "memory", "cpu", "addons", "services", "libraries", "discord", "sandbox", "errors", "error", "watchdog", "doctor", "validate", "dbmigrate")
-                .filter { it.startsWith(args[0].lowercase()) }
-        if (args.size == 2 && args[0].lowercase() in setOf("runtime", "perf", "memory", "cpu")) {
-            return listOf("workers").filter { it.startsWith(args[1].lowercase()) }
+            return KSL_ROOT_COMMANDS.filter { it.startsWith(args[0], ignoreCase = true) }
+        if (args.size == 2 && args[0].lowercase() in KSL_WORKER_COMMANDS) {
+            return KSL_WORKER_COMPLETIONS.filter { it.startsWith(args[1], ignoreCase = true) }
         }
-        if (args.size == 3 && args[0].lowercase() in setOf("runtime", "perf", "memory", "cpu") && args[1].equals("workers", true)) {
-            return (1..64).map(Int::toString).filter { it.startsWith(args[2]) }
+        if (args.size == 3 && args[0].lowercase() in KSL_WORKER_COMMANDS && args[1].equals("workers", true)) {
+            return KSL_WORKER_COUNTS.filter { it.startsWith(args[2]) }
         }
         if (args.size == 2 && args[0].equals("reload", ignoreCase = true)) {
-            val ids = plugin.scriptIds()
-            // Scripts, folders ("economy/") and the "changed" keyword.
-            val folders = ids.filter { it.contains('/') }.map { it.substringBeforeLast('/') + "/" }.toSet()
-            return (ids + folders + "changed").sorted().filter { it.startsWith(args[1], ignoreCase = true) }
+            return plugin.scriptReloadTargets().filter { it.startsWith(args[1], ignoreCase = true) }
         }
-        if (args.size == 2 && args[0].lowercase() in setOf("debug", "resources", "deps")) {
+        if (args.size == 2 && args[0].lowercase() in KSL_SCRIPT_COMMANDS) {
             return plugin.scriptIds().filter { it.startsWith(args[1].removeSuffix(".kts"), ignoreCase = true) }
         }
         if (args.size == 2 && args[0].equals("errors", ignoreCase = true)) {
-            return listOf("list").filter { it.startsWith(args[1].lowercase()) }
+            return KSL_ERROR_LIST_COMPLETIONS.filter { it.startsWith(args[1], ignoreCase = true) }
         }
         if (args.size == 3 && args[0].equals("errors", true) && args[1].equals("list", true)) {
-            return (listOf("all") + KSLErrorCategory.entries.map { it.letter.toString() }).filter { it.startsWith(args[2].lowercase()) }
+            return KSL_ERROR_CATEGORY_COMPLETIONS.filter { it.startsWith(args[2], ignoreCase = true) }
         }
         if (args.size == 2 && args[0].equals("error", ignoreCase = true)) {
-            return KSLError.entries.map { it.code }.filter { it.startsWith(args[1].lowercase()) }.take(40)
+            return KSL_ERROR_CODE_COMPLETIONS.asSequence()
+                .filter { it.startsWith(args[1], ignoreCase = true) }
+                .take(40)
+                .toList()
         }
         if (args.size == 2 && args[0].equals("dbmigrate", ignoreCase = true)) {
-            return listOf("confirm").filter { it.startsWith(args[1].lowercase()) }
+            return KSL_DB_MIGRATE_COMPLETIONS.filter { it.startsWith(args[1], ignoreCase = true) }
         }
         return emptyList()
     }

@@ -6,6 +6,7 @@ import org.bukkit.entity.Player
 import java.util.Locale
 
 private val COMMAND_LABEL_PATTERN = Regex("[a-z0-9._-]+")
+private val COMMAND_ALIAS_SEPARATOR = Regex("[,\\s]+")
 
 private fun normalizeCommandLabel(label: String): String {
     val normalized = label.trim().lowercase(Locale.ROOT)
@@ -28,7 +29,7 @@ internal fun normalizeCommandAliases(
     val normalizedAliases = LinkedHashSet<String>()
 
     aliases.forEach { rawEntry ->
-        rawEntry.split(Regex("[,\\s]+")).filter { it.isNotBlank() }.forEach { rawAlias ->
+        rawEntry.split(COMMAND_ALIAS_SEPARATOR).filter { it.isNotBlank() }.forEach { rawAlias ->
             val alias = rawAlias.trim().lowercase(Locale.ROOT)
             when {
                 !COMMAND_LABEL_PATTERN.matches(alias) ->

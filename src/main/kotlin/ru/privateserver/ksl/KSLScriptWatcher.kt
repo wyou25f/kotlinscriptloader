@@ -113,6 +113,7 @@ class KSLScriptWatcher(private val plugin: KotlinScriptLoaderPlugin) {
 
     private fun rescan() {
         if (stopped.get()) return
+        plugin.invalidateScriptIndex()
         val current = plugin.scriptIds().toSet()
         val now = System.currentTimeMillis()
         (knownScripts - current).forEach { pending[it] = now }
@@ -123,6 +124,7 @@ class KSLScriptWatcher(private val plugin: KotlinScriptLoaderPlugin) {
 
     private fun record(file: File) {
         if (stopped.get() || file.extension != "kts" || file.name.startsWith(".")) return
+        plugin.invalidateScriptIndex()
         val id = plugin.scriptId(file)
         knownScripts.add(id)
         pending[id] = System.currentTimeMillis()
@@ -132,6 +134,7 @@ class KSLScriptWatcher(private val plugin: KotlinScriptLoaderPlugin) {
     // Use ids remembered before deletion so scripts from the removed subtree are unloaded too.
     private fun recordDeletedDirectory(directory: File) {
         if (stopped.get()) return
+        plugin.invalidateScriptIndex()
         val relative = runCatching {
             plugin.scriptsFolder.toPath().relativize(directory.toPath()).toString()
                 .replace(File.separatorChar, '/').trimEnd('/')

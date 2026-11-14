@@ -165,7 +165,25 @@ log("calls=${snapshot.calls}, avgNs=${snapshot.averageNanos}")
 
 Реестр именованных профилировщиков ограничен 1024 именами. Для динамических профилей вызывай KSLRT.removeProfiler(name), когда профиль больше не нужен. Не создавай уникальное имя на каждый вызов.
 
-## 11. Чек-лист
+## 11. Индекс скриптов и автодополнение
+
+KSL keeps an immutable in-memory snapshot of discovered .kts files, their IDs and
+reload completion targets. Status output and tab completion reuse that snapshot
+instead of walking the scripts directory and rebuilding folder candidates on every
+keystroke. The snapshot is refreshed by explicit discovery/reload operations and
+invalidated by filesystem watcher events.
+
+The per-script command registry uses compact owner lists rather than allocating
+a separate concurrent hash set for every script. Bukkit still owns the live command
+objects and their callbacks: this bookkeeping optimization reduces duplicate
+registry overhead, but it does not make the memory used by loaded script code or
+registered command handlers disappear.
+
+For servers with many scripts, keep auto-reload enabled when live filesystem
+changes should appear immediately in suggestions. Without the watcher, an explicit
+reload/validation scan refreshes the index.
+
+## 12. Чек-лист
 
 - [ ] Нет SQL и сети на главном потоке.
 - [ ] Пользовательские значения идут через prepared statement.
