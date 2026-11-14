@@ -180,3 +180,32 @@ saveJson("cache/player.json", payload)
 - `jsonObjectOf(...)`, `jsonArrayOf(...)`, and `toJsonElement()` convert common Kotlin primitives, maps, arrays and collections.
 - `JsonObject.string/int/long/double/bool` provide typed access with defaults; `objectValue` and `arrayValue` read nested structures.
 - File operations are synchronous. Do not use them for large files on the Bukkit server thread; use KSL async scheduling when appropriate.
+
+
+## Security helpers
+
+KSL exposes built-in security utilities through `ru.privateserver.ksl.std.security.*`. They use Java 21 cryptographic APIs and require no additional runtime library.
+
+```kotlin
+// SHA-256 is for checksums and integrity checks, not password storage.
+val checksum = "important data".sha256()
+val valid = "important data".sha256Matches(checksum)
+
+// Passwords use salted PBKDF2-HMAC-SHA256.
+// Store only the encoded result; never store the original password.
+val passwordHash = hashPassword("correct horse battery staple")
+val accepted = verifyPassword("correct horse battery staple", passwordHash)
+
+// File checksum, HMAC, random token and Base64 helpers.
+val fileChecksum = File("plugins/KotlinScriptLoader/config.yml").sha256()
+val signature = hmacSha256("payload", secretKey)
+val token = secureToken(32)
+val encoded = base64Encode("hello")
+val decoded = base64Decode(encoded)
+```
+
+Available methods include `KSLSecurity.sha256(text)`, `sha256File(file)`, `verifySha256(text, hex)`, `hashPassword(password)`, `verifyPassword(password, encodedHash)`, `hmacSha256(message, secret)`, `constantTimeEquals(a, b)`, `randomToken(byteCount)`, `base64Encode(text)` and `base64Decode(text)`. Top-level aliases are available for the common operations.
+
+**Important:** SHA-256 is intentionally fast and must not be used to store passwords. Passwords are hashed with a unique random salt and PBKDF2-HMAC-SHA256; the encoded value contains the algorithm, work factor, salt and derived hash. Password verification uses constant-time comparison. The accepted work-factor range is bounded to prevent untrusted encoded values from requesting excessive CPU time.
+
+Run password hashing/verification and large-file checksums asynchronously; these operations can consume CPU or perform disk I/O. Base64 is encoding, not encryption. HMAC requires a secret key that must be stored outside public configs and never logged. Do not use XOR as password hashing or as a substitute for authenticated encryption. Never put plaintext passwords, API keys or webhook tokens in YAML/JSON files committed to a repository.
