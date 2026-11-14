@@ -398,6 +398,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     }
 
     override fun onDisable() {
+        shuttingDown.set(true)
         runCatching { watchdogMonitor?.stop() }
         watchdogMonitor = null
         runCatching { scriptWatcher?.stop() }
@@ -803,6 +804,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private val liveScripts = ConcurrentHashMap.newKeySet<String>()
     private val loadMillisById = ConcurrentHashMap<String, Long>()
     private val reloadBusy = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val shuttingDown = java.util.concurrent.atomic.AtomicBoolean(false)
 
     private fun stampOf(file: File): Long = file.lastModified() * 31 + file.length()
 
@@ -864,38 +866,55 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     // Blocking flavour, for startup and for callers that already sit on the main thread.
     private fun reloadNow(files: List<File>, removed: Collection<String>): ReloadSummary {
-        val ordered = KSLScriptOrder.sort(files, { scriptId(it) }, logger)
-        return swap(ordered, compileBatch(ordered), removed)
+        check(!shuttingDown.get()) { "KotlinScriptLoader is shutting down; script reload is unavailable" }
+        check(reloadBusy.compareAndSet(false, true)) { "A script reload is already in progress" }
+        return try {
+            val ordered = KSLScriptOrder.sort(files, { scriptId(it) }, logger)
+            swap(ordered, compileBatch(ordered), removed)
+        } finally {
+            reloadBusy.set(false)
+        }
     }
 
     // Compiles on a worker thread while the server keeps ticking, then swaps on the main thread.
-    // done receives null when another reload is still running.
+    // done receives null when another reload is running or shutdown has started.
     private fun runAsyncReload(files: List<File>, removed: Collection<String>, done: (ReloadSummary?) -> Unit) {
-        if (!reloadBusy.compareAndSet(false, true)) {
+        if (shuttingDown.get() || !reloadBusy.compareAndSet(false, true)) {
             done(null)
             return
         }
         try {
             Bukkit.getScheduler().runTaskAsynchronously(this, Runnable {
-                val ordered = KSLScriptOrder.sort(files, { scriptId(it) }, logger)
+                var ordered = emptyList<File>()
                 val units = try {
+                    ordered = KSLScriptOrder.sort(files, { scriptId(it) }, logger)
                     compileBatch(ordered)
                 } catch (ex: Throwable) {
                     logger.severe("${KSLError.SCRIPT_RUNTIME.tag} Фоновая компиляция не удалась: ${ex::class.simpleName}: ${ex.message}")
                     null
                 }
+
+                // A compile already in progress may finish while the plugin is disabling.
+                if (shuttingDown.get() || !isEnabled) {
+                    reloadBusy.set(false)
+                    return@Runnable
+                }
+
                 // Initialise the scripting runtime here, not during the swap on the main thread.
                 runCatching { scriptRunner.warmUp() }
                 try {
                     Bukkit.getScheduler().runTask(this, Runnable {
                         try {
-                            done(if (units == null) ReloadSummary(0, ordered.size, 0) else swap(ordered, units, removed))
+                            if (!shuttingDown.get() && isEnabled) {
+                                done(if (units == null) ReloadSummary(0, ordered.size, 0) else swap(ordered, units, removed))
+                            }
                         } finally {
                             reloadBusy.set(false)
                         }
                     })
                 } catch (ex: Throwable) {
                     reloadBusy.set(false)
+                    logger.warning("Не удалось передать результат перезагрузки на главный поток: ${ex.message}")
                 }
             })
         } catch (ex: Throwable) {
