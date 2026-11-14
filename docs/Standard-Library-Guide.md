@@ -28,7 +28,10 @@ player.tellRich("<green>Welcome!</green>")
 player.hasAnyPermission("vip", "admin")
 player.hasAllPermissions("server.play", "server.chat")
 player.isInventoryFull()
-player.give(item(Material.DIAMOND))
+player.give(item(Material.DIAMOND)) // returns leftovers
+player.canFit(item(Material.DIAMOND), 16)
+val dropped = player.giveOrDrop(item(Material.DIAMOND, amount = 64))
+player.removeItems(4) { it.type == Material.DIRT }
 player.feed()
 player.healBy(4.0)
 player.count(item(Material.DIAMOND))
@@ -46,6 +49,8 @@ player.isInWorld("world")
 ```kotlin
 val freeSlots = inventory.emptySlots()
 val full = inventory.isFull()
+val diamondCapacity = inventory.spaceFor(item(Material.DIAMOND))
+val canFitDiamonds = inventory.canFit(item(Material.DIAMOND), 16)
 val diamondSlots = inventory.slotsMatching { it.type == Material.DIAMOND }
 val removed = inventory.removeMatching(12) { it.type == Material.DIRT }
 val taken = inventory.take(0, 16)
