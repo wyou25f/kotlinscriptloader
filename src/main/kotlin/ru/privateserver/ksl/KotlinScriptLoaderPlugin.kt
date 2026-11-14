@@ -408,6 +408,18 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         runCatching { scriptWatcher?.stop() }
         runCatching { compilePool.close() }
         logger.info("$c9$bold■ KotlinScriptLoader останавливается...$r")
+        // A background compile must not race addon/classloader teardown. Shutdown is bounded
+        // because a third-party compiler extension may ignore interruption.
+        val reloadDeadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(2)
+        while (reloadBusy.get() && System.nanoTime() < reloadDeadline) {
+            try {
+                Thread.sleep(10L)
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+                break
+            }
+        }
+        if (reloadBusy.get()) logger.warning("Перезагрузка ещё выполнялась при выключении; её результат будет отброшен")
         runCatching { unloadAllScripts() }
             .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} Ошибка при выгрузке скриптов: ${it.message}") }
         runCatching { if (::workScheduler.isInitialized) workScheduler.close() }

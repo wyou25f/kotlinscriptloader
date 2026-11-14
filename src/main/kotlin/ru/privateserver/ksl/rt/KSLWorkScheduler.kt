@@ -171,5 +171,12 @@ class KSLWorkScheduler(
         executor.shutdownNow().forEach { queued ->
             (queued as? WorkTask)?.finish()
         }
+        try {
+            if (!executor.awaitTermination(2, TimeUnit.SECONDS)) {
+                // Running user code may ignore interruption; worker threads are daemon threads.
+            }
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+        }
     }
 }

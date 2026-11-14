@@ -33,5 +33,12 @@ internal class KSLCompilePool(threads: Int) : AutoCloseable {
 
     override fun close() {
         executor.shutdownNow()
+        try {
+            if (!executor.awaitTermination(2, java.util.concurrent.TimeUnit.SECONDS)) {
+                // Compiler tasks are interruptible where possible; the daemon pool must not hold shutdown open.
+            }
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+        }
     }
 }

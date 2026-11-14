@@ -160,5 +160,12 @@ internal class KSLWatchdogMonitor(
         if (!stopped.compareAndSet(false, true)) return
         runCatching { heartbeatTask?.cancel() }
         executor.shutdownNow()
+        if (Thread.currentThread().name != "KSL-Watchdog-Diagnostics") {
+            try {
+                executor.awaitTermination(1, TimeUnit.SECONDS)
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            }
+        }
     }
 }
