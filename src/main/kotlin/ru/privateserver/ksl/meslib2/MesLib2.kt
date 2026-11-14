@@ -21,7 +21,7 @@ class MesLib2 internal constructor(
     val scope: String get() = namespace
 
     /** Publishes a value under namespace/name. Version is an exact-match label. */
-    fun export(namespace: String, name: String, value: Any, version: String = "1.0.0") {
+    fun export(namespace: String, name: String, value: Any, version: String) {
         validate(namespace, "namespace")
         validate(name, "name")
         require(version.isNotBlank()) { "MesLib2 version must not be blank" }
