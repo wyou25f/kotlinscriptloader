@@ -1068,7 +1068,7 @@ open class BukkitScriptContext(
     fun discordMessageAsync(channel: String, message: String, allowMentions: Boolean = false) =
         discordSendAsync(channel, message, allowMentions)
 
-    fun discordMessage(
+    fun discordEmbedMessage(
         channel: String,
         title: String,
         description: String = "",
@@ -1077,7 +1077,7 @@ open class BukkitScriptContext(
         fields: List<KSLDiscordEmbedField> = emptyList()
     ) = discordEmbed(channel, title, description, color, footer, fields)
 
-    fun discordMessageAsync(
+    fun discordEmbedMessageAsync(
         channel: String,
         title: String,
         description: String = "",
