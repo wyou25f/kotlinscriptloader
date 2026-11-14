@@ -782,6 +782,9 @@ open class BukkitScriptContext(
     fun after(ticks: Long, block: () -> Unit): Int = delay(ticks, block)
     fun repeat(ticks: Long, initialDelay: Long = 0L, block: () -> Unit): Int =
         every(ticks, initialDelay, block)
+    fun afterAsync(ticks: Long, block: () -> Unit): Int = delayAsync(ticks, block)
+    fun repeatAsync(ticks: Long, initialDelay: Long = 0L, block: () -> Unit): Int =
+        everyAsync(ticks, initialDelay, block)
 
     // Works for any id returned by delay/every/runSync/...; stopEffect is the same call for effects.
     fun cancelTask(taskId: Int) {
@@ -1142,6 +1145,12 @@ open class BukkitScriptContext(
         return internalPlugin.effectManager.play(scriptName, spec)
     }
 
+    fun Location.effect(particle: Particle, builder: KSLEffectSpec.() -> Unit): Int =
+        playEffect(particle, builder)
+
+    fun Entity.effect(particle: Particle, follow: Boolean = false, builder: KSLEffectSpec.() -> Unit): Int =
+        playEffect(particle, follow, builder)
+
     fun stopEffect(taskId: Int) = cancelTask(taskId)
 
     fun spawnCustomEntity(
@@ -1311,6 +1320,19 @@ open class BukkitScriptContext(
         if (!villager.isValid) return false
         return player.openMerchant(villager, force) != null
     }
+
+    fun mob(location: Location, template: String, removeOnReload: Boolean = true,
+            builder: KSLEntityBuilder.() -> Unit = {}): LivingEntity =
+        spawnCustomEntity(location, template, removeOnReload, builder)
+
+    fun mobs(location: Location, template: String, amount: Int, perTick: Int = 1,
+             intervalTicks: Long = 1L, removeOnReload: Boolean = true,
+             builder: KSLEntityBuilder.() -> Unit = {}): Int =
+        spawnCustomEntities(location, template, amount, perTick, intervalTicks, removeOnReload, builder)
+
+    fun shopkeeper(location: Location, name: String, removeOnReload: Boolean = true,
+                   builder: KSLShopkeeperBuilder.() -> Unit): Villager =
+        spawnShopkeeper(location, name, removeOnReload, builder)
 
     fun LivingEntity.behavior(builder: KSLEntityBehaviorBuilder.() -> Unit) {
         KSLEntityBehaviorBuilder(internalPlugin, scriptName, this).builder()

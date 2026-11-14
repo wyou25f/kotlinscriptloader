@@ -45,6 +45,27 @@ class KSLEffectShapesTest {
     }
 
     @Test
+    fun `arc cylinder cone and heart stay finite and bounded`() {
+        val center = Location(null, 0.0, 0.0, 0.0)
+        val shapes = listOf(
+            KSLEffectShapes.arc(2.0, 0.0, 180.0, 30),
+            KSLEffectShapes.cylinder(2.0, 3.0, 30),
+            KSLEffectShapes.cone(2.0, 3.0, 30),
+            KSLEffectShapes.heart(2.0, 80)
+        )
+        val expected = listOf(30, 60, 31, 80)
+        shapes.zip(expected).forEach { (shape, count) ->
+            val points = shape.points(0L, center)
+            assertEquals(count, points.size)
+            assertTrue(points.all { it.x.isFinite() && it.y.isFinite() && it.z.isFinite() })
+        }
+        assertEquals(KSLEffectBudget.MAX_POINTS,
+            KSLEffectShapes.cylinder(1.0, 1.0, Int.MAX_VALUE).points(0L, center).size)
+        assertEquals(KSLEffectBudget.MAX_POINTS,
+            KSLEffectShapes.cone(1.0, 1.0, Int.MAX_VALUE).points(0L, center).size)
+    }
+
+    @Test
     fun `shape inputs reject non finite geometry`() {
         assertThrows(IllegalArgumentException::class.java) {
             KSLEffectShapes.circle(Double.NaN, 15.0)

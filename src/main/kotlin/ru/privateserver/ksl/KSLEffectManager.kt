@@ -24,6 +24,61 @@ internal object KSLEffectBudget {
     }
 }
 
+internal data class KSLParticleAllocation(
+    val pointsToEmit: Int,
+    val countPerPoint: Int,
+    val particles: Int
+)
+
+internal class KSLParticleTickBudget(
+    private val maxParticlesPerTick: Int = 8_192,
+    private val maxParticlesPerEffect: Int = KSLEffectBudget.MAX_PARTICLES_PER_TICK
+) {
+    private var budgetTick = Int.MIN_VALUE
+    private var emittedThisTick = 0
+
+    init {
+        require(maxParticlesPerTick > 0)
+        require(maxParticlesPerEffect > 0)
+    }
+
+    @Synchronized
+    fun allocate(tick: Int, requestedCount: Int, pointCount: Int): KSLParticleAllocation {
+        require(pointCount in 1..KSLEffectBudget.MAX_POINTS) {
+            "Форма эффекта должна возвращать от 1 до ${KSLEffectBudget.MAX_POINTS} точек"
+        }
+        if (budgetTick != tick) {
+            budgetTick = tick
+            emittedThisTick = 0
+        }
+
+        val available = minOf(
+            maxParticlesPerEffect,
+            (maxParticlesPerTick - emittedThisTick).coerceAtLeast(0)
+        )
+        if (available == 0) return KSLParticleAllocation(0, 0, 0)
+
+        val count = requestedCount.coerceIn(0, KSLEffectBudget.MAX_COUNT)
+        val requestedPerPoint = if (count == 0) 1 else count
+        val pointsToEmit: Int
+        val actualPerPoint: Int
+        if (available >= pointCount) {
+            pointsToEmit = pointCount
+            actualPerPoint = requestedPerPoint.coerceAtMost(available / pointCount)
+        } else {
+            pointsToEmit = available
+            actualPerPoint = 1
+        }
+
+        val emitted = pointsToEmit * actualPerPoint
+        emittedThisTick += emitted
+        return KSLParticleAllocation(pointsToEmit, if (count == 0) 0 else actualPerPoint, emitted)
+    }
+
+    @Synchronized
+    fun emittedInTick(tick: Int): Int = if (budgetTick == tick) emittedThisTick else 0
+}
+
 class KSLEffectManager(private val plugin: KotlinScriptLoaderPlugin) {
 
     private companion object {
@@ -32,6 +87,7 @@ class KSLEffectManager(private val plugin: KotlinScriptLoaderPlugin) {
     }
 
     private val activeByScript = ConcurrentHashMap<String, MutableSet<Int>>()
+    private val particleBudget = KSLParticleTickBudget()
 
     private fun activeEffectCount(): Int = activeByScript.values.sumOf { it.size }
 
@@ -113,25 +169,37 @@ class KSLEffectManager(private val plugin: KotlinScriptLoaderPlugin) {
                         "Форма эффекта вернула ${points.size} точек; максимум — ${KSLEffectBudget.MAX_POINTS}"
                     }
                     if (points.isNotEmpty()) {
-                        val requestedCount = spec.count.coerceIn(0, KSLEffectBudget.MAX_COUNT)
-                        val count = KSLEffectBudget.countPerPoint(requestedCount, points.size)
-                        if (count < requestedCount && !warnedBudget) {
-                            warnedBudget = true
-                            plugin.logger.warning(
-                                "[$scriptName] playEffect: нагрузка формы превышает лимит ${KSLEffectBudget.MAX_PARTICLES_PER_TICK} частиц за тик; count на точку уменьшен до $count"
-                            )
-                        }
                         points.forEach { offset ->
                             require(offset.x.isFinite() && offset.y.isFinite() && offset.z.isFinite()) {
                                 "Форма эффекта вернула координаты, не являющиеся конечными числами"
                             }
-                            val x = cx + offset.x
-                            val y = cy + offset.y
-                            val z = cz + offset.z
-                            require(x.isFinite() && y.isFinite() && z.isFinite()) {
-                                "Итоговые координаты эффекта вышли за допустимый числовой диапазон"
+                            require(
+                                (cx + offset.x).isFinite() && (cy + offset.y).isFinite() && (cz + offset.z).isFinite()
+                            ) { "Итоговые координаты эффекта вышли за допустимый числовой диапазон" }
+                        }
+
+                        val requestedCount = spec.count.coerceIn(0, KSLEffectBudget.MAX_COUNT)
+                        val requestedParticles = (if (requestedCount == 0) 1 else requestedCount) * points.size
+                        val allocation = particleBudget.allocate(Bukkit.getCurrentTick(), spec.count, points.size)
+                        if (allocation.particles < requestedParticles && !warnedBudget) {
+                            warnedBudget = true
+                            plugin.logger.warning(
+                                "[$scriptName] playEffect: достигнут лимит частиц эффекта/сервера за тик; выпущено ${allocation.particles} из $requestedParticles"
+                            )
+                        }
+                        val selected = when {
+                            allocation.pointsToEmit == points.size -> points
+                            allocation.pointsToEmit == 0 -> emptyList()
+                            else -> List(allocation.pointsToEmit) { index ->
+                                points[(index.toLong() * points.size / allocation.pointsToEmit).toInt()]
                             }
-                            world.spawnParticle(spec.particle, x, y, z, count, spec.offsetX, spec.offsetY, spec.offsetZ, spec.extra, spec.data)
+                        }
+                        selected.forEach { offset ->
+                            world.spawnParticle(
+                                spec.particle, cx + offset.x, cy + offset.y, cz + offset.z,
+                                allocation.countPerPoint, spec.offsetX, spec.offsetY, spec.offsetZ,
+                                spec.extra, spec.data
+                            )
                         }
                     }
                 }

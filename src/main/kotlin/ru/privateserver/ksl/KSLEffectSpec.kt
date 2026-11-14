@@ -48,6 +48,22 @@ class KSLEffectSpec(
         shapeBuilder = { KSLEffectShapes.square(size, pointsPerSide) }
     }
 
+    fun arc(radius: Double, startDegrees: Double = 0.0, sweepDegrees: Double = 180.0, points: Int = 30) {
+        shapeBuilder = { KSLEffectShapes.arc(radius, startDegrees, sweepDegrees, points) }
+    }
+
+    fun cylinder(radius: Double, height: Double, pointsPerRing: Int = 30) {
+        shapeBuilder = { KSLEffectShapes.cylinder(radius, height, pointsPerRing) }
+    }
+
+    fun cone(radius: Double, height: Double, points: Int = 60) {
+        shapeBuilder = { KSLEffectShapes.cone(radius, height, points) }
+    }
+
+    fun heart(size: Double = 1.0, points: Int = 80) {
+        shapeBuilder = { KSLEffectShapes.heart(size, points) }
+    }
+
     fun point() {
         shapeBuilder = { KSLEffectShapes.point() }
     }

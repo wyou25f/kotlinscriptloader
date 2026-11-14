@@ -15,8 +15,13 @@ class KSLShopkeeperBuilder internal constructor(private val villager: Villager) 
     var level: Int = 5
     var experience: Int = 1
     var aiEnabled: Boolean = false
+    var aware: Boolean = false
     var invulnerable: Boolean = true
     var silent: Boolean = true
+    var collidable: Boolean = false
+    var canPickupItems: Boolean = false
+    var glowing: Boolean = false
+    var gravity: Boolean = true
 
     private val trades = mutableListOf<MerchantRecipe>()
 
@@ -54,8 +59,13 @@ class KSLShopkeeperBuilder internal constructor(private val villager: Villager) 
         villager.setVillagerLevel(level)
         villager.setVillagerExperience(experience)
         villager.setAI(aiEnabled)
+        villager.setAware(aware)
         villager.isInvulnerable = invulnerable
         villager.isSilent = silent
+        villager.isCollidable = collidable
+        villager.setCanPickupItems(canPickupItems)
+        villager.isGlowing = glowing
+        villager.setGravity(gravity)
         villager.isPersistent = true
         villager.setRemoveWhenFarAway(false)
         villager.setRecipes(trades.map { MerchantRecipe(it) })

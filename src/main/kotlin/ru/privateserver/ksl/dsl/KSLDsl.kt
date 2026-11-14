@@ -16,6 +16,8 @@ import org.bukkit.event.EventPriority
 import org.bukkit.event.block.BlockBreakEvent
 import org.bukkit.event.block.BlockPlaceEvent
 import org.bukkit.event.entity.PlayerDeathEvent
+import org.bukkit.event.entity.EntityDeathEvent
+import org.bukkit.event.entity.EntityDamageEvent
 import org.bukkit.event.player.PlayerInteractEvent
 import org.bukkit.event.player.PlayerJoinEvent
 import org.bukkit.event.player.PlayerQuitEvent
@@ -156,6 +158,13 @@ fun BukkitScriptContext.onBlockBreak(action: BlockBreakEvent.() -> Unit) = onEve
 fun BukkitScriptContext.onBlockPlace(action: BlockPlaceEvent.() -> Unit) = onEvent<BlockPlaceEvent>(action = action)
 
 fun BukkitScriptContext.onInteract(action: PlayerInteractEvent.() -> Unit) = onEvent<PlayerInteractEvent>(action = action)
+
+fun BukkitScriptContext.onPlayerJoin(action: PlayerJoinEvent.() -> Unit) = onJoin(action)
+fun BukkitScriptContext.onPlayerQuit(action: PlayerQuitEvent.() -> Unit) = onQuit(action)
+fun BukkitScriptContext.onPlayerRespawn(action: PlayerRespawnEvent.() -> Unit) = onRespawn(action)
+fun BukkitScriptContext.onPlayerInteract(action: PlayerInteractEvent.() -> Unit) = onInteract(action)
+fun BukkitScriptContext.onMobDeath(action: EntityDeathEvent.() -> Unit) = onEvent<EntityDeathEvent>(action = action)
+fun BukkitScriptContext.onEntityDamage(action: EntityDamageEvent.() -> Unit) = onEvent<EntityDamageEvent>(action = action)
 
 // Fires on Paper's async chat thread: do not touch the world directly, wrap that in sync { }.
 fun BukkitScriptContext.onChat(action: AsyncChatEvent.() -> Unit) = onEvent<AsyncChatEvent>(action = action)

@@ -106,6 +106,62 @@ object KSLEffectShapes {
         return KSLEffectShape { _, _ -> perimeter }
     }
 
+    fun arc(radius: Double, startDegrees: Double = 0.0, sweepDegrees: Double = 180.0, points: Int = 30): KSLEffectShape {
+        require(radius.isFinite() && radius >= 0.0) { "Радиус дуги должен быть конечным неотрицательным числом" }
+        require(startDegrees.isFinite() && sweepDegrees.isFinite()) { "Углы дуги должны быть конечными числами" }
+        val n = points.coerceIn(2, MAX_POINTS)
+        return KSLEffectShape { _, _ ->
+            (0 until n).map { index ->
+                val progress = index.toDouble() / (n - 1)
+                val angle = Math.toRadians(startDegrees % 360.0 + (sweepDegrees % 360.0) * progress)
+                Vector(cos(angle) * radius, 0.0, sin(angle) * radius)
+            }
+        }
+    }
+
+    fun cylinder(radius: Double, height: Double, pointsPerRing: Int = 30): KSLEffectShape {
+        require(radius.isFinite() && radius >= 0.0) { "Радиус цилиндра должен быть конечным неотрицательным числом" }
+        require(height.isFinite()) { "Высота цилиндра должна быть конечным числом" }
+        val n = pointsPerRing.coerceIn(2, MAX_POINTS / 2)
+        return KSLEffectShape { _, _ ->
+            (0 until n).flatMap { index ->
+                val angle = 2.0 * Math.PI * index / n
+                val x = cos(angle) * radius
+                val z = sin(angle) * radius
+                listOf(Vector(x, 0.0, z), Vector(x, height, z))
+            }
+        }
+    }
+
+    fun cone(radius: Double, height: Double, points: Int = 60): KSLEffectShape {
+        require(radius.isFinite() && radius >= 0.0) { "Радиус конуса должен быть конечным неотрицательным числом" }
+        require(height.isFinite()) { "Высота конуса должна быть конечным числом" }
+        val n = points.coerceIn(3, MAX_POINTS - 1)
+        return KSLEffectShape { _, _ ->
+            val base = (0 until n).map { index ->
+                val angle = 2.0 * Math.PI * index / n
+                Vector(cos(angle) * radius, 0.0, sin(angle) * radius)
+            }
+            base + Vector(0.0, height, 0.0)
+        }
+    }
+
+    fun heart(size: Double = 1.0, points: Int = 80): KSLEffectShape {
+        require(size.isFinite() && size >= 0.0) { "Размер сердца должен быть конечным неотрицательным числом" }
+        val n = points.coerceIn(4, MAX_POINTS)
+        val scale = size / 16.0
+        return KSLEffectShape { _, _ ->
+            (0 until n).map { index ->
+                val angle = 2.0 * Math.PI * index / n
+                val sine = sin(angle)
+                val x = 16.0 * sine * sine * sine
+                val y = 13.0 * cos(angle) - 5.0 * cos(2.0 * angle) -
+                    2.0 * cos(3.0 * angle) - cos(4.0 * angle)
+                Vector(x * scale, y * scale, 0.0)
+            }
+        }
+    }
+
     fun point(): KSLEffectShape = KSLEffectShape { _, _ -> listOf(Vector(0.0, 0.0, 0.0)) }
 
     // Built-ins are registered like addon shapes, so shape("circle", "radius" to 2.0) works everywhere.

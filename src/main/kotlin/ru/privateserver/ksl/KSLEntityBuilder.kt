@@ -1,7 +1,9 @@
 package ru.privateserver.ksl
 
+import org.bukkit.Location
 import org.bukkit.Material
 import org.bukkit.entity.LivingEntity
+import org.bukkit.entity.Mob
 import org.bukkit.inventory.ItemStack
 import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
@@ -50,6 +52,59 @@ class KSLEntityBuilder(
             eq.chestplateDropChance = chance
             eq.leggingsDropChance = chance
             eq.bootsDropChance = chance
+        }
+    }
+
+    private fun requireMob(): Mob =
+        entity as? Mob ?: throw IllegalStateException("${entity.type} не поддерживает Paper Mob Pathfinder")
+
+    fun moveTo(location: Location, speed: Double = 1.0): Boolean {
+        validateNavigationTarget(location, speed, "moveTo")
+        return requireMob().pathfinder.moveTo(location, speed)
+    }
+
+    fun follow(target: LivingEntity, speed: Double = 1.0): Boolean {
+        require(target.isValid && !target.isDead) { "Цель follow должна быть живой и валидной сущностью" }
+        require(target.world == entity.world) { "Цель follow должна находиться в том же мире, что и моб" }
+        validateNavigationSpeed(speed, "follow")
+        return requireMob().pathfinder.moveTo(target, speed)
+    }
+
+    fun stopMoving() { requireMob().pathfinder.stopPathfinding() }
+
+    fun lookAt(location: Location) {
+        require(location.world == entity.world) { "Цель lookAt должна находиться в том же мире, что и моб" }
+        require(location.x.isFinite() && location.y.isFinite() && location.z.isFinite()) {
+            "Координаты lookAt должны быть конечными числами"
+        }
+        requireMob().lookAt(location)
+    }
+
+    fun aware(on: Boolean = true) { requireMob().setAware(on) }
+    fun aggressive(on: Boolean = true) { requireMob().setAggressive(on) }
+
+    fun navigation(
+        canFloat: Boolean? = null,
+        canOpenDoors: Boolean? = null,
+        canPassDoors: Boolean? = null
+    ) {
+        val pathfinder = requireMob().pathfinder
+        canFloat?.let { pathfinder.setCanFloat(it) }
+        canOpenDoors?.let { pathfinder.setCanOpenDoors(it) }
+        canPassDoors?.let { pathfinder.setCanPassDoors(it) }
+    }
+
+    private fun validateNavigationTarget(location: Location, speed: Double, operation: String) {
+        validateNavigationSpeed(speed, operation)
+        require(location.world == entity.world) { "Цель $operation должна находиться в том же мире, что и моб" }
+        require(location.x.isFinite() && location.y.isFinite() && location.z.isFinite()) {
+            "Координаты цели $operation должны быть конечными числами"
+        }
+    }
+
+    private fun validateNavigationSpeed(speed: Double, operation: String) {
+        require(speed.isFinite() && speed > 0.0 && speed <= 10.0) {
+            "Скорость $operation должна быть конечным числом в диапазоне (0, 10]"
         }
     }
 
