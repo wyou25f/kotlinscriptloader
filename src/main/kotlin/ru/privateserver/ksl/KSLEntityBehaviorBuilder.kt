@@ -19,6 +19,9 @@ class KSLEntityBehaviorBuilder(
 
     fun onTick(period: Long, initialDelay: Long = 0L, block: (LivingEntity) -> Unit) {
         val validPeriod = KSLErrors.validPeriod(plugin, scriptName, "entity onTick", period)
+        require(initialDelay >= 0L) {
+            "[$scriptName] entity onTick: initialDelay должен быть неотрицательным числом тиков"
+        }
         lateinit var task: BukkitTask
         var errors = 0
 

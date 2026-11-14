@@ -32,6 +32,9 @@ class KSLEffectManager(private val plugin: KotlinScriptLoaderPlugin) {
             )
         }
         require(spec.durationTicks > 0L) { "[$scriptName] playEffect: durationTicks должен быть больше нуля" }
+        require(
+            spec.offsetX.isFinite() && spec.offsetY.isFinite() && spec.offsetZ.isFinite() && spec.extra.isFinite()
+        ) { "[$scriptName] playEffect: offsetX/offsetY/offsetZ/extra должны быть конечными числами" }
         val shape = spec.buildShape()
         var tick = 0L
         lateinit var task: BukkitTask
@@ -64,7 +67,14 @@ class KSLEffectManager(private val plugin: KotlinScriptLoaderPlugin) {
                     val cx = center.x
                     val cy = center.y
                     val cz = center.z
-                    shape.points(tick, center).take(MAX_POINTS).forEach { offset ->
+                    val points = shape.points(tick, center)
+                    require(points.size <= MAX_POINTS) {
+                        "Форма эффекта вернула ${points.size} точек; максимум — $MAX_POINTS"
+                    }
+                    points.forEach { offset ->
+                        require(offset.x.isFinite() && offset.y.isFinite() && offset.z.isFinite()) {
+                            "Форма эффекта вернула координаты, не являющиеся конечными числами"
+                        }
                         world.spawnParticle(spec.particle, cx + offset.x, cy + offset.y, cz + offset.z, count, spec.offsetX, spec.offsetY, spec.offsetZ, spec.extra, spec.data)
                     }
                 }
