@@ -5,7 +5,7 @@ import java.util.UUID
 private val legacyColorCode = Regex("(?i)§[0-9A-FK-ORX]")
 private val canonicalUuid = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 
-private fun Char.isKslWhitespace(): Boolean = isWhitespace() || isSpaceChar()
+private fun Char.isKslWhitespace(): Boolean = isWhitespace() || Character.isSpaceChar(this)
 
 /**
  * Truncates by Unicode code points, so a surrogate pair is never split.

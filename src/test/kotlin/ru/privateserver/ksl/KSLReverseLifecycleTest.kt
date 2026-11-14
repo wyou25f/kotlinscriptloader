@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test
 
 class KSLReverseLifecycleTest {
     @Test
-    fun \`runs teardown in reverse order and continues after a failure\`() {
+    fun runsTeardownInReverseOrderAndContinuesAfterFailure() {
         val order = mutableListOf<Int>()
         val failures = mutableListOf<Int>()
 

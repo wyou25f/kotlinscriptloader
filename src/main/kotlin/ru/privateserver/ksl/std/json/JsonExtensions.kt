@@ -46,14 +46,14 @@ fun Any?.toJsonElement(): JsonElement = when (this) {
     }
     is Iterable<*> -> buildJsonArray { this@toJsonElement.forEach { add(it.toJsonElement()) } }
     is Array<*> -> buildJsonArray { this@toJsonElement.forEach { add(it.toJsonElement()) } }
-    is ByteArray -> buildJsonArray { this@toJsonElement.forEach { add(it) } }
-    is ShortArray -> buildJsonArray { this@toJsonElement.forEach { add(it) } }
-    is IntArray -> buildJsonArray { this@toJsonElement.forEach { add(it) } }
-    is LongArray -> buildJsonArray { this@toJsonElement.forEach { add(it) } }
+    is ByteArray -> buildJsonArray { this@toJsonElement.forEach { add(it.toJsonElement()) } }
+    is ShortArray -> buildJsonArray { this@toJsonElement.forEach { add(it.toJsonElement()) } }
+    is IntArray -> buildJsonArray { this@toJsonElement.forEach { add(it.toJsonElement()) } }
+    is LongArray -> buildJsonArray { this@toJsonElement.forEach { add(it.toJsonElement()) } }
     is FloatArray -> buildJsonArray { this@toJsonElement.forEach { add(it.toJsonElement()) } }
     is DoubleArray -> buildJsonArray { this@toJsonElement.forEach { add(it.toJsonElement()) } }
-    is BooleanArray -> buildJsonArray { this@toJsonElement.forEach { add(it) } }
-    is CharArray -> buildJsonArray { this@toJsonElement.forEach { add(it.toString()) } }
+    is BooleanArray -> buildJsonArray { this@toJsonElement.forEach { add(it.toJsonElement()) } }
+    is CharArray -> buildJsonArray { this@toJsonElement.forEach { add(it.toString().toJsonElement()) } }
     is Sequence<*> -> buildJsonArray { this@toJsonElement.forEach { add(it.toJsonElement()) } }
     else -> throw IllegalArgumentException("Unsupported JSON value type: ${this::class.qualifiedName}")
 }
