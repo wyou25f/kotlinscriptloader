@@ -3,6 +3,8 @@
 package ru.privateserver.ksl.std.toml
 
 import org.tomlj.Toml
+import org.tomlj.TomlArray
+import org.tomlj.TomlTable
 import java.math.BigDecimal
 import java.math.BigInteger
 import java.time.LocalDate
@@ -36,6 +38,8 @@ object KSLTomlCodec {
         }
 
     private fun mutableValue(value: Any?): Any? = when (value) {
+        is TomlTable -> mutableCopy(value.toMap())
+        is TomlArray -> value.toList().map(::mutableValue)
         is Map<*, *> -> mutableCopy(value)
         is List<*> -> value.map(::mutableValue)
         else -> value
