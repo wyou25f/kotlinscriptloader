@@ -219,20 +219,38 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
             }
 
             "errors" -> {
-                val total = KSLErrors.totalCount()
-                val last = KSLErrors.lastError()
-                sender.sendMessage("§aKSL Ошибки §7— всего с последнего старта: §f$total")
-                if (last != null) {
-                    val ago = (System.currentTimeMillis() - last.timestamp) / 1000
-                    sender.sendMessage("§7Последняя: §f[${last.scriptName}] ${last.where} §8(${ago}с назад)")
-                    sender.sendMessage("§7${last.message}")
-                    sender.sendMessage("§7Код §e${last.code.code} §8— §7${last.code.title}. Подробнее: §f/ksl error ${last.code.code}")
-                    KSLReport.compactErrors(KSLErrors.lastDetails, 8).forEach { sender.sendMessage("  §c$it") }
+                if (args.getOrNull(1).equals("list", ignoreCase = true)) {
+                    val categoryArg = args.getOrNull(2)
+                    val category = categoryArg?.singleOrNull()?.let(KSLErrorCategory::byLetter)
+                    if (categoryArg != null && category == null) {
+                        sender.sendMessage("§cНеизвестная категория: $categoryArg. Используй букву из /ksl error.")
+                    } else {
+                        val entries = KSLError.entries.filter { category == null || it.category == category }.sortedBy { it.code }
+                        val pageSize = 20
+                        val pages = ((entries.size + pageSize - 1) / pageSize).coerceAtLeast(1)
+                        val page = (args.getOrNull(3)?.toIntOrNull() ?: 1).coerceIn(1, pages)
+                        sender.sendMessage("§aKSL Каталог ошибок §7— ${category?.title ?: "все категории"} §8(${entries.size}, стр. $page/$pages)")
+                        entries.drop((page - 1) * pageSize).take(pageSize).forEach {
+                            sender.sendMessage("  §e${it.code} §8— §f${it.title}")
+                        }
+                        sender.sendMessage("§7Подробности: §f/ksl error <код> §8| §7Следующая страница: §f/ksl errors list ${category?.letter ?: ""} ${page + 1}")
+                    }
                 } else {
-                    sender.sendMessage("§7Ошибок не зафиксировано.")
+                    val total = KSLErrors.totalCount()
+                    val last = KSLErrors.lastError()
+                    sender.sendMessage("§aKSL Ошибки §7— всего с последнего старта: §f$total §8| §7причин в каталоге: §f${KSLError.entries.size}")
+                    sender.sendMessage("§7Каталог: §f/ksl errors list [категория] [страница]")
+                    if (last != null) {
+                        val ago = (System.currentTimeMillis() - last.timestamp) / 1000
+                        sender.sendMessage("§7Последняя: §f[${last.scriptName}] ${last.where} §8(${ago}с назад)")
+                        sender.sendMessage("§7${last.message}")
+                        sender.sendMessage("§7Код §e${last.code.code} §8— §7${last.code.title}. Подробнее: §f/ksl error ${last.code.code}")
+                        KSLReport.compactErrors(KSLErrors.lastDetails, 8).forEach { sender.sendMessage("  §c$it") }
+                    } else {
+                        sender.sendMessage("§7Ошибок не зафиксировано.")
+                    }
                 }
             }
-
             "error" -> {
                 val query = args.getOrNull(1)
                 if (query == null) {
@@ -249,6 +267,19 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                 }
             }
 
+            "watchdog" -> {
+                val monitor = plugin.watchdogMonitor
+                val dump = monitor?.latestDump()
+                if (monitor == null) {
+                    sender.sendMessage("§eKSL Watchdog: диагностика отключена. Включи diagnostics.watchdog.enabled в config.yml.")
+                } else if (dump == null) {
+                    sender.sendMessage("§aKSL Watchdog §7— активен, зависаний с момента запуска не зафиксировано.")
+                } else {
+                    sender.sendMessage("§eKSL Watchdog §7— последнее зависание: §f${monitor.lastStallDurationMillis()}мс")
+                    sender.sendMessage("§7Дамп: §f${dump.relativeTo(plugin.dataFolder).path}")
+                    sender.sendMessage("§7Сравни блоки SNAPSHOT 1..N; неизменные кадры главного потока помогают найти место ожидания.")
+                }
+            }
             "validate" -> {
                 sender.sendMessage("§7Проверяю скрипты без загрузки (dry-run), это может занять несколько секунд...")
                 background(sender, { plugin.validateAllScripts() }) { results ->
@@ -341,7 +372,8 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
             "libraries" to "экспортированные библиотеки",
             "discord" to "настроенные Discord-каналы",
             "sandbox" to "состояние sandbox",
-            "errors" to "последняя ошибка скриптов",
+            "errors [list [категория] [страница]]" to "последняя ошибка и каталог кодов причин",
+            "watchdog" to "последнее зависание и путь к диагностическому дампу",
             "error <код>" to "расшифровка кода ошибки, например ${KSLError.SCRIPT_COMPILE.code}",
             "doctor" to "диагностика (компилятор, БД, хуки)",
             "validate" to "проверить скрипты без загрузки",
@@ -369,7 +401,7 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
     ): List<String> {
         if (!sender.hasPermission("ksl.admin")) return emptyList()
         if (args.size == 1)
-            return listOf("help", "reload", "scripts", "debug", "resources", "deps", "runtime", "perf", "memory", "cpu", "addons", "services", "libraries", "discord", "sandbox", "errors", "error", "doctor", "validate", "dbmigrate")
+            return listOf("help", "reload", "scripts", "debug", "resources", "deps", "runtime", "perf", "memory", "cpu", "addons", "services", "libraries", "discord", "sandbox", "errors", "error", "watchdog", "doctor", "validate", "dbmigrate")
                 .filter { it.startsWith(args[0].lowercase()) }
         if (args.size == 2 && args[0].lowercase() in setOf("runtime", "perf", "memory", "cpu")) {
             return listOf("workers").filter { it.startsWith(args[1].lowercase()) }
@@ -385,6 +417,12 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
         }
         if (args.size == 2 && args[0].lowercase() in setOf("debug", "resources", "deps")) {
             return plugin.scriptIds().filter { it.startsWith(args[1].removeSuffix(".kts"), ignoreCase = true) }
+        }
+        if (args.size == 2 && args[0].equals("errors", ignoreCase = true)) {
+            return listOf("list").filter { it.startsWith(args[1].lowercase()) }
+        }
+        if (args.size == 3 && args[0].equals("errors", true) && args[1].equals("list", true)) {
+            return KSLErrorCategory.entries.map { it.letter.toString() }.filter { it.startsWith(args[2].lowercase()) }
         }
         if (args.size == 2 && args[0].equals("error", ignoreCase = true)) {
             return KSLError.entries.map { it.code }.filter { it.startsWith(args[1].lowercase()) }.take(40)
