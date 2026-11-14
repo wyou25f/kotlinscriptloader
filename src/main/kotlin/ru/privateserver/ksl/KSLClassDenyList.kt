@@ -37,7 +37,10 @@ class KSLClassDenyList(extra: Collection<String> = emptyList(), allowed: Collect
     private val allowedPrefixes: List<String>
 
     init {
-        val normalizedAllowed = allowed.map { it.trim() }.filter { it.isNotEmpty() }
+        // Modifier is descriptive metadata, not an invocation/reflection entry point.
+        // Keep the broad reflection package blocked while allowing this harmless type.
+        val normalizedAllowed = (listOf("java.lang.reflect.Modifier") + allowed)
+            .map { it.trim() }.filter { it.isNotEmpty() }
         allowedNames = normalizedAllowed.filterNot { it.endsWith(".") }.toSet()
         allowedPrefixes = normalizedAllowed.filter { it.endsWith(".") }.distinct()
 
