@@ -45,6 +45,8 @@ class SecurityExtensionsTest {
         )
         assertEquals("hello", KSLSecurity.base64Decode(KSLSecurity.base64Encode("hello")))
         assertNull(KSLSecurity.base64Decode("%%%"))
+        val invalidUtf8 = java.util.Base64.getEncoder().encodeToString(byteArrayOf(0xC3.toByte(), 0x28))
+        assertNull(KSLSecurity.base64Decode(invalidUtf8))
     }
 
     @Test

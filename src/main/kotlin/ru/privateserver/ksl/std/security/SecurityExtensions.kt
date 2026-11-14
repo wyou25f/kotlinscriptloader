@@ -81,8 +81,14 @@ object KSLSecurity {
     /** String convenience overload. Prefer CharArray when handling sensitive input. */
     @JvmStatic
     @JvmOverloads
-    fun hashPassword(password: String, iterations: Int = DEFAULT_ITERATIONS): String =
-        hashPassword(password.toCharArray(), iterations)
+    fun hashPassword(password: String, iterations: Int = DEFAULT_ITERATIONS): String {
+        val characters = password.toCharArray()
+        return try {
+            hashPassword(characters, iterations)
+        } finally {
+            characters.fill('\u0000')
+        }
+    }
 
     /** Verifies a password against a value produced by [hashPassword]. */
     @JvmStatic
@@ -101,8 +107,14 @@ object KSLSecurity {
 
     /** String convenience overload for [verifyPassword]. */
     @JvmStatic
-    fun verifyPassword(password: String, encodedHash: String): Boolean =
-        verifyPassword(password.toCharArray(), encodedHash)
+    fun verifyPassword(password: String, encodedHash: String): Boolean {
+        val characters = password.toCharArray()
+        return try {
+            verifyPassword(characters, encodedHash)
+        } finally {
+            characters.fill('\u0000')
+        }
+    }
 
     /** HMAC-SHA256 for message authentication; key material must remain secret. */
     @JvmStatic
@@ -122,10 +134,11 @@ object KSLSecurity {
     fun base64Encode(value: String): String =
         Base64.getEncoder().encodeToString(value.toByteArray(Charsets.UTF_8))
 
-    /** Decodes standard Base64 as UTF-8, or returns null for malformed input. */
+    /** Decodes standard Base64 as valid UTF-8, or returns null for malformed Base64 or UTF-8. */
     @JvmStatic
     fun base64Decode(value: String): String? = runCatching {
-        Base64.getDecoder().decode(value).toString(Charsets.UTF_8)
+        val bytes = Base64.getDecoder().decode(value)
+        Charsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(bytes)).toString()
     }.getOrNull()
 
     /** Generates cryptographically secure random bytes encoded as URL-safe Base64. */
