@@ -117,6 +117,37 @@ open class BukkitScriptContext(
         if (save) saveConfig()
     }
 
+    private fun featurePath(name: String): String {
+        val clean = name.trim()
+        require(clean.matches(Regex("[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*"))) {
+            "Feature name must be a dot-separated key (letters, numbers, '_' or '-')"
+        }
+        return "features.$clean"
+    }
+
+    /** Reads a script-local feature flag from its YAML config. */
+    @Synchronized
+    fun featureEnabled(name: String, default: Boolean = true): Boolean =
+        config.getBoolean(featurePath(name), default)
+
+    /** Persists a script-local feature flag and returns its new state. */
+    @Synchronized
+    fun setFeatureEnabled(name: String, enabled: Boolean): Boolean {
+        config.set(featurePath(name), enabled)
+        saveConfig()
+        return enabled
+    }
+
+    /** Flips a feature flag and returns the resulting state. */
+    @Synchronized
+    fun toggleFeature(name: String): Boolean =
+        setFeatureEnabled(name, !featureEnabled(name))
+
+    /** Short aliases for script feature flags. */
+    fun feature(name: String, default: Boolean = true): Boolean = featureEnabled(name, default)
+    fun enableFeature(name: String): Boolean = setFeatureEnabled(name, true)
+    fun disableFeature(name: String): Boolean = setFeatureEnabled(name, false)
+
     // Synchronized with editConfig so a save cannot overlap an editConfig block.
     // Direct mutations through the public config property must still be confined to one thread.
     @Synchronized
@@ -458,6 +489,19 @@ open class BukkitScriptContext(
     fun YamlConfiguration.double(path: String, default: Double = 0.0): Double = getDouble(path, default)
     fun YamlConfiguration.bool(path: String, default: Boolean = false): Boolean = getBoolean(path, default)
     fun YamlConfiguration.strings(path: String): List<String> = getStringList(path)
+
+    // Compact YAML aliases; Bukkit's YAML parser uses '#' for comments.
+    fun YamlConfiguration.hasPath(path: String): Boolean = contains(path)
+    fun YamlConfiguration.stringOr(path: String, default: String = ""): String = getString(path) ?: default
+    fun YamlConfiguration.intOr(path: String, default: Int = 0): Int = getInt(path, default)
+    fun YamlConfiguration.longOr(path: String, default: Long = 0L): Long = getLong(path, default)
+    fun YamlConfiguration.boolOr(path: String, default: Boolean = false): Boolean = getBoolean(path, default)
+    fun YamlConfiguration.listOfStrings(path: String): List<String> = getStringList(path)
+    fun YamlConfiguration.removePath(path: String): Boolean {
+        if (!contains(path)) return false
+        set(path, null)
+        return true
+    }
 
     /** Creates the section if needed and applies a receiver lambda to it. */
     fun YamlConfiguration.section(

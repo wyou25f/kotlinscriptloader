@@ -213,6 +213,8 @@ Run password hashing/verification and large-file checksums asynchronously; these
 
 ## TOML files
 
+TOML comments begin with `#`; for example, `# database is disabled`. TOML does not use `//` or a standalone semicolon to comment out a setting.
+
 TOML support is available through the same script-local `scripts/` directory as JSON.
 
 ```kotlin
@@ -232,6 +234,26 @@ updateToml("data/settings.toml") { this["maintenance"] = false }
 
 TOML writes are atomic and paths are confined to the script's `scripts/` directory. Malformed input is preserved and backed up before an error is reported. The writer supports scalar values, arrays and nested tables; arrays of tables and null values are rejected explicitly. File operations are synchronous, so large files should be handled asynchronously.
 
+Typed accessors include `tomlHas`, `tomlString`, `tomlInt`, `tomlLong`, `tomlDouble`, `tomlBoolean`, `tomlTable` and `tomlList`. Mutable maps also provide `putTomlIfAbsent` and `removeToml`.
+
+## YAML helpers and feature flags
+
+YAML comments also begin with `#`. The context already exposes `string/int/long/double/bool/strings`; compact alternatives include `hasPath`, `stringOr`, `intOr`, `longOr`, `boolOr`, `listOfStrings` and `removePath`.
+
+Feature flags are stored in the script's own YAML file under `features`:
+
+```kotlin
+if (featureEnabled("shop.enabled", default = true)) {
+    // Run shop feature
+}
+
+disableFeature("shop.enabled")
+enableFeature("shop.enabled")
+val nowEnabled = toggleFeature("shop.enabled")
+```
+
+Feature names may use dot-separated keys. In Kotlin scripts, `//` and `/* ... */` are comments. A semicolon is only a statement separator; it does not disable a function or a feature.
+
 ## Short API and Standard Library aliases
 
-The public API exposes `Api`, `KslApi`, `KslAddon`, `KslHook`, `KslScriptInfo` and `kslInstance` as concise alternatives to the full KSL names. The standard import set also includes compact helpers: `sha256sum()`, `passwordHash()`, `passwordCheck()`, `token()`, `jsonObj()`, `jsonArr()` and `json()`. Existing descriptive names remain available and are preferred in larger codebases.
+The public API exposes `Api`, `KslApi`, `KslAddon`, `KslHook`, `KslScriptInfo` and `kslInstance` as concise alternatives to the full KSL names. The standard import set also includes compact helpers: `sha256sum()`, `passwordHash()`, `passwordCheck()`, `passwordVerify()`, `checksum()`, `checksumFile()`, `token()`, `secureToken()`, `jsonObj()`, `jsonArr()`, `jsonObject()`, `jsonArray()`, `json()` and `toJsonValue()`. Existing descriptive names remain available and are preferred in larger codebases.

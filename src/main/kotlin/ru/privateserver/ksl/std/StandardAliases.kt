@@ -19,3 +19,13 @@ fun token(bytes: Int = 32): String = KSLSecurity.randomToken(bytes)
 fun jsonObj(vararg entries: Pair<String, Any?>) = jsonObjectOf(*entries)
 fun jsonArr(vararg values: Any?) = jsonArrayOf(*values)
 fun Any?.json() = toJsonElement()
+
+/** Additional short aliases; descriptive security and JSON APIs remain available. */
+fun String.checksum(): String = KSLSecurity.sha256(this)
+fun File.checksumFile(): String = KSLSecurity.sha256File(this)
+fun passwordVerify(password: String, encodedHash: String): Boolean =
+    KSLSecurity.verifyPassword(password, encodedHash)
+fun secureToken(byteCount: Int = 32): String = KSLSecurity.randomToken(byteCount)
+fun jsonObject(vararg entries: Pair<String, Any?>) = jsonObjectOf(*entries)
+fun jsonArray(vararg values: Any?) = jsonArrayOf(*values)
+fun Any?.toJsonValue() = toJsonElement()
