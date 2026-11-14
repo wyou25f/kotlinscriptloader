@@ -67,7 +67,9 @@ internal class KSLWatchdogMonitor(
 
     private fun heartbeat() {
         lastHeartbeatNanos = System.nanoTime()
-        incidentActive.set(false)
+        if (incidentActive.compareAndSet(true, false)) {
+            plugin.logger.info("${KSLError.SYSTEM_WATCHDOG_RECOVERED.tag} Главный поток снова обрабатывает тики; последнее обнаруженное зависание: ${lastStallMillis}мс.")
+        }
     }
 
     /** Adds context only for work running on the server thread. */
@@ -95,7 +97,8 @@ internal class KSLWatchdogMonitor(
         val threads: List<Pair<Thread, Array<StackTraceElement>>>,
         val infos: Map<Long, ThreadInfo>,
         val deadlockedIds: Set<Long>,
-        val operation: String?
+        val operation: String?,
+        val totalThreadCount: Int
     )
 
     private fun captureSnapshot(): ThreadSnapshot {
@@ -119,7 +122,7 @@ internal class KSLWatchdogMonitor(
         }.getOrDefault(emptyMap())
         val deadlocked = runCatching { bean.findDeadlockedThreads()?.toSet() ?: emptySet() }
             .getOrDefault(emptySet())
-        return ThreadSnapshot(capturedAt, limited, infos, deadlocked, activeOperation)
+        return ThreadSnapshot(capturedAt, limited, infos, deadlocked, activeOperation, allStacks.size)
     }
 
     private fun writeDump(stallNanos: Long) {
@@ -148,7 +151,7 @@ internal class KSLWatchdogMonitor(
             val directory = File(plugin.dataFolder, "dumps")
             Files.createDirectories(directory.toPath())
             val file = File(directory, "watchdog-${timestampFormat.format(detectedAt)}.txt")
-            val report = buildReport(detectedAt, stallNanos, captured, allThreadCount = captured.maxOfOrNull { it.threads.size } ?: 0)
+            val report = buildReport(detectedAt, stallNanos, captured, allThreadCount = captured.maxOfOrNull { it.totalThreadCount } ?: 0)
             Files.writeString(
                 file.toPath(),
                 report,
@@ -269,7 +272,7 @@ internal class KSLWatchdogMonitor(
         } ?: return
         dumps.sortedByDescending { it.lastModified() }.drop(keep).forEach { file ->
             if (!file.delete()) {
-                runCatching { plugin.logger.warning("${KSLError.SYSTEM_WATCHDOG_DUMP_FAILED.tag} Не удалось удалить старый дамп: ${file.name}") }
+                runCatching { plugin.logger.warning("${KSLError.SYSTEM_WATCHDOG_ROTATION_FAILED.tag} Не удалось удалить старый дамп: ${file.name}") }
             }
         }
     }
