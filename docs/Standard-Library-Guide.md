@@ -209,3 +209,29 @@ Available methods include `KSLSecurity.sha256(text)`, `sha256File(file)`, `verif
 **Important:** SHA-256 is intentionally fast and must not be used to store passwords. Passwords are hashed with a unique random salt and PBKDF2-HMAC-SHA256; the encoded value contains the algorithm, work factor, salt and derived hash. Password verification uses constant-time comparison. The accepted work-factor range is bounded to prevent untrusted encoded values from requesting excessive CPU time.
 
 Run password hashing/verification and large-file checksums asynchronously; these operations can consume CPU or perform disk I/O. Base64 is encoding, not encryption. HMAC requires a secret key that must be stored outside public configs and never logged. Do not use XOR as password hashing or as a substitute for authenticated encryption. Never put plaintext passwords, API keys or webhook tokens in YAML/JSON files committed to a repository.
+
+
+## TOML files
+
+TOML support is available through the same script-local `scripts/` directory as JSON.
+
+```kotlin
+val settings = loadToml("data/settings.toml")
+val port = (settings?.get("port") as? Long)?.toInt() ?: 25565
+
+editToml("data/settings.toml") {
+    this["port"] = 25566
+    this["motd"] = "Welcome"
+    this["database"] = mapOf("host" to "localhost", "enabled" to true)
+}
+
+val config = readToml("data/settings.toml")
+writeToml("data/other.toml", mapOf("enabled" to true))
+updateToml("data/settings.toml") { this["maintenance"] = false }
+```
+
+TOML writes are atomic and paths are confined to the script's `scripts/` directory. Malformed input is preserved and backed up before an error is reported. The writer supports scalar values, arrays and nested tables; arrays of tables and null values are rejected explicitly. File operations are synchronous, so large files should be handled asynchronously.
+
+## Short API and Standard Library aliases
+
+The public API exposes `Api`, `KslApi`, `KslAddon`, `KslHook`, `KslScriptInfo` and `kslInstance` as concise alternatives to the full KSL names. The standard import set also includes compact helpers: `sha256sum()`, `passwordHash()`, `passwordCheck()`, `token()`, `jsonObj()`, `jsonArr()` and `json()`. Existing descriptive names remain available and are preferred in larger codebases.

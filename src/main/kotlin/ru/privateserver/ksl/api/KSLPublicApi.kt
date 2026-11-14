@@ -36,6 +36,12 @@ import ru.privateserver.ksl.rt.KSLRuntimeMonitor
 typealias KSLAPI = CoreKSLAPI
 /** Short Kotlin-friendly name for the public addon API. */
 typealias KslApi = CoreKSLAPI
+/** Short alias for integrations that prefer a minimal import name. */
+typealias Api = CoreKSLAPI
+/** Concise aliases for the public addon contract. */
+typealias KslAddon = CoreKSLAddon
+typealias KslHook = CoreKSLHook
+ typealias KslScriptInfo = CoreKSLScriptInfo
 /** Explicit name for integrations that prefer the public-contract terminology. */
 typealias KSLPublicAPI = CoreKSLAPI
 typealias KSLAddon = CoreKSLAddon
@@ -95,6 +101,10 @@ val ksl: KSLAPI
 
 /** Additional concise aliases for the installed public API. */
 val kslApi: KSLAPI
+    get() = CoreKSL.api
+
+/** Short alias for the installed API instance. */
+val kslInstance: KSLAPI
     get() = CoreKSL.api
 
 val api: KSLAPI
