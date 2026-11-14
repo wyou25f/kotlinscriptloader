@@ -51,6 +51,19 @@ class KSLSandboxHardeningTest {
     }
 
     @Test
+    fun `sandboxed scripts cannot use console unless command is explicitly allowed`() {
+        val blocked = setOf("op", "stop")
+        val allow = setOf("say", "tell")
+
+        assertTrue(KSLCommandPolicy.isAllowedForScript("say hello", sandboxed = true, blocked, allow))
+        assertFalse(KSLCommandPolicy.isAllowedForScript("op Steve", sandboxed = true, blocked, allow))
+        assertFalse(KSLCommandPolicy.isAllowedForScript("give Steve stone", sandboxed = true, blocked, allow))
+        assertTrue(KSLCommandPolicy.isAllowedForScript("give Steve stone", sandboxed = false, blocked, allow))
+        assertFalse(KSLCommandPolicy.isAllowedForScript(" /minecraft:STOP ", sandboxed = false, blocked, allow))
+        assertFalse(KSLCommandPolicy.isAllowedForScript("   ", sandboxed = false, blocked, allow))
+    }
+
+    @Test
     fun `script paths must stay inside scripts and cannot traverse symlinks`() {
         val root = java.nio.file.Files.createTempDirectory("ksl-script-root").toFile()
         val outside = java.nio.file.Files.createTempDirectory("ksl-script-outside").toFile()
