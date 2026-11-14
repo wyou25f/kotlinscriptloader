@@ -44,11 +44,17 @@ if (requiredModuleMissing) {
 
 ## Сборка
 
-```
-./gradlew shadowJar
+Требуются JDK 21 и PowerShell 7+:
+
+```powershell
+./build.ps1 -Task Build
 ```
 
-Готовый jar — `build/libs/KotlinScriptLoader-1.0.0.jar`. Кладёшь в `plugins/`.
+Для диагностики окружения: `./build.ps1 -Task Diagnose`.
+Для отдельного запуска тестов: `./build.ps1 -Task Test`.
+Для проверки готового JAR: `./scripts/Inspect-Jar.ps1`.
+
+После сборки JAR находится в `build/libs/`. Подробные логи и визуальный HTML-отчёт находятся в `build-reports/`; инструкция — [Диагностика сборки](docs/Build-Diagnostics.md).
 
 ## Структура после первого запуска
 
