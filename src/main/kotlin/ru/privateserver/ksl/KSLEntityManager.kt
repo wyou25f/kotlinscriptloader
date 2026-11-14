@@ -34,6 +34,7 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
     private val damagedHooks = ConcurrentHashMap<UUID, Hook<(LivingEntity, EntityDamageEvent) -> Unit>>()
     private val attackHooks = ConcurrentHashMap<UUID, Hook<(LivingEntity, EntityDamageByEntityEvent) -> Unit>>()
     private val dropSpecs = ConcurrentHashMap<UUID, DropSpec>()
+    private val tickTasks = ConcurrentHashMap<UUID, MutableSet<Hook<BukkitTask>>>()
 
     fun register() {
         Bukkit.getPluginManager().registerEvents(this, plugin)
@@ -91,6 +92,24 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
         }
     }
 
+    fun trackTickTask(scriptName: String, entityId: UUID, task: BukkitTask) {
+        tickTasks.computeIfAbsent(entityId) { ConcurrentHashMap.newKeySet() }.add(Hook(scriptName, task))
+    }
+
+    fun untrackTickTask(scriptName: String, entityId: UUID, taskId: Int) {
+        tickTasks.computeIfPresent(entityId) { _, tasks ->
+            tasks.removeIf { it.scriptName == scriptName && it.callback.taskId == taskId }
+            if (tasks.isEmpty()) null else tasks
+        }
+    }
+
+    private fun cancelTickTasks(entityId: UUID) {
+        tickTasks.remove(entityId)?.forEach { tracked ->
+            tracked.callback.cancel()
+            plugin.untrackTask(tracked.scriptName, tracked.callback.taskId)
+        }
+    }
+
     fun setDeathCallback(scriptName: String, entity: LivingEntity, callback: (LivingEntity, Player?) -> Unit) {
         deathHooks[entity.uniqueId] = Hook(scriptName, callback)
     }
@@ -141,6 +160,7 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
         // Death is terminal for a scripted living entity. Release its in-memory ownership
         // immediately instead of relying on a later EntityRemoveEvent ordering.
         removeOnReload.remove(uuid)
+        cancelTickTasks(uuid)
         untrackEntity(uuid, owner)
         hook?.let { runHook(it.scriptName, "entity onDeath") { it.callback(event.entity, event.entity.killer) } }
     }
@@ -176,6 +196,7 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
         // Hooks can exist for entities we never spawned, so this must not depend on the owner tag.
         dropHooks(uuid)
         removeOnReload.remove(uuid)
+        cancelTickTasks(uuid)
         untrackEntity(uuid, ownerOf(entity))
     }
 
@@ -203,6 +224,7 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
         dropSpecs.values.removeIf { it.scriptName == scriptName }
         val ids = entitiesByScript.remove(scriptName) ?: return
         ids.forEach { uuid ->
+            cancelTickTasks(uuid)
             val shouldRemove = removeOnReload.remove(uuid) ?: true
             if (shouldRemove) {
                 runCatching { Bukkit.getEntity(uuid)?.remove() }

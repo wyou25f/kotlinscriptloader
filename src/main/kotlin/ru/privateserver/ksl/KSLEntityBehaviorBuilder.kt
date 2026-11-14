@@ -22,21 +22,26 @@ class KSLEntityBehaviorBuilder(
         require(initialDelay >= 0L) {
             "[$scriptName] entity onTick: initialDelay должен быть неотрицательным числом тиков"
         }
+        val entityId = entity.uniqueId
         lateinit var task: BukkitTask
         var errors = 0
 
         fun stop() {
             task.cancel()
             plugin.untrackTask(scriptName, task.taskId)
+            plugin.entityManager.untrackTickTask(scriptName, entityId, task.taskId)
         }
 
         task = Bukkit.getScheduler().runTaskTimer(plugin, Runnable {
-            if (!entity.isValid || entity.isDead) {
+            // Resolve by UUID every tick: the original Bukkit entity object may become invalid
+            // when its chunk unloads. Keep the task dormant and resume with the reloaded entity.
+            val current = Bukkit.getEntity(entityId) as? LivingEntity ?: return@Runnable
+            if (current.isDead) {
                 stop()
                 return@Runnable
             }
             try {
-                block(entity)
+                block(current)
                 errors = 0
             } catch (ex: Throwable) {
                 KSLErrors.log(plugin, scriptName, "entity onTick", ex, KSLError.ENTITY_HOOK_FAILED)
@@ -48,6 +53,7 @@ class KSLEntityBehaviorBuilder(
             }
         }, initialDelay, validPeriod)
         plugin.trackTask(scriptName, task.taskId)
+        plugin.entityManager.trackTickTask(scriptName, entityId, task)
     }
 
     fun onDeath(block: (LivingEntity, Player?) -> Unit) {
