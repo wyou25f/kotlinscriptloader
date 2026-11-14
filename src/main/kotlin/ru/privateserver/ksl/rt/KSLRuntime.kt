@@ -47,6 +47,38 @@ object KSLRT {
     /** Snapshot of currently registered profiler names. */
     fun profilerNames(): Set<String> = profilers.keys.toSet()
 
+    /** Nullable lookup that does not create a registry entry. */
+    fun profilerOrNull(name: String): KSLProfiler? = profilers[name]
+
+    val profilerCount: Int get() = profilers.size
+
+    /** Compatibility alias for [removeProfiler]. */
+    fun removeProfile(name: String): Boolean = removeProfiler(name)
+
+    /** Removes every globally registered profiler and returns the count. */
+    @Synchronized
+    fun clearProfilers(): Int {
+        val removed = profilers.size
+        profilers.clear()
+        return removed
+    }
+
+    /** Removes all globally registered profiles whose names start with [prefix]. */
+    @Synchronized
+    fun removeProfilers(prefix: String): Int {
+        val names = profilers.keys.filter { it.startsWith(prefix) }
+        names.forEach(profilers::remove)
+        return names.size
+    }
+
+    /** Creates a lifecycle-managed scope for caches, profiles and closeable resources. */
+    @JvmStatic
+    fun scope(name: String): KSLRuntimeScope = KSLRuntimeScope(name)
+
+    /** Alias for [scope], emphasizing explicit resource ownership. */
+    @JvmStatic
+    fun resources(name: String): KSLRuntimeScope = scope(name)
+
     /** Alias for [profiler]. */
     @JvmStatic
     fun profile(name: String): KSLProfiler = profiler(name)
@@ -54,6 +86,9 @@ object KSLRT {
     /** Measures a block and returns its result while recording its timing. */
     inline fun <T> measure(name: String, block: () -> T): T =
         profiler(name).measure(block)
+
+    /** Alias for [measure]. */
+    inline fun <T> timed(name: String, block: () -> T): T = measure(name, block)
 }
 
 /** Backwards-compatible factory name. */
@@ -76,6 +111,11 @@ object kslrt {
 
     inline fun <T> measure(name: String, block: () -> T): T =
         KSLRT.measure(name, block)
+
+    fun scope(name: String): KSLRuntimeScope = KSLRT.scope(name)
+    fun resources(name: String): KSLRuntimeScope = KSLRT.resources(name)
+    fun removeProfiler(name: String): Boolean = KSLRT.removeProfiler(name)
+    fun clearProfilers(): Int = KSLRT.clearProfilers()
 }
 
 /** Short aliases for scripts and Kotlin integrations. */

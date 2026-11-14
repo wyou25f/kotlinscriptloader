@@ -53,6 +53,20 @@ class KSLScriptDiagnostics {
         }
     }
 
+    /** Drops all execution history for an unloaded script. */
+    fun clearScript(scriptId: String): Boolean = scripts.remove(scriptId) != null
+
+    /** Compatibility alias for [clearScript]. */
+    fun removeScript(scriptId: String): Boolean = clearScript(scriptId)
+
+    fun clearAll(): Int {
+        val removed = scripts.size
+        scripts.clear()
+        return removed
+    }
+
+    val trackedScripts: Int get() = scripts.size
+
     fun snapshots(scriptId: String): List<KSLExecutionSnapshot> =
         scripts[scriptId]?.entries?.map { (name, metric) ->
             KSLExecutionSnapshot(

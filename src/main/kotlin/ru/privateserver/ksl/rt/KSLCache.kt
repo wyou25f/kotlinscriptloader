@@ -19,7 +19,7 @@ class KSLCache<K : Any, V : Any> @JvmOverloads constructor(
     val expireAfter: Duration = Duration.ZERO,
     val expireAfterAccess: Duration = Duration.ZERO
 ) {
-    private data class Entry<V>(val value: V, val writtenAtNanos: Long, var lastAccessNanos: Long)
+    private data class Entry<V>(val value: V, var writtenAtNanos: Long, var lastAccessNanos: Long)
     private val ttlNanos: Long
     private val accessTtlNanos: Long
     private val entries = LinkedHashMap<K, Entry<V>>(16, 0.75f, true)
@@ -68,7 +68,98 @@ class KSLCache<K : Any, V : Any> @JvmOverloads constructor(
     }
 
     fun getOrCompute(key: K, loader: () -> V): V = getOrPut(key, loader)
-    fun computeIfAbsent(key: K, loader: () -> V): V = getOrPut(key, loader)
+
+    /** Atomic variant: loader executes under the cache lock, once per missing key. */
+    @Synchronized
+    fun getOrComputeAtomic(key: K, loader: () -> V): V {
+        val now = System.nanoTime()
+        val existing = entries[key]
+        if (existing != null && !isExpired(existing, now)) {
+            existing.lastAccessNanos = now
+            hits++
+            return existing.value
+        }
+        if (existing != null) entries.remove(key)
+        misses++
+        val loaded = loader()
+        putLocked(key, loaded, now)
+        return loaded
+    }
+
+    /** Map-style atomic alias. Keep loader short and non-blocking. */
+    fun computeIfAbsent(key: K, loader: () -> V): V = getOrComputeAtomic(key, loader)
+    fun getOrPutIfAbsent(key: K, loader: () -> V): V = getOrComputeAtomic(key, loader)
+
+    /** Atomic remapping; a null result removes the key. Callback must be short. */
+    @Synchronized
+    fun compute(key: K, remapping: (K, V?) -> V?): V? {
+        val now = System.nanoTime()
+        val entry = entries[key]
+        val current = if (entry != null && !isExpired(entry, now)) {
+            hits++
+            entry.lastAccessNanos = now
+            entry.value
+        } else {
+            if (entry != null) entries.remove(key)
+            misses++
+            null
+        }
+        val replacement = remapping(key, current)
+        if (replacement == null) entries.remove(key) else putLocked(key, replacement, now)
+        return replacement
+    }
+
+    @Synchronized
+    fun getAndPut(key: K, value: V): V? {
+        val now = System.nanoTime()
+        val entry = entries[key]
+        val previous = entry?.takeUnless { isExpired(it, now) }
+        if (previous == null) {
+            if (entry != null) entries.remove(key)
+            misses++
+        } else hits++
+        putLocked(key, value, now)
+        return previous?.value
+    }
+
+    @Synchronized
+    fun getAndRemove(key: K): V? {
+        val entry = entries[key] ?: run { misses++; return null }
+        if (isExpired(entry, System.nanoTime())) {
+            entries.remove(key)
+            misses++
+            return null
+        }
+        hits++
+        entries.remove(key)
+        return entry.value
+    }
+
+    @Synchronized
+    fun replace(key: K, value: V): Boolean {
+        val now = System.nanoTime()
+        val entry = entries[key] ?: return false
+        if (isExpired(entry, now)) {
+            entries.remove(key)
+            return false
+        }
+        entries[key] = Entry(value, now, now)
+        return true
+    }
+
+    /** Refreshes TTL clocks and LRU position without changing the value. */
+    @Synchronized
+    fun refresh(key: K): Boolean {
+        val now = System.nanoTime()
+        val entry = entries[key] ?: return false
+        if (isExpired(entry, now)) {
+            entries.remove(key)
+            return false
+        }
+        entry.writtenAtNanos = now
+        entry.lastAccessNanos = now
+        return true
+    }
 
     @Synchronized
     fun put(key: K, value: V) = putLocked(key, value, System.nanoTime())
@@ -111,6 +202,31 @@ class KSLCache<K : Any, V : Any> @JvmOverloads constructor(
     fun has(key: K): Boolean = containsKey(key)
 
     @Synchronized
+    fun containsValue(value: V): Boolean {
+        removeExpired()
+        return entries.values.any { it.value == value }
+    }
+
+    val isEmpty: Boolean get() = size() == 0
+    val isNotEmpty: Boolean get() = !isEmpty
+
+    /** Removes entries matching [predicate] and returns the count. */
+    @Synchronized
+    fun removeIf(predicate: (K, V) -> Boolean): Int {
+        removeExpired()
+        var removed = 0
+        val iterator = entries.entries.iterator()
+        while (iterator.hasNext()) {
+            val entry = iterator.next()
+            if (predicate(entry.key, entry.value.value)) {
+                iterator.remove()
+                removed++
+            }
+        }
+        return removed
+    }
+
+    @Synchronized
     fun clear() { entries.clear() }
     fun invalidateAll() = clear()
 
@@ -126,6 +242,15 @@ class KSLCache<K : Any, V : Any> @JvmOverloads constructor(
 
     @Synchronized
     fun valuesSnapshot(): List<V> { removeExpired(); return entries.values.map { it.value } }
+
+    /** Point-in-time copy preserving least-to-most-recent LRU order. */
+    @Synchronized
+    fun entriesSnapshot(): Map<K, V> {
+        removeExpired()
+        return LinkedHashMap<K, V>(entries.size).also { snapshot ->
+            entries.forEach { (key, entry) -> snapshot[key] = entry.value }
+        }
+    }
 
     @Synchronized
     fun stats(): KSLCacheStats {
