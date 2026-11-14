@@ -411,7 +411,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         // A background compile must not race addon/classloader teardown. Shutdown is bounded
         // because a third-party compiler extension may ignore interruption.
         val reloadDeadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(2)
-        while (reloadBusy.get() && System.nanoTime() < reloadDeadline) {
+        while (reloadCompileInProgress.get() && System.nanoTime() < reloadDeadline) {
             try {
                 Thread.sleep(10L)
             } catch (_: InterruptedException) {
@@ -419,7 +419,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 break
             }
         }
-        if (reloadBusy.get()) logger.warning("Перезагрузка ещё выполнялась при выключении; её результат будет отброшен")
+        if (reloadCompileInProgress.get()) logger.warning("Компиляция ещё выполнялась при выключении; её результат будет отброшен")
         runCatching { unloadAllScripts() }
             .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} Ошибка при выгрузке скриптов: ${it.message}") }
         runCatching { if (::workScheduler.isInitialized) workScheduler.close() }
@@ -820,6 +820,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private val liveScripts = ConcurrentHashMap.newKeySet<String>()
     private val loadMillisById = ConcurrentHashMap<String, Long>()
     private val reloadBusy = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val reloadCompileInProgress = java.util.concurrent.atomic.AtomicBoolean(false)
     private val shuttingDown = java.util.concurrent.atomic.AtomicBoolean(false)
 
     private fun stampOf(file: File): Long = file.lastModified() * 31 + file.length()
@@ -899,6 +900,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             done(null)
             return
         }
+        reloadCompileInProgress.set(true)
         try {
             Bukkit.getScheduler().runTaskAsynchronously(this, Runnable {
                 var ordered = emptyList<File>()
@@ -908,6 +910,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 } catch (ex: Throwable) {
                     logger.severe("${KSLError.SCRIPT_RUNTIME.tag} Фоновая компиляция не удалась: ${ex::class.simpleName}: ${ex.message}")
                     null
+                } finally {
+                    reloadCompileInProgress.set(false)
                 }
 
                 // A compile already in progress may finish while the plugin is disabling.
@@ -934,6 +938,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 }
             })
         } catch (ex: Throwable) {
+            reloadCompileInProgress.set(false)
             reloadBusy.set(false)
             throw ex
         }
