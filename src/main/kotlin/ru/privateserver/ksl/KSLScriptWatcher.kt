@@ -28,9 +28,9 @@ class KSLScriptWatcher(private val plugin: KotlinScriptLoaderPlugin) {
     // Keep ids for files already loaded or observed: after a directory is deleted, its children are no longer on disk.
     private val knownScripts = ConcurrentHashMap.newKeySet<String>()
     private val watched = ConcurrentHashMap<WatchKey, Path>()
-    private var service: WatchService? = null
-    private var thread: Thread? = null
-    private var flushTask: BukkitTask? = null
+    @Volatile private var service: WatchService? = null
+    @Volatile private var thread: Thread? = null
+    @Volatile private var flushTask: BukkitTask? = null
 
     @Synchronized
     fun start() {
@@ -38,10 +38,19 @@ class KSLScriptWatcher(private val plugin: KotlinScriptLoaderPlugin) {
         if (service != null) return
         val watchService = FileSystems.getDefault().newWatchService()
         service = watchService
-        knownScripts.addAll(plugin.scriptIds())
-        registerTree(watchService, plugin.scriptsFolder)
-        thread = Thread({ pump(watchService) }, "KSL-Watcher").apply { isDaemon = true; start() }
-        flushTask = Bukkit.getScheduler().runTaskTimer(plugin, Runnable { flush() }, 20L, 10L)
+        try {
+            knownScripts.addAll(plugin.scriptIds())
+            registerTree(watchService, plugin.scriptsFolder)
+            thread = Thread({ pump(watchService) }, "KSL-Watcher").apply { isDaemon = true; start() }
+            flushTask = Bukkit.getScheduler().runTaskTimer(plugin, Runnable { flush() }, 20L, 10L)
+        } catch (error: Throwable) {
+            runCatching { watchService.close() }
+            thread?.interrupt()
+            thread = null
+            service = null
+            watched.clear()
+            throw error
+        }
     }
 
     @Synchronized
@@ -136,9 +145,13 @@ class KSLScriptWatcher(private val plugin: KotlinScriptLoaderPlugin) {
     private fun flush() {
         if (stopped.get() || pending.isEmpty()) return
         val now = System.currentTimeMillis()
-        val ready = pending.filterValues { now - it >= QUIET_MS }.keys.sorted()
-        ready.forEach { id ->
-            pending.remove(id)
+        val ready = pending.entries
+            .filter { now - it.value >= QUIET_MS }
+            .sortedBy { it.key }
+        ready.forEach { entry ->
+            val id = entry.key
+            // Do not erase a newer event recorded while this flush snapshot was being built.
+            if (!pending.remove(id, entry.value)) return@forEach
             if (File(plugin.scriptsFolder, "$id.kts").isFile) {
                 knownScripts.add(id)
                 plugin.logger.info("[$id] Файл изменён — перезагружаю только его")
