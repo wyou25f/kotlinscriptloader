@@ -45,6 +45,19 @@ class InventoryExtensionsTest {
     }
 
     @Test
+    fun similarityAndPredicateHelpersIgnoreAirStacks() {
+        val inventory = Bukkit.createInventory(null, 9)
+        inventory.setItem(0, ItemStack(Material.AIR, 1))
+        inventory.setItem(1, ItemStack(Material.STONE, 2))
+
+        assertEquals(listOf(1), inventory.slotsMatching { true })
+        assertEquals(2, inventory.countSimilar(ItemStack(Material.STONE, 1)))
+        assertEquals(0, inventory.countSimilar(ItemStack(Material.AIR, 1)))
+        assertEquals(0, inventory.removeSimilar(ItemStack(Material.AIR, 1), 1))
+        assertEquals(0, inventory.removeMatching(1) { it.type.isAir })
+    }
+
+    @Test
     fun predicateHelpersIgnoreEmptySlots() {
         val inventory = Bukkit.createInventory(null, 9)
         inventory.setItem(2, ItemStack(Material.DIRT, 3))

@@ -1,42 +1,65 @@
 package ru.privateserver.ksl
 
-import java.util.concurrent.ConcurrentHashMap
-
 // Name -> value map whose entries may belong to an owner (an addon) and are dropped together with it.
 class KSLOwnedRegistry<T : Any> {
 
-    private val items = ConcurrentHashMap<String, T>()
-    private val owners = ConcurrentHashMap<String, String>()
+    private data class OwnedValue<T : Any>(val value: T, val owner: String?)
 
-    fun get(key: String): T? = items[key]
+    // Keep the value and its owner in one record. Separate maps can become inconsistent
+    // when two addons register the same key concurrently.
+    private val items = linkedMapOf<String, OwnedValue<T>>()
 
+    @Synchronized
+    fun get(key: String): T? = items[key]?.value
+
+    @Synchronized
     fun contains(key: String): Boolean = items.containsKey(key)
 
-    fun ownerOf(key: String): String? = owners[key]
+    @Synchronized
+    fun ownerOf(key: String): String? = items[key]?.owner
 
-    // A stale owner would let the previous owner's unload delete the new entry, so it is always overwritten.
+    @Synchronized
     fun put(key: String, value: T, owner: String?) {
-        items[key] = value
-        if (owner != null) owners[key] = owner else owners.remove(key)
+        items[key] = OwnedValue(value, owner)
     }
 
+    @Synchronized
     fun remove(key: String) {
         items.remove(key)
-        owners.remove(key)
     }
 
+    /** Removes a resource only when the caller is allowed to manage its current owner. */
+    @Synchronized
+    internal fun removeOwned(key: String, requester: String?): KSLRegistryRemovalResult {
+        val current = items[key] ?: return KSLRegistryRemovalResult.NOT_FOUND
+        if (!KSLResourceOwnershipPolicy.mayUnregister(requester, current.owner)) {
+            return KSLRegistryRemovalResult.OWNED_BY_OTHER
+        }
+        items.remove(key)
+        return KSLRegistryRemovalResult.REMOVED
+    }
+
+    @Synchronized
     fun releaseOwner(owner: String): Int {
-        val keys = owners.filterValues { it == owner }.keys.toList()
-        keys.forEach { remove(it) }
+        val keys = items.filterValues { it.owner == owner }.keys.toList()
+        keys.forEach(items::remove)
         return keys.size
     }
 
+    @Synchronized
     fun keys(): Set<String> = items.keys.toSet()
 
-    fun values(): List<T> = items.values.toList()
+    @Synchronized
+    fun values(): List<T> = items.values.map { it.value }
 
+    @Synchronized
     fun clear() {
         items.clear()
-        owners.clear()
     }
+}
+
+internal enum class KSLRegistryRemovalResult {
+    REMOVED,
+    NOT_FOUND,
+    OWNED_BY_OTHER
 }

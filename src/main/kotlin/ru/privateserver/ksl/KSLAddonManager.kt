@@ -21,8 +21,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
 
     private val addons = ConcurrentHashMap<String, KSLAddon>()
     private val loadOrder = CopyOnWriteArrayList<String>()
-    private val services = ConcurrentHashMap<String, Any>()
-    private val serviceOwner = ConcurrentHashMap<String, String>()
+    private val services = KSLOwnedRegistry<Any>()
     private val contextExtensions = KSLOwnedRegistry<KSLContextExtension>()
     private val extraImports = CopyOnWriteArrayList<String>()
     private val importOwners = ConcurrentHashMap<String, MutableSet<String>>()
@@ -90,7 +89,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
             loadingAddons.add(id.lowercase())
         }
         loadOrder.add(id)
-        val before = services.keys.toSet()
+        val before = services.keys()
 
         plugin.logger.info("§9[KSL] §b▸ §fЗагрузка аддона §e$id §7v${addon.addonVersion}...")
 
@@ -120,7 +119,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
             return
         }
 
-        (services.keys - before).forEach { key ->
+        (services.keys() - before).forEach { key ->
             plugin.logger.info("§9[KSL]   §7↳ §aсервис §f'$key' §7зарегистрирован")
         }
         plugin.logger.info("§9[KSL] §a✔ $id §7v${addon.addonVersion} §aзагружен")
@@ -190,8 +189,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
 
     // Everything an addon registered during onLoad (or on behalf of it); returns how many things were released.
     private fun releaseOwned(owner: String): Int {
-        val ownedServices = serviceOwner.filterValues { it == owner }.keys.toList()
-        ownedServices.forEach { services.remove(it); serviceOwner.remove(it) }
+        val ownedServices = services.releaseOwner(owner)
 
         val ownedExtensions = contextExtensions.releaseOwner(owner)
 
@@ -218,35 +216,30 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
             effectShapes.releaseOwner(owner) + entityAttributes.releaseOwner(owner) +
             plugin.placeholders.releaseOwner(owner) + plugin.textPlaceholders.releaseOwner(owner)
 
-        return ownedServices.size + ownedExtensions + releasedImports.size + releasedRegistryEntries + ownedModules.size + moduleResourcesReleased
+        return ownedServices + ownedExtensions + releasedImports.size + releasedRegistryEntries + ownedModules.size + moduleResourcesReleased
     }
 
     override fun registerService(key: String, instance: Any) {
         val owner = currentlyLoading.get()
-        val previousOwner = serviceOwner[key]
-        if (services.containsKey(key) && previousOwner != owner) {
+        val previousOwner = services.ownerOf(key)
+        if (services.contains(key) && previousOwner != owner) {
             plugin.logger.warning(
                 "§9[KSL] §e⚠ Сервис '$key' (владелец: ${previousOwner ?: "не указан"}) ${KSLError.ADDON_OVERWRITE.tag} перезаписан вызовом ${owner ?: "вне onLoad"}"
             )
         }
-        services[key] = instance
-        // Stale ownership would make the previous owner's unload delete the new owner's service.
-        if (owner != null) serviceOwner[key] = owner else serviceOwner.remove(key)
+        services.put(key, instance, owner)
     }
 
     override fun unregisterService(key: String) {
-        if (!KSLResourceOwnershipPolicy.mayUnregister(currentlyLoading.get(), serviceOwner[key])) {
+        if (services.removeOwned(key, currentlyLoading.get()) == KSLRegistryRemovalResult.OWNED_BY_OTHER) {
             plugin.logger.warning("§9[KSL] Сервис '$key' не удалён: он принадлежит другому владельцу")
-            return
         }
-        services.remove(key)
-        serviceOwner.remove(key)
     }
 
-    override fun getService(key: String): Any? = services[key]
+    override fun getService(key: String): Any? = services.get(key)
 
     override fun <T : Any> getService(key: String, type: Class<T>): T? {
-        val instance = services[key] ?: return null
+        val instance = services.get(key) ?: return null
         if (type.isInstance(instance)) return type.cast(instance)
         if (mismatchWarned.add("$key|${type.name}")) {
             plugin.logger.warning(
@@ -344,11 +337,9 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     }
 
     override fun unregisterContextExtension(extensionId: String) {
-        if (!KSLResourceOwnershipPolicy.mayUnregister(currentlyLoading.get(), contextExtensions.ownerOf(extensionId))) {
+        if (contextExtensions.removeOwned(extensionId, currentlyLoading.get()) == KSLRegistryRemovalResult.OWNED_BY_OTHER) {
             plugin.logger.warning("§9[KSL] Расширение контекста '$extensionId' не удалено: оно принадлежит другому владельцу")
-            return
         }
-        contextExtensions.remove(extensionId)
     }
 
     override fun registeredAddons(): List<KSLAddon> = loadOrder.mapNotNull { addons[it] }
@@ -411,11 +402,9 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
 
     override fun unregisterHook(hookId: String) {
         val key = hookId.lowercase()
-        if (!KSLResourceOwnershipPolicy.mayUnregister(currentlyLoading.get(), hookRegistry.ownerOf(key))) {
+        if (hookRegistry.removeOwned(key, currentlyLoading.get()) == KSLRegistryRemovalResult.OWNED_BY_OTHER) {
             plugin.logger.warning("§9[KSL] Хук '$hookId' не удалён: он принадлежит другому владельцу")
-            return
         }
-        hookRegistry.remove(key)
     }
 
     override fun getHook(hookId: String): KSLHook? = hookRegistry.get(hookId.lowercase())
@@ -442,11 +431,9 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
 
     override fun unregisterPlaceholder(key: String) {
         val normalized = key.lowercase()
-        if (!KSLResourceOwnershipPolicy.mayUnregister(currentlyLoading.get(), plugin.placeholders.ownerOf(normalized))) {
+        if (plugin.placeholders.removeOwned(normalized, currentlyLoading.get()) == KSLRegistryRemovalResult.OWNED_BY_OTHER) {
             plugin.logger.warning("§9[KSL] Placeholder '$key' не удалён: он принадлежит другому владельцу")
-            return
         }
-        plugin.placeholders.remove(normalized)
     }
 
     override fun registerTextPlaceholder(key: String, resolver: (Player?) -> String?) {
@@ -455,11 +442,9 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
 
     override fun unregisterTextPlaceholder(key: String) {
         val normalized = key.lowercase()
-        if (!KSLResourceOwnershipPolicy.mayUnregister(currentlyLoading.get(), plugin.textPlaceholders.ownerOf(normalized))) {
+        if (plugin.textPlaceholders.removeOwned(normalized, currentlyLoading.get()) == KSLRegistryRemovalResult.OWNED_BY_OTHER) {
             plugin.logger.warning("§9[KSL] Текстовый placeholder '$key' не удалён: он принадлежит другому владельцу")
-            return
         }
-        plugin.textPlaceholders.remove(normalized)
     }
 
     override fun registerEffectShape(name: String, factory: KSLShapeFactory) {
@@ -482,7 +467,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         .filter { it !== plugin.javaClass.classLoader }
         .distinct()
 
-    fun getServiceKeys(): Set<String> = services.keys.toSet()
+    fun getServiceKeys(): Set<String> = services.keys()
 
     fun notifyContextCreated(context: BukkitScriptContext) {
         contextExtensions.values().forEach { ext ->
@@ -535,7 +520,6 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         loadOrder.reversed().forEach { unregisterAddon(it) }
         addons.keys.toList().forEach { unregisterAddon(it) }
         services.clear()
-        serviceOwner.clear()
         contextExtensions.clear()
         extraImports.clear()
         importOwners.clear()

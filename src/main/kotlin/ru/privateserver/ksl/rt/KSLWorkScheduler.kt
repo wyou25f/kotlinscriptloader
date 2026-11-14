@@ -15,6 +15,37 @@ enum class KSLWorkPriority(val rank: Int) {
     LOW(0), NORMAL(1), HIGH(2)
 }
 
+/**
+ * Atomically tracks queued + running work per owner. A separate AtomicInteger map can
+ * lose a concurrent increment when a zero-count entry is removed after another thread
+ * has already incremented that same counter.
+ */
+internal class KSLPerOwnerQuota(private val limit: Int) {
+    private val counts = ConcurrentHashMap<String, Int>()
+
+    init {
+        require(limit > 0) { "limit must be positive" }
+    }
+
+    fun acquire(owner: String): Boolean {
+        var accepted = false
+        counts.compute(owner) { _, current ->
+            val used = current ?: 0
+            if (used >= limit) used else {
+                accepted = true
+                used + 1
+            }
+        }
+        return accepted
+    }
+
+    fun release(owner: String) {
+        counts.computeIfPresent(owner) { _, current ->
+            if (current <= 1) null else current - 1
+        }
+    }
+}
+
 data class KSLWorkSnapshot(
     val workers: Int,
     val active: Int,
@@ -39,7 +70,7 @@ class KSLWorkScheduler(
     private val closed = AtomicBoolean()
     private val rejected = AtomicLong()
     private val permits = Semaphore(workers.coerceAtLeast(1) + queueCapacity.coerceAtLeast(1))
-    private val ownerCounts = ConcurrentHashMap<String, AtomicInteger>()
+    private val ownerQuota = KSLPerOwnerQuota(perScriptLimit)
     private val tasks = ConcurrentHashMap<Long, WorkTask>()
 
     private val executor = ThreadPoolExecutor(
@@ -89,9 +120,7 @@ class KSLWorkScheduler(
         fun finish() {
             if (!finished.compareAndSet(false, true)) return
             tasks.remove(id)
-            ownerCounts[owner]?.let { count ->
-                if (count.decrementAndGet() <= 0) ownerCounts.remove(owner, count)
-            }
+            ownerQuota.release(owner)
             permits.release()
         }
     }
@@ -106,15 +135,12 @@ class KSLWorkScheduler(
         require(owner.isNotBlank()) { "owner must not be blank" }
         check(!closed.get()) { "KSL work scheduler is closed" }
 
-        val count = ownerCounts.computeIfAbsent(owner) { AtomicInteger() }
-        if (count.incrementAndGet() > perScriptLimit) {
-            count.decrementAndGet()
+        if (!ownerQuota.acquire(owner)) {
             rejected.incrementAndGet()
             throw RejectedExecutionException("Script '$owner' exceeded its KSL worker task limit ($perScriptLimit)")
         }
         if (!permits.tryAcquire()) {
-            count.decrementAndGet()
-            if (count.get() <= 0) ownerCounts.remove(owner, count)
+            ownerQuota.release(owner)
             rejected.incrementAndGet()
             throw RejectedExecutionException("KSL worker queue is full")
         }

@@ -5,9 +5,11 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 class KSLWorkSchedulerTest {
     @Test
@@ -77,6 +79,46 @@ class KSLWorkSchedulerTest {
         } finally {
             release.countDown()
             scheduler.close()
+        }
+    }
+
+    @Test
+    fun `per owner quota admits only the configured number under contention`() {
+        val quota = KSLPerOwnerQuota(limit = 3)
+        val start = CountDownLatch(1)
+        val attempted = CountDownLatch(12)
+        val release = CountDownLatch(1)
+        val admitted = AtomicInteger()
+        val executor = Executors.newFixedThreadPool(12)
+
+        try {
+            val results = (0 until 12).map {
+                executor.submit<Boolean> {
+                    start.await()
+                    val accepted = quota.acquire("shared")
+                    if (accepted) admitted.incrementAndGet()
+                    attempted.countDown()
+                    if (accepted) {
+                        try {
+                            release.await(5, TimeUnit.SECONDS)
+                        } finally {
+                            quota.release("shared")
+                        }
+                    }
+                    accepted
+                }
+            }
+
+            start.countDown()
+            assertTrue(attempted.await(5, TimeUnit.SECONDS))
+            assertEquals(3, admitted.get())
+            release.countDown()
+            assertEquals(3, results.count { it.get(5, TimeUnit.SECONDS) })
+            assertTrue(quota.acquire("shared"))
+            quota.release("shared")
+        } finally {
+            release.countDown()
+            executor.shutdownNow()
         }
     }
 

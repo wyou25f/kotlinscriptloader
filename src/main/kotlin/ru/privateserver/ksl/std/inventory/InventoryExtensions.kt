@@ -10,7 +10,7 @@ import org.bukkit.inventory.ItemStack
 fun Inventory.firstSimilarSlot(item: ItemStack): Int {
     for (slot in 0 until size) {
         val stack = getItem(slot) ?: continue
-        if (stack.amount > 0 && stack.isSimilar(item)) return slot
+        if (stack.amount > 0 && !stack.type.isAir && !item.type.isAir && stack.isSimilar(item)) return slot
     }
     return -1
 }
@@ -53,7 +53,7 @@ fun Inventory.countSimilar(item: ItemStack): Int {
     var total = 0
     for (slot in 0 until size) {
         val stack = getItem(slot) ?: continue
-        if (stack.amount > 0 && stack.isSimilar(item)) {
+        if (stack.amount > 0 && !stack.type.isAir && !item.type.isAir && stack.isSimilar(item)) {
             total = Math.addExact(total, stack.amount)
         }
     }
@@ -73,7 +73,7 @@ fun Inventory.removeSimilar(item: ItemStack, amount: Int): Int {
     for (slot in 0 until size) {
         if (remaining == 0) break
         val current = getItem(slot) ?: continue
-        if (current.amount <= 0 || !current.isSimilar(item)) continue
+        if (current.amount <= 0 || current.type.isAir || item.type.isAir || !current.isSimilar(item)) continue
 
         val take = minOf(current.amount, remaining)
         val left = current.amount - take
@@ -113,7 +113,7 @@ fun Inventory.countMatching(predicate: (ItemStack) -> Boolean): Int =
 fun Inventory.slotsMatching(predicate: (ItemStack) -> Boolean): List<Int> =
     (0 until size).filter { slot ->
         val stack = getItem(slot)
-        stack != null && stack.amount > 0 && predicate(stack)
+        stack != null && stack.amount > 0 && !stack.type.isAir && predicate(stack)
     }
 
 /**
@@ -127,7 +127,7 @@ fun Inventory.removeMatching(amount: Int, predicate: (ItemStack) -> Boolean): In
     for (slot in 0 until size) {
         if (remaining == 0) break
         val stack = getItem(slot) ?: continue
-        if (stack.amount <= 0 || !predicate(stack)) continue
+        if (stack.amount <= 0 || stack.type.isAir || !predicate(stack)) continue
         val take = minOf(stack.amount, remaining)
         val left = stack.amount - take
         if (left == 0) {
