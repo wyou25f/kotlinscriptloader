@@ -220,7 +220,7 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
 
             "errors" -> {
                 if (args.getOrNull(1)?.equals("list", ignoreCase = true) == true) {
-                    val categoryArg = args.getOrNull(2)
+                    val categoryArg = args.getOrNull(2)?.takeUnless { it.equals("all", ignoreCase = true) }
                     val category = categoryArg?.singleOrNull()?.let { KSLErrorCategory.byLetter(it) }
                     if (categoryArg != null && category == null) {
                         sender.sendMessage("§cНеизвестная категория: $categoryArg. Используй букву из /ksl error.")
@@ -233,7 +233,7 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                         entries.drop((page - 1) * pageSize).take(pageSize).forEach {
                             sender.sendMessage("  §e${it.code} §8— §f${it.title}")
                         }
-                        sender.sendMessage("§7Подробности: §f/ksl error <код> §8| §7Следующая страница: §f/ksl errors list ${category?.letter ?: ""} ${page + 1}")
+                        sender.sendMessage("§7Подробности: §f/ksl error <код> §8| §7Следующая страница: §f/ksl errors list ${category?.letter ?: "all"} ${page + 1}")
                     }
                 } else {
                     val total = KSLErrors.totalCount()
@@ -422,7 +422,7 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
             return listOf("list").filter { it.startsWith(args[1].lowercase()) }
         }
         if (args.size == 3 && args[0].equals("errors", true) && args[1].equals("list", true)) {
-            return KSLErrorCategory.entries.map { it.letter.toString() }.filter { it.startsWith(args[2].lowercase()) }
+            return (listOf("all") + KSLErrorCategory.entries.map { it.letter.toString() }).filter { it.startsWith(args[2].lowercase()) }
         }
         if (args.size == 2 && args[0].equals("error", ignoreCase = true)) {
             return KSLError.entries.map { it.code }.filter { it.startsWith(args[1].lowercase()) }.take(40)
