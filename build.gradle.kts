@@ -263,20 +263,20 @@ tasks.register("componentTestAudit") {
         report.appendLine("|---|---:|---:|---:|---|")
         rows.forEach { row ->
             val status = if (row.testFiles > 0 && row.testCases > 0) "COVERED" else "MISSING"
-            report.appendLine("| `\u0024{row.packageName}` | \u0024{row.sourceFiles} | \u0024{row.testFiles} | \u0024{row.testCases} | \u0024status |")
+            report.appendLine("| `${row.packageName}` | ${row.sourceFiles} | ${row.testFiles} | ${row.testCases} | $status |")
         }
         report.appendLine()
-        report.appendLine("**Summary:** \u0024{rows.size - uncovered.size}/\u0024{rows.size} packages have test files with recognized JUnit test cases.")
+        report.appendLine("**Summary:** ${rows.size - uncovered.size}/${rows.size} packages have test files with recognized JUnit test cases.")
         if (uncovered.isNotEmpty()) {
             report.appendLine()
             report.appendLine("## Packages without executable test cases")
             uncovered.forEach { row ->
-                report.appendLine("- `\u0024{row.packageName}` (\u0024{row.sourceFiles} production files, \u0024{row.testFiles} test files, \u0024{row.testCases} recognized test cases)")
+                report.appendLine("- `${row.packageName}` (${row.sourceFiles} production files, ${row.testFiles} test files, ${row.testCases} recognized test cases)")
             }
         }
 
         reportDirectory.resolve("component-test-audit.md").writeText(report.toString())
-        logger.lifecycle("Component test audit: \u0024{rows.size - uncovered.size}/\u0024{rows.size} production packages have recognized JUnit test cases.")
+        logger.lifecycle("Component test audit: ${rows.size - uncovered.size}/${rows.size} production packages have recognized JUnit test cases.")
 
         if (uncovered.isNotEmpty()) {
             throw GradleException(
