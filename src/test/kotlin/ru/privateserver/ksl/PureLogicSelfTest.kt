@@ -195,6 +195,12 @@ private fun testErrorCatalog() {
     check("catalog has at least triple the original coverage", all.size >= 258)
     check("every code has a title and a hint", all.all { it.title.isNotBlank() && it.hint.isNotBlank() })
     check("watchdog diagnostic codes are discoverable", KSLError.SYSTEM_WATCHDOG_STALL.category == KSLErrorCategory.SYSTEM && KSLError.find(KSLError.SYSTEM_WATCHDOG_DEADLOCK.code) == KSLError.SYSTEM_WATCHDOG_DEADLOCK)
+    check("JDBC connection errors get a dedicated code", KSLErrors.classifyDatabaseFailure(java.sql.SQLException("connect failed", "08001"), KSLError.DB_TABLE_FAILED) == KSLError.DB_CONNECTION_LOST)
+    check("JDBC authentication errors get a dedicated code", KSLErrors.classifyDatabaseFailure(java.sql.SQLException("access denied", "28000"), KSLError.DB_INIT_FAILED) == KSLError.DB_AUTHENTICATION_FAILED)
+    check("SQL syntax errors get a dedicated code", KSLErrors.classifyDatabaseFailure(java.sql.SQLException("bad syntax", "42000"), KSLError.DB_SCRIPT_QUERY_FAILED) == KSLError.DB_QUERY_SYNTAX)
+    check("SQL constraint errors get a dedicated code", KSLErrors.classifyDatabaseFailure(java.sql.SQLException("duplicate key", "23000"), KSLError.DB_TABLE_FAILED) == KSLError.DB_CONSTRAINT_VIOLATION)
+    check("SQLite full disk errors get a dedicated code", KSLErrors.classifyDatabaseFailure(java.sql.SQLException("SQLITE_FULL: database or disk is full"), KSLError.DB_PERSIST_SAVE_FAILED) == KSLError.DB_DISK_FULL)
+    check("Unknown database errors preserve the caller fallback", KSLErrors.classifyDatabaseFailure(IllegalStateException("unknown"), KSLError.DB_TABLE_FAILED) == KSLError.DB_TABLE_FAILED)
     val sample = KSLError.SCRIPT_COMPILE
     check("find accepts #, brackets and upper case", KSLError.find("#" + sample.code.uppercase()) == sample && KSLError.find("[" + sample.code + "]") == sample)
     check("find returns null for an unknown code", KSLError.find("0000z") == null)

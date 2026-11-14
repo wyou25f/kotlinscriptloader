@@ -94,6 +94,36 @@ object KSLErrors {
         }
     }
 
+    /** Classifies common JDBC/SQLite failures while preserving the caller's operation-specific fallback. */
+    fun classifyDatabaseFailure(error: Throwable, fallback: KSLError): KSLError {
+        val chain = mutableListOf<Throwable>()
+        val seen = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Throwable, Boolean>())
+        var current: Throwable? = error
+        while (current != null && seen.add(current)) {
+            chain += current
+            current = current.cause
+        }
+        val message = chain.mapNotNull { it.message }.joinToString(" ").lowercase(java.util.Locale.ROOT)
+        val sql = chain.filterIsInstance<java.sql.SQLException>().firstOrNull()
+        val state = sql?.sqlState.orEmpty()
+        val vendorCode = sql?.errorCode ?: 0
+
+        return when {
+            message.contains("no space left on device") || message.contains("disk is full") || message.contains("sqlite_full") -> KSLError.DB_DISK_FULL
+            message.contains("readonly database") || message.contains("read-only database") || message.contains("sqlite_readonly") || state == "25006" -> KSLError.DB_READ_ONLY
+            message.contains("connection is not available") || message.contains("pool is exhausted") || message.contains("connection pool exhausted") -> KSLError.DB_POOL_EXHAUSTED
+            message.contains("database is locked") || message.contains("sqlite_busy") || message.contains("deadlock") || vendorCode == 1213 || state == "40001" -> KSLError.DB_DEADLOCK
+            message.contains("access denied") || message.contains("authentication failed") || message.contains("invalid authorization") || state.startsWith("28") -> KSLError.DB_AUTHENTICATION_FAILED
+            state.startsWith("42") -> KSLError.DB_QUERY_SYNTAX
+            state.startsWith("23") -> KSLError.DB_CONSTRAINT_VIOLATION
+            message.contains("connect timed out") || message.contains("connection timeout") || message.contains("login timeout") -> KSLError.DB_CONNECTION_TIMEOUT
+            chain.any { it is java.sql.SQLTimeoutException } || message.contains("query timed out") || message.contains("statement timeout") -> KSLError.DB_QUERY_TIMEOUT
+            state.startsWith("08") || chain.any { it is java.sql.SQLTransientConnectionException } || message.contains("connection reset") || message.contains("connection refused") || message.contains("communications link failure") -> KSLError.DB_CONNECTION_LOST
+            vendorCode == 1205 -> KSLError.DB_QUERY_TIMEOUT
+            else -> fallback
+        }
+    }
+
     fun countFor(scriptName: String): Int = counters[scriptName]?.get() ?: 0
 
     fun totalCount(): Int = counters.values.sumOf { it.get() }
