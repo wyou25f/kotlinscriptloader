@@ -5,7 +5,6 @@ import org.bukkit.Material
 import org.bukkit.World
 import org.bukkit.block.Block
 import org.bukkit.entity.Entity
-import org.bukkit.util.BoundingBox
 
 /** Gets a block using integer block coordinates. */
 fun World.blockAt(x: Int, y: Int, z: Int): Block = getBlockAt(x, y, z)
@@ -42,6 +41,11 @@ fun World.entitiesInBox(center: Location, x: Double, y: Double = x, z: Double = 
 /** Inclusive axis-aligned region test; locations in another world never match. */
 fun Location.isInside(min: Location, max: Location): Boolean {
     if (world == null || world !== min.world || world !== max.world) return false
-    val bounds = BoundingBox.of(min.toVector(), max.toVector())
-    return bounds.contains(x, y, z)
+    val minX = min.x().coerceAtMost(max.x())
+    val minY = min.y().coerceAtMost(max.y())
+    val minZ = min.z().coerceAtMost(max.z())
+    val maxX = min.x().coerceAtLeast(max.x())
+    val maxY = min.y().coerceAtLeast(max.y())
+    val maxZ = min.z().coerceAtLeast(max.z())
+    return x in minX..maxX && y in minY..maxY && z in minZ..maxZ
 }
