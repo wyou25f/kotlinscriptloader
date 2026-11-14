@@ -33,7 +33,8 @@ object KSLEffectShapes {
         val safeStep = stepDegrees
         val pointCount = (360.0 / safeStep).toInt().coerceIn(4, MAX_POINTS)
         return KSLEffectShape { tick, _ ->
-            val phase = Math.toRadians(tick * safeStep)
+            // Reduce the per-tick angle first so even very large finite steps cannot overflow.
+            val phase = Math.toRadians((tick.toDouble() * (safeStep % 360.0)) % 360.0)
             (0 until pointCount).map { i ->
                 val angle = phase + Math.toRadians(i * (360.0 / pointCount))
                 Vector(cos(angle) * radius, 0.0, sin(angle) * radius)
@@ -48,7 +49,8 @@ object KSLEffectShapes {
         require(totalTicks > 0L) { "Длительность спирали должна быть больше нуля" }
         return KSLEffectShape { tick, _ ->
             val progress = if (totalTicks > 0) (tick.toDouble() / totalTicks).coerceIn(0.0, 1.0) else 0.0
-            val angle = Math.toRadians(progress * turns * 360.0)
+            // Only the fractional turn affects the final angle; reducing first avoids overflow at huge turn counts.
+            val angle = (progress * turns % 1.0) * (2.0 * Math.PI)
             val y = height * progress
             val angle2 = angle + Math.PI
             listOf(
@@ -82,7 +84,7 @@ object KSLEffectShapes {
         }
         if (spinDegreesPerTick == 0.0) return KSLEffectShape { _, _ -> base }
         return KSLEffectShape { tick, _ ->
-            val spin = Math.toRadians(tick * spinDegreesPerTick)
+            val spin = Math.toRadians((tick.toDouble() * (spinDegreesPerTick % 360.0)) % 360.0)
             base.map { it.clone().rotateAroundY(spin) }
         }
     }
@@ -94,7 +96,7 @@ object KSLEffectShapes {
         val h = size / 2.0
         val perimeter = ArrayList<Vector>(n * 4)
         for (i in 0 until n) {
-            val t = -h + size * i / n
+            val t = -h + size * (i.toDouble() / n)
             perimeter += Vector(t, 0.0, -h)
             perimeter += Vector(h, 0.0, t)
             perimeter += Vector(-t, 0.0, h)
