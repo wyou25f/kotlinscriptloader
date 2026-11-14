@@ -1034,9 +1034,11 @@ open class BukkitScriptContext(
         title: String,
         description: String = "",
         color: Int = 0x5865F2,
-        footer: String = ""
+        footer: String = "",
+        fields: List<KSLDiscordEmbedField> = emptyList(),
+        allowMentions: Boolean = false
     ) {
-        plugin.discord?.sendEmbed(channel, title, description, color, footer)
+        plugin.discord?.sendEmbed(channel, title, description, color, footer, allowMentions, fields)
             ?: plugin.logger.warning("[$scriptName] ${KSLError.DISCORD_NOT_CONFIGURED.tag} discordEmbed: Discord не настроен в config.yml")
     }
 
