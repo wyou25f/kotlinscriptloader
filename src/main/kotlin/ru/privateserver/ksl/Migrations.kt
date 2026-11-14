@@ -24,6 +24,7 @@ object Migrations {
     fun run(connection: Connection, dialect: KSLDialect): Int {
         val steps = statements(dialect)
         var version = readVersion(connection, dialect)
+        check(version in 0..steps.size) { "Database schema version $version is newer than supported version ${steps.size}; update KSL before starting." }
         val applied = version
         while (version < steps.size) {
             connection.createStatement().use { it.executeUpdate(steps[version]) }

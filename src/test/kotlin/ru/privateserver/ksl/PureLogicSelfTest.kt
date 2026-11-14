@@ -147,6 +147,9 @@ private fun testDialect() {
     check("reserved word key is quoted in the column list", sqlite.contains("(`script_name`, `key`, `value`)") && mysql.contains("(`script_name`, `key`, `value`)"))
     check("one placeholder per column", sqlite.count { it == '?' } == 3)
     check("upsert rejects keys outside the columns", runCatching { KSLDialect.SQLITE.upsert("t", listOf("a", "b"), listOf("c")) }.isFailure)
+    check("SQL identifiers reject injected fragments", runCatching { KSLDialect.SQLITE.quote("users; DROP TABLE ksl_meta") }.isFailure)
+    check("remote key lengths are validated before writes", runCatching { KSLDialect.MYSQL.requireKeyLength("key", "x".repeat(191)) }.isFailure)
+    check("SQLite keeps its unbounded text-key behavior", runCatching { KSLDialect.SQLITE.requireKeyLength("key", "x".repeat(500)) }.isSuccess)
     check("dialect names parse case-insensitively", KSLDialect.parse(" MariaDB ") == KSLDialect.MARIADB && KSLDialect.parse("postgres") == null)
 
     check("sqlite settings need no credentials", KSLDatabaseSettings.parse("sqlite").dialect == KSLDialect.SQLITE)

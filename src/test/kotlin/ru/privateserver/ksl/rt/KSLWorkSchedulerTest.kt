@@ -123,6 +123,26 @@ class KSLWorkSchedulerTest {
     }
 
     @Test
+    fun `executes queued tasks by priority and preserves FIFO within a priority`() {
+        val scheduler = KSLWorkScheduler(workers = 1, queueCapacity = 8)
+        val started = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val finished = CountDownLatch(4)
+        val order = java.util.Collections.synchronizedList(mutableListOf<String>())
+        try {
+            scheduler.submit("blocker") { started.countDown(); release.await(2, TimeUnit.SECONDS) }
+            assertTrue(started.await(2, TimeUnit.SECONDS))
+            scheduler.submit("shop", KSLWorkPriority.LOW) { order += "low"; finished.countDown() }
+            scheduler.submit("shop", KSLWorkPriority.NORMAL) { order += "normal-1"; finished.countDown() }
+            scheduler.submit("shop", KSLWorkPriority.HIGH) { order += "high"; finished.countDown() }
+            scheduler.submit("shop", KSLWorkPriority.NORMAL) { order += "normal-2"; finished.countDown() }
+            release.countDown()
+            assertTrue(finished.await(2, TimeUnit.SECONDS))
+            assertEquals(listOf("high", "normal-1", "normal-2", "low"), order)
+        } finally { release.countDown(); scheduler.close() }
+    }
+
+    @Test
     fun `resizes worker count within bounds`() {
         val scheduler = KSLWorkScheduler(workers = 1, queueCapacity = 4)
         try {

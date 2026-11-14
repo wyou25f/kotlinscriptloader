@@ -1,5 +1,7 @@
 package ru.privateserver.ksl
 
+import java.util.Locale
+
 // The few places where SQLite and MySQL/MariaDB disagree. Everything else in KSL sticks to portable SQL.
 enum class KSLDialect(val label: String) {
     SQLITE("SQLite"),
@@ -9,7 +11,16 @@ enum class KSLDialect(val label: String) {
     val isRemote: Boolean get() = this != SQLITE
 
     // Backticks are native in MySQL/MariaDB and accepted by SQLite. Needed because "key" is a reserved word there.
-    fun quote(identifier: String): String = "`$identifier`"
+    fun quote(identifier: String): String {
+        require(IDENTIFIER.matches(identifier)) { "Invalid SQL identifier: '$identifier'" }
+        return "`$identifier`"
+    }
+
+    fun requireKeyLength(field: String, value: String) {
+        if (isRemote) require(value.length <= MAX_KEY_LENGTH) {
+            "$field exceeds $MAX_KEY_LENGTH characters for $label"
+        }
+    }
 
     // INSERT that updates every non-key column when the key already exists.
     fun upsert(table: String, columns: List<String>, keys: List<String>): String {
@@ -30,7 +41,9 @@ enum class KSLDialect(val label: String) {
     }
 
     companion object {
-        fun parse(name: String): KSLDialect? = when (name.trim().lowercase()) {
+        private const val MAX_KEY_LENGTH = 190
+        private val IDENTIFIER = Regex("^[A-Za-z_][A-Za-z0-9_]*$")
+        fun parse(name: String): KSLDialect? = when (name.trim().lowercase(Locale.ROOT)) {
             "sqlite" -> SQLITE
             "mysql" -> MYSQL
             "mariadb", "maria" -> MARIADB

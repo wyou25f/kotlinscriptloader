@@ -29,6 +29,34 @@ class KSLRuntimeToolsTest {
         Thread.sleep(30)
         assertNull(cache.get("short-lived"))
     }
+    @Test fun cacheSupportsExpireAfterAccess() {
+        val cache = KSLCache<String, Int>(2, expireAfterAccess = Duration.ofMillis(80))
+        cache.put("active", 1)
+        Thread.sleep(45)
+        assertEquals(1, cache["active"])
+        Thread.sleep(45)
+        assertEquals(1, cache["active"])
+        Thread.sleep(100)
+        assertNull(cache["active"])
+    }
+
+    @Test fun cacheSupportsMapStyleHelpersAndCleanup() {
+        val cache = KSLCache<String, Int>(3)
+        assertNull(cache.putIfAbsent("a", 1))
+        assertEquals(1, cache.putIfAbsent("a", 2))
+        assertEquals(1, cache.getOrDefault("a", 9))
+        assertEquals(2, cache.computeIfAbsent("b") { 2 })
+        cache.putAll(mapOf("c" to 3))
+        assertEquals(setOf("a", "b", "c"), cache.keysSnapshot().toSet())
+        assertTrue(cache.invalidate("b"))
+        assertEquals(2, cache.cleanUp())
+        assertEquals(0, cache.currentSize)
+    }
+
+    @Test fun cacheRejectsNegativeAccessTtl() {
+        assertThrows(IllegalArgumentException::class.java) { KSLCache<String, Int>(1, expireAfterAccess = Duration.ofNanos(-1)) }
+    }
+
     @Test fun profilerRegistryRejectsUnboundedNamesAndAllowsCleanup() {
         val created = mutableListOf<String>()
         val prefix = "capacity-test-${System.nanoTime()}-"
