@@ -192,7 +192,9 @@ private fun testErrorCatalog() {
     val numbers = all.map { it.number }.sorted()
     check("numbers are scattered: no two codes are neighbours", numbers.zipWithNext().all { (a, b) -> b - a >= 20 })
     check("numbers are not a 0001, 0002 sequence", numbers.first() >= 100)
+    check("catalog has at least triple the original coverage", all.size >= 258)
     check("every code has a title and a hint", all.all { it.title.isNotBlank() && it.hint.isNotBlank() })
+    check("watchdog diagnostic codes are discoverable", KSLError.SYSTEM_WATCHDOG_STALL.category == KSLErrorCategory.SYSTEM && KSLError.find(KSLError.SYSTEM_WATCHDOG_DEADLOCK.code) == KSLError.SYSTEM_WATCHDOG_DEADLOCK)
     val sample = KSLError.SCRIPT_COMPILE
     check("find accepts #, brackets and upper case", KSLError.find("#" + sample.code.uppercase()) == sample && KSLError.find("[" + sample.code + "]") == sample)
     check("find returns null for an unknown code", KSLError.find("0000z") == null)
