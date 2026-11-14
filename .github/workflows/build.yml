@@ -64,6 +64,19 @@ jobs:
         shell: pwsh
         run: ./build.ps1 -Task Package -NoDaemon
 
+      - name: Inspect plugin JAR contents
+        shell: pwsh
+        run: ./scripts/Inspect-Jar.ps1
+
+      - name: Upload JAR inspection report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: KSL-jar-inspection-${{ github.run_number }}-${{ github.sha }}
+          path: build-reports/jar-inspection.json
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Verify IntelliJ IDEA companion setup
         run: bash ./gradlew --no-daemon -p ide -PkslJar=../build/libs/KotlinScriptLoader-1.2.0.jar verifyKslIdeSetup
 
