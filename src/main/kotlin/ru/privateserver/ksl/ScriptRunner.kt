@@ -79,14 +79,15 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
                 is ResultWithDiagnostics.Success -> CompiledUnit(file, id, result.value, emptyList(), warnings, null, null, elapsedMs())
             }
         } catch (ex: Throwable) {
-            CompiledUnit(file, id, null, listOf("${file.name}: ${ex::class.simpleName}: ${ex.message}"), emptyList(), KSLError.SCRIPT_RUNTIME, ex, elapsedMs())
+            CompiledUnit(file, id, null, listOf("${file.name}: ${ex::class.simpleName}: ${ex.message}"), emptyList(), KSLError.SCRIPT_COMPILER_CRASH, ex, elapsedMs())
         }
     }
 
     fun reportFailure(unit: CompiledUnit) {
         val id = unit.id
+        val failureCode = unit.failure ?: KSLError.SCRIPT_COMPILE
         unit.warnings.forEach { plugin.logger.warning("[$id] ${KSLError.SCRIPT_COMPILE_WARNING.tag} ⚠ $it") }
-        when (unit.failure) {
+        when (failureCode) {
             KSLError.SCRIPT_SANDBOX -> {
                 plugin.logScriptProblem("[$id] ${KSLError.SCRIPT_SANDBOX.tag} 🚫 Sandbox не пропустил скрипт, нарушений: ${unit.errors.size}")
                 KSLReport.compactErrors(unit.errors).forEach { plugin.logScriptProblem("  $it") }
@@ -95,10 +96,10 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
                 plugin.logScriptProblem("[$id] ${KSLError.SCRIPT_COMPILE.tag} ❌ Скрипт не скомпилировался, ошибок: ${unit.errors.size}")
                 KSLReport.compactErrors(unit.errors).forEach { plugin.logScriptProblem("  $it") }
             }
-            else -> unit.crash?.let { KSLErrors.log(plugin, id, "компиляция скрипта", it, KSLError.SCRIPT_COMPILE) }
-                ?: unit.errors.forEach { plugin.logScriptProblem("[$id] ${KSLError.SCRIPT_RUNTIME.tag} $it") }
+            else -> unit.crash?.let { KSLErrors.log(plugin, id, "компиляция скрипта", it, failureCode) }
+                ?: unit.errors.forEach { plugin.logScriptProblem("[$id] ${failureCode.tag} $it") }
         }
-        if (unit.crash == null) KSLErrors.recordFailure(id, "компиляция", unit.errors, unit.failure ?: KSLError.SCRIPT_COMPILE)
+        if (unit.crash == null) KSLErrors.recordFailure(id, "компиляция", unit.errors, failureCode)
     }
 
     fun evaluate(unit: CompiledUnit): Boolean {
@@ -118,10 +119,12 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
             val result = plugin.watchdogMonitor?.trackOperation("KSL evaluate '$id'", evaluate) ?: evaluate()
             val ok = when (result) {
                 is ResultWithDiagnostics.Failure -> {
-                    plugin.logScriptProblem("[$id] ${KSLError.SCRIPT_RUNTIME.tag} ❌ Не удалось выполнить скрипт:")
-                    KSLReport.compactErrors(
-                        result.reports.filter { it.severity >= ScriptDiagnostic.Severity.ERROR }.map { formatDiagnostic(it, unit.file) }
-                    ).forEach { plugin.logScriptProblem("  $it") }
+                    val errors = result.reports
+                        .filter { it.severity >= ScriptDiagnostic.Severity.ERROR }
+                        .map { formatDiagnostic(it, unit.file) }
+                    plugin.logScriptProblem("[$id] ${KSLError.SCRIPT_EVALUATION_FAILED.tag} ❌ Не удалось выполнить скрипт:")
+                    KSLReport.compactErrors(errors).forEach { plugin.logScriptProblem("  $it") }
+                    KSLErrors.recordFailure(id, "выполнение скрипта", errors, KSLError.SCRIPT_EVALUATION_FAILED)
                     false
                 }
                 is ResultWithDiagnostics.Success -> {
