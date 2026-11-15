@@ -7,7 +7,7 @@ import org.bukkit.Bukkit
 import org.bukkit.OfflinePlayer
 import org.bukkit.entity.Player
 
-open internal fun isValidVaultAmount(amount: Double): Boolean = amount.isFinite() && amount >= 0.0
+internal fun isValidVaultAmount(amount: Double): Boolean = amount.isFinite() && amount >= 0.0
 
 open class KSLVaultHook : KSLHook {
 
