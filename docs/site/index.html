@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#e9dfc7">
+<title>KSL Библиотека — документация</title><link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+<button class="mobile-menu" id="menu-toggle" aria-label="Открыть содержание">☰</button>
+<a class="brand" href="#" id="brand-home"><span class="brand-mark">K</span><span class="brand-copy"><strong>KSL БИБЛИОТЕКА</strong><small>руководства и заметки разработчика</small></span></a>
+<nav class="top-links"><a href="#" id="nav-books">Книги</a><a href="#" id="nav-contents">Содержание</a><a href="#" id="nav-about">О библиотеке</a></nav>
+<div class="top-actions"><label class="searchbox"><span>⌕</span><input id="search-input" type="search" placeholder="Найти в книгах…" autocomplete="off"><kbd>Ctrl K</kbd></label><button class="plain-button" id="print-button">Печать</button></div>
+</header>
+<div class="layout">
+<aside class="sidebar" id="sidebar">
+<div class="sidebar-heading"><span class="eyebrow">КОЛЛЕКЦИЯ</span><span class="sidebar-title">Четыре книги KSL</span></div>
+<div class="book-list" id="book-list"></div><div class="sidebar-divider"></div>
+<div class="chapter-heading"><span class="eyebrow">В ЭТОЙ КНИГЕ</span><span class="sidebar-title" id="chapter-book-title">Выберите книгу</span></div>
+<ol class="chapter-list" id="chapter-list"></ol>
+<div class="sidebar-foot"><span class="offline-dot"></span><span>Работает без интернета</span></div>
+</aside>
+<main class="reading-area">
+<div class="reading-topline"><div class="breadcrumbs" id="breadcrumbs">KSL / Библиотека</div><div class="page-indicator" id="page-indicator">4 КНИГИ · ОФЛАЙН</div></div>
+<section class="reader" id="reader" aria-live="polite"></section>
+<footer class="reader-footer"><button class="page-button" id="previous-button" disabled>← Предыдущая</button><span id="footer-page">KSL · ДОКУМЕНТАЦИЯ</span><button class="page-button" id="next-button" disabled>Следующая →</button></footer>
+</main>
+<aside class="rightbar">
+<div class="rightbar-box"><span class="eyebrow">НА ЭТОЙ СТРАНИЦЕ</span><div id="page-toc" class="page-toc"><span class="muted">Оглавление главы появится здесь.</span></div></div>
+<div class="rightbar-box"><span class="eyebrow">ЧТЕНИЕ</span><div class="progress-label"><span>Прогресс книги</span><strong id="progress-value">0%</strong></div><div class="progress-track"><span id="progress-bar"></span></div><small id="progress-caption">Выберите книгу, чтобы начать.</small></div>
+<div class="rightbar-quote"><span class="quote-mark">“</span><p>Хорошая документация не мешает думать о задаче. Она помогает сосредоточиться на ней.</p><small>ЗАМЕТКА РЕДАКТОРА</small></div>
+</aside>
+</div>
+<div class="search-overlay" id="search-overlay" hidden><div class="search-panel"><div class="search-panel-head"><strong>Поиск по библиотеке</strong><button id="search-close" class="plain-button">Закрыть ✕</button></div><input id="search-modal-input" type="search" placeholder="Введите слово или фразу…" autocomplete="off"><div class="search-hint">Поиск работает по всем четырём книгам. Нажмите Esc, чтобы закрыть.</div><div id="search-results" class="search-results"></div></div></div>
+<script src="books-data.js"></script><script src="app.js"></script>
+</body></html>
