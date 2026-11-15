@@ -93,7 +93,7 @@ fun Location.playersNear(radius: Double): Collection<Player> = world?.getNearbyP
 // ---- items ----
 
 private fun noItalic(component: Component): Component =
-    if (component.decoration(TextDecoration.ITALIC) == null) {
+    if (component.decoration(TextDecoration.ITALIC) == TextDecoration.State.NOT_SET) {
         component.decoration(TextDecoration.ITALIC, TextDecoration.State.FALSE)
     } else {
         component
