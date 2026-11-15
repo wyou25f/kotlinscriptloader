@@ -29,6 +29,11 @@ KSL scripts already import the `ru.privateserver.ksl.rt.*` package by default.
 Standalone addon projects should add the KSL plugin JAR as a `compileOnly`
 dependency and import the package explicitly.
 
+The `kslrt` compatibility object also exposes the profiler registry
+aliases (`profilerOrNull`, `profilerNames`, `profilerCount`,
+`removeProfile` and `removeProfilers`). Profiler and runtime-scope names
+are limited to 256 characters to keep registry metadata bounded.
+
 ## Cache
 
 ```kotlin
