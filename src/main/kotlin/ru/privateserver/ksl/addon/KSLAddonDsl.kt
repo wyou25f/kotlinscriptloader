@@ -76,7 +76,8 @@ fun KSLAPI.whenReady(addonId: String, callback: (KSLAddon) -> Unit) = onAddonRea
 
 fun KSLAPI.isLoaded(addonId: String): Boolean = isAddonLoaded(addonId)
 
-fun KSLAPI.findAddon(addonId: String): KSLAddon? = registeredAddons().firstOrNull { it.addonId == addonId }
+fun KSLAPI.findAddon(addonId: String): KSLAddon? =
+    registeredAddons().firstOrNull { it.addonId.equals(addonId, ignoreCase = true) }
 
 fun KSLAPI.addonIds(): List<String> = registeredAddons().map { it.addonId }
 
