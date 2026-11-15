@@ -1,5 +1,6 @@
 package ru.privateserver.ksl
 
+import java.io.File
 import java.util.Locale
 
 data class KSLSkriptDiagnostics(
@@ -34,4 +35,13 @@ internal object KSLSkriptNames {
         if (segments.any { it.isBlank() || it == "." || it == ".." }) return null
         return if (value.endsWith(".sk", ignoreCase = true)) value else "$value.sk"
     }
+
+
+    /** Returns a normalized path only when the canonical file remains inside Skript's scripts folder. */
+    fun relativeScriptPath(scriptsFolder: File, scriptFile: File): String? = runCatching {
+        val root = scriptsFolder.canonicalFile.toPath()
+        val file = scriptFile.canonicalFile.toPath()
+        require(file.startsWith(root)) { "Skript script is outside the scripts folder" }
+        root.relativize(file).toString().replace(File.separatorChar, '/')
+    }.getOrNull()?.takeIf { it.endsWith(".sk", ignoreCase = true) }
 }
