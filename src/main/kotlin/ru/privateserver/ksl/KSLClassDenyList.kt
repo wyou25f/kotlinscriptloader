@@ -65,12 +65,21 @@ class KSLSandboxClassLoader(
     private val onDenied: (String) -> Unit
 ) : ClassLoader(parent) {
 
-    private val reported = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    companion object {
+        internal const val MAX_REPORTED_DENIALS = 128
+    }
+
+    // A script must not grow an unbounded set of unique denied names.
+    private val reported = HashSet<String>()
+    private val reportLock = Any()
 
     override fun loadClass(name: String, resolve: Boolean): Class<*> {
         if (denyList.denies(name)) {
-            // Once per class: a script that retries in a loop must not flood the console.
-            if (reported.add(name)) onDenied(name)
+            val shouldReport = synchronized(reportLock) {
+                if (reported.size >= MAX_REPORTED_DENIALS) false else reported.add(name)
+            }
+            if (shouldReport) onDenied(name)
+            // The limit applies to diagnostics only; every denied class is still rejected.
             throw ClassNotFoundException("[sandbox] скрипту $scriptName запрещён доступ к классу $name")
         }
         return super.loadClass(name, resolve)
