@@ -73,7 +73,7 @@ KSL's user documentation is organized as four large books instead of dozens of s
 | [Book III — Data and Databases](docs/03-data-and-databases.md) | SQLite, MySQL, MariaDB, phpMyAdmin, SQL, persist/table, YAML, TOML and JSON |
 | [Book IV — Cookbook](docs/04-cookbook.md) | Practical recipes for commands, events, inventory, databases, caching and integrations |
 
-**Supplemental API reference:** [NBT API](docs/05-nbt-api.md) covers custom item/entity/block data and vanilla item components.
+**Supplemental API references:** [NBT API](docs/05-nbt-api.md) covers custom item/entity/block data and vanilla item components; [items and enchantments](docs/06-items-and-enchantments.md) covers item builders and custom enchants; [STD, messages and KSL Mixins](docs/08-standard-library-mixins-and-messages.md) documents the newer script APIs.
 
 **Offline reading:** download the complete [docs/site folder](docs/site/) and open `index.html` on your PC. The reader includes all four primary books, search, chapter navigation, code copy buttons and print layout. It does not require a server or an internet connection.
 
