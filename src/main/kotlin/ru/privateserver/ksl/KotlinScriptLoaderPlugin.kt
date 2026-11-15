@@ -615,7 +615,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     // Present plugin + successful init => the hook is stored in its typed field and published in the hook registry.
     private fun <T : KSLHook> integrate(pluginName: String, label: String, create: () -> T): T? {
-        if (Bukkit.getPluginManager().getPlugin(pluginName) == null) return null
+        if (!Bukkit.getPluginManager().isPluginEnabled(pluginName)) return null
         val hook = runCatching(create)
             .onFailure { logger.warning("${KSLError.HOOK_INIT_FAILED.tag} $label: инициализация хука не удалась: ${it.message}") }
             .getOrNull()
