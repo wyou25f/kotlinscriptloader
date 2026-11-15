@@ -1,5 +1,7 @@
 package ru.privateserver.ksl.meslib2
 
+import java.util.Locale
+
 /**
  * Script-scoped facade for MesLib2 exports.
  *
@@ -176,7 +178,7 @@ private const val MAX_VERSION_LENGTH = 128
 private val IDENTIFIER_PATTERN = Regex("[a-z][a-z0-9._-]*")
 
 private fun normalizeNamespace(owner: String): String {
-    val normalized = owner.lowercase()
+    val normalized = owner.lowercase(Locale.ROOT)
         .replace(Regex("[^a-z0-9._-]+"), "-")
         .trim('-', '.', '_')
         .ifBlank { "script" }
