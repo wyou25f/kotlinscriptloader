@@ -12,9 +12,8 @@ open class KSLAuthMeHook : KSLHook {
     override val hookId = KSLHookIds.AUTH_ME
     override val pluginName = "AuthMe"
 
-    private val api: Any? by lazy {
-        KSLHookReflection.loadApi("AuthMe", "fr.xephi.authme.api.v3.AuthMeApi")
-    }
+    private val api: Any?
+        get() = KSLHookReflection.loadApi("AuthMe", "fr.xephi.authme.api.v3.AuthMeApi")
 
     val isAvailable: Boolean get() = api != null
 
