@@ -96,6 +96,8 @@ object KSLRT {
 
 /** Backwards-compatible factory name. */
 object kslrt {
+    const val MAX_PROFILERS: Int = KSLRT.MAX_PROFILERS
+
     @JvmStatic
     @JvmOverloads
     fun <K : Any, V : Any> cache(maxSize: Int, expireAfter: Duration = Duration.ZERO, expireAfterAccess: Duration = Duration.ZERO): KSLCache<K, V> =
@@ -120,6 +122,9 @@ object kslrt {
 
     inline fun <T> measure(name: String, block: () -> T): T =
         KSLRT.measure(name, block)
+
+    inline fun <T> timed(name: String, block: () -> T): T =
+        KSLRT.timed(name, block)
 
     fun scope(name: String): KSLRuntimeScope = KSLRT.scope(name)
     fun resources(name: String): KSLRuntimeScope = KSLRT.resources(name)
