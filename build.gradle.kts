@@ -39,6 +39,8 @@ val kotlinLibraries = listOf(
 
 dependencies {
     compileOnly("com.destroystokyo.paper:paper-api:1.16.5-R0.1-SNAPSHOT")
+    // Paper 1.16.5 provides MiniMessage at runtime; declare its API for compilation.
+    compileOnly("net.kyori:adventure-text-minimessage:4.10.1") { isTransitive = false }
     compileOnly("me.clip:placeholderapi:2.11.6")
     compileOnly("net.luckperms:api:5.5")
     compileOnly("net.essentialsx:EssentialsX:2.21.2") {
@@ -70,6 +72,7 @@ dependencies {
     implementation("de.tr7zw:item-nbt-api:2.16.1")
 
     testImplementation("com.destroystokyo.paper:paper-api:1.16.5-R0.1-SNAPSHOT")
+    testImplementation("net.kyori:adventure-text-minimessage:4.10.1") { isTransitive = false }
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testImplementation("com.github.seeseemelk:MockBukkit-v1.16:1.5.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
