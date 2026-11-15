@@ -32,8 +32,7 @@ class KSLItemBuilder(material: Material, amount: Int = 1) {
     }
 
     fun plainName(value: String) {
-        val component = Component.text(value)
-            .noItalicIfUnset
+        val component = noItalicIfUnset(Component.text(value))
         stack = stack.withDisplayName(component)
     }
 
