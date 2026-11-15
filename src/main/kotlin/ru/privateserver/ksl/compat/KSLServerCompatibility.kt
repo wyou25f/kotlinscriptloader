@@ -82,7 +82,7 @@ object KSLServerCompatibility {
         KSLServerCapability.PARTICLE_DUST ->
             enumConstantAvailable("org.bukkit.Particle", "DUST")
         KSLServerCapability.PARTICLE_DUST_TRANSITION ->
-            classAvailable("org.bukkit.Particle$DustTransition")
+            classAvailable("org.bukkit.Particle\$DustTransition")
         KSLServerCapability.ATTRIBUTE_REGISTRY ->
             publicStaticFieldAvailable("org.bukkit.Registry", "ATTRIBUTE")
         KSLServerCapability.PAPER_MOB_PATHFINDER ->
@@ -126,8 +126,8 @@ object KSLServerCompatibility {
  * it is not a claim that every version in the range has passed server tests.
  */
 object KSLCompatibilityTarget {
-    const val TRACK_ID: String = "${track}"
-    const val MINIMUM_MINECRAFT_VERSION: String = "${min}"
-    const val MINIMUM_JAVA_VERSION: Int = ${java}
-    const val COMPILE_API_BASELINE: String = "${baseline}"
+    const val TRACK_ID: String = "mc-1.16.5-to-1.21.x"
+    const val MINIMUM_MINECRAFT_VERSION: String = "1.16.5"
+    const val MINIMUM_JAVA_VERSION: Int = 16
+    const val COMPILE_API_BASELINE: String = "Paper 1.16.5"
 }
