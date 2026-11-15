@@ -23,9 +23,15 @@ sealed interface KSLValidationResult<out T> {
         get() = this is Valid<*>
 
     val errors: List<KSLValidationIssue>
-        get() = (this as? Invalid)?.issues.orEmpty()
+        get() = when (this) {
+            is Valid -> emptyList()
+            is Invalid -> issues
+        }
 
-    fun getOrNull(): T? = (this as? Valid<T>)?.value
+    fun getOrNull(): T? = when (this) {
+        is Valid -> value
+        is Invalid -> null
+    }
 
     /** Returns the value or throws an IllegalArgumentException containing every issue. */
     fun getOrThrow(): T = when (this) {
@@ -58,7 +64,7 @@ class KSLValidator<T> private constructor(
     private val rules: List<KSLValidationRule<T>>
 ) {
     val ruleNames: List<String>
-        get() = rules.map(KSLValidationRule<T>::name)
+        get() = rules.map { it.name }
 
     fun validate(value: T): KSLValidationResult<T> {
         val issues = rules.mapNotNull { rule ->

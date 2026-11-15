@@ -11,8 +11,9 @@ import java.util.UUID
  * Small convenience layer for addon authors. These are extensions rather than
  * KSLAPI interface members, so adding them does not break binary compatibility.
  *
- * Tasks created here are owned by the calling addon. Cancel them during its
- * onUnload callback unless they are intentionally short-lived.
+ * The scheduler helpers return raw BukkitTask handles and are not cancelled
+ * automatically on addon unload. Use addonScope() to group tasks, listeners,
+ * subscriptions and external resources under one explicit lifecycle owner.
  */
 
 /** Snapshot of currently online players. Bukkit access must happen on the server thread. */
