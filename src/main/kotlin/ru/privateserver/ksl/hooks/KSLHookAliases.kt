@@ -33,13 +33,13 @@ abstract class KSLPluginHook(
     }
 }
 
-/** Typed nullable lookup alias for addon code. */
-inline fun <reified T : KSLHook> KSLAPI.hookOrNull(hookId: String): T? =
+/** Typed nullable lookup alias for addon code; complements the public API's hookOrNull(). */
+inline fun <reified T : KSLHook> KSLAPI.findHook(hookId: String): T? =
     getHook(hookId, T::class.java)
 
 /** Typed required lookup alias with a consistent error message. */
 inline fun <reified T : KSLHook> KSLAPI.requireHookAlias(hookId: String): T =
-    hookOrNull<T>(hookId)
+    findHook<T>(hookId)
         ?: error("KSL hook '$hookId' of type ${T::class.java.name} is not registered")
 
 /**
