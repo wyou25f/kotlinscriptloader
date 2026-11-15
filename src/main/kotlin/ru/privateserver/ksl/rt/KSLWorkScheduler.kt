@@ -99,7 +99,7 @@ class KSLWorkScheduler(
         workers.coerceIn(1, 64), workers.coerceIn(1, 64), 0L, TimeUnit.MILLISECONDS,
         PriorityBlockingQueue(),
         ThreadFactory { task ->
-            Thread(task, "KSL-Worker-@@{threadIds.incrementAndGet()}").apply {
+            Thread(task, "KSL-Worker-${threadIds.incrementAndGet()}").apply {
                 isDaemon = true
                 contextClassLoader = this@KSLWorkScheduler.javaClass.classLoader
             }
@@ -200,6 +200,50 @@ class KSLWorkScheduler(
         require(!delay.isNegative) { "delay must not be negative" }
         val nanos = try { delay.toNanos() } catch (_: ArithmeticException) { Long.MAX_VALUE }
         return schedule(owner, nanos, TimeUnit.NANOSECONDS, priority, action)
+    }
+
+    /** Delayed task with a cancellable handle and completion result. */
+    fun scheduleHandle(
+        owner: String, delay: Long, unit: TimeUnit = TimeUnit.MILLISECONDS,
+        priority: KSLWorkPriority = KSLWorkPriority.NORMAL, action: () -> Unit
+    ): KSLWorkHandle {
+        require(delay >= 0L) { "delay must not be negative" }
+        val record = create(owner, priority, Mode.DELAYED, 0L, action)
+        armOnce(record, unit.toNanos(delay))
+        return handle(record)
+    }
+
+    fun scheduleHandle(
+        owner: String, delay: Duration, priority: KSLWorkPriority = KSLWorkPriority.NORMAL,
+        action: () -> Unit
+    ): KSLWorkHandle {
+        require(!delay.isNegative) { "delay must not be negative" }
+        val nanos = try { delay.toNanos() } catch (_: ArithmeticException) { Long.MAX_VALUE }
+        return scheduleHandle(owner, nanos, TimeUnit.NANOSECONDS, priority, action)
+    }
+
+    /** Fixed-rate task handle; overlapping ticks are counted as skipped. */
+    fun scheduleAtFixedRateHandle(
+        owner: String, initialDelay: Long, period: Long, unit: TimeUnit = TimeUnit.MILLISECONDS,
+        priority: KSLWorkPriority = KSLWorkPriority.NORMAL, action: () -> Unit
+    ): KSLWorkHandle {
+        require(initialDelay >= 0L) { "initialDelay must not be negative" }
+        require(period > 0L) { "period must be positive" }
+        val record = create(owner, priority, Mode.FIXED_RATE, unit.toNanos(period).coerceAtLeast(1L), action)
+        armFixedRate(record, unit.toNanos(initialDelay))
+        return handle(record)
+    }
+
+    /** Fixed-delay task handle; the next run is scheduled after the previous run completes. */
+    fun scheduleWithFixedDelayHandle(
+        owner: String, initialDelay: Long, delay: Long, unit: TimeUnit = TimeUnit.MILLISECONDS,
+        priority: KSLWorkPriority = KSLWorkPriority.NORMAL, action: () -> Unit
+    ): KSLWorkHandle {
+        require(initialDelay >= 0L) { "initialDelay must not be negative" }
+        require(delay > 0L) { "delay must be positive" }
+        val record = create(owner, priority, Mode.FIXED_DELAY, unit.toNanos(delay).coerceAtLeast(1L), action)
+        armOnce(record, unit.toNanos(initialDelay))
+        return handle(record)
     }
 
     /** Fixed-rate ticks are skipped when the previous execution is still active. */
@@ -502,7 +546,7 @@ class KSLWorkScheduler(
             closed.set(true)
         }
         timer.shutdownNow()
-        records.values.filter { it.state == KSLWorkState.SCHEDULED }.forEach { cancelRecord(it, false) }
+        records.values.filter { it.repeating || it.state == KSLWorkState.SCHEDULED }.forEach { cancelRecord(it, false) }
         executor.shutdown()
         return try {
             if (executor.awaitTermination(timeout, unit)) true else {
