@@ -17,7 +17,7 @@ item.readNBT {
 }
 ```
 
-On Minecraft 1.20.5+, item `modifyNBT/readNBT` access the `custom_data` component, not vanilla item components.
+On Minecraft 1.20.5+, item `modifyNBT/readNBT` access the `custom_data` component, not vanilla item components. Avoid re-applying an `ItemMeta` snapshot captured before the NBT edit: that older snapshot can overwrite the newer item data. Make NBT edits before obtaining/editing ItemMeta, or perform the item-meta work first and then the NBT edit.
 
 ## Vanilla item components
 
@@ -30,7 +30,7 @@ item.readComponents {
 }
 ```
 
-Component values must use the format expected by the corresponding Minecraft component.
+Component values must use the format expected by the corresponding Minecraft component. Component editing is a low-level operation: malformed data can make the item invalid or produce unexpected in-game behavior, so validate values against the target Minecraft version.
 
 ## Entities and block entities
 
