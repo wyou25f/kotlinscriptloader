@@ -24,7 +24,7 @@ class MesLib2 internal constructor(
     fun export(namespace: String, name: String, value: Any, version: String) {
         validate(namespace, "namespace")
         validate(name, "name")
-        require(version.isNotBlank()) { "MesLib2 version must not be blank" }
+        validateVersion(version)
         exportValue(owner, key(namespace, name), MesLib2Entry(value, version))
     }
 
@@ -39,7 +39,7 @@ class MesLib2 internal constructor(
     fun exportIfAbsent(namespace: String, name: String, value: Any, version: String = "1.0.0"): Boolean {
         validate(namespace, "namespace")
         validate(name, "name")
-        require(version.isNotBlank()) { "MesLib2 version must not be blank" }
+        validateVersion(version)
         return exportIfAbsentValue(owner, key(namespace, name), MesLib2Entry(value, version))
     }
 
@@ -86,6 +86,7 @@ class MesLib2 internal constructor(
     fun <T : Any> get(namespace: String, name: String, type: Class<T>, expectedVersion: String? = null): T? {
         validate(namespace, "namespace")
         validate(name, "name")
+        expectedVersion?.let(::validateVersion)
         val entry = getValue(key(namespace, name)) as? MesLib2Entry ?: return null
         if (expectedVersion != null && entry.version != expectedVersion) return null
         return if (type.isInstance(entry.value)) type.cast(entry.value) else null
@@ -112,6 +113,7 @@ class MesLib2 internal constructor(
     fun contains(namespace: String, name: String, expectedVersion: String? = null): Boolean {
         validate(namespace, "namespace")
         validate(name, "name")
+        expectedVersion?.let(::validateVersion)
         val entry = getValue(key(namespace, name)) as? MesLib2Entry ?: return false
         return expectedVersion == null || entry.version == expectedVersion
     }
@@ -153,18 +155,37 @@ class MesLib2 internal constructor(
     private fun key(namespace: String, name: String) = "meslib2:$namespace:$name"
 
     private fun validate(value: String, part: String) {
-        require(value.matches(Regex("[a-z][a-z0-9._-]*"))) {
+        require(value.length <= MAX_IDENTIFIER_LENGTH) {
+            "MesLib2 $part must not exceed $MAX_IDENTIFIER_LENGTH characters"
+        }
+        require(IDENTIFIER_PATTERN.matches(value)) {
             "MesLib2 $part must match [a-z][a-z0-9._-]*: '$value'"
         }
     }
+
+    private fun validateVersion(version: String) {
+        require(version.isNotBlank()) { "MesLib2 version must not be blank" }
+        require(version.length <= MAX_VERSION_LENGTH) {
+            "MesLib2 version must not exceed $MAX_VERSION_LENGTH characters"
+        }
+    }
 }
+
+private const val MAX_IDENTIFIER_LENGTH = 128
+private const val MAX_VERSION_LENGTH = 128
+private val IDENTIFIER_PATTERN = Regex("[a-z][a-z0-9._-]*")
 
 private fun normalizeNamespace(owner: String): String {
     val normalized = owner.lowercase()
         .replace(Regex("[^a-z0-9._-]+"), "-")
         .trim('-', '.', '_')
         .ifBlank { "script" }
-    return if (normalized.first().isLetter()) normalized else "script-$normalized"
+    val validStart = if (normalized.first().isLetter()) normalized else "script-$normalized"
+    if (validStart.length <= MAX_IDENTIFIER_LENGTH) return validStart
+
+    // Keep long script paths usable while avoiding collisions from simple truncation.
+    val suffix = Integer.toHexString(owner.hashCode()).padStart(8, '0')
+    return validStart.take(MAX_IDENTIFIER_LENGTH - suffix.length - 1) + "-" + suffix
 }
 
 private data class MesLib2Entry(val value: Any, val version: String)
