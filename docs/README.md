@@ -4,47 +4,58 @@ Documentation for KSL users, script authors, addon developers, and contributors.
 
 > KSL is actively evolving. When an older example differs from source code in the current branch, trust the source and tests. A roadmap or changelog entry does not prove that a feature exists in the current build.
 
-## Getting started
+## Start here
 
 | Goal | Guide |
 |---|---|
-| Installation and first script | [Getting Started](Getting-Started.md) |
-| Server messages and custom YAML locales | [Localization](Localization.md) |
-| Complete script DSL | [Script DSL Reference](Script-DSL-Reference.md) |
-| Practical recipes | [Cookbook](Cookbook.md) |
-| Architecture and overview | [KSL Encyclopedia](KSL-Encyclopedia.md) |
-| YAML, TOML, JSON, migrations | [Data Formats](Data-Formats.md) |
+| Install KSL and write a first script | [Getting Started](Getting-Started.md) |
+| Understand the whole platform and how it works | [KSL Developer Handbook](KSL-Developer-Handbook.md) |
+| Learn the complete script DSL | [Script DSL Reference](Script-DSL-Reference.md) |
+| Find practical script recipes | [Cookbook](Cookbook.md) |
+| Understand the architecture | [KSL Encyclopedia](KSL-Encyclopedia.md) |
+
+## Script author references
+
+| Topic | Guide |
+|---|---|
+| All built-in STD packages, functions, behavior and limits | [STD Complete Reference](STD-Complete-Reference.md) |
+| Standard Library design and custom modules | [Standard Library Architecture](Standard-Library-Architecture.md) |
+| Short Standard Library examples | [Standard Library Guide](Standard-Library-Guide.md) |
+| YAML, TOML, JSON and data migrations | [Data Formats](Data-Formats.md) |
+| SQL and persistent storage | [Database Guide](Database-Guide.md) |
+| Caches, profilers and worker pool | [Runtime API](Runtime-API.md) |
+| Script lifecycle and hot reload | [Script Lifecycle and Resources](Script-Lifecycle-and-Resources.md) |
+| Imports and local libraries | [Packages and Imports](Packages-and-Imports.md) |
+| Security boundaries | [Security and Sandbox](Security-and-Sandbox.md) |
+
+## Addon and API development
+
+| Topic | Guide |
+|---|---|
+| Public API overview | [Public API](Public-API.md) |
+| Complete Kotlin/Java addon API reference | [Public API Complete Reference](Public-API-Complete-Reference.md) |
+| Build and register an addon | [Addon Development Guide](Addon-Development-Guide.md) |
+| Publish custom extension packages | [Custom Standard Library](Custom-Standard-Library.md) |
+| Resource ownership and cleanup | [Script Lifecycle and Resources](Script-Lifecycle-and-Resources.md) |
+
+## Operations and troubleshooting
+
+| Topic | Guide |
+|---|---|
 | Performance and scaling | [Performance and Scaling](Performance-and-Scaling.md) |
 | Production operations | [Production Operations](Production-Operations.md) |
-| Built-in library and runtime tools | [Standard Library Architecture](Standard-Library-Architecture.md) |
-| Addon development | [Addon Development](Addon-Development-Guide.md) |
-| Kotlin/Java addon API | [Public API](Public-API.md) |
-| Imports and local libraries | [Packages and Imports](Packages-and-Imports.md) |
-| Custom standard library | [Custom Standard Library](Custom-Standard-Library.md) |
-| SQL and databases | [Database Guide](Database-Guide.md) |
-| Caching and profiling | [Runtime API](Runtime-API.md) |
-| Script lifecycle and hot reload | [Script Lifecycle and Resources](Script-Lifecycle-and-Resources.md) |
 | Errors and diagnostics | [Troubleshooting](Troubleshooting.md) |
 | Error code catalog | [Error Codes](Error-Codes.md) |
-| Sandbox limitations | [Security and Sandbox](Security-and-Sandbox.md) |
+| Localization | [Localization](Localization.md) |
 | Build and CI | [Build Diagnostics](Build-Diagnostics.md) |
 
-## For AI assistants
+## For contributors and AI assistants
 
-When an AI assistant writes or reviews KSL code, start with [AGENTS.md](../AGENTS.md) and [AI Assistant Guide](AI-ASSISTANT-GUIDE.md). Provide the exact commit/branch or connect the repository. The assistant must verify APIs against the source and tests in the current branch.
+When an assistant writes or reviews KSL code, start with [AGENTS.md](../AGENTS.md) and [AI Assistant Guide](AI-ASSISTANT-GUIDE.md). Verify exact signatures and behavior against the current branch's source and tests.
 
-Never share secrets, tokens, passwords, or private data.
+Before changing an API, inspect its implementation and tests. Keep the script DSL, addon Public API and internal implementation separate. Preserve reload behavior and resource cleanup.
 
-## For developers
-
-- [KSL Encyclopedia](KSL-Encyclopedia.md) — architecture and DSL.
-- [Public API](Public-API.md) — external contracts.
-- [Standard Library Architecture](Standard-Library-Architecture.md) — packages and modules.
-- [Addon Development](Addon-Development-Guide.md) — addon lifecycle.
-- [Script Lifecycle and Resources](Script-Lifecycle-and-Resources.md) — ownership and cleanup.
-- [Troubleshooting](Troubleshooting.md) — diagnostics.
-
-Before changing an API, inspect its implementation and tests. Do not expose an internal class just to simplify one script. Preserve hot reload and resource cleanup.
+Never share secrets, tokens, passwords, webhook URLs, database credentials or private server data.
 
 ## Project links
 

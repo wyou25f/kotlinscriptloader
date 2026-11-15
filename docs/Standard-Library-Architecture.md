@@ -160,3 +160,8 @@ The cache is for application data, not a way around Paper's threading rules. Do 
 ## Runtime profiler limits
 
 Named KSLRT profilers are shared by name and use thread-safe counters. The registry is capped at 1,024 names to prevent unbounded memory use from dynamically generated profiler names; call KSLRT.removeProfiler(name) when a dynamic profiler is no longer needed. Runtime snapshots are available through kslRuntimeStats, runtimeStats(), runtimeMetrics, and kslRuntimeSnapshot().
+
+
+## Complete built-in API inventory
+
+For every shipped STD package and helper, including validation, TOML, security, player and inventory behavior, see [STD Complete Reference](STD-Complete-Reference.md). For the wider runtime architecture, see [KSL Developer Handbook](KSL-Developer-Handbook.md).

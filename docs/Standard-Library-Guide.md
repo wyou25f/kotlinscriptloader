@@ -321,3 +321,8 @@ val price = priceValidator.validate(config.getDouble("shop.price")).getOrNull()
 
 Built-in rules include `notBlank()`, `codePointLength(min, max)`, `matches(regex)`, `intRange(range)`, `longRange(range)`, and `doubleRange(min, max)`. Use `validationRule(name, message) { value -> ... }` for application-specific checks. `KSLValidator.and(...)` returns a new validator and does not mutate the original. Invalid inputs are ordinary results; `getOrThrow()` is available when exception-based flow is preferred.
 
+
+
+## Complete method reference
+
+This page contains usage-oriented examples. For the full package and method inventory—including signatures, edge cases, return values, numeric bounds, Unicode behavior, thread restrictions and examples—see [STD Complete Reference](STD-Complete-Reference.md).

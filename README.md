@@ -71,9 +71,9 @@ The full English documentation is in [docs/README.md](docs/README.md).
 | Installation and first script | [Getting Started](docs/Getting-Started.md) |
 | Script DSL | [Script DSL Reference](docs/Script-DSL-Reference.md) |
 | Practical examples | [Cookbook](docs/Cookbook.md) |
-| Architecture and features | [KSL Encyclopedia](docs/KSL-Encyclopedia.md) |
-| Public API and addon development | [Public API](docs/Public-API.md) · [Addon Development](docs/Addon-Development-Guide.md) |
-| Standard library | [Standard Library Architecture](docs/Standard-Library-Architecture.md) |
+| Architecture and features | [KSL Encyclopedia](docs/KSL-Encyclopedia.md) · [Developer Handbook](docs/KSL-Developer-Handbook.md) |
+| Public API and addon development | [Public API](docs/Public-API.md) · [Complete API Reference](docs/Public-API-Complete-Reference.md) · [Addon Development](docs/Addon-Development-Guide.md) |
+| Standard library | [STD Complete Reference](docs/STD-Complete-Reference.md) · [Standard Library Architecture](docs/Standard-Library-Architecture.md) |
 | Databases and data formats | [Database Guide](docs/Database-Guide.md) · [Data Formats](docs/Data-Formats.md) |
 | Runtime, performance, and production | [Runtime API](docs/Runtime-API.md) · [Performance and Scaling](docs/Performance-and-Scaling.md) · [Production Operations](docs/Production-Operations.md) |
 | Security | [Security and Sandbox](docs/Security-and-Sandbox.md) |

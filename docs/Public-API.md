@@ -201,3 +201,10 @@ class MyAddon : KSLAddon {
 `KSLAddonScope` is additive and does not change the `KSLAPI` interface or its API version. It can own external `AutoCloseable` resources, KSL event-bus subscriptions, Bukkit listeners, typed event handlers, and sync/async Bukkit tasks. Resources are closed in reverse registration order. A failed close does not prevent the remaining resources from being released; failures are reported as one exception with suppressed causes.
 
 The scope is explicit: create it during addon initialization and close it from `onUnload()`. It does not automatically observe addon lifecycle callbacks. Registration of Bukkit listeners must happen on the server thread. Async tasks must not access Bukkit world, entity, player, or inventory state. The existing raw `scheduleSync*` and `scheduleAsync*` extensions remain available and retain their existing behavior; use a scope when automatic grouped cancellation is needed.
+
+
+## Complete addon reference
+
+This page is the overview. For the full KSLAPI member inventory, Kotlin and Java setup, addon lifecycle, services, hooks, placeholders, event bus, script reload APIs, KSLAddonScope, threading and troubleshooting, see [Public API Complete Reference](Public-API-Complete-Reference.md).
+
+For system architecture and how scripts/addons interact, see [KSL Developer Handbook](KSL-Developer-Handbook.md).
