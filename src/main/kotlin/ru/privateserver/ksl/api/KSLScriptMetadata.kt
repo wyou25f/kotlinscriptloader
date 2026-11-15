@@ -67,6 +67,7 @@ val KSL_SCRIPT_DEFAULT_IMPORTS: List<String> = listOf(
     "ru.privateserver.ksl.std.player.*",
     "ru.privateserver.ksl.std.inventory.*",
     "ru.privateserver.ksl.std.item.*",
+    "ru.privateserver.ksl.std.mixin.*",
     "ru.privateserver.ksl.std.component.*",
     "ru.privateserver.ksl.std.world.*",
     "ru.privateserver.ksl.std.json.*",
