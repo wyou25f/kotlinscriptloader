@@ -1,6 +1,6 @@
 # KotlinScriptLoader (KSL)
 
-KotlinScriptLoader is a Kotlin scripting plugin for **Paper 1.21.1** and **Java 21**. It lets server owners build server-side features in Kotlin `.kts` files, reload scripts without restarting the server, and extend KSL through a public API and addons.
+KotlinScriptLoader is a Kotlin scripting plugin targeting **Paper 1.16.5–1.21.x** and **Java 16 or newer**. It lets server owners build server-side features in Kotlin `.kts` files, reload scripts without restarting the server, and extend KSL through a public API and addons.
 
 ## Highlights
 
@@ -14,9 +14,11 @@ KotlinScriptLoader is a Kotlin scripting plugin for **Paper 1.21.1** and **Java 
 
 ## Requirements
 
-- Paper 1.21.1
-- Java 21
+- Paper 1.16.5 or newer within this branch's target range
+- Java 16 or newer
 - PowerShell 7+ for the repository's build scripts
+
+> Compatibility target: This branch targets Paper 1.16.5 through 1.21.x. It is compiled against the Paper 1.16.5 API and Java 16 bytecode. CI validates the selected API baseline and project checks; it does not replace live-server testing on every Minecraft/Paper build.
 
 ## Installation
 
