@@ -10,6 +10,8 @@ import org.bukkit.Location
 import org.bukkit.NamespacedKey
 import org.bukkit.OfflinePlayer
 import org.bukkit.Particle
+import org.bukkit.Sound
+import org.bukkit.SoundCategory
 import org.bukkit.block.TileState
 import org.bukkit.command.CommandSender
 import org.bukkit.configuration.ConfigurationSection
@@ -1370,6 +1372,30 @@ open class BukkitScriptContext(
         allowMentions: Boolean = false
     ) = discordEmbedAsync(channel, title, description, color, footer, fields, allowMentions)
 
+    /** Create a reusable sound preset using a Bukkit sound or a resource-pack key. */
+    fun sound(sound: Sound, builder: KSLSoundSpec.() -> Unit = {}): KSLSoundSpec =
+        KSLSoundSpec(this, sound.key.toString()).apply(builder)
+
+    fun sound(key: String, builder: KSLSoundSpec.() -> Unit = {}): KSLSoundSpec =
+        KSLSoundSpec(this, key).apply(builder)
+
+    fun music(sound: Sound, builder: KSLSoundSpec.() -> Unit = {}): KSLSoundSpec =
+        sound(sound) {
+            category(SoundCategory.MUSIC)
+            builder()
+        }
+
+    fun music(key: String, builder: KSLSoundSpec.() -> Unit = {}): KSLSoundSpec =
+        sound(key) {
+            category(SoundCategory.MUSIC)
+            builder()
+        }
+
+    fun soundSequence(builder: KSLSoundSequenceBuilder.() -> Unit): KSLSoundSequence {
+        val sequence = KSLSoundSequenceBuilder(this).apply(builder)
+        return KSLSoundSequence(this, sequence.cues.toList())
+    }
+
     fun Location.playEffect(particle: Particle, builder: KSLEffectSpec.() -> Unit): Int {
         requirePrimaryThread("playEffect")
         val frozen = this.clone()
@@ -1400,6 +1426,20 @@ open class BukkitScriptContext(
         playEffect(particle, follow, builder)
 
     fun stopEffect(taskId: Int) = cancelTask(taskId)
+
+    fun Location.particles(particle: Particle, builder: KSLEffectSpec.() -> Unit): Int =
+        playEffect(particle, builder)
+
+    fun Entity.particles(particle: Particle, follow: Boolean = false, builder: KSLEffectSpec.() -> Unit): Int =
+        playEffect(particle, follow, builder)
+
+    fun Location.particle(particle: Particle, builder: KSLEffectSpec.() -> Unit): Int =
+        playEffect(particle, builder)
+
+    fun Entity.particle(particle: Particle, follow: Boolean = false, builder: KSLEffectSpec.() -> Unit): Int =
+        playEffect(particle, follow, builder)
+
+    fun stopParticles(taskId: Int) = stopEffect(taskId)
 
     fun spawnCustomEntity(
         location: Location,
@@ -1573,10 +1613,28 @@ open class BukkitScriptContext(
             builder: KSLEntityBuilder.() -> Unit = {}): LivingEntity =
         spawnCustomEntity(location, template, removeOnReload, builder)
 
+    fun mob(location: Location, type: EntityType, removeOnReload: Boolean = true,
+            builder: KSLEntityBuilder.() -> Unit = {}): LivingEntity =
+        spawnCustomEntity(location, "TYPE:" + type.name, removeOnReload, builder)
+
+    fun spawnMob(location: Location, type: EntityType, removeOnReload: Boolean = true,
+                 builder: KSLEntityBuilder.() -> Unit = {}): LivingEntity =
+        mob(location, type, removeOnReload, builder)
+
     fun mobs(location: Location, template: String, amount: Int, perTick: Int = 1,
              intervalTicks: Long = 1L, removeOnReload: Boolean = true,
              builder: KSLEntityBuilder.() -> Unit = {}): Int =
         spawnCustomEntities(location, template, amount, perTick, intervalTicks, removeOnReload, builder)
+
+    fun mobs(location: Location, type: EntityType, amount: Int, perTick: Int = 1,
+             intervalTicks: Long = 1L, removeOnReload: Boolean = true,
+             builder: KSLEntityBuilder.() -> Unit = {}): Int =
+        spawnCustomEntities(location, "TYPE:" + type.name, amount, perTick, intervalTicks, removeOnReload, builder)
+
+    fun spawnMobs(location: Location, type: EntityType, amount: Int, perTick: Int = 1,
+                  intervalTicks: Long = 1L, removeOnReload: Boolean = true,
+                  builder: KSLEntityBuilder.() -> Unit = {}): Int =
+        mobs(location, type, amount, perTick, intervalTicks, removeOnReload, builder)
 
     fun shopkeeper(location: Location, name: String, removeOnReload: Boolean = true,
                    builder: KSLShopkeeperBuilder.() -> Unit): Villager =

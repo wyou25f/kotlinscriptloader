@@ -2,11 +2,15 @@ package ru.privateserver.ksl
 
 import org.bukkit.Location
 import org.bukkit.Material
+import org.bukkit.entity.Ageable
 import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Mob
 import org.bukkit.inventory.ItemStack
+import org.bukkit.util.Vector
+import net.kyori.adventure.text.minimessage.MiniMessage
 import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
+import net.kyori.adventure.text.Component
 
 class KSLEntityBuilder(
     private val entity: LivingEntity,
@@ -53,6 +57,166 @@ class KSLEntityBuilder(
             eq.leggingsDropChance = chance
             eq.bootsDropChance = chance
         }
+    }
+
+    fun name(text: String, visible: Boolean = true) {
+        entity.customName(MiniMessage.miniMessage().deserialize(text))
+        entity.isCustomNameVisible = visible
+    }
+
+    fun name(component: Component, visible: Boolean = true) {
+        entity.customName(component)
+        entity.isCustomNameVisible = visible
+    }
+
+    fun customName(text: String, visible: Boolean = true) = name(text, visible)
+
+    fun ai(on: Boolean = true) {
+        entity.setAI(on)
+    }
+
+    fun baby(on: Boolean = true) {
+        val ageable = entity as? Ageable
+            ?: throw IllegalStateException(entity.type.toString() + " не поддерживает возраст")
+        if (on) ageable.setBaby() else ageable.setAdult()
+    }
+
+    fun health(value: Double) {
+        require(value.isFinite() && value >= 0.0 && value <= entity.getMaxHealth()) {
+            "Здоровье должно находиться в диапазоне 0..максимальное здоровье"
+        }
+        entity.health = value
+    }
+
+    fun maxHealth(value: Double, healToFull: Boolean = true) {
+        require(value.isFinite() && value > 0.0 && value <= 1024.0) {
+            "Максимальное здоровье должно находиться в диапазоне (0, 1024]"
+        }
+        require(KSLEntityAttributes.setBase(entity, "max_health", value)) {
+            "У " + entity.type + " нет атрибута max_health"
+        }
+        entity.health = if (healToFull) value else entity.health.coerceAtMost(value)
+    }
+
+    fun heal(amount: Double = entity.getMaxHealth()) {
+        require(amount.isFinite() && amount >= 0.0) { "Количество лечения должно быть конечным неотрицательным числом" }
+        entity.health = (entity.health + amount).coerceAtMost(entity.getMaxHealth())
+    }
+
+    fun target(target: LivingEntity?) {
+        if (target != null) {
+            require(target.isValid && !target.isDead) { "Цель должна быть живой и валидной сущностью" }
+            require(target.world == entity.world) { "Цель должна находиться в том же мире, что и моб" }
+        }
+        requireMob().target = target
+    }
+
+    fun clearTarget() = target(null)
+
+    fun persistent(on: Boolean = true) {
+        entity.isPersistent = on
+    }
+
+    fun removeWhenFarAway(on: Boolean = true) {
+        entity.setRemoveWhenFarAway(on)
+    }
+
+    fun gravity(on: Boolean = true) {
+        entity.setGravity(on)
+    }
+
+    fun collidable(on: Boolean = true) {
+        entity.isCollidable = on
+    }
+
+    fun canPickupItems(on: Boolean = true) {
+        entity.setCanPickupItems(on)
+    }
+
+    fun fire(seconds: Int) {
+        require(seconds >= 0 && seconds <= Int.MAX_VALUE / 20) { "Время горения должно быть неотрицательным и не переполнять ticks" }
+        entity.fireTicks = seconds * 20
+    }
+
+    fun velocity(x: Double, y: Double, z: Double) {
+        require(x.isFinite() && y.isFinite() && z.isFinite()) { "Скорость моба должна состоять из конечных чисел" }
+        entity.velocity = Vector(x, y, z)
+    }
+
+    fun teleport(location: Location): Boolean {
+        require(location.world != null) { "Целевая локация должна принадлежать загруженному миру" }
+        require(location.x.isFinite() && location.y.isFinite() && location.z.isFinite()) {
+            "Координаты телепортации должны быть конечными числами"
+        }
+        return entity.teleport(location)
+    }
+
+    fun lookAt(target: LivingEntity) = lookAt(target.location)
+
+    fun mainHand(item: ItemStack, dropChance: Float? = null) {
+        val equipment = entity.equipment ?: return
+        equipment.setItemInMainHand(item.clone())
+        dropChance?.let {
+            require(it.isFinite() && it in 0.0f..1.0f) { "Шанс выпадения должен быть от 0 до 1" }
+            equipment.itemInMainHandDropChance = it
+        }
+    }
+
+    fun offHand(item: ItemStack, dropChance: Float? = null) {
+        val equipment = entity.equipment ?: return
+        equipment.setItemInOffHand(item.clone())
+        dropChance?.let {
+            require(it.isFinite() && it in 0.0f..1.0f) { "Шанс выпадения должен быть от 0 до 1" }
+            equipment.itemInOffHandDropChance = it
+        }
+    }
+
+    fun helmet(item: ItemStack, dropChance: Float? = null) {
+        val equipment = entity.equipment ?: return
+        equipment.helmet = item.clone()
+        dropChance?.let {
+            require(it.isFinite() && it in 0.0f..1.0f) { "Шанс выпадения должен быть от 0 до 1" }
+            equipment.helmetDropChance = it
+        }
+    }
+
+    fun chestplate(item: ItemStack, dropChance: Float? = null) {
+        val equipment = entity.equipment ?: return
+        equipment.chestplate = item.clone()
+        dropChance?.let {
+            require(it.isFinite() && it in 0.0f..1.0f) { "Шанс выпадения должен быть от 0 до 1" }
+            equipment.chestplateDropChance = it
+        }
+    }
+
+    fun leggings(item: ItemStack, dropChance: Float? = null) {
+        val equipment = entity.equipment ?: return
+        equipment.leggings = item.clone()
+        dropChance?.let {
+            require(it.isFinite() && it in 0.0f..1.0f) { "Шанс выпадения должен быть от 0 до 1" }
+            equipment.leggingsDropChance = it
+        }
+    }
+
+    fun boots(item: ItemStack, dropChance: Float? = null) {
+        val equipment = entity.equipment ?: return
+        equipment.boots = item.clone()
+        dropChance?.let {
+            require(it.isFinite() && it in 0.0f..1.0f) { "Шанс выпадения должен быть от 0 до 1" }
+            equipment.bootsDropChance = it
+        }
+    }
+
+    fun potionTicks(type: PotionEffectType, ticks: Int, amplifier: Int = 0) {
+        require(ticks >= 0) { "Длительность эффекта должна быть неотрицательным числом тиков" }
+        require(amplifier in 0..255) { "Уровень эффекта зелья должен быть от 0 до 255" }
+        entity.addPotionEffect(PotionEffect(type, ticks, amplifier))
+    }
+
+    fun removePotion(type: PotionEffectType): Boolean = entity.removePotionEffect(type)
+
+    fun clearPotions() {
+        entity.activePotionEffects.map { it.type }.forEach { entity.removePotionEffect(it) }
     }
 
     private fun requireMob(): Mob =

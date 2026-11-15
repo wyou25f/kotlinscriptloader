@@ -66,7 +66,8 @@ class KSLEffectShapesTest {
             "arc" to mapOf("radius" to 2.0, "sweepDegrees" to 360.0, "points" to 12),
             "cylinder" to mapOf("radius" to 2.0, "height" to 3.0, "pointsPerRing" to 12),
             "cone" to mapOf("radius" to 2.0, "height" to 3.0, "points" to 12),
-            "heart" to mapOf("size" to 2.0, "points" to 24)
+            "heart" to mapOf("size" to 2.0, "points" to 24),
+            "box" to mapOf("width" to 2.0, "height" to 3.0, "depth" to 4.0, "pointsPerEdge" to 4)
         )
         cases.forEach { (name, params) ->
             val factory = registry.get(name)
@@ -95,6 +96,17 @@ class KSLEffectShapesTest {
             KSLEffectShapes.cylinder(1.0, 1.0, Int.MAX_VALUE).points(0L, center).size)
         assertEquals(KSLEffectBudget.MAX_POINTS,
             KSLEffectShapes.cone(1.0, 1.0, Int.MAX_VALUE).points(0L, center).size)
+    }
+
+    @Test
+    fun `box shape stays finite and within the shared point limit`() {
+        val center = Location(null, 0.0, 0.0, 0.0)
+        val points = KSLEffectShapes.box(2.0, 4.0, 6.0, 2).points(0L, center)
+
+        assertEquals(24, points.size)
+        assertTrue(points.all { it.x.isFinite() && it.y.isFinite() && it.z.isFinite() })
+        assertEquals(KSLEffectBudget.MAX_POINTS, KSLEffectShapes.box(1.0, 1.0, 1.0, Int.MAX_VALUE).points(0L, center).size)
+        assertThrows(IllegalArgumentException::class.java) { KSLEffectShapes.box(-1.0, 1.0, 1.0) }
     }
 
     @Test

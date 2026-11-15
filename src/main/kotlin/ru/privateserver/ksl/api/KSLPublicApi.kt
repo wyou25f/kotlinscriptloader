@@ -15,6 +15,12 @@ import ru.privateserver.ksl.KSLSkriptHook as CoreKSLSkriptHook
 import ru.privateserver.ksl.KSLSkriptDiagnostics as CoreKSLSkriptDiagnostics
 import ru.privateserver.ksl.KSLScriptInfo as CoreKSLScriptInfo
 import ru.privateserver.ksl.KSLShapeFactory as CoreKSLShapeFactory
+import ru.privateserver.ksl.KSLSoundSpec as CoreKSLSoundSpec
+import ru.privateserver.ksl.KSLSoundSequence as CoreKSLSoundSequence
+import ru.privateserver.ksl.KSLSoundSequenceBuilder as CoreKSLSoundSequenceBuilder
+import ru.privateserver.ksl.KSLEffectSpec as CoreKSLEffectSpec
+import ru.privateserver.ksl.KSLEntityBuilder as CoreKSLEntityBuilder
+import ru.privateserver.ksl.KSLEntityBehaviorBuilder as CoreKSLEntityBehaviorBuilder
 import ru.privateserver.ksl.KSLScriptEvent as CoreKSLScriptEvent
 import ru.privateserver.ksl.api.library.KSLModuleDescriptor as CoreKSLModuleDescriptor
 import ru.privateserver.ksl.api.library.KSLModulePlanner as CoreKSLModulePlanner
@@ -57,6 +63,18 @@ typealias KSLSkriptDiagnostics = CoreKSLSkriptDiagnostics
 typealias KSLScriptInfo = CoreKSLScriptInfo
 typealias BukkitScriptContext = CoreBukkitScriptContext
 typealias KSLShapeFactory = CoreKSLShapeFactory
+/** Reusable sound definition exposed by the script sound DSL. */
+typealias KSLSoundSpec = CoreKSLSoundSpec
+/** Reusable tick-based sound timeline. */
+typealias KSLSoundSequence = CoreKSLSoundSequence
+/** Builder used inside soundSequence { ... }. */
+typealias KSLSoundSequenceBuilder = CoreKSLSoundSequenceBuilder
+/** Particle pattern builder used by playEffect/particles. */
+typealias KSLEffectSpec = CoreKSLEffectSpec
+/** Configuration builder for a spawned living entity. */
+typealias KSLEntityBuilder = CoreKSLEntityBuilder
+/** Event and tick callbacks attached to one living entity. */
+typealias KSLEntityBehaviorBuilder = CoreKSLEntityBehaviorBuilder
 typealias KSLScriptEvent = CoreKSLScriptEvent
 typealias KSLModuleDescriptor = CoreKSLModuleDescriptor
 typealias KSLStandardLibraryModule = CoreKSLStandardLibraryModule

@@ -1,5 +1,13 @@
 # KotlinScriptLoader 1.2.1
 
+## Звуковой движок, частицы и мобы
+
+- Добавлен sound(...) с именованными ключами или Sound, громкостью, pitch-range, категорией, воспроизведением для игрока/мира/радиуса, повтором и отменяемыми звуковыми таймлайнами.
+- Дополнен particle DSL: компактные particle(s), ring/box/cube/spiral, смещение и вращение формы, spread/speed, DustTransition, block/item data.
+- Расширен mob builder: имена, здоровье, цели, постоянство, движение, экипировка по слотам, эффекты зелий в тиках, телепортация и базовые флаги сущности; добавлены overloads по EntityType.
+- Новые API включены в default imports, IntelliJ autocomplete, тесты и отдельный справочник docs/07-sound-particles-and-mobs.md.
+
+
 ## Runtime API и управление памятью
 
 - Добавлен `runtimeScope` для скриптов: закрывает пользовательские `AutoCloseable`-ресурсы и cleanup-callbacks в обратном порядке регистрации при reload/unload.

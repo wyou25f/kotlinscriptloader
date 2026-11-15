@@ -26,6 +26,7 @@ import org.bukkit.event.player.PlayerRespawnEvent
 import org.bukkit.inventory.ItemStack
 import ru.privateserver.ksl.BukkitScriptContext
 import ru.privateserver.ksl.KSLHook
+import ru.privateserver.ksl.KSLSoundSpec
 import ru.privateserver.ksl.std.item.KSLItemBuilder
 import java.time.Duration
 import java.util.concurrent.ThreadLocalRandom
@@ -56,6 +57,10 @@ fun Player.title(title: String, subtitle: String = "", fadeInTicks: Int = 10, st
 
 // By namespaced key, e.g. "entity.player.levelup": no Sound enum import needed.
 fun Player.sound(key: String, volume: Float = 1f, pitch: Float = 1f) = playSound(location, key, volume, pitch)
+
+fun Player.sound(spec: KSLSoundSpec, at: Location = location): Boolean = spec.playTo(this, at)
+
+fun Location.sound(spec: KSLSoundSpec): Boolean = spec.playAt(this)
 
 @Suppress("DEPRECATION")
 fun Player.heal() {

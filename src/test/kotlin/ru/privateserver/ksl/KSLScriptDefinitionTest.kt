@@ -35,6 +35,69 @@ class KSLScriptDefinitionTest {
         }
     }
 
+
+    @Test
+    fun `sound particle and mob helpers compile in a KSL script`() {
+        val source = """
+            val click = sound(Sound.UI_BUTTON_CLICK) {
+                volume(0.8)
+                pitchRange(0.9, 1.1)
+                category(SoundCategory.PLAYERS)
+            }
+            val bgm = music("custompack:music.theme") {
+                volume(0.5)
+            }
+            val timeline = soundSequence {
+                at(0, Sound.BLOCK_NOTE_BLOCK_HARP)
+                after(4, "entity.player.levelup")
+                then(Sound.UI_BUTTON_CLICK)
+            }
+            if (false) {
+                Bukkit.getOnlinePlayers().firstOrNull()?.let { player ->
+                    click.playTo(player)
+                    player.sound(click)
+                    player.location.sound(click)
+                    timeline.playNearby(player.location, 16.0)
+                    bgm.playTo(player)
+                    player.location.particles(Particle.DUST) {
+                        amount(3)
+                        every(2)
+                        forTicks(40)
+                        ring(1.0, 24)
+                        color("#55CCFF")
+                        origin(y = 1.0)
+                        spin(4.0)
+                    }
+                    val boss = mob(player.location, EntityType.ZOMBIE) {
+                        name("<red>Test boss")
+                        maxHealth(80.0)
+                        health(60.0)
+                        damage(8.0)
+                        speed(1.2)
+                        target(player)
+                        mainHand(item(Material.IRON_SWORD))
+                        ai(true)
+                        persistent()
+                    }
+                    boss.behavior { onTick(20L) { it.isGlowing = true } }
+                    mobs(player.location, EntityType.SKELETON, amount = 3)
+                }
+            }
+        """.trimIndent()
+        val result = runBlocking {
+            JvmScriptCompiler()(
+                source.toScriptSource("sound_particles_mobs_api.kts"),
+                KSLScriptCompilationConfiguration
+            )
+        }
+
+        assertTrue(
+            result is ResultWithDiagnostics.Success,
+            "The new sound, particle and mob DSL must compile for scripts: " +
+                (result as? ResultWithDiagnostics.Failure)?.reports?.joinToString("; ") { it.message }
+        )
+    }
+
     @Test
     fun `script template exposes the canonical runtime definition to IDE tooling`() {
         val definition = KSLScript::class.java.getAnnotation(KotlinScript::class.java)
@@ -47,6 +110,8 @@ class KSLScriptDefinitionTest {
         assertTrue("ru.privateserver.ksl.nbt.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("ru.privateserver.ksl.api.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("org.bukkit.entity.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
+        assertTrue("org.bukkit.Sound" in KSL_SCRIPT_DEFAULT_IMPORTS)
+        assertTrue("org.bukkit.SoundCategory" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("ru.privateserver.ksl.std.text.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("ru.privateserver.ksl.std.math.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("ru.privateserver.ksl.std.time.*" in KSL_SCRIPT_DEFAULT_IMPORTS)

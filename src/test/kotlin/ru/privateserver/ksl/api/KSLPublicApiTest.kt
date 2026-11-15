@@ -91,6 +91,16 @@ class KSLPublicApiTest {
         assertEquals("ready", fake.serviceOrThrow<String>("example.service"))
     }
 
+
+    @Test
+    fun `sound particle and mob builder types are exported from the public API package`() {
+        assertEquals("ru.privateserver.ksl.KSLSoundSpec", KSLSoundSpec::class.java.name)
+        assertEquals("ru.privateserver.ksl.KSLSoundSequence", KSLSoundSequence::class.java.name)
+        assertEquals("ru.privateserver.ksl.KSLSoundSequenceBuilder", KSLSoundSequenceBuilder::class.java.name)
+        assertEquals("ru.privateserver.ksl.KSLEffectSpec", KSLEffectSpec::class.java.name)
+        assertEquals("ru.privateserver.ksl.KSLEntityBuilder", KSLEntityBuilder::class.java.name)
+        assertEquals("ru.privateserver.ksl.KSLEntityBehaviorBuilder", KSLEntityBehaviorBuilder::class.java.name)
+    }
     @Test
     fun `addon config is exported from the public api package`() {
         assertEquals("ru.privateserver.ksl.KSLAddonConfig", KSLAddonConfig::class.java.name)

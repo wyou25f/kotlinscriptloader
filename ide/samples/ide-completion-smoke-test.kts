@@ -31,3 +31,37 @@ Bukkit.getWorld("world")?.let { world ->
         Location(world, 8.0, 128.0, 8.0)
     )
 }
+
+/* Sound, particles and mob-builder completion smoke checks. */
+val clickSound = sound(Sound.UI_BUTTON_CLICK) {
+    volume(0.7)
+    pitchRange(0.9, 1.1)
+    category(SoundCategory.PLAYERS)
+}
+val clickTimeline = soundSequence {
+    at(0, Sound.BLOCK_NOTE_BLOCK_HARP)
+    after(4, Sound.BLOCK_NOTE_BLOCK_PLING)
+    then("ui.button.click")
+}
+
+if (false && player != null) {
+    clickSound.playTo(player)
+    player.location.particles(Particle.DUST) {
+        amount(3)
+        every(2)
+        durationTicks = 40
+        ring(1.0, 24)
+        color("#55CCFF")
+        origin(y = 1.0)
+        spin(4.0)
+    }
+    val mobPreview = mob(player.location, EntityType.ZOMBIE) {
+        name("<red>Preview")
+        maxHealth(40.0)
+        damage(5.0)
+        speed(1.1)
+        target(player)
+        mainHand(item(Material.IRON_SWORD))
+    }
+    mobPreview.behavior { onTick(20) { it.isGlowing = true } }
+}

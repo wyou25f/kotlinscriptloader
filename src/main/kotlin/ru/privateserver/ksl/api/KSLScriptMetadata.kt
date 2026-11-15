@@ -15,6 +15,8 @@ val KSL_SCRIPT_DEFAULT_IMPORTS: List<String> = listOf(
     "org.bukkit.Bukkit",
     "org.bukkit.Material",
     "org.bukkit.Particle",
+    "org.bukkit.Sound",
+    "org.bukkit.SoundCategory",
     "org.bukkit.Location",
     "org.bukkit.ChatColor",
     "org.bukkit.OfflinePlayer",

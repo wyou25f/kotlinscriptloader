@@ -112,6 +112,10 @@ val verifyShadowJar by tasks.registering {
                 "KotlinScriptLoaderPlugin main class is missing from the Shadow JAR"
             }
             val requiredClasses = listOf(
+                "ru/privateserver/ksl/KSLSoundEngineKt.class",
+                "ru/privateserver/ksl/KSLSoundSpec.class",
+                "ru/privateserver/ksl/KSLSoundSequence.class",
+                "ru/privateserver/ksl/KSLSoundSequenceBuilder.class",
                 "ru/privateserver/ksl/KSLAddonConfig.class",
                 "ru/privateserver/ksl/libs/nbtapi/NBT.class",
                 "ru/privateserver/ksl/nbt/KSLNBTView.class",

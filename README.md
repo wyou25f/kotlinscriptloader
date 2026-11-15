@@ -7,7 +7,7 @@ KotlinScriptLoader is a Kotlin scripting plugin for **Paper 1.21.1** and **Java 
 - Kotlin-based `.kts` scripts with a Bukkit/Paper-oriented DSL.
 - Background script compilation and reload workflows designed to keep expensive compiler work off the server's main thread.
 - Managed script lifecycle: KSL tracks and cleans up listeners, tasks, commands, placeholders, GUI sessions, and other owned resources.
-- Built-in APIs for configuration, databases, scheduling, text, inventory, entities, effects, and NBT (including vanilla item components).
+- Built-in APIs for configuration, databases, scheduling, text, inventory, reusable sound timelines, particle shapes, custom mob builders, and NBT (including vanilla item components).
 - Addon and library extension points, plus optional integrations with other server plugins.
 - Structured error codes, diagnostics, watchdog reports, and runtime tools.
 - Server messages in Russian and English, with support for custom YAML locales.

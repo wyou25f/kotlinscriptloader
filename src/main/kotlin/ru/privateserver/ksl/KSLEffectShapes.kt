@@ -163,6 +163,33 @@ object KSLEffectShapes {
         }
     }
 
+
+    fun box(width: Double, height: Double, depth: Double, pointsPerEdge: Int = 8): KSLEffectShape {
+        require(width.isFinite() && width >= 0.0) { "Ширина коробки должна быть конечным неотрицательным числом" }
+        require(height.isFinite() && height >= 0.0) { "Высота коробки должна быть конечным неотрицательным числом" }
+        require(depth.isFinite() && depth >= 0.0) { "Глубина коробки должна быть конечным неотрицательным числом" }
+        val n = pointsPerEdge.coerceIn(1, MAX_POINTS / 12)
+        val x = width / 2.0
+        val y = height / 2.0
+        val z = depth / 2.0
+        val corners = listOf(
+            Vector(-x, -y, -z), Vector(x, -y, -z), Vector(x, -y, z), Vector(-x, -y, z),
+            Vector(-x, y, -z), Vector(x, y, -z), Vector(x, y, z), Vector(-x, y, z)
+        )
+        val edges = listOf(
+            0 to 1, 1 to 2, 2 to 3, 3 to 0,
+            4 to 5, 5 to 6, 6 to 7, 7 to 4,
+            0 to 4, 1 to 5, 2 to 6, 3 to 7
+        )
+        return KSLEffectShape { _, _ ->
+            edges.flatMap { (from, to) ->
+                val start = corners[from]
+                val delta = corners[to].clone().subtract(start)
+                (0 until n).map { index -> start.clone().add(delta.clone().multiply(index.toDouble() / n)) }
+            }
+        }
+    }
+
     fun point(): KSLEffectShape = KSLEffectShape { _, _ -> listOf(Vector(0.0, 0.0, 0.0)) }
 
     // Built-ins are registered like addon shapes, so shape("circle", "radius" to 2.0) works everywhere.
@@ -190,6 +217,7 @@ object KSLEffectShapes {
         )
         registry.put("cone", { p, _ -> cone(p.num("radius", 1.0), p.num("height", 2.0), p.int("points", 60)) }, null)
         registry.put("heart", { p, _ -> heart(p.num("size", 1.0), p.int("points", 80)) }, null)
+        registry.put("box", { p, _ -> box(p.num("width", p.num("size", 2.0)), p.num("height", p.num("size", 2.0)), p.num("depth", p.num("size", 2.0)), p.int("pointsPerEdge", 8)) }, null)
         registry.put("point", { _, _ -> point() }, null)
     }
 }

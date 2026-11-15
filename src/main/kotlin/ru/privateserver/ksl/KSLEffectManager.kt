@@ -124,7 +124,9 @@ class KSLEffectManager(private val plugin: KotlinScriptLoaderPlugin) {
         }
         require(spec.durationTicks > 0L) { "[$scriptName] playEffect: durationTicks должен быть больше нуля" }
         require(
-            spec.offsetX.isFinite() && spec.offsetY.isFinite() && spec.offsetZ.isFinite() && spec.extra.isFinite()
+            spec.offsetX.isFinite() && spec.offsetY.isFinite() && spec.offsetZ.isFinite() && spec.extra.isFinite() &&
+                spec.originOffset.x.isFinite() && spec.originOffset.y.isFinite() && spec.originOffset.z.isFinite() &&
+                spec.rotationDegrees.isFinite() && spec.spinDegreesPerTick.isFinite()
         ) { "[$scriptName] playEffect: offsetX/offsetY/offsetZ/extra должны быть конечными числами" }
 
         val shape = spec.buildShape()
@@ -158,16 +160,20 @@ class KSLEffectManager(private val plugin: KotlinScriptLoaderPlugin) {
                     spec.finish()
                     return@Runnable
                 }
-                val center = spec.locationSupplier()
+                val center = spec.locationSupplier().clone().add(spec.originOffset)
                 val world = center.world
                 if (world != null) {
                     val cx = center.x
                     val cy = center.y
                     val cz = center.z
-                    val points = shape.points(tick, center)
-                    require(points.size <= KSLEffectBudget.MAX_POINTS) {
-                        "Форма эффекта вернула ${points.size} точек; максимум — ${KSLEffectBudget.MAX_POINTS}"
+                    val rawPoints = shape.points(tick, center)
+                    require(rawPoints.size <= KSLEffectBudget.MAX_POINTS) {
+                        "Форма эффекта вернула ${rawPoints.size} точек; максимум — ${KSLEffectBudget.MAX_POINTS}"
                     }
+                    val rotation = Math.toRadians(
+                        (spec.rotationDegrees % 360.0 + ((tick.toDouble() % 360.0) * (spec.spinDegreesPerTick % 360.0)) % 360.0) % 360.0
+                    )
+                    val points = if (rotation == 0.0) rawPoints else rawPoints.map { it.clone().rotateAroundY(rotation) }
                     if (points.isNotEmpty()) {
                         points.forEach { offset ->
                             require(offset.x.isFinite() && offset.y.isFinite() && offset.z.isFinite()) {
