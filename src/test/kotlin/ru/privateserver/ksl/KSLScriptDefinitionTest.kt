@@ -59,7 +59,7 @@ class KSLScriptDefinitionTest {
                     player.location.sound(click)
                     timeline.playNearby(player.location, 16.0)
                     bgm.playTo(player)
-                    player.location.particles(Particle.DUST) {
+                    player.location.particles(Particle.REDSTONE) {
                         amount(3)
                         every(2)
                         forTicks(40)
@@ -104,7 +104,7 @@ class KSLScriptDefinitionTest {
 
         assertEquals(KSL_SCRIPT_FILE_EXTENSION, definition.fileExtension)
         assertEquals(KSLScriptCompilationConfiguration::class, definition.compilationConfiguration)
-        assertEquals("21", KSL_SCRIPT_JVM_TARGET)
+        assertEquals("17", KSL_SCRIPT_JVM_TARGET)
         assertEquals(BukkitScriptContext::class.java.name, KSL_SCRIPT_CONTEXT_CLASS)
         assertTrue("ru.privateserver.ksl.dsl.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("ru.privateserver.ksl.nbt.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
