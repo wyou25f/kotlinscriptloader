@@ -14,6 +14,8 @@ import org.bukkit.plugin.java.JavaPlugin
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import ru.privateserver.ksl.std.item.KSLCustomEnchantManager
+import ru.privateserver.ksl.compat.KSLCompatibilityTarget
+import ru.privateserver.ksl.compat.KSLServerCompatibility
 
 internal fun isTaskOwnedBy(scriptName: String, taskId: Int, tasksByScript: Map<String, Set<Int>>): Boolean =
     tasksByScript[scriptName]?.contains(taskId) == true
@@ -452,10 +454,21 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     override fun onEnable() {
         stripColorsFromLog()
         dataFolder.mkdirs()
-        initializeNbtApi()
         saveDefaultConfig()
         localeManager = KSLLocaleManager(this)
         localeManager.reload(config.getString("language", "ru"))
+
+        val runtimeFailure = KSLCompatibilityTarget.runtimeFailure(
+            KSLServerCompatibility.currentMinecraftVersion(),
+            Runtime.version().feature()
+        )
+        if (runtimeFailure != null) {
+            logger.severe("[KSL Compatibility] $runtimeFailure")
+            Bukkit.getPluginManager().disablePlugin(this)
+            return
+        }
+
+        initializeNbtApi()
         startWatchdogDiagnostics()
         loadConfigTextPlaceholders()
         KSLErrors.reset()
