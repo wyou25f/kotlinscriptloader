@@ -109,6 +109,12 @@ object kslrt {
     @JvmStatic
     fun profile(name: String): KSLProfiler = KSLRT.profile(name)
 
+    fun profilerOrNull(name: String): KSLProfiler? = KSLRT.profilerOrNull(name)
+    fun profilerNames(): Set<String> = KSLRT.profilerNames()
+    val profilerCount: Int get() = KSLRT.profilerCount
+    fun removeProfile(name: String): Boolean = KSLRT.removeProfile(name)
+    fun removeProfilers(prefix: String): Int = KSLRT.removeProfilers(prefix)
+
     inline fun <T> measure(name: String, block: () -> T): T =
         KSLRT.measure(name, block)
 
