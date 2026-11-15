@@ -142,4 +142,22 @@ class KSLRuntimeToolsTest {
         assertTrue(profiler.measureResult { error("captured") }.isFailure)
         assertEquals(3L, profiler.snapshot().calls)
     }
+
+    @Test fun runtimeAliasesExposeProfilerRegistryAndCleanup() {
+        val name = "kslrt-alias-test-${System.nanoTime()}"
+        val profiler = kslrt.profiler(name)
+        assertSame(profiler, kslrt.profilerOrNull(name))
+        assertTrue(name in kslrt.profilerNames())
+        assertTrue(kslrt.profilerCount >= 1)
+        assertTrue(kslrt.removeProfile(name))
+        assertNull(kslrt.profilerOrNull(name))
+        assertFalse(name in kslrt.profilerNames())
+    }
+
+    @Test fun runtimeProfilerAndScopeNamesAreBounded() {
+        val tooLong = "p".repeat(KSLProfiler.MAX_NAME_LENGTH + 1)
+        assertThrows(IllegalArgumentException::class.java) { KSLProfiler(tooLong) }
+        assertThrows(IllegalArgumentException::class.java) { KSLRT.profiler(tooLong) }
+        assertThrows(IllegalArgumentException::class.java) { KSLRT.scope(tooLong) }
+    }
 }
