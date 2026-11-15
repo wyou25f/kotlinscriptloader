@@ -8,6 +8,14 @@ import org.bukkit.enchantments.Enchantment
 import org.bukkit.inventory.ItemFlag
 import org.bukkit.inventory.ItemStack
 
+private fun noItalicIfUnset(component: Component): Component =
+    if (component.decoration(TextDecoration.ITALIC) == null) {
+        component.decoration(TextDecoration.ITALIC, TextDecoration.State.FALSE)
+    } else {
+        component
+    }
+
+
 /** Mutable builder for concise custom item definitions in KSL scripts. */
 class KSLItemBuilder(material: Material, amount: Int = 1) {
     private var stack: ItemStack
@@ -20,20 +28,20 @@ class KSLItemBuilder(material: Material, amount: Int = 1) {
 
     fun name(value: String) {
         val component = MiniMessage.miniMessage().deserialize(value)
-            .decoration(TextDecoration.ITALIC, TextDecoration.State.FALSE)
+            .noItalicIfUnset
         stack = stack.withDisplayName(component)
     }
 
     fun plainName(value: String) {
         val component = Component.text(value)
-            .decoration(TextDecoration.ITALIC, TextDecoration.State.FALSE)
+            .noItalicIfUnset
         stack = stack.withDisplayName(component)
     }
 
     fun lore(vararg lines: String) {
         val parsed = lines.map {
             MiniMessage.miniMessage().deserialize(it)
-                .decoration(TextDecoration.ITALIC, TextDecoration.State.FALSE)
+                .noItalicIfUnset
         }
         stack = stack.withLore(parsed)
     }
@@ -41,7 +49,7 @@ class KSLItemBuilder(material: Material, amount: Int = 1) {
     fun addLore(vararg lines: String) {
         val parsed = lines.map {
             MiniMessage.miniMessage().deserialize(it)
-                .decoration(TextDecoration.ITALIC, TextDecoration.State.FALSE)
+                .noItalicIfUnset
         }
         stack = stack.withAddedLore(parsed)
     }
