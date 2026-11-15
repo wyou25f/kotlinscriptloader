@@ -93,7 +93,7 @@ fun Location.playersNear(radius: Double): Collection<Player> = world?.getNearbyP
 // ---- items ----
 
 private fun noItalic(component: Component): Component =
-    component.decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE)
+    component.decoration(TextDecoration.ITALIC, TextDecoration.State.FALSE)
 
 // Name and lore are MiniMessage; vanilla's italic default for custom names is switched off.
 fun item(material: Material, name: String? = null, lore: List<String> = emptyList(), amount: Int = 1): ItemStack {
