@@ -7,6 +7,8 @@ import org.bukkit.Bukkit
 import org.bukkit.OfflinePlayer
 import org.bukkit.entity.Player
 
+open internal fun isValidVaultAmount(amount: Double): Boolean = amount.isFinite() && amount >= 0.0
+
 open class KSLVaultHook : KSLHook {
 
     override val hookId = KSLHookIds.VAULT
@@ -22,7 +24,7 @@ open class KSLVaultHook : KSLHook {
         KSLErrors.hookSafe("Vault", null) { economy?.getBalance(player) }
 
     fun deposit(player: OfflinePlayer, amount: Double): Boolean {
-        if (!isValidAmount(amount)) return false
+        if (!isValidVaultAmount(amount)) return false
         return KSLErrors.hookSafe("Vault", false) {
             economy?.depositPlayer(player, amount)?.transactionSuccess() ?: false
         }
@@ -39,8 +41,6 @@ open class KSLVaultHook : KSLHook {
         if (!isValidAmount(amount)) return false
         return KSLErrors.hookSafe("Vault", false) { economy?.has(player, amount) ?: false }
     }
-
-    private fun isValidAmount(amount: Double): Boolean = amount.isFinite() && amount >= 0.0
 
     fun format(amount: Double): String =
         KSLErrors.hookSafe("Vault", amount.toString()) { economy?.format(amount) ?: amount.toString() }
