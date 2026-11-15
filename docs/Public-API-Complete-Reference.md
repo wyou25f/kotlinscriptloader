@@ -474,6 +474,17 @@ Create it with the Kotlin extension:
 val scope = api.addonScope()
 ~~~
 
+Java callers cannot invoke Kotlin extension functions as instance methods. Use the Java-visible static factory instead:
+
+~~~java
+import ru.privateserver.ksl.api.KSLAddonScope;
+import ru.privateserver.ksl.KSLAPI;
+
+KSLAddonScope scope = KSLAddonScope.create(api);
+~~~
+
+The factory creates the same scope implementation and accepts the real KSLAPI interface. The Kotlin extension is a convenience wrapper around this factory.
+
 The scope is explicit. KSL does not automatically call close() on it merely because the addon is unregistered. Retain it and close it from onUnload().
 
 ### 9.1 Scope lifecycle
