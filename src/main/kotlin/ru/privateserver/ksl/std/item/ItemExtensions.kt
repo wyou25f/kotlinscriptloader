@@ -67,7 +67,8 @@ internal fun ItemMeta.kslLore(): List<Component> {
     }
 
     @Suppress("DEPRECATION")
-    return getLore().orEmpty().map(kslLegacyComponentSerializer::deserialize)
+    val legacyLore = runCatching { getLore() }.getOrNull().orEmpty()
+    return legacyLore.map(kslLegacyComponentSerializer::deserialize)
 }
 
 internal fun ItemMeta.setKslLore(lines: List<Component>?) {
