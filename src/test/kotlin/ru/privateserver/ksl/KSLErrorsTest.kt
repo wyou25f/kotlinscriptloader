@@ -24,6 +24,25 @@ class KSLErrorsTest {
     }
 
     @Test
+    fun `explicit script signals receive dedicated codes even when wrapped`() {
+        assertEquals(
+            KSLError.SCRIPT_ERROR_SIGNAL,
+            KSLErrors.resolveCode(KSLScriptError("expected failure"), KSLError.SCRIPT_RUNTIME)
+        )
+        assertEquals(
+            KSLError.SCRIPT_FATAL_SIGNAL,
+            KSLErrors.resolveCode(
+                IllegalStateException("wrapper", KSLFatalScriptError("fatal failure")),
+                KSLError.COMMAND_EXECUTE_FAILED
+            )
+        )
+        assertEquals(
+            KSLError.SCRIPT_RUNTIME,
+            KSLErrors.resolveCode(IllegalStateException("ordinary failure"), KSLError.SCRIPT_RUNTIME)
+        )
+    }
+
+    @Test
     fun `deepest cause is cycle safe`() {
         val outer = IllegalStateException("outer")
         val inner = IllegalArgumentException("inner")

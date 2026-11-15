@@ -192,7 +192,7 @@ private fun testErrorCatalog() {
     val numbers = all.map { it.number }.sorted()
     check("numbers are scattered: no two codes are neighbours", numbers.zipWithNext().all { (a, b) -> b - a >= 20 })
     check("numbers are not a 0001, 0002 sequence", numbers.first() >= 100)
-    check("catalog has at least triple the original coverage", all.size >= 258)
+    check("catalog includes dedicated compiler, evaluator and script-signal failures", all.size >= 273)
     check("every code has a title and a hint", all.all { it.title.isNotBlank() && it.hint.isNotBlank() })
     check("watchdog diagnostic codes are discoverable", KSLError.SYSTEM_WATCHDOG_STALL.category == KSLErrorCategory.SYSTEM && KSLError.find(KSLError.SYSTEM_WATCHDOG_DEADLOCK.code) == KSLError.SYSTEM_WATCHDOG_DEADLOCK)
     check("JDBC connection errors get a dedicated code", KSLErrors.classifyDatabaseFailure(java.sql.SQLException("connect failed", "08001"), KSLError.DB_TABLE_FAILED) == KSLError.DB_CONNECTION_LOST)

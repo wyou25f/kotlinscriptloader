@@ -34,11 +34,12 @@ object KSLErrors {
 
     // Every logged error carries a catalog code (see KSLError); SCRIPT_RUNTIME is the generic one.
     fun log(plugin: KotlinScriptLoaderPlugin, scriptName: String, where: String, ex: Throwable, code: KSLError = KSLError.SCRIPT_RUNTIME) {
-        val signal = ex as? KSLScriptSignal
+        val signal = findScriptSignal(ex)
+        val effectiveCode = codeForSignal(signal, code)
         val cause = deepestCause(ex)
         val message = signal?.message ?: "${cause::class.simpleName}: ${cause.message}"
         counters.computeIfAbsent(scriptName) { AtomicInteger(0) }.incrementAndGet()
-        last = LastError(scriptName, where, message, System.currentTimeMillis(), code)
+        last = LastError(scriptName, where, message, System.currentTimeMillis(), effectiveCode)
         lastDetails = emptyList()
 
         val severity = when (signal) {
@@ -46,7 +47,7 @@ object KSLErrors {
             is KSLScriptError -> "❌ ERROR"
             else -> "❌ Ошибка"
         }
-        val line = "[$scriptName] ${code.tag} $severity в $where: $message"
+        val line = "[$scriptName] ${effectiveCode.tag} $severity в $where: $message"
         if (signal is KSLFatalScriptError) {
             plugin.logger.severe(line)
             plugin.stopScriptAfterFatal(scriptName)
@@ -73,7 +74,7 @@ object KSLErrors {
                 plugin.logScriptProblem("  → ${it.className}.${it.methodName}(${it.fileName}:${it.lineNumber})")
             }
         }
-        if (signal == null) plugin.logScriptProblem("  ℹ Что это значит: /ksl error ${code.code}")
+        if (signal == null) plugin.logScriptProblem("  ℹ Что это значит: /ksl error ${effectiveCode.code}")
     }
 
     // A script that failed to compile (or was refused by the sandbox) is not an exception, but it is still an error to look up later.
@@ -93,6 +94,25 @@ object KSLErrors {
             current = next
         }
     }
+
+    private fun findScriptSignal(error: Throwable): KSLScriptSignal? {
+        val seen = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Throwable, Boolean>())
+        var current: Throwable? = error
+        while (current != null && seen.add(current)) {
+            if (current is KSLScriptSignal) return current
+            current = current.cause
+        }
+        return null
+    }
+
+    private fun codeForSignal(signal: KSLScriptSignal?, fallback: KSLError): KSLError = when (signal) {
+        is KSLFatalScriptError -> KSLError.SCRIPT_FATAL_SIGNAL
+        is KSLScriptError -> KSLError.SCRIPT_ERROR_SIGNAL
+        else -> fallback
+    }
+
+    internal fun resolveCode(error: Throwable, fallback: KSLError): KSLError =
+        codeForSignal(findScriptSignal(error), fallback)
 
     /** Classifies common JDBC/SQLite failures while preserving the caller's operation-specific fallback. */
     fun classifyDatabaseFailure(error: Throwable, fallback: KSLError): KSLError {
