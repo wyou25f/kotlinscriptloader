@@ -23,8 +23,10 @@
 
 ## Hooks, KSLRT и исправления скриптов
 
-- Реализации встроенных интеграций вынесены в `ru.privateserver.ksl.hooks`; прежние классы в корневом пакете оставлены совместимыми фасадами.
+- Реализации встроенных интеграций и reflection bridge вынесены в `ru.privateserver.ksl.hooks`; прежние классы в корневом пакете оставлены совместимыми фасадами.
 - Добавлены `KSLHookIds`, базовый `KSLPluginHook` и aliases для условной регистрации и типизированного получения hooks.
+- Hook API загружается только от включённого provider-плагина; Vault-провайдеры и EssentialsX разрешаются динамически, LuckPerms/SkinsRestorer инициализируются лениво.
+- Skript introspection больше не возвращает файлы за пределами canonical `Skript/scripts`.
 - Ошибки WorldGuard теперь закрывают проверку доступа (`canBuild`/`canPvp` возвращают false при сбое), а Vault отклоняет отрицательные и не finite суммы до вызова провайдера.
 - ID hooks и MesLib2 namespace нормализуются независимо от системной locale; регистрация hook проверяет descriptor.
 - `kslrt` получил недостающие aliases реестра профайлеров; имена профайлеров и runtime scopes ограничены 256 символами.
