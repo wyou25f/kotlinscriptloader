@@ -33,6 +33,9 @@ object KSLRT {
     @Synchronized
     fun profiler(name: String): KSLProfiler {
         require(name.isNotBlank()) { "Profiler name must not be blank" }
+        require(name.length <= KSLProfiler.MAX_NAME_LENGTH) {
+            "Profiler name must not exceed ${KSLProfiler.MAX_NAME_LENGTH} characters"
+        }
         profilers[name]?.let { return it }
         check(profilers.size < MAX_PROFILERS) {
             "KSL profiler registry is full ($MAX_PROFILERS); remove unused profilers before registering more"
