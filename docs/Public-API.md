@@ -46,6 +46,12 @@ module contracts. It also exposes:
   `unregisterStandardLibraryModule(id)` and
   `standardLibraryModules()` for addon-owned module lifecycle.
 
+Hook implementations and authoring helpers are grouped under
+`ru.privateserver.ksl.hooks.*`. This package provides `KSLPluginHook`,
+`KSLHookIds`, `registerHookIfEnabled()`, `hookOrNull<T>()` and
+`requireHookAlias<T>()`. Existing built-in hook class names in
+`ru.privateserver.ksl` remain as compatibility facades.
+
 These short operations are Kotlin extension functions, not new abstract
 `KSLAPI` members. They preserve compatibility with existing addon
 implementations and do not require an API-version bump.
