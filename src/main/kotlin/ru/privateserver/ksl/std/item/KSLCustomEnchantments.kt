@@ -37,7 +37,7 @@ class KSLCustomEnchantment internal constructor(
     val displayName: Component,
     val maxLevel: Int,
     val targets: Set<Material>,
-    internal val conflictKeys: Set<NamespacedKey>,
+    internal val conflictKeys: MutableSet<NamespacedKey>,
     val storageKey: NamespacedKey,
     internal val owner: String,
     internal val hitHandler: (KSLCustomEnchantHitContext.() -> Unit)?,
@@ -170,7 +170,7 @@ class KSLCustomEnchantBuilder internal constructor(val id: String) {
             displayName = displayName,
             maxLevel = maximumLevel,
             targets = targetMaterials.toSet(),
-            conflictKeys = conflicts,
+            conflictKeys = conflicts.toMutableSet(),
             storageKey = storageKey,
             owner = owner,
             hitHandler = hitHandler,
@@ -211,6 +211,15 @@ internal class KSLCustomEnchantManager(private val plugin: KotlinScriptLoaderPlu
             val existing = definitions[definition.namespacedId]
             require(existing == null || existing.owner == owner) {
                 "Custom enchantment '${definition.namespacedId}' is already registered by another script"
+            }
+            definitions.values.forEach { existing ->
+                // Conflict declarations are symmetric, independent of the order enchantments are registered.
+                if (definition.storageKey in existing.conflictKeys) {
+                    definition.conflictKeys.add(existing.storageKey)
+                }
+                if (existing.storageKey in definition.conflictKeys) {
+                    existing.conflictKeys.add(definition.storageKey)
+                }
             }
             definitions[definition.namespacedId] = definition
         }

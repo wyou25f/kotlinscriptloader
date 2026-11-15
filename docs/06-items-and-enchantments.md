@@ -20,7 +20,7 @@ KSL предоставляет компактный DSL для сборки пр
 
     val upgraded = item
         .withName("<gold>Сокровище")
-        .addLore("Найдено в подземелье")
+        .withAddedLore("Найдено в подземелье")
         .enchant(Enchantment.UNBREAKING, 3)
 
 Доступны короткие алиасы amount, enchant, unenchant, isOf, isSimilarTo, withFlags и withoutFlags.

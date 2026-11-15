@@ -40,7 +40,7 @@ class KSLCustomEnchantmentsTest {
         displayName = Component.text("Frost"),
         maxLevel = maxLevel,
         targets = targets,
-        conflictKeys = conflicts,
+        conflictKeys = conflicts.toMutableSet(),
         storageKey = NamespacedKey.minecraft(key),
         owner = "test",
         hitHandler = null,
