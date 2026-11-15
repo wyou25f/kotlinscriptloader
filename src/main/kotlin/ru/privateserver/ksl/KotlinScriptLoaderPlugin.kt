@@ -1085,7 +1085,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     internal fun invalidateScriptIndex() = scriptIndex.invalidate()
 
     // Last seen state of each script file; lets /ksl reload changed skip everything that did not change.
-    private val scriptStamps = ConcurrentHashMap<String, Long>()
+    private val scriptStamps = ConcurrentHashMap<String, String>()
 
     // Scripts whose code is currently registered (listeners, commands, ...).
     private val liveScripts = ConcurrentHashMap.newKeySet<String>()
@@ -1094,7 +1094,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private val reloadCompileInProgress = java.util.concurrent.atomic.AtomicBoolean(false)
     private val shuttingDown = java.util.concurrent.atomic.AtomicBoolean(false)
 
-    private fun stampOf(file: File): Long = file.lastModified() * 31 + file.length()
+    private fun stampOf(file: File): String =
+        if (!file.isFile) "<missing>" else runCatching { KSLSourceFingerprint.of(file.readBytes()) }.getOrElse { "<unreadable>" }
 
     fun scriptInfos(): List<KSLScriptInfo> = findScriptFiles().map { file ->
         val id = scriptId(file)
