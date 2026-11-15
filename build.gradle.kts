@@ -62,6 +62,8 @@ dependencies {
     implementation("org.xerial:sqlite-jdbc:3.46.1.3")
     implementation("org.tomlj:tomlj:1.1.1")
     implementation("org.mariadb.jdbc:mariadb-java-client:3.4.1")
+    // Embedded and relocated: no separate NBTAPI plugin is required.
+    implementation("de.tr7zw:item-nbt-api:2.16.1")
 
     testImplementation("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
@@ -95,6 +97,7 @@ tasks.shadowJar {
     archiveClassifier.set(if (fatJar) "fat" else "")
     mergeServiceFiles()
     relocate("com.zaxxer.hikari", "ru.privateserver.ksl.libs.hikari")
+    relocate("de.tr7zw.changeme.nbtapi", "ru.privateserver.ksl.libs.nbtapi")
 }
 
 val verifyShadowJar by tasks.registering {
@@ -109,6 +112,7 @@ val verifyShadowJar by tasks.registering {
             }
             val requiredClasses = listOf(
                 "ru/privateserver/ksl/KSLAddonConfig.class",
+                "ru/privateserver/ksl/libs/nbtapi/NBT.class",
                 "ru/privateserver/ksl/KSLTabHook.class",
                 "ru/privateserver/ksl/KSLSkinHook.class",
                 "ru/privateserver/ksl/KSLVaultHook.class",

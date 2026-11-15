@@ -1,6 +1,7 @@
 package ru.privateserver.ksl
 
 import com.zaxxer.hikari.HikariDataSource
+import de.tr7zw.changeme.nbtapi.NBT
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.title.Title
@@ -9,6 +10,7 @@ import org.bukkit.Location
 import org.bukkit.NamespacedKey
 import org.bukkit.OfflinePlayer
 import org.bukkit.Particle
+import org.bukkit.block.TileState
 import org.bukkit.command.CommandSender
 import org.bukkit.configuration.ConfigurationSection
 import org.bukkit.configuration.InvalidConfigurationException
@@ -956,6 +958,72 @@ open class BukkitScriptContext(
 
     val Player.prefix: String?
         get() = internalPlugin.luckPerms?.prefix(this)
+
+    /** Custom item NBT (custom_data on Minecraft 1.20.5+), separate from PDC. */
+    fun ItemStack.modifyNBT(block: ru.privateserver.ksl.nbt.KSLNBTCompound.() -> Unit) {
+        requirePrimaryThread("ItemStack.modifyNBT")
+        NBT.modify(this) { nbt -> ru.privateserver.ksl.nbt.KSLNBTCompound(nbt).block() }
+    }
+
+    fun ItemStack.readNBT(block: ru.privateserver.ksl.nbt.KSLNBTView.() -> Unit) {
+        requirePrimaryThread("ItemStack.readNBT")
+        NBT.get(this) { nbt -> ru.privateserver.ksl.nbt.KSLNBTView(nbt).block() }
+    }
+
+    /** Reads vanilla data components such as minecraft:custom_name. */
+    fun ItemStack.readComponents(block: ru.privateserver.ksl.nbt.KSLNBTView.() -> Unit) {
+        requirePrimaryThread("ItemStack.readComponents")
+        NBT.getComponents(this) { nbt -> ru.privateserver.ksl.nbt.KSLNBTView(nbt).block() }
+    }
+
+    /** Modifies vanilla data components; component values must use Minecraft's expected format. */
+    fun ItemStack.modifyComponents(block: ru.privateserver.ksl.nbt.KSLNBTCompound.() -> Unit) {
+        requirePrimaryThread("ItemStack.modifyComponents")
+        NBT.modifyComponents(this) { nbt -> ru.privateserver.ksl.nbt.KSLNBTCompound(nbt).block() }
+    }
+
+    fun Entity.readNBT(block: ru.privateserver.ksl.nbt.KSLNBTView.() -> Unit) {
+        requirePrimaryThread("Entity.readNBT")
+        NBT.get(this) { nbt -> ru.privateserver.ksl.nbt.KSLNBTView(nbt).block() }
+    }
+
+    fun Entity.modifyNBT(block: ru.privateserver.ksl.nbt.KSLNBTCompound.() -> Unit) {
+        requirePrimaryThread("Entity.modifyNBT")
+        NBT.modify(this) { nbt -> ru.privateserver.ksl.nbt.KSLNBTCompound(nbt).block() }
+    }
+
+    fun Entity.readPersistentNBT(block: ru.privateserver.ksl.nbt.KSLNBTView.() -> Unit) {
+        requirePrimaryThread("Entity.readPersistentNBT")
+        NBT.getPersistentData(this) { nbt -> ru.privateserver.ksl.nbt.KSLNBTView(nbt).block() }
+    }
+
+    fun Entity.modifyPersistentNBT(block: ru.privateserver.ksl.nbt.KSLNBTCompound.() -> Unit) {
+        requirePrimaryThread("Entity.modifyPersistentNBT")
+        NBT.modifyPersistentData(this) { nbt -> ru.privateserver.ksl.nbt.KSLNBTCompound(nbt).block() }
+    }
+
+    /** Vanilla NBT is available only for block entities (TileState), not ordinary blocks. */
+    fun TileState.readNBT(block: ru.privateserver.ksl.nbt.KSLNBTView.() -> Unit) {
+        requirePrimaryThread("TileState.readNBT")
+        NBT.get(this) { nbt -> ru.privateserver.ksl.nbt.KSLNBTView(nbt).block() }
+    }
+
+    fun TileState.modifyNBT(block: ru.privateserver.ksl.nbt.KSLNBTCompound.() -> Unit) {
+        requirePrimaryThread("TileState.modifyNBT")
+        NBT.modify(this) { nbt -> ru.privateserver.ksl.nbt.KSLNBTCompound(nbt).block() }
+        update(true)
+    }
+
+    fun TileState.readPersistentNBT(block: ru.privateserver.ksl.nbt.KSLNBTView.() -> Unit) {
+        requirePrimaryThread("TileState.readPersistentNBT")
+        NBT.getPersistentData(this) { nbt -> ru.privateserver.ksl.nbt.KSLNBTView(nbt).block() }
+    }
+
+    fun TileState.modifyPersistentNBT(block: ru.privateserver.ksl.nbt.KSLNBTCompound.() -> Unit) {
+        requirePrimaryThread("TileState.modifyPersistentNBT")
+        NBT.modifyPersistentData(this) { nbt -> ru.privateserver.ksl.nbt.KSLNBTCompound(nbt).block() }
+        update(true)
+    }
 
     fun ItemStack.setTag(key: String, value: String) {
         val meta = itemMeta ?: return
