@@ -964,6 +964,8 @@ open class BukkitScriptContext(
     fun parseMM(text: String): Component = mm.deserialize(text)
 
     fun broadcastMM(text: String) = Bukkit.getServer().broadcast(parseMM(text))
+    fun mm(text: String): Component = parseMM(text)
+    fun broadcastRich(text: String) = broadcastMM(text)
 
     fun broadcast(message: String) =
         Bukkit.getOnlinePlayers().forEach { it.sendMessage(message.replace('&', '§')) }
@@ -993,6 +995,8 @@ open class BukkitScriptContext(
 
     /** Sends MiniMessage to any command sender, including console. */
     fun CommandSender.sendRichMessage(text: String) = sendMessage(parseMM(text))
+    fun CommandSender.msg(text: String) = sendMessage(parseMM(text))
+    fun CommandSender.sendMM(text: String) = msg(text)
 
     /** True when the sender has at least one of the supplied permission nodes. */
     fun CommandSender.hasPermissionAny(vararg permissions: String): Boolean =
@@ -1005,6 +1009,10 @@ open class BukkitScriptContext(
     fun Player.sendRichMessage(text: String) = sendMessage(parseMM(text))
 
     fun Player.sendActionBarMessage(text: String) = sendActionBar(parseMM(text))
+    fun Player.ab(text: String) = sendActionBarMessage(text)
+    fun Player.actionBar(text: String) = sendActionBarMessage(text)
+    fun Player.t(title: String, subtitle: String = "", fadeIn: Int = 10, stay: Int = 70, fadeOut: Int = 20) = showRichTitle(title, subtitle, fadeIn, stay, fadeOut)
+    fun Player.title(title: String, subtitle: String = "", fadeIn: Int = 10, stay: Int = 70, fadeOut: Int = 20) = showRichTitle(title, subtitle, fadeIn, stay, fadeOut)
 
     fun Player.showRichTitle(
         title: String,
