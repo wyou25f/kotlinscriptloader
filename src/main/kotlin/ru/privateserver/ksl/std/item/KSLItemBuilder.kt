@@ -27,8 +27,7 @@ class KSLItemBuilder(material: Material, amount: Int = 1) {
     }
 
     fun name(value: String) {
-        val component = MiniMessage.miniMessage().deserialize(value)
-            .noItalicIfUnset
+        val component = noItalicIfUnset(MiniMessage.miniMessage().deserialize(value))
         stack = stack.withDisplayName(component)
     }
 
@@ -40,16 +39,14 @@ class KSLItemBuilder(material: Material, amount: Int = 1) {
 
     fun lore(vararg lines: String) {
         val parsed = lines.map {
-            MiniMessage.miniMessage().deserialize(it)
-                .noItalicIfUnset
+            noItalicIfUnset(MiniMessage.miniMessage().deserialize(it))
         }
         stack = stack.withLore(parsed)
     }
 
     fun addLore(vararg lines: String) {
         val parsed = lines.map {
-            MiniMessage.miniMessage().deserialize(it)
-                .noItalicIfUnset
+            noItalicIfUnset(MiniMessage.miniMessage().deserialize(it))
         }
         stack = stack.withAddedLore(parsed)
     }
