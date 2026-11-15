@@ -2,7 +2,7 @@ package ru.privateserver.ksl.std.item
 
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.TextDecoration
-import ru.privateserver.ksl.std.component.toMiniMessageComponent
+import net.kyori.adventure.text.minimessage.MiniMessage
 import org.bukkit.Material
 import org.bukkit.enchantments.Enchantment
 import org.bukkit.inventory.ItemFlag
@@ -19,7 +19,7 @@ class KSLItemBuilder(material: Material, amount: Int = 1) {
     }
 
     fun name(value: String) {
-        val component = value.toMiniMessageComponent()
+        val component = MiniMessage.miniMessage().deserialize(value)
             .decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE)
         stack = stack.withDisplayName(component)
     }
@@ -32,7 +32,7 @@ class KSLItemBuilder(material: Material, amount: Int = 1) {
 
     fun lore(vararg lines: String) {
         val parsed = lines.map {
-            it.toMiniMessageComponent()
+            MiniMessage.miniMessage().deserialize(it)
                 .decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE)
         }
         stack = stack.withLore(parsed)
@@ -40,7 +40,7 @@ class KSLItemBuilder(material: Material, amount: Int = 1) {
 
     fun addLore(vararg lines: String) {
         val parsed = lines.map {
-            it.toMiniMessageComponent()
+            MiniMessage.miniMessage().deserialize(it)
                 .decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE)
         }
         stack = stack.withAddedLore(parsed)

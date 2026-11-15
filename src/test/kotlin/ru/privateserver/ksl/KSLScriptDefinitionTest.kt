@@ -99,6 +99,29 @@ class KSLScriptDefinitionTest {
     }
 
     @Test
+    fun `KSL mixins and defensive custom enchantments compile in scripts`() {
+        val source = """
+            val joinBehavior = mixin("join-behavior") {
+                description("Shared player hooks")
+                on<PlayerJoinEvent> { player.msg("<green>Welcome, " + player.name) }
+                every(periodTicks = 20L) { onlineCount }
+                after(delayTicks = 5L) { maxPlayers }
+            }
+            if (false) useMixin(joinBehavior)
+            val ward = customEnchant("ward") {
+                targets(Material.IRON_HELMET, Material.IRON_CHESTPLATE)
+                onDamageTaken { event.damage = (event.damage - level * 0.5).coerceAtLeast(0.0) }
+            }
+        """.trimIndent()
+        val result = runBlocking {
+            JvmScriptCompiler()(source.toScriptSource("mixin_and_defense.kts"), KSLScriptCompilationConfiguration)
+        }
+        assertTrue(result is ResultWithDiagnostics.Success,
+            "New KSL mixin and armor-enchant APIs must compile: " +
+                (result as? ResultWithDiagnostics.Failure)?.reports?.joinToString("; ") { it.message })
+    }
+
+    @Test
     fun `script template exposes the canonical runtime definition to IDE tooling`() {
         val definition = KSLScript::class.java.getAnnotation(KotlinScript::class.java)
 
@@ -113,6 +136,7 @@ class KSLScriptDefinitionTest {
         assertTrue("org.bukkit.Sound" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("org.bukkit.SoundCategory" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("ru.privateserver.ksl.std.text.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
+        assertTrue("ru.privateserver.ksl.std.mixin.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("ru.privateserver.ksl.std.math.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("ru.privateserver.ksl.std.time.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("ru.privateserver.ksl.std.validation.*" in KSL_SCRIPT_DEFAULT_IMPORTS)

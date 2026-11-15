@@ -21,6 +21,9 @@ import ru.privateserver.ksl.KSLSoundSequenceBuilder as CoreKSLSoundSequenceBuild
 import ru.privateserver.ksl.KSLEffectSpec as CoreKSLEffectSpec
 import ru.privateserver.ksl.KSLEntityBuilder as CoreKSLEntityBuilder
 import ru.privateserver.ksl.KSLEntityBehaviorBuilder as CoreKSLEntityBehaviorBuilder
+import ru.privateserver.ksl.std.item.KSLCustomEnchantDamageTakenContext as CoreKSLCustomEnchantDamageTakenContext
+import ru.privateserver.ksl.std.mixin.KSLMixin as CoreKSLMixin
+import ru.privateserver.ksl.std.mixin.KSLMixinBuilder as CoreKSLMixinBuilder
 import ru.privateserver.ksl.KSLScriptEvent as CoreKSLScriptEvent
 import ru.privateserver.ksl.api.library.KSLModuleDescriptor as CoreKSLModuleDescriptor
 import ru.privateserver.ksl.api.library.KSLModulePlanner as CoreKSLModulePlanner
@@ -75,6 +78,11 @@ typealias KSLEffectSpec = CoreKSLEffectSpec
 typealias KSLEntityBuilder = CoreKSLEntityBuilder
 /** Event and tick callbacks attached to one living entity. */
 typealias KSLEntityBehaviorBuilder = CoreKSLEntityBehaviorBuilder
+/** Context for armor enchantments reacting to damage taken. */
+typealias KSLCustomEnchantDamageTakenContext = CoreKSLCustomEnchantDamageTakenContext
+/** Reusable, script-local behavior group for event and task hooks. */
+typealias KSLMixin = CoreKSLMixin
+typealias KSLMixinBuilder = CoreKSLMixinBuilder
 typealias KSLScriptEvent = CoreKSLScriptEvent
 typealias KSLModuleDescriptor = CoreKSLModuleDescriptor
 typealias KSLStandardLibraryModule = CoreKSLStandardLibraryModule

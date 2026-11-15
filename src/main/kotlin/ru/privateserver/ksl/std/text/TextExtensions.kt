@@ -2,7 +2,7 @@ package ru.privateserver.ksl.std.text
 
 import java.util.UUID
 
-private val legacyColorCode = Regex("(?i)(?:[&§]x(?:[&§][0-9A-F]){6}|[&§]#[0-9A-F]{6}|[&§][0-9A-FK-OR])")
+private val legacyColorCode = Regex("(?i)§[0-9A-FK-ORX]")
 private val canonicalUuid = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 
 private fun Char.isKslWhitespace(): Boolean = isWhitespace() || Character.isSpaceChar(this)

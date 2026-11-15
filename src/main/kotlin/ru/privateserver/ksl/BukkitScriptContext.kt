@@ -3,8 +3,7 @@ package ru.privateserver.ksl
 import com.zaxxer.hikari.HikariDataSource
 import de.tr7zw.changeme.nbtapi.NBT
 import net.kyori.adventure.text.Component
-import ru.privateserver.ksl.std.component.toMiniMessageComponent
-import ru.privateserver.ksl.std.text.colorizeLegacy
+import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.title.Title
 import org.bukkit.Bukkit
 import org.bukkit.Location
@@ -84,6 +83,8 @@ open class BukkitScriptContext(
 
     private val scriptDatabase: HikariDataSource
         get() = internalPlugin.database
+
+    private val mm: MiniMessage = MiniMessage.miniMessage()
 
     private fun requirePrimaryThread(operation: String) {
         check(Bukkit.isPrimaryThread()) {
@@ -485,19 +486,19 @@ open class BukkitScriptContext(
 
     fun YamlConfiguration.message(path: String, vararg replacements: Pair<String, Any?>): String {
         val raw = getString(path) ?: return path
-        return substitute(path, raw, null, replacements).colorizeLegacy()
+        return substitute(path, raw, null, replacements).replace('&', '§')
     }
 
     fun YamlConfiguration.message(path: String, player: Player, vararg replacements: Pair<String, Any?>): String {
         val raw = getString(path) ?: return path
-        return substitute(path, raw, player, replacements).colorizeLegacy()
+        return substitute(path, raw, player, replacements).replace('&', '§')
     }
 
     fun YamlConfiguration.messageList(path: String, vararg replacements: Pair<String, Any?>): List<String> =
-        getStringList(path).map { substitute(path, it, null, replacements).colorizeLegacy() }
+        getStringList(path).map { substitute(path, it, null, replacements).replace('&', '§') }
 
     fun YamlConfiguration.messageList(path: String, player: Player, vararg replacements: Pair<String, Any?>): List<String> =
-        getStringList(path).map { substitute(path, it, player, replacements).colorizeLegacy() }
+        getStringList(path).map { substitute(path, it, player, replacements).replace('&', '§') }
 
     fun YamlConfiguration.richMessage(path: String, vararg replacements: Pair<String, Any?>): Component =
         parseMM(substitute(path, getString(path) ?: path, null, replacements))
@@ -890,16 +891,12 @@ open class BukkitScriptContext(
 
     fun publish(topic: String, payload: Any? = null): Int = internalPlugin.addonManager.publish(topic, payload)
 
-    fun parseMM(text: String): Component = text.toMiniMessageComponent()
-
-    /** Compact parser alias for KSL scripts. */
-    fun mm(text: String): Component = parseMM(text)
+    fun parseMM(text: String): Component = mm.deserialize(text)
 
     fun broadcastMM(text: String) = Bukkit.getServer().broadcast(parseMM(text))
-    fun broadcastRich(text: String) = broadcastMM(text)
 
     fun broadcast(message: String) =
-        Bukkit.getOnlinePlayers().forEach { it.sendMessage(message.colorizeLegacy()) }
+        Bukkit.getOnlinePlayers().forEach { it.sendMessage(message.replace('&', '§')) }
 
     /** Snapshot of currently online players; safe to iterate while handling a script callback. */
     fun onlinePlayers(): List<Player> = Bukkit.getOnlinePlayers().toList()
@@ -924,10 +921,8 @@ open class BukkitScriptContext(
         return Bukkit.getOnlinePlayers().firstOrNull { it.name.equals(query, ignoreCase = true) }
     }
 
-    /** Sends formatted text to any command sender, including console. */
-    fun CommandSender.msg(text: String) = sendMessage(parseMM(text))
-    fun CommandSender.sendRichMessage(text: String) = msg(text)
-    fun CommandSender.sendMM(text: String) = msg(text)
+    /** Sends MiniMessage to any command sender, including console. */
+    fun CommandSender.sendRichMessage(text: String) = sendMessage(parseMM(text))
 
     /** True when the sender has at least one of the supplied permission nodes. */
     fun CommandSender.hasPermissionAny(vararg permissions: String): Boolean =
@@ -937,15 +932,9 @@ open class BukkitScriptContext(
     fun CommandSender.hasPermissionAll(vararg permissions: String): Boolean =
         permissions.all { it.isNotBlank() && hasPermission(it) }
 
-    fun Player.sendRichMessage(text: String) = msg(text)
-    fun Player.sendActionBarMessage(text: String) = sendActionBar(parseMM(text))
-    fun Player.ab(text: String) = sendActionBarMessage(text)
-    fun Player.actionBar(text: String) = sendActionBarMessage(text)
+    fun Player.sendRichMessage(text: String) = sendMessage(parseMM(text))
 
-    fun Player.t(title: String, subtitle: String = "", fadeIn: Int = 10, stay: Int = 70, fadeOut: Int = 20) =
-        showRichTitle(title, subtitle, fadeIn, stay, fadeOut)
-    fun Player.title(title: String, subtitle: String = "", fadeIn: Int = 10, stay: Int = 70, fadeOut: Int = 20) =
-        showRichTitle(title, subtitle, fadeIn, stay, fadeOut)
+    fun Player.sendActionBarMessage(text: String) = sendActionBar(parseMM(text))
 
     fun Player.showRichTitle(
         title: String,
