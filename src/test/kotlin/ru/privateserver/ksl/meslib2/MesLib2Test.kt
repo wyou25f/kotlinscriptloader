@@ -129,7 +129,9 @@ class MesLib2Test {
     @Test
     fun longOwnerNamesProduceBoundedDefaultNamespaces() {
         val api = facade(owner = "server/".repeat(40))
+        val other = facade(owner = "server/".repeat(40) + "different")
         assertEquals(128, api.namespace.length)
         assertTrue(api.namespace.matches(Regex("[a-z][a-z0-9._-]*")))
+        assertNotEquals(api.namespace, other.namespace)
     }
 }
