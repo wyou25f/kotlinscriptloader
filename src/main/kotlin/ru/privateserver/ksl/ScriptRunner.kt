@@ -207,7 +207,8 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
         }
         return try {
             val context = BukkitScriptContext(plugin, "__sandbox_probe__")
-            val loader = KSLSandboxClassLoader(pluginClassLoader, KSLClassDenyList(), "__sandbox_probe__") { }
+            // Use the exact effective policy and parent loader used by normal script evaluation.
+            val loader = loaderFor("__sandbox_probe__")
             val compilationConfig = buildScriptCompilationConfig(plugin.addonManager)
             val evalConfig = ScriptEvaluationConfiguration {
                 implicitReceivers(context)
