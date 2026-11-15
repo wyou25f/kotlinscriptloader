@@ -7,7 +7,8 @@ import java.lang.reflect.Modifier
 /** Reflection bridge keeps optional integrations out of KSL's hard runtime dependencies. */
 internal object KSLHookReflectionCore {
     fun loadClass(pluginName: String, className: String): Class<*>? = runCatching {
-        val provider = Bukkit.getPluginManager().getPlugin(pluginName) ?: return@runCatching null
+        val provider = Bukkit.getPluginManager().getPlugin(pluginName)
+            ?.takeIf { it.isEnabled } ?: return@runCatching null
         provider.javaClass.classLoader.loadClass(className)
     }.getOrNull()
 
