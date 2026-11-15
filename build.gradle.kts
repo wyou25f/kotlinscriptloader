@@ -41,7 +41,11 @@ dependencies {
     compileOnly("com.destroystokyo.paper:paper-api:1.16.5-R0.1-SNAPSHOT")
     compileOnly("me.clip:placeholderapi:2.11.6")
     compileOnly("net.luckperms:api:5.5")
-    compileOnly("net.essentialsx:EssentialsX:2.21.2")
+    compileOnly("net.essentialsx:EssentialsX:2.21.2") {
+        // EssentialsX's own build currently publishes against the latest Paper API.
+        // KSL compiles against the branch's explicit Paper baseline instead.
+        exclude(group = "io.papermc.paper", module = "paper-api")
+    }
     compileOnly("net.skinsrestorer:skinsrestorer-api:15.5.2")
     compileOnly("com.github.MilkBowl:VaultAPI:1.7") {
         exclude(group = "org.bukkit", module = "bukkit")
@@ -90,6 +94,18 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 
 tasks.withType<org.gradle.api.tasks.compile.JavaCompile>().configureEach {
     options.release.set(16)
+}
+
+// Resolve optional integration APIs against the modern CI JDK while keeping the
+// plugin's actual bytecode and declared server baseline on the branch's minimum.
+// These are compile-only APIs; Paper itself remains pinned to the explicit baseline above.
+configurations.matching {
+    it.name in setOf("compileClasspath", "testCompileClasspath", "testRuntimeClasspath")
+}.configureEach {
+    attributes.attribute(
+        org.gradle.api.attributes.java.TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE,
+        21
+    )
 }
 
 val librariesYaml = kotlinLibraries.joinToString(", ", "[", "]") { "\"$it\"" }
