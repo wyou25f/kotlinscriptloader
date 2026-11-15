@@ -13,7 +13,8 @@ class CompiledUnit(
     val warnings: List<String>,
     val failure: KSLError?,
     val crash: Throwable?,
-    val compileMillis: Long
+    val compileMillis: Long,
+    val sourceStamp: String = ""
 ) {
     val ok: Boolean get() = compiled != null
 }
