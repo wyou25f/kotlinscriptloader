@@ -43,6 +43,7 @@ scripts:
   empty: "§eСкрипты не найдены."
   title: "§9§lKSL §7— загруженные скрипты: {loaded}/{total}"
   entry: "{mark} §f{name} §8— §7загрузка: {time}, ошибки: {errors}"
+  error-count: " §c{count} ошибок"
 
 debug:
   usage: "§eИспользование: §f/ksl debug <script>"
@@ -58,6 +59,8 @@ debug:
   metrics-title: "§bВыполнение (суммарное / среднее / максимум):"
   metric: "  §f{operation} §7— вызовов: {calls}, ошибок: {failures}, {total}мс / {average}мс / {maximum}мс"
   last-failure: "    §cПоследняя ошибка: {failure}"
+  yes: "есть"
+  no: "нет"
 
 resources:
   empty: "§eОтслеживаемые ресурсы не найдены."
