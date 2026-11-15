@@ -425,7 +425,7 @@ fun ItemStack.withoutCustomEnchant(enchantment: KSLCustomEnchantment): ItemStack
             line == enchantmentLore(enchantment, previousLevel)
         }
     }
-    meta.setLore(cleanedLore.takeIf { it.isNotEmpty() })
+    meta.setLore(cleanedLore)
     result.itemMeta = meta
     return result
 }
