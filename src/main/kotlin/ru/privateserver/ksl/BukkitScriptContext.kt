@@ -48,6 +48,9 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.buildJsonObject
 import ru.privateserver.ksl.std.toml.KSLTomlCodec
+import ru.privateserver.ksl.compat.KSLMinecraftVersion
+import ru.privateserver.ksl.compat.KSLServerCapability
+import ru.privateserver.ksl.compat.KSLServerCompatibility
 
 open class BukkitScriptContext(
     plugin: KotlinScriptLoaderPlugin,
@@ -85,6 +88,18 @@ open class BukkitScriptContext(
         get() = internalPlugin.database
 
     private val mm: MiniMessage = MiniMessage.miniMessage()
+
+    /** Parsed Minecraft server version, or null when the server reports an unknown format. */
+    val minecraftVersion: KSLMinecraftVersion?
+        get() = KSLServerCompatibility.currentMinecraftVersion()
+
+    /** Server implementation name reported by Bukkit (for example, Paper or Purpur). */
+    val serverImplementation: String
+        get() = KSLServerCompatibility.serverImplementation()
+
+    /** Checks an optional API capability without directly linking its class or method. */
+    fun supportsServerCapability(capability: KSLServerCapability): Boolean =
+        KSLServerCompatibility.supports(capability)
 
     private fun requirePrimaryThread(operation: String) {
         check(Bukkit.isPrimaryThread()) {
