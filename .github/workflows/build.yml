@@ -3,7 +3,7 @@ run-name: "KSL build #${{ github.run_number }} · ${{ github.sha }}"
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'compat/**']
   pull_request:
     branches: [main]
   workflow_dispatch:
