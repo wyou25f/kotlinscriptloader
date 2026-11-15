@@ -8,12 +8,26 @@ package ru.privateserver.ksl
  * script cannot remove the replacement.
  */
 internal class KSLExportStore(
+    private val maxExportsPerOwner: Int = DEFAULT_MAX_EXPORTS_PER_OWNER,
+    private val maxExportsTotal: Int = DEFAULT_MAX_EXPORTS_TOTAL,
     private val onOverwrite: (key: String, previousOwner: String?, newOwner: String) -> Unit = { _, _, _ -> }
 ) {
+    companion object {
+        const val DEFAULT_MAX_EXPORTS_PER_OWNER = 512
+        const val DEFAULT_MAX_EXPORTS_TOTAL = 8192
+        private const val MAX_OWNER_LENGTH = 512
+        private const val MAX_KEY_LENGTH = 320
+    }
+
     private val lock = Any()
     private val exports = linkedMapOf<String, Any>()
     private val ownerByKey = linkedMapOf<String, String>()
     private val keysByOwner = linkedMapOf<String, MutableSet<String>>()
+
+    init {
+        require(maxExportsPerOwner > 0) { "maxExportsPerOwner must be positive" }
+        require(maxExportsTotal > 0) { "maxExportsTotal must be positive" }
+    }
 
     fun export(owner: String, key: String, value: Any) {
         validate(owner, key)
@@ -32,8 +46,22 @@ internal class KSLExportStore(
     }
 
     private fun putLocked(owner: String, key: String, value: Any) {
+        val exists = key in exports
         val previousOwner = ownerByKey[key]
-        if (key in exports && previousOwner != owner) {
+
+        // Replacing an existing value from the same owner does not consume another slot.
+        if (previousOwner != owner) {
+            check((keysByOwner[owner]?.size ?: 0) < maxExportsPerOwner) {
+                "Script '$owner' reached the export limit ($maxExportsPerOwner entries)"
+            }
+        }
+        if (!exists) {
+            check(exports.size < maxExportsTotal) {
+                "KSL export registry reached its global limit ($maxExportsTotal entries)"
+            }
+        }
+
+        if (exists && previousOwner != owner) {
             onOverwrite(key, previousOwner, owner)
         }
 
@@ -83,6 +111,8 @@ internal class KSLExportStore(
 
     private fun validate(owner: String, key: String) {
         require(owner.isNotBlank()) { "Export owner must not be blank" }
+        require(owner.length <= MAX_OWNER_LENGTH) { "Export owner is too long (max $MAX_OWNER_LENGTH characters)" }
         require(key.isNotBlank()) { "Export key must not be blank" }
+        require(key.length <= MAX_KEY_LENGTH) { "Export key is too long (max $MAX_KEY_LENGTH characters)" }
     }
 }
