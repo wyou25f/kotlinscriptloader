@@ -1,909 +1,103 @@
 # KotlinScriptLoader (KSL)
 
-Приватный hot-reload загрузчик `.kts` скриптов для Paper 1.21.1 / Java 21.
+KotlinScriptLoader is a Kotlin scripting plugin for **Paper 1.21.1** and **Java 21**. It lets server owners build server-side features in Kotlin `.kts` files, reload scripts without restarting the server, and extend KSL through a public API and addons.
 
-## Документация
+## Highlights
 
-Полная документация находится в каталоге [docs/](docs/README.md).
+- Kotlin-based `.kts` scripts with a Bukkit/Paper-oriented DSL.
+- Background script compilation and reload workflows designed to keep expensive compiler work off the server's main thread.
+- Managed script lifecycle: KSL tracks and cleans up listeners, tasks, commands, placeholders, GUI sessions, and other owned resources.
+- Built-in APIs for configuration, databases, scheduling, text, inventory, entities, effects, and more.
+- Addon and library extension points, plus optional integrations with other server plugins.
+- Structured error codes, diagnostics, watchdog reports, and runtime tools.
+- Server messages in Russian and English, with support for custom YAML locales.
 
-- [Быстрый старт и первый скрипт](docs/Getting-Started.md)
-- [Полный справочник Script DSL](docs/Script-DSL-Reference.md)
-- [Практические рецепты](docs/Cookbook.md)
-- [Обзор возможностей и архитектуры](docs/KSL-Encyclopedia.md)
-- [YAML, TOML и JSON](docs/Data-Formats.md)
-- [Производительность и масштабирование](docs/Performance-and-Scaling.md)
-- [Эксплуатация production-сервера](docs/Production-Operations.md)
-- [Standard Library](docs/Standard-Library-Architecture.md)
-- [Public API для аддонов](docs/Public-API.md)
-- [Разработка аддонов](docs/Addon-Development-Guide.md)
-- [Жизненный цикл скриптов и hot-reload](docs/Script-Lifecycle-and-Resources.md)
-- [Базы данных](docs/Database-Guide.md)
-- [Импорты и библиотеки](docs/Packages-and-Imports.md)
-- [Создание собственных библиотек и MesLib2](docs/Custom-Standard-Library.md)
-- [Диагностика](docs/Troubleshooting.md)
-- [Диагностика сборки, PowerShell-инструменты и HTML-отчёт](docs/Build-Diagnostics.md)
-- **[Работа с ИИ: как передать нейросети контекст KSL](docs/AI-ASSISTANT-GUIDE.md)**
+## Requirements
 
-Если ИИ помогает писать код, попроси его сначала прочитать AGENTS.md и docs/AI-ASSISTANT-GUIDE.md, а затем сверить API с исходниками текущей ветки.
+- Paper 1.21.1
+- Java 21
+- PowerShell 7+ for the repository's build scripts
 
-## Ошибки и сообщения из скриптов
+## Installation
 
-В `.kts` эти функции доступны напрямую через контекст скрипта:
+1. Install Java 21 and Paper 1.21.1.
+2. Place the KSL plugin JAR in the server's `plugins/` directory.
+3. Start the server once. KSL creates its data directory, configuration, locale files, and script directory.
+4. Add `.kts` files to `plugins/KotlinScriptLoader/scripts/`.
+5. Run `/ksl reload` to load the scripts.
+
+Download JAR files only from a trusted release or the repository's GitHub Actions artifacts.
+
+## First script
+
+Create `plugins/KotlinScriptLoader/scripts/hello.kts`:
 
 ```kotlin
-warn("Необязательная настройка не найдена") // WARNING, выполнение продолжается
-
-if (!databaseReady) {
-    error("База данных недоступна") // ERROR, прекращает текущую операцию
-}
-
-if (requiredModuleMissing) {
-    fatal("Не найден обязательный модуль") // FATAL, выгружает этот скрипт
+onEvent<PlayerJoinEvent> {
+    player.sendRichMessage("<green>Welcome, <white>${player.name}</white>!</green>")
 }
 ```
 
-- `warn(message)` — записывает предупреждение и продолжает выполнение.
-- `error(message)` — записывает ошибку и прерывает текущую операцию (top-level загрузку, обработчик события или задачу). Остальные скрипты и сервер продолжают работать.
-- `fatal(message)` — записывает FATAL и выгружает ресурсы этого скрипта: задачи, обработчики событий, команды и плейсхолдеры. Сервер и другие скрипты не останавливаются.
+Save the file and run `/ksl reload`. See the [Getting Started guide](docs/Getting-Started.md) for a full walkthrough.
 
-В обычном Kotlin-файле (.kt), которому передан `BukkitScriptContext`, методы доступны как `context.warn(...)`, `context.error(...)` и `context.fatal(...)`.
+## Common commands
 
+| Command | Purpose |
+|---|---|
+| `/ksl reload` | Reload all scripts |
+| `/ksl reload <script-id>` | Reload one script |
+| `/ksl reload changed` | Reload changed scripts |
+| `/ksl validate` | Validate scripts without loading them |
+| `/ksl doctor` | Run system diagnostics |
+| `/ksl errors` | Show recent errors |
+| `/ksl error <code>` | Explain an error code |
+| `/ksl language` | Show or change the server message language |
+| `/ksl runtime` | Inspect runtime resources and worker settings |
 
-## Сборка
+Most administrative commands require the `ksl.admin` permission.
 
-Требуются JDK 21 и PowerShell 7+:
+## Localization
+
+KSL includes Russian (`ru`) and English (`en`) messages. Set `language: ru` or `language: en` in `config.yml`, or change it at runtime with `/ksl language <ru|en|custom>`.
+
+To add another language, copy `locale/template.yml` to a file such as `locale/de.yml`, translate the values, then run `/ksl language de`. See [Localization](docs/Localization.md) for the complete format and fallback rules.
+
+## Documentation
+
+The full English documentation is in [docs/README.md](docs/README.md).
+
+| Topic | Guide |
+|---|---|
+| Installation and first script | [Getting Started](docs/Getting-Started.md) |
+| Script DSL | [Script DSL Reference](docs/Script-DSL-Reference.md) |
+| Practical examples | [Cookbook](docs/Cookbook.md) |
+| Architecture and features | [KSL Encyclopedia](docs/KSL-Encyclopedia.md) |
+| Public API and addon development | [Public API](docs/Public-API.md) · [Addon Development](docs/Addon-Development-Guide.md) |
+| Standard library | [Standard Library Architecture](docs/Standard-Library-Architecture.md) |
+| Databases and data formats | [Database Guide](docs/Database-Guide.md) · [Data Formats](docs/Data-Formats.md) |
+| Runtime, performance, and production | [Runtime API](docs/Runtime-API.md) · [Performance and Scaling](docs/Performance-and-Scaling.md) · [Production Operations](docs/Production-Operations.md) |
+| Security | [Security and Sandbox](docs/Security-and-Sandbox.md) |
+| Errors and troubleshooting | [Error Codes](docs/Error-Codes.md) · [Troubleshooting](docs/Troubleshooting.md) |
+| Localization | [Localization](docs/Localization.md) |
+| Build and CI | [Build Diagnostics](docs/Build-Diagnostics.md) |
+
+## Build and test
+
+The repository uses JDK 21 and PowerShell 7+:
 
 ```powershell
 ./build.ps1 -Task Build
+./build.ps1 -Task Test
 ```
 
-Для диагностики окружения: `./build.ps1 -Task Diagnose`.
-Для отдельного запуска тестов: `./build.ps1 -Task Test`.
-Для проверки готового JAR: `./scripts/Inspect-Jar.ps1`.
+The plugin JAR is written to `build/libs/`. Build logs and diagnostic reports are written to `build-reports/`.
 
-После сборки JAR находится в `build/libs/`. Подробные логи и визуальный HTML-отчёт находятся в `build-reports/`; инструкция — [Диагностика сборки](docs/Build-Diagnostics.md).
+## Security model
 
-## Структура после первого запуска
+KSL scripts execute inside the Minecraft server process. The sandbox can block selected JVM capabilities and catch dangerous mistakes, but it is **not** process isolation and is not a complete security boundary. Only trusted people should be allowed to write to the `scripts/` directory or use `ksl.admin`.
 
-```
-plugins/KotlinScriptLoader/
-  ksl.db              SQLite база (HikariCP)
-  scripts/
-    test.kts
-    test.yml
-```
+Bukkit/Paper APIs are not automatically thread-safe. Follow the API's thread requirements; most world, player, entity, and inventory changes must run on the server's main thread.
 
-Скрипты из `examples/` — это пример, их нужно скопировать в `plugins/KotlinScriptLoader/scripts/` вручную.
+## Contributing
 
-## DSL внутри .kts
-
-`BukkitScriptContext` — implicit receiver скрипта (через `kotlin-scripting-jvm-host`,
-не через JSR223 bindings), поэтому всё ниже доступно прямо по имени, без префиксов и импортов:
-
-- `plugin` — экземпляр `JavaPlugin`, только для доверенных скриптов; sandboxed-скрипт получает `SecurityException` при чтении
-- `config` / `saveConfig()` — `имя_скрипта.yml`, лениво
-- `editConfig { ... }` — потокобезопасное изменение YAML под общей блокировкой; по умолчанию сохраняет файл после блока (`editConfig(save = false) { ... }` — только изменить в памяти, затем вызвать `saveConfig()` отдельно)
-- `database` — общий `HikariDataSource`, только для доверенных скриптов; sandboxed-скрипту доступны SQL-методы KSL, но не raw pool
-- `onEvent<T> { }` — регистрация ивента
-- `registerCommand(name, aliases) { player, args -> }` — динамическая команда
-- `registerPlaceholder(key) { player -> "..." }` — плейсхолдер `%ksl_key%` для PlaceholderAPI
-- `luckPermsGroup/Prefix/Suffix(player)`, `hasGroup(player, name)` — LuckPerms (мягкая зависимость)
-- `balance(player)`, `setBalance(player, amount)`, `isAfk(player)` — EssentialsX (мягкая зависимость)
-- `runAsync { }` / `runSync { }` — таскшедулер
-- `runtimeScope.cache/lru(...)`, `runtimeScope.profile(...)` — управляемые кэши и профилировщики с очисткой при reload
-- `own(resource)` / `onUnload { ... }` — подключение собственных ресурсов к очистке скрипта
-- `onlinePlayers()`, `onlineCount`, `maxPlayers` — снимок списка игроков и текущие лимиты сервера
-- `findPlayer(nameOrUuid)` — поиск онлайн-игрока по точному нику без учёта регистра или UUID
-- `CommandSender.sendRichMessage(text)` — MiniMessage для игрока, консоли и других отправителей
-- `hasPermissionAny(...)` / `hasPermissionAll(...)` — проверка нескольких permission nodes
-
-Плюс `defaultImports` покрывает практически весь нужный Bukkit API: `entity.*`,
-весь `event.*` с под-пакетами (player/block/entity/inventory/world/server/weather/
-vehicle/hanging), `inventory.*`, `block.*`, `boss.*`, `attribute.*`, `enchantments.*`,
-`metadata.*`, `persistence.*`, `permissions.*`, `advancement.*`, `scheduler.*`,
-`potion.*`, `util.*`, `configuration.file.*`, плюс `java.time.*` / `java.util.concurrent.*` /
-`UUID` — большинству скриптов вообще не нужны ручные `import`.
-
-(`java.util.*` целиком намеренно НЕ добавлен — `List`/`Map`/`Set` из него конфликтуют
-с `kotlin.collections.*`, который у Kotlin всегда подключён неявно, и компиляция
-скрипта будет падать на "ambiguous import".)
-
-## Совместимые короткие вызовы SQL и таймера
-
-В дополнение к `dbExecute` / `dbQuery` доступны `execute` / `query`, а для SQL из YAML — `executeYaml` / `queryYaml`. Внутри `query { }` можно напрямую вызывать JDBC-методы `next()`, `getLong(...)`, `getString(...)`; callback выполняется в фоне, Bukkit-действия переноси в `runSync { }`.
-
-Для периодических задач поддерживаются оба написания: `every(ticks = 1200L) { ... }` (основное) и `every(period = 1200L) { ... }` (совместимый алиас).
-
-## /ksl reload
-
-Снимает все listener'ы (`HandlerList.unregisterAll`), плейсхолдеры и команды скриптов,
-затем заново сканирует `scripts/`. Один сломанный скрипт не валит остальные —
-`ScriptRunner.loadScript` ловит исключение целиком и просто считается "с ошибкой"
-в итоговой статистике. `unloadAllScripts()` сам по себе никогда не кидает исключение
-наружу (см. пункт 2 ниже) — это касается и `/ksl reload`, и `onDisable` при рестарте сервера.
-
-## Старт/стоп
-
-`onEnable` печатает баннер со статусом (БД, число загруженных/сломанных скриптов,
-PlaceholderAPI/LuckPerms/EssentialsX) — зелёным и жирным, с переходом в жёлтый/красный
-на конкретной строке, если там что-то не так. `onDisable` оборачивает выгрузку скриптов
-и закрытие БД в `runCatching`, чтобы ошибка на одном из шагов не валила весь
-disable-конвейер.
-
-## Диагностика Paper Watchdog
-
-KSL следит за heartbeat главного потока сервера отдельным daemon-потоком. Если тики не продвигаются
-дольше `diagnostics.watchdog.threshold-seconds` (по умолчанию 5 секунд), KSL сохраняет дамп
-в `plugins/KotlinScriptLoader/dumps/` до стандартного таймаута Paper Watchdog.
-
-Дамп содержит время и длительность остановки, состояние и стек главного потока, стеки остальных
-JVM-потоков, версию Java/KSL и активную операцию KSL (например, выполнение скрипта или его задачи),
-если она была зарегистрирована в момент задержки. Хранятся последние 10 дампов.
-
-Настройки в `config.yml`:
-```yaml
-diagnostics:
-  watchdog:
-    enabled: true
-    threshold-seconds: 5
-    poll-interval-ms: 500
-    max-dumps: 10
-```
-
-Это ранняя диагностика зависания, а не перехват события Paper Watchdog: она не отключает и не
-подавляет watchdog и сама по себе не устраняет причину. Сравни стек `Server thread` с активной
-операцией KSL; если в стеке другой плагин, причина может быть вне KSL.
-
-## PlaceholderAPI / LuckPerms / EssentialsX
-
-Все три — софт-зависимости (`softdepend` в plugin.yml). Если плагин не установлен —
-соответствующие DSL-методы просто пишут warning / возвращают null/false, без падений.
-Классы-обёртки (`KSLPlaceholderExpansion`, `KSLLuckPermsHook`, `KSLEssentialsHook`)
-ссылаются на классы сторонних плагинов, поэтому создаются только ПОСЛЕ проверки
-`getPlugin(...) != null`, иначе JVM попытается загрузить несуществующий класс при старте.
-
-`hasGroup`/`luckPermsGroup` сравнивают именно primary group, не полное дерево
-наследования прав — для большинства скриптов это и есть "в какой группе игрок".
-
-## Миграции БД
-
-`Migrations.kt` — версии хранятся в `PRAGMA user_version` самого SQLite-файла, без
-отдельной таблицы. Каждый шаг — лямбда в списке `steps`; новые добавляются строго
-в конец, старые никогда не трогаются (иначе версия "проскочит" уже применённый шаг
-на действующих базах).
-
-## Миграции YAML-конфигурации
-
-Для версионирования YAML используй `migrateConfig`. Номер текущей версии хранится
-в самом файле (по умолчанию `ksl.config-version`):
-
-```kotlin
-val version = migrateConfig(
-    targetVersion = 2,
-    migrations = mapOf(
-        1 to {
-            if (!contains("homes.limit")) set("homes.limit", 3)
-        },
-        2 to {
-            if (contains("homes.max") && !contains("homes.limit")) {
-                set("homes.limit", getInt("homes.max", 3))
-            }
-            set("homes.max", null)
-            if (!contains("homes.cooldown")) set("homes.cooldown", 60)
-        }
-    )
-)
-```
-
-Шаги выполняются строго по порядку: от сохранённой версии + 1 до `targetVersion`.
-Для каждого номера должен существовать шаг; пропуски отклоняются до начала изменений.
-Если конфиг уже новее версии скрипта, KSL откажется понижать его автоматически.
-
-Все шаги выполняются над временной копией YAML. Если лямбда падает, исходный конфиг
-не перезаписывается. После успеха KSL атомарно записывает результат и обновляет
-объект `config` в памяти. При ошибке записи живой объект также не обновляется.
-Функция возвращает итоговую версию; путь хранения версии можно изменить через
-`versionPath`. После публикации не переписывай старые миграции — добавляй новые номера.
-
-## Схема и проверка YAML
-
-Можно описать ожидаемые типы, значения по умолчанию и числовые границы прямо в `.kts`:
-
-```kotlin
-val issues = validateConfig {
-    string("messages.prefix", default = "&7[Server]")
-    int("homes.limit", default = 3, min = 1, max = 20)
-    bool("features.economy", default = true)
-    strings("worlds.allowed", default = listOf("world"))
-}
-
-issues.forEach { issue ->
-    logger.warning("Config '${issue.path}': ${issue.message}")
-}
-```
-
-По умолчанию отсутствующие и некорректные значения заменяются значениями из схемы и сохраняются в YAML. Передай `applyDefaults = false`, чтобы только получить список проблем без изменения файла. Диапазоны проверяются, но значения не подрезаются автоматически.
-
-## SQL-запросы из YAML
-
-Для скрипта `money.kts` файл запросов называется `money.yml` и лежит в корне `plugins/KotlinScriptLoader/`, **рядом с папкой `scripts/`, а не внутри неё**:
-
-```text
-plugins/KotlinScriptLoader/
-├── money.yml
-└── scripts/
-    └── money.kts
-```
-
-### Кэш SQL-запросов и обновление YAML без перезапуска
-
-Запросы из `database.queries` кэшируются при первом обращении к `dbExecuteYaml` или `dbQueryYaml`. Чтобы перечитать изменённый файл с диска и сразу обновить кэш:
-
-```kotlin
-val count = reloadScriptConfig()
-plugin.logger.info("Reloaded $count SQL queries")
-```
-
-Если YAML менялся из самого скрипта через `editConfig`, обнови только кэш:
-
-```kotlin
-editConfig {
-    set("database.queries.find-homes", "SELECT name FROM homes WHERE uuid = ?")
-}
-reloadYamlSqlQueries()
-```
-
-Обновление кэша атомарное: уже запущенные DB-задачи продолжают использовать полученную SQL-строку, новые — свежую. Если файл содержит некорректный YAML, `reloadScriptConfig()` выбросит ошибку и не заменит текущую конфигурацию или кэш.
-
-
-Храни именованные SQL-запросы в конфиге скрипта, а параметры передавай отдельно:
-
-```yaml
-database:
-  queries:
-    create-home: "INSERT INTO homes (uuid, name) VALUES (?, ?)"
-    find-homes: "SELECT name FROM homes WHERE uuid = ?"
-```
-
-```kotlin
-dbExecuteYaml("database.queries.create-home", player.uniqueId.toString(), "base")
-dbQueryYaml("database.queries.find-homes", player.uniqueId.toString()) { rs ->
-    while (rs.next()) player.sendMessage(rs.getString("name"))
-}
-```
-
-Это использует существующий пул KSL и prepared statements: значения `?` передаются отдельно, не склеивай пользовательский ввод с SQL-строкой. Сам запрос хранится в YAML, а не выполняется YAML-парсером. Пароли и другие секреты в YAML не размещай.
-
-## Важные нюансы
-
-1. **Главный баг, из-за которого скрипты не видели импорты вообще ничего**:
-   `dependenciesFromCurrentContext()` берёт classpath из `Thread.currentThread().contextClassLoader`.
-   В Bukkit/Paper на потоке, которым дёрнули `/ksl reload` (консоль, команда), это
-   почти никогда не classloader плагина — поэтому компилятор скрипта не видел даже
-   собственные классы плагина, не то что Bukkit API. Исправлено: и компиляция
-   (`dependenciesFromClassloader(classLoader = ..., wholeClasspath = true)`), и evaluation
-   (`jvm { baseClassLoader(pluginClassLoader) }`) теперь явно привязаны к classloader'у
-   плагина, а не к состоянию текущего потока.
-
-2. **UnsupportedOperationException: remove** — на твоей сборке Purpur даже публичный
-   `Bukkit.getCommandMap().getKnownCommands()` отдаёт что-то, на чём `iterator.remove()`
-   падает. Теперь двухступенчатый фоллбэк: сначала пробуем без reflection через
-   публичный геттер, если это падает именно на удалении — откатываемся на reflection
-   к приватному полю `knownCommands` внутри `SimpleCommandMap` (это обходит любую
-   defensive-обёртку, которую конкретный форк мог повесить на геттер). Если и это
-   не сработало — не падаем, просто warning в лог: старые команды доживут до рестарта,
-   но `/ksl reload` всё равно зарегистрирует актуальные версии поверх них.
-
-3. **Конфликт команд**: `commandMap.register(prefix, command)` молча уходит в форму
-   `prefix:label`, если bare-команда с таким именем уже занята другим плагином — раньше
-   это выглядело как "скрипт загрузился", а команда просто не работала. Теперь после
-   регистрации `trackCommand` проверяет, действительно ли `/label` указывает на нашу
-   команду, и если нет — пишет explicit warning с именем конфликтующего скрипта.
-
-4. **Shadow 9.4.2** требует Gradle 9.1+ у тебя в проекте (не только версия плагина —
-   сам `gradle/wrapper/gradle-wrapper.properties` тоже должен быть на 9.1+, иначе
-   плагин просто не применится). Если wrapper трогать не хочешь — рабочая альтернатива
-   без смены ветки: `com.gradleup.shadow` версия `8.3.11` (последняя в 8.x, тоже
-   совместима с Gradle 9, но не требует ровно 9.1+).
-
-5. **Relocation**: `kotlin.*` / `org.jetbrains.kotlin.*` не релоцированы — динамически
-   скомпилированный скрипт линкуется против stdlib по оригинальным именам классов,
-   relocate их сломает компиляцию `.kts` в рантайме. SQLite-драйвер тоже не релоцирован
-   (меньше риска от relocate строковых литералов вроде `driverClassName = "org.sqlite.JDBC"`).
-   Hikari релоцировать безопасно — там нет built-in строковых ссылок на свой пакет.
-
-6. Внутренние коллекции (`listenersByScript`, `commandsByScript`, `placeholdersByScript`,
-   `placeholders`) теперь на `ConcurrentHashMap`, а не на обычных `HashMap` — PAPI
-   может дёргать `placeholders` с произвольного потока (скорборды/таблисты часто
-   обновляются асинхронно), и читать его одновременно с `/ksl reload`, пишущим в ту же
-   карту с основного потока, без этого было небезопасно.
-
-7. Зависимость `kotlin-scripting-jsr223` в графе зависимостей не используется
-   (пайплайн целиком на `BasicJvmScriptingHost`), но не мешает — оставлена для
-   полноты набора scripting-модулей.
-
-8. Версии PlaceholderAPI (`2.11.6`), LuckPerms (`5.5`) и EssentialsX (`2.21.2`),
-   а также их сигнатуры (`onRequest(OfflinePlayer, String)`, `User.getPrimaryGroup()`,
-   `User.getMoney()/setMoney()`, `User.isAfk()`) не прогнаны через реальный компилятор
-   в этой песочнице — нет доступа к `repo.extendedclip.com` / `repo.essentialsx.net`.
-   Если у тебя другие мажорные версии — сверь сигнатуры с офиц. вики этих плагинов.
-
-Собрать и реально прогнать через `gradle build` здесь не вышло — нет доступа к
-внешним maven-репозиториям из контейнера. Синтаксис не прогнан через настоящий
-компилятор, проверь сборку локально перед деплоем.
-
-## 1.1.0 — межскриптовые библиотеки
-
-`export(key, value)` / `library<T>(key)` / `requireLibrary<T>(key)` — один `.kts`
-может явно отдавать данные/функции, другой их забирать, без прямой зависимости
-через аддон-плагин.
-
-```kotlin
-// kd.kts
-fun damageFor(weapon: Material): Double = ...
-export("kd", mapOf("damageFor" to ::damageFor))
-```
-
-```kotlin
-// pvp.kts
-// @requires: kd
-val kdLib = library<Map<String, Any?>>("kd") ?: error("kd.kts не загружен")
-val damageFor = kdLib["damageFor"] as (Material) -> Double
-```
-
-**Важное ограничение, о котором стоит знать сразу**: каждый `.kts` компилируется
-полностью независимо от остальных (отдельный вызов `host.eval` со своей
-`ScriptCompilationConfiguration`). Это значит, что кастомный класс, объявленный
-прямо внутри одного скрипта (`class KdApi { ... }`), физически не существует как
-именуемый тип для другого скрипта — Kotlin-компилятор второго скрипта просто не
-может написать `library<KdApi>(...)`, потому что такого типа в его classpath нет
-и появиться не может (скрипты компилируются по одному, не как единый проект).
-
-Поэтому `export`/`library` рассчитаны на типы, которые **уже видны на classpath
-независимо от скриптов** — то есть:
-- обычные функции через ссылку (`::damageFor`), тип которых — стандартный
-  `Function1<Material, Double>` из Kotlin stdlib;
-- `Map<String, Any?>` как контейнер для нескольких значений/функций сразу
-  (сам `Map` — тоже stdlib-тип, а к содержимому обращаешься через `as`);
-- любые Bukkit/Paper/Java-типы (`Player`, `ItemStack`, `Int`, `String` и т.д.);
-- типы из аддон-плагинов (`service<CoinService>("coins")`) — они компилируются
-  как обычный jar и видны всем скриптам одинаково, в отличие от классов внутри `.kts`.
-
-Если нужен полноценный API с несколькими методами и состоянием — оформи его как
-обычный Kotlin-класс в аддон-плагине (см. `docs/Addon-Development-Guide.md`) и
-отдай через `service<T>()`, а не пытайся объявлять класс прямо в `.kts`.
-
-**Порядок загрузки**: раньше `loadAllScripts()` просто шёл по `listFiles()` в
-порядке файловой системы (не гарантирован). Теперь `KSLScriptOrder` сканирует
-первые 20 строк каждого `.kts` на директиву `// @requires: name1, name2` и
-топологически сортирует список перед загрузкой — так `kd.kts` гарантированно
-загрузится раньше `pvp.kts`, если тот объявил `@requires: kd`. Отсутствующая
-зависимость или циклическая ссылка не роняют загрузку — только warning в лог
-и откат к исходному порядку для затронутых скриптов.
-
-Все `export`-ы конкретного скрипта автоматически снимаются при его выгрузке
-(`/ksl reload` или ошибка компиляции) — так же, как listener'ы, команды и GUI,
-чтобы другой скрипт не держал ссылку на «протухшую» библиотеку молча.
-
-## WorldEdit / WorldGuard
-
-Обе — софт-зависимости (`softdepend` в plugin.yml), как и остальные интеграции.
-Хуки (`KSLWorldEditHook`, `KSLWorldGuardHook`) полностью защищены через
-`KSLErrors.hookSafe` — сбой в самом WorldEdit/WorldGuard (например, несовместимая
-версия) даёт `null`/`false`/`emptyList()` в скрипте, а не падение.
-
-**WorldEdit** — доступ к текущему выделению игрока (`//pos1`, `//pos2`):
-```kotlin
-val volume = weSelectionVolume(player)          // Long? — объём выделения в блоках
-val (min, max) = weSelection(player) ?: return  // Pair<Location, Location>
-val changed = weFillSelection(player, Material.STONE)  // Int? — залить выделение материалом
-```
-
-**WorldGuard** — регионы и флаги в точке:
-```kotlin
-val regions = wgRegionsAt(player.location)          // List<String> — id всех регионов тут
-val canBuild = wgCanBuild(player, player.location)   // Boolean — стандартный флаг BUILD
-val canPvp = wgCanPvp(player, player.location)       // Boolean — стандартный флаг PVP
-val greeting = wgFlag(player.location, "greeting")   // String? — ЛЮБОЙ флаг по имени, включая кастомные от других плагинов
-```
-
-`wgFlag` — сознательно универсальный: ищет флаг по строковому имени через
-`WorldGuard.getInstance().flagRegistry`, а не через захардкоженный список
-констант. Значит работает не только со стандартными `build`/`pvp`/`greeting`,
-но и с любым кастомным флагом, который зарегистрировал сторонний плагин —
-для этого достаточно знать его имя, отдельный код под каждый флаг не нужен.
-
-`wgCanBuild`/`wgCanPvp` возвращают `true`, если WorldGuard не установлен —
-это соответствует поведению "нет защиты — нет ограничений", а не наоборот.
-
-**Важная оговорка по сборке**: `worldedit-bukkit` и `worldguard-bukkit` — как и
-`VaultAPI` раньше — тянут в POM транзитивную зависимость на старый
-`org.bukkit:bukkit`, поэтому `exclude(group = "org.bukkit", module = "bukkit")`
-уже стоит на обеих зависимостях в `build.gradle.kts` по аналогии с фиксом Vault.
-Кроме того, `worldguard-bukkit` сам транзитивно тянет `worldedit-bukkit` —
-если Gradle всё же пожалуется на конфликт версий между явно указанной
-`worldedit-bukkit:7.2.15` и тем, что просит WorldGuard, подними/опусти версию
-WorldEdit до той, что действительно требует установленный у тебя WorldGuard
-(смотри `worldguard-bukkit-VERSION.pom` в `https://maven.enginehub.org/repo/`).
-Версии в `build.gradle.kts` (`7.2.15` / `7.0.9`) не прогнаны через реальный
-`gradle build` в этой песочнице — сверь с версией, которая реально стоит на
-твоём сервере, перед деплоем.
-
-## Реальные тесты чистой логики
-
-Три модуля (`KSLPersistCodec`, `KSLCooldownStore`, `KSLScriptOrder`) не зависят
-от Bukkit/Paper вообще — только `java.*`/`kotlin.*`. Это значит их можно
-скомпилировать и прогнать без всего плагина, без сети, без Gradle:
-
-```bash
-kotlinc src/main/kotlin/ru/privateserver/ksl/KSLPersistCodec.kt \
-        src/main/kotlin/ru/privateserver/ksl/KSLCooldownStore.kt \
-        src/main/kotlin/ru/privateserver/ksl/KSLScriptOrder.kt \
-        src/test/kotlin/ru/privateserver/ksl/PureLogicSelfTest.kt \
-        -include-runtime -d pure-logic-test.jar
-java -jar pure-logic-test.jar
-```
-
-Прогнано прямо при разработке (28 проверок, все зелёные): кодирование/декодирование
-всех поддерживаемых типов `persist`, кулдауны, топологическая сортировка `@requires`
-(простая цепочка, независимые скрипты, циклическая зависимость, отсутствующая
-зависимость, порядок в списке файлов). Если после правок в одном из этих трёх
-файлов тест краснеет — это баг в самой логике, а не в Bukkit-интеграции, что
-сильно сужает, где искать проблему.
-
-## /ksl doctor
-
-Новая команда — не просто печатает статус из памяти, а реально прогоняет
-тривиальный скрипт (`6 * 7`) через тот же `ScriptRunner`/`BasicJvmScriptingHost`,
-которым грузятся настоящие `.kts`, и проверяет, что результат — `42`. Если
-compiler/classloader/JVM target где-то разъехались — `doctor` покажет это
-явно, а не тихо промолчит до первого реального скрипта. Дополнительно
-проверяет: живое ли соединение с БД, доступна ли `scripts/` для записи,
-зарегистрирована ли команда `/ksl` в `commandMap`, статус каждой софт-интеграции
-(отдельно отличает "не установлен" от "установлен, но хук не поднялся"),
-и сколько ошибок скриптов накопилось с последнего старта.
-
-## Найденные и исправленные баги
-
-1. **`validateAllScripts()`, `verifyTrackedCommands()`, `checkDatabaseTables()`
-   были полностью мёртвым кодом** — реализованы, но нигде не вызывались, ни из
-   одной команды. Подключил: первые два — в `/ksl doctor` (проверка таблиц БД
-   отдельно от общей проверки соединения, и список команд, перехваченных
-   другими плагинами), третий — в новую команду `/ksl validate`.
-
-2. **`/ksl validate` — новая команда**: компилирует все `.kts` без их запуска
-   (dry-run через `JvmScriptCompiler`, а не полноценный `eval`). Не трогает БД,
-   не регистрирует команды/listener'ы — можно проверить, что скрипты после
-   правки хотя бы компилируются, прежде чем реально делать `/ksl reload`.
-
-3. **Список sandbox-паттернов был задублирован** между `ScriptRunner` (реальная
-   загрузка) и валидатором скриптов — если бы кто-то добавил новый запрещённый
-   паттерн в одном месте и забыл про другое, `/ksl validate` показывал бы
-   "всё чисто" для скрипта, который реальная загрузка потом бы отклонила.
-   Вынес правила в `KSLSandboxRules` — единый источник истины для обоих.
-
-4. **`/ksl validate` мог упасть целиком из-за одного проблемного файла** —
-   `ScriptValidator.validate()` не был обёрнут в try-catch; неожиданная ошибка
-   чтения/компиляции одного скрипта уронила бы всю команду. Обернул — теперь
-   такой файл просто помечается "не удалось проверить: ...", остальные
-   проверяются как обычно.
-
-5. **`dbExecute`/`dbQuery` не гарантировали порядок выполнения** — оба
-   запускались через обычный Bukkit async scheduler (`runAsync`), а он
-   исполняет асинхронные таски на пуле потоков без гарантии, что второй
-   вызов начнётся строго после завершения первого. На практике это значит,
-   что `dbExecute("INSERT ...")` сразу за которым идёт `dbQuery("SELECT COUNT...")`
-   мог иногда увидеть базу до применения INSERT. Завёл выделенный
-   однопоточный `dbExecutor` (`Executors.newSingleThreadExecutor`) —
-   все вызовы одного скрипта теперь строго последовательны, как и ожидается
-   от типичного кода вида "записал → сразу прочитал".
-
-6. **`persist(..., persistent = true)` блокировал вызывающий поток на записи**
-   — `player-counter = value` в обработчике команды means синхронный JDBC-запрос
-   прямо на главном потоке сервера. Запись переведена на тот же `dbExecutor`:
-   `memory`-кеш обновляется мгновенно и синхронно (поэтому следующее чтение
-   в том же тике видит новое значение), а сохранение на диск уходит в очередь
-   асинхронно. При остановке сервера `dbExecutor` ждёт до 3 секунд, чтобы
-   уже поставленные в очередь записи гарантированно долетели до БД.
-
-## Точечная перезагрузка одного скрипта
-
-`/ksl reload <имя_без_.kts>` — перезагружает только один файл, не трогая
-остальные. Раньше правка одного скрипта из двадцати означала полный
-`/ksl reload`: закрывались вообще все открытые GUI, отменялись вообще все
-таски, снимались вообще все listener'ы — даже у скриптов, которые никто не
-редактировал. Теперь `unloadAllScripts()` и точечная перезагрузка используют
-один и тот же `unloadScript(scriptName)` — раньше эта логика была размазана
-батчем по всем скриптам сразу, из-за чего точечную выгрузку было бы неоткуда
-взять без дублирования кода. Tab-complete у `/ksl reload` подсказывает имена
-файлов из `scripts/`.
-
-```
-/ksl reload           — все скрипты, как раньше
-/ksl reload kd        — только kd.kts, остальные не тронуты
-```
-
-## Команды, aliases и короткий DSL
-
-Полная форма API остаётся доступной:
-
-```kotlin
-registerCommand("heal", aliases = listOf("h", "restore")) { player, args ->
-    player.health = player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH)?.value ?: 20.0
-}
-```
-
-Для короткой записи есть `cmd` и `cmdAny`:
-
-```kotlin
-cmd("heal", aliases = listOf("h", "restore")) { player, args ->
-    player.health = player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH)?.value ?: 20.0
-}
-
-cmdAny("announce", aliases = listOf("say")) { sender, args ->
-    broadcast(args.joinToString(" "))
-}
-```
-
-События и задачи тоже имеют короткие имена:
-
-```kotlin
-on<org.bukkit.event.player.PlayerJoinEvent> {
-    player.sendMessage("Добро пожаловать!")
-}
-
-sync { /* выполнить на главном потоке */ }
-async { /* фоновая работа; не трогать Bukkit API */ }
-after(20L) { /* один раз через секунду */ }
-repeat(20L) { /* повторять каждую секунду */ }
-```
-
-`cmd` — короткий вариант `registerCommand` (только игроки), `cmdAny` —
-вариант `registerCommandAny` (игроки, консоль и командные блоки).
-`on<T>` соответствует `onEvent<T>`, а `sync`, `async`, `after` и
-`repeat` — `runSync`, `runAsync`, `delay` и `every`. Старые имена
-не удалены и продолжают работать.
-
-Aliases регистрируются без учёта регистра: "Heal" становится `heal`.
-Каждый элемент `aliases` можно указать отдельно или передать группой через
-запятую/пробел: `aliases = listOf("h, healme", "restore quick-heal")`.
-Пробелы по краям удаляются, пустые элементы игнорируются; некорректные,
-повторяющиеся aliases и aliases, совпадающие с именем команды, пропускаются
-с предупреждением в консоли. Допустимы латинские буквы, цифры, точка, дефис
-и подчёркивание. Если alias уже занят другой командой, KSL сообщает об этом
-и показывает namespaced-вариант, если Bukkit его зарегистрировал.
-
-Новые помощники контекста:
-
-```kotlin
-val online = onlinePlayers()
-val count = onlineCount
-val capacity = maxPlayers
-val target = findPlayer(args.firstOrNull() ?: "") // ник или UUID, только онлайн
-
-target?.sendRichMessage("<green>Привет!")
-if (sender.hasPermissionAny("staff.admin", "staff.moderator")) {
-    sender.sendRichMessage("<gold>У тебя есть доступ к staff-командам")
-}
-```
-
-`onlinePlayers()` возвращает список-снимок, а не живую коллекцию Bukkit.
-`findPlayer` ищет точное совпадение ника без учёта регистра или UUID и
-возвращает `null`, если игрок не в сети. `hasPermissionAll` требует все
-переданные права; `hasPermissionAny` — хотя бы одно.
-
-## `registerCommand` — permission и tabComplete
-
-Раньше у команд скрипта не было способа задать проверку прав или своё
-автодополнение — Bukkit просто фоллбэчился на список игроков онлайн. Теперь:
-
-```kotlin
-registerCommand(
-    "skin",
-    permission = "ksl.test.skin",
-    tabComplete = { player, args ->
-        if (args.size == 1) listOf("Notch", "Steve", "Alex").filter { it.startsWith(args[0], true) }
-        else emptyList()
-    }
-) { player, args -> ... }
-```
-
-`permission` проверяется и перед `execute`, и перед `tabComplete` — игрок без
-прав не увидит подсказки автодополнения для команды, которую всё равно не
-может выполнить. Оба новых параметра опциональны с дефолтом `null`, старые
-вызовы `registerCommand("name") { ... }` продолжают работать без изменений.
-Ошибка внутри `tabComplete`-лямбды ловится так же, как и в самой команде —
-не может уронить попытку игрока просто нажать Tab.
-
-## YAML — файлы, секции, типы и сообщения
-
-Для основного файла скрипта доступны `config`, `editConfig { ... }` и
-`saveConfig()`. Для дополнительных YAML-файлов есть симметричный API:
-
-```kotlin
-// Прочитать отдельный файл из scripts/
-val messages = loadYaml("messages.yml")
-
-// Изменить его и сразу атомарно сохранить
-editYaml("messages.yml") {
-    set("welcome", "<green>Привет, @player@!")
-    set("limits.max-homes", 5)
-}
-
-// Сохранить позже, если нужно собрать несколько изменений в памяти
-val settings = loadYaml("settings.yml")
-settings.set("spawn.world", "world")
-saveYaml("settings.yml", settings)
-```
-
-`editYaml(fileName, save = true) { ... }` загружает YAML, передаёт его в
-receiver-лямбду и возвращает изменённый объект. При `save = true` изменения
-сразу записываются атомарно. `saveYaml(fileName, yaml)` сохраняет объект,
-полученный через `loadYaml` или созданный самостоятельно. Пути, как и в
-`loadYaml`, ограничены каталогом `scripts/`.
-
-У YAML есть дополнительные короткие помощники:
-
-```kotlin
-val maxHomes = config.int("limits.max-homes", 3)
-val title = config.string("menu.title", "Меню")
-val enabled = config.bool("feature.enabled", true)
-val lore = config.strings("menu.lore")
-
-config.setIfAbsent("feature.enabled", true) // true, если ключ добавлен
-val prefix = config.getOrDefault("chat.prefix", "&7") // не меняет файл
-
-config.section("messages") {
-    set("success", "<green>Готово!")
-    set("error", "<red>Ошибка")
-}
-```
-
-Доступны `string`, `int`, `long`, `double`, `bool`, `strings`,
-`getOrDefault`, `setIfAbsent` и `section(path) { ... }`.
-`getOrSetDefault(path, default)` по-прежнему добавляет отсутствующий ключ;
-для основного `config` он сохраняет его автоматически, а для отдельного
-файла используйте `editYaml` или явный `saveYaml`.
-
-Сообщения из YAML поддерживают `@placeholder@` и MiniMessage:
-
-```kotlin
-broadcast(config.message("welcome", "player" to player.name, "rank" to rank))
-player.sendRichMessage(config.richMessage("messages.join", player))
-```
-
-- `message(path, ...)` — строка с заменой `@key@` и цветами `&`.
-- `messageList(path, ...)` — список строк.
-- `richMessage(path, ...)` — MiniMessage `Component`.
-- Перегрузки с `Player` заполняют `@player@`, `@world@`, `@online@`,
-  `@maxplayers@`, `@health@`, `@ping@`; PlaceholderAPI тоже поддерживается.
-
-## DB — общая key-value таблица между скриптами (`table()`)
-
-`persist()` — состояние ОДНОГО скрипта. `table()` — общая таблица, которую
-может читать и писать любой скрипт, если оба обратились к одному имени, и
-она переживает не только `/ksl reload`, но и полный рестарт сервера (SQLite,
-таблица `ksl_table`).
-
-```kotlin
-val kills = table("player_stats")
-
-kills.set(player.uniqueId.toString(), "kills", 5)
-val count = kills.getInt(player.uniqueId.toString(), "kills", default = 0)
-val total = kills.increment(player.uniqueId.toString(), "kills")
-kills.delete(player.uniqueId.toString(), "kills")   // удалить одно значение
-kills.delete(player.uniqueId.toString())            // удалить всю строку
-val allColumns = kills.row(player.uniqueId.toString())  // Map<String, Any?>
-```
-
-Поддерживаемые типы значений — те же, что и у `persist`: `String`, `Int`,
-`Long`, `Double`, `Boolean`, `null` (переиспользует уже протестированный
-`KSLPersistCodec`, а не отдельную копию логики кодирования).
-
-`set`/`delete` асинхронны и идут через тот же `dbExecutor` (см. раздел про
-`dbExecute`/`dbQuery` выше) — гарантированный порядок операций для одной
-таблицы. Чтения (`get*`, `row`) синхронны — единичный `SELECT` по индексу
-достаточно быстрый, чтобы не городить асинхронщину там, где скрипту нужен
-результат сразу. `increment` — особый случай: чтобы вернуть новое значение
-сразу (а не заставлять скрипт делать `increment` + отдельный `get`), он тоже
-идёт через `dbExecutor`, но синхронно дожидается результата — за счёт этого
-конкурентные `increment` от разных скриптов/потоков не гонятся друг с другом
-и не теряют инкременты (весь read-modify-write происходит на одном потоке).
-
-## Расширенные `@placeholder@`
-
-### Авто-плейсхолдеры от игрока
-
-`message`/`messageList`/`richMessage` получили перегрузку, принимающую `Player`
-вторым аргументом — она сама заполняет самые частые плейсхолдеры, не заставляя
-передавать их вручную в каждом вызове:
-
-```kotlin
-broadcast(config.message("welcome", player, "rank" to rank))
-```
-
-Автоматически доступны: `@player@`, `@world@`, `@online@`, `@maxplayers@`,
-`@health@`, `@ping@`. Свои плейсхолдеры (как `rank` выше) добавляются той же
-vararg-парой, что и раньше — обе формы комбинируются в одном вызове.
-
-### Прозрачная интеграция с PlaceholderAPI
-
-Если передан `Player` и PlaceholderAPI установлен — после подстановки `@..@`
-текст ещё и прогоняется через `PlaceholderAPI.setPlaceholders(player, text)`.
-Значит в `config.yml` можно писать не только свои `@custom@`, но и любые
-`%luckperms_prefix%`, `%vault_eco_balance%` и что угодно ещё, что понимает
-PAPI — в одной и той же строке одновременно с собственными плейсхолдерами.
-Ссылка на классы PAPI изолирована в отдельном `KSLPapiResolver` (по той же
-схеме, что и остальные хуки Vault/LuckPerms/EssentialsX) — вызывается только
-когда `papiEnabled == true`, поэтому отсутствие PAPI на сервере не мешает
-компиляции/загрузке класса.
-
-### Умное форматирование чисел
-
-`"balance" to 15.0` раньше вставило бы в сообщение буквально `15.0`. Теперь
-`Double` форматируется по-человечески: целые значения без `.0` (`15`, не
-`15.0`), дробные — до двух знаков (`15.5`, не `15.500000000000002`).
-
-### Предупреждение о забытом/опечатанном плейсхолдере
-
-Реальная проблема, которую эта фича ловит сама: если написать в `config.yml`
-`@playr@` вместо `@player@` — раньше сообщение просто отправлялось с буквальным
-текстом `@playr@` внутри, без единого намёка, что что-то не так. Теперь после
-всех подстановок текст сканируется на предмет оставшихся `@..@`-паттернов —
-если что-то не заменилось, в лог уходит явный warning с именем скрипта, путём
-в конфиге и самим незаменённым плейсхолдером. Предупреждение выводится один
-раз на комбинацию (скрипт, путь, плейсхолдер) за сессию — не будет спамить
-консоль при каждом вызове одного и того же `broadcast` в цикле.
-
-## 1.2.0 — движок эффектов (`playEffect`)
-
-```kotlin
-player.location.playEffect(Particle.FLAME) {
-    circle(radius = 2.0, stepDegrees = 15.0)
-    durationTicks = 60L
-    intervalTicks = 2L
-}
-
-player.location.playEffect(Particle.SOUL_FIRE_FLAME) {
-    helix(radius = 1.5, turns = 3.0, height = 3.0)
-    durationTicks = 60L
-}
-
-player.eyeLocation.playEffect(Particle.END_ROD) {
-    lineTo({ target.location }, points = 25)
-    durationTicks = 40L
-}
-
-boss.playEffect(Particle.FLAME, follow = true) {
-    circle(radius = 2.0, stepDegrees = 15.0)
-    durationTicks = 20L * 60 * 5
-}
-```
-
-Вся математика (`sin`/`cos`) живёт в `KSLEffectShapes` — скомпилированном ядре
-плагина, не в `.kts`. Скрипт передаёт только конфигурацию: форму, длительность,
-интервал между кадрами. Анимация крутится через `Bukkit.getScheduler().runTaskTimer`,
-никакого `Thread.sleep` — сервер не подвисает даже если несколько игроков
-активируют эффекты одновременно.
-
-Три формы "из коробки": `circle(radius, stepDegrees)`, `helix(radius, turns, height)`
-(двойная спираль, как ДНК), `lineTo(target: () -> Location, points)` (луч/линия
-до подвижной цели — `target` вызывается каждый тик, так что линия следует за
-целью, если она движется).
-
-`Entity.playEffect(particle, follow = true) { }` — эффект следует за игроком/мобом
-каждый тик вместо фиксированной точки. Follow-эффект автоматически
-останавливается, если сущность, за которой он следует, умерла или стала
-невалидной — не будет крутиться вокруг трупа до конца `durationTicks`.
-
-Таски эффектов регистрируются через тот же `plugin.trackTask`, что и `every()`/
-`delay()` из 1.1.0 — значит `/ksl reload <script>` отменяет их автоматически,
-без единой строчки нового кода для очистки специально под эффекты.
-
-## 1.2.0 — кастомные сущности (`spawnCustomEntity` + `behavior`)
-
-```kotlin
-val boss = spawnCustomEntity(
-    player.location,
-    """TYPE:ZOMBIE NAME:"<red><bold>Огненный Босс</bold></red>" HP:200 AI:TRUE"""
-) {
-    equip("HAND:DIAMOND_SWORD HELMET:NETHERITE_HELMET")
-}
-
-boss.behavior {
-    onTick(period = 20L) { entity ->
-        entity.getNearbyEntities(3.0, 3.0, 3.0)
-            .filterIsInstance<Player>()
-            .forEach { it.damage(2.0, entity) }
-    }
-
-    onDeath { entity, killer ->
-        broadcastMM("<gold>${entity.name} повержен игроком ${killer?.name}!")
-    }
-}
-```
-
-Строковый шаблон парсится через `KSLTemplateParser` — тот же парсер, что и у
-`equip(...)`, не два разных с разной логикой. Поддерживает значения в кавычках
-для текста с пробелами: `NAME:"<red>Big Boss</red>"`. Понимаемые ключи:
-`TYPE` (EntityType), `NAME` (через MiniMessage, автоматически ставит
-`isCustomNameVisible = true`), `HP` (максимальное здоровье + хилит до него),
-`AI` (`setAI(true/false)`), `BABY` (для `Ageable`-мобов). `equip(...)` — свои
-ключи: `HAND`, `OFFHAND`, `HELMET`, `CHESTPLATE`, `LEGGINGS`, `BOOTS`.
-
-**Про `HP` отдельно, потому что тут наступили на реальные грабли.** Первая
-версия ставила максимальное здоровье через `Attribute.GENERIC_MAX_HEALTH`.
-Paper прямо сейчас (на момент написания) активно переименовывает и убирает
-enum-константы `Attribute` в пользу Registry-based доступа —
-`GENERIC_MAX_HEALTH` → `MAX_HEALTH` (начиная примерно с 1.21.3), а на ещё более
-новых сборках не существует уже и `MAX_HEALTH` — `Attribute` там вообще
-перестаёт быть enum'ом со статическими полями. Гоняться за очередным именем
-константы под конкретную версию API — плохая идея на долгий срок. `HP`
-реализован через `Damageable.setMaxHealth(Double)` — да, помечен `@Deprecated`
-в доках Paper, но физически присутствует ещё с очень старых версий Bukkit и
-не подвержен той же прямо сейчас идущей чехарде с переименованиями, в отличие
-от констант `Attribute`.
-
-**Главный капкан таких движков — привязка логики к скрипту при reload — решён
-на двух уровнях:**
-
-1. `onTick` внутри `behavior { }` регистрируется через тот же `plugin.trackTask`,
-   что и таски эффектов и `every()`/`delay()` — отменяется автоматически при
-   `/ksl reload <script>`, без знания о сущностях вообще на уровне общего
-   механизма очистки.
-2. `onDeath` — **не** через `onEvent<EntityDeathEvent>` (это означало бы
-   отдельный глобальный обработчик на каждого заспавненного моба — та же
-   ошибка масштабирования, которую разбирали в разделе про GUI 1.1.0).
-   Вместо этого `KSLEntityManager` — один-единственный `EntityDeathEvent`
-   listener на весь плагин, диспетчеризация по `UUID` сущности через
-   `ConcurrentHashMap`, O(1) независимо от количества мобов в мире.
-
-Владелец записывается прямо в моба через `PersistentDataContainer`
-(`ksl_owner = "boss.kts"`) — не только для внутренней очистки, но и чтобы
-пережить рестарт сервера в виде обычных данных моба. При `/ksl reload boss`
-все мобы этого скрипта автоматически теряют привязанное поведение (`onDeath`
-снимается, `onTick`-таски отменяются) и по умолчанию удаляются из мира —
-это настраивается через `spawnCustomEntity(..., removeOnReload = false)`,
-если моб должен просто "замолчать" (потерять логику), но остаться в мире.
-
-**Ловушка с порядком вызовов, пойманная при проектировании.** `helix()` должен
-знать финальное значение `durationTicks`, чтобы спираль поднялась на всю высоту
-ровно за время жизни эффекта — но `durationTicks = ...` в блоке может быть
-написан ПОСЛЕ вызова `helix(...)`. Форма поэтому не строится сразу внутри
-`circle`/`helix`/`lineTo`, а материализуется один раз в момент запуска эффекта,
-уже после того как весь конфигурационный блок полностью выполнился —
-порядок вызовов внутри `{ }` не имеет значения.
-
-
-## Public API namespace
-
-KSL exposes a stable import namespace for scripts and addon projects:
-
-```kotlin
-import ru.privateserver.ksl.api.*
-
-if (isKslAvailable) {
-    val scripts = ksl.scripts()
-    val apiLevel = KSL_API_VERSION
-    val economy = ksl.service<EconomyService>("economy")
-}
-```
-
-The `ru.privateserver.ksl.api` package is the public entry point for integrations.
-It currently re-exports the addon, hook, context-extension and script-info API,
-and provides typed service/hook helpers. This namespace is also the foundation
-for the planned KSL Standard Library: future standard modules can be imported
-from the same public package family without relying on internal implementation
-classes. The API is available from the KSL plugin JAR; addon projects should
-declare that JAR as a compile-only dependency.
-The public package also exposes the shared script-definition metadata used by
-the runtime and IDE tooling. See [Public API contracts](docs/Public-API.md) and
-the [Standard Library architecture](docs/Standard-Library-Architecture.md) for
-the module SPI and dependency planner (feature modules are not shipped yet).
-
-
-### Addon and library development
-
-- [Addon development guide](docs/Addon-Development-Guide.md)
-- [Packages, imports and local libraries](docs/Packages-and-Imports.md)
-- [Custom Standard Library](docs/Custom-Standard-Library.md)
+Before changing public APIs or runtime behavior, read [AGENTS.md](AGENTS.md) and the [AI Assistant Guide](docs/AI-ASSISTANT-GUIDE.md). Verify behavior against the current source and tests.

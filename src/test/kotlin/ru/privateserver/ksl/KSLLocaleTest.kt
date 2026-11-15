@@ -110,6 +110,28 @@ class KSLLocaleTest {
     }
 
     @Test
+    fun older_locale_files_keep_defaults_for_new_keys_and_preserve_overrides() {
+        val english = loadLocale("en")
+        val russianDefaults = loadLocale("ru")
+        val staleRussianFile = mapOf(
+            "command.no-permission" to "custom permission text",
+            "no-permission" to "legacy root key"
+        )
+        val mergedRussian = mergeLocaleMessages(english, russianDefaults, staleRussianFile)
+
+        assertEquals("custom permission text", mergedRussian["command.no-permission"])
+        assertEquals(russianDefaults["reload.all.start"], mergedRussian["reload.all.start"])
+        assertEquals(
+            russianDefaults["error-codes.entries.0248a.title"],
+            mergedRussian["error-codes.entries.0248a.title"]
+        )
+
+        val customLocale = mergeLocaleMessages(english, mapOf("language.changed" to "Custom language is active"))
+        assertEquals("Custom language is active", customLocale["language.changed"])
+        assertEquals(english["debug.title"], customLocale["debug.title"])
+    }
+
+    @Test
     fun every_error_category_and_catalog_entry_is_localized() {
         val english = loadLocale("en")
         val russian = loadLocale("ru")

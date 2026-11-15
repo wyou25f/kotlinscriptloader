@@ -9,6 +9,7 @@ Documentation for KSL users, script authors, addon developers, and contributors.
 | Goal | Guide |
 |---|---|
 | Installation and first script | [Getting Started](Getting-Started.md) |
+| Server messages and custom YAML locales | [Localization](Localization.md) |
 | Complete script DSL | [Script DSL Reference](Script-DSL-Reference.md) |
 | Practical recipes | [Cookbook](Cookbook.md) |
 | Architecture and overview | [KSL Encyclopedia](KSL-Encyclopedia.md) |

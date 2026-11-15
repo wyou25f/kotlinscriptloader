@@ -284,7 +284,10 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                 val query = args.getOrNull(1)
                 if (query == null) {
                     sender.sendMessage(plugin.message("error.usage", "example" to KSLError.SCRIPT_COMPILE.code))
-                    KSLErrorCategory.entries.forEach { sender.sendMessage("  §e${it.letter} §8— §7${it.title}") }
+                    KSLErrorCategory.entries.forEach { category ->
+                        val title = plugin.message("error-codes.categories.${category.letter}")
+                        sender.sendMessage("  §e${category.letter} §8— §7$title")
+                    }
                 } else {
                     val error = KSLError.find(query)
                     if (error == null) {

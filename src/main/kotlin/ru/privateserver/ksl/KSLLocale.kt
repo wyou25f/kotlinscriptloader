@@ -2,6 +2,8 @@ package ru.privateserver.ksl
 
 import org.bukkit.configuration.file.YamlConfiguration
 import java.io.File
+import java.io.InputStreamReader
+import java.nio.charset.StandardCharsets
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicReference
 
@@ -32,22 +34,25 @@ internal class KSLLocaleManager(private val plugin: KotlinScriptLoaderPlugin) {
             else -> "en"
         }
 
-        val english = readMessages(File(localeDirectory, "en.yml"))
-        val russian = readMessages(File(localeDirectory, "ru.yml"))
-        val selected = when (selectedLanguage) {
-            "en" -> english
-            "ru" -> russian
-            else -> readMessages(File(localeDirectory, "$selectedLanguage.yml"))
-        }
+        // Packaged messages provide defaults for older on-disk locale files. Existing values
+        // still win, so upgrades add missing keys without overwriting a server owner's translations.
+        val english = mergeLocaleMessages(
+            readBundledMessages("en"),
+            readMessages(File(localeDirectory, "en.yml"))
+        )
+        val russian = mergeLocaleMessages(
+            readBundledMessages("ru"),
+            readMessages(File(localeDirectory, "ru.yml"))
+        )
 
-        val merged = LinkedHashMap<String, String>()
-        if (selectedLanguage == "en") {
-            merged.putAll(russian)
-            merged.putAll(english)
-        } else {
-            merged.putAll(english)
+        val merged = when (selectedLanguage) {
+            "en" -> mergeLocaleMessages(russian, english)
+            "ru" -> mergeLocaleMessages(english, russian)
+            else -> mergeLocaleMessages(
+                english,
+                readMessages(File(localeDirectory, "$selectedLanguage.yml"))
+            )
         }
-        merged.putAll(selected)
 
         bundle.set(KSLMessageBundle(merged))
         activeLanguage = selectedLanguage
@@ -91,20 +96,34 @@ internal class KSLLocaleManager(private val plugin: KotlinScriptLoaderPlugin) {
         }
     }
 
+    private fun readBundledMessages(language: String): Map<String, String> {
+        val resource = plugin.getResource("locale/$language.yml") ?: return emptyMap()
+        return runCatching {
+            resource.use { input ->
+                InputStreamReader(input, StandardCharsets.UTF_8).use { reader ->
+                    flatten(YamlConfiguration.loadConfiguration(reader))
+                }
+            }
+        }.onFailure {
+            plugin.logger.warning("Could not read bundled KSL locale '$language': ${it.message}")
+        }.getOrDefault(emptyMap())
+    }
+
     private fun readMessages(file: File): Map<String, String> {
         if (!file.isFile) return emptyMap()
         return runCatching {
-            val yaml = YamlConfiguration.loadConfiguration(file)
-            yaml.getKeys(true)
-                .asSequence()
-                .filterNot(yaml::isConfigurationSection)
-                .mapNotNull { key -> yaml.getString(key)?.let { key to it } }
-                .toMap()
+            flatten(YamlConfiguration.loadConfiguration(file))
         }.onFailure {
             plugin.logger.warning("Could not read KSL locale file '${file.name}': ${it.message}")
         }.getOrDefault(emptyMap())
     }
 
+    private fun flatten(yaml: YamlConfiguration): Map<String, String> =
+        yaml.getKeys(true)
+            .asSequence()
+            .filterNot(yaml::isConfigurationSection)
+            .mapNotNull { key -> yaml.getString(key)?.let { key to it } }
+            .toMap()
     private fun normalizeLanguage(value: String?): String? {
         val normalized = value?.trim()?.lowercase(Locale.ROOT)?.replace('_', '-') ?: return null
         if (normalized.length !in 2..16) return null
@@ -123,3 +142,10 @@ internal class KSLMessageBundle(private val messages: Map<String, String>) {
         return result
     }
 }
+
+
+/** Overlays locale layers in order; later layers keep precedence over earlier defaults. */
+internal fun mergeLocaleMessages(vararg layers: Map<String, String>): Map<String, String> =
+    LinkedHashMap<String, String>().apply {
+        layers.forEach { putAll(it) }
+    }
