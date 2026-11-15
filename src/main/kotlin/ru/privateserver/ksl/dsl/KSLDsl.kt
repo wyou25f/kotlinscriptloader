@@ -91,7 +91,8 @@ private fun noItalic(component: Component): Component =
 
 // Name and lore are MiniMessage; vanilla's italic default for custom names is switched off.
 fun item(material: Material, name: String? = null, lore: List<String> = emptyList(), amount: Int = 1): ItemStack {
-    val stack = ItemStack(material, amount.coerceAtLeast(1))
+    require(amount > 0) { "amount must be positive" }
+    val stack = ItemStack(material, amount)
     if (name == null && lore.isEmpty()) return stack
     stack.editMeta { meta ->
         name?.let { meta.displayName(noItalic(miniMessage.deserialize(it))) }
