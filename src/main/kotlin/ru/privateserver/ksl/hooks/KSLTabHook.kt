@@ -11,9 +11,8 @@ open class KSLTabHook : KSLHook {
     override val hookId = KSLHookIds.TAB
     override val pluginName = "TAB"
 
-    private val api: Any? by lazy {
-        KSLHookReflection.loadApi("TAB", "me.neznamy.tab.api.TabAPI")
-    }
+    private val api: Any?
+        get() = KSLHookReflection.loadApi("TAB", "me.neznamy.tab.api.TabAPI")
 
     val isAvailable: Boolean get() = api != null
 
