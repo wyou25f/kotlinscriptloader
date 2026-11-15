@@ -148,6 +148,7 @@ val verifyShadowJar by tasks.registering {
                 "ru/privateserver/ksl/std/text/TextColorExtensionsKt.class",
                 "ru/privateserver/ksl/std/mixin/KSLMixin.class",
                 "ru/privateserver/ksl/std/mixin/KSLMixinBuilder.class",
+                "ru/privateserver/ksl/std/mixin/KSLMixinKt.class",
                 "ru/privateserver/ksl/std/math/MathExtensionsKt.class",
                 "ru/privateserver/ksl/std/time/TimeExtensionsKt.class",
                 "ru/privateserver/ksl/std/player/PlayerExtensionsKt.class",

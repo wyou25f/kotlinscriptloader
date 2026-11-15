@@ -107,6 +107,9 @@ class KSLScriptDefinitionTest {
                 every(periodTicks = 20L) { onlineCount }
                 after(delayTicks = 5L) { maxPlayers }
             }
+            val typedMixin: KSLMixin = joinBehavior
+            val typedBuilder: KSLMixinBuilder? = null
+            if (false) useMixin(typedMixin)
             if (false) useMixin(joinBehavior)
             val ward = customEnchant("ward") {
                 targets(Material.IRON_HELMET, Material.IRON_CHESTPLATE)
