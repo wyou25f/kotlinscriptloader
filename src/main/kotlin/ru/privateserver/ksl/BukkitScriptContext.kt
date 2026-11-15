@@ -773,7 +773,7 @@ open class BukkitScriptContext(
             executeWorker("worker:$priority", block)
         }
 
-    /** Returns a future for a value computed off-thread. Its completion callback also runs off-thread. */
+    /** Returns a future for a value computed off-thread. Completion callbacks may run on the worker or registering thread; use runSync() for Bukkit operations. */
     fun <T> workerFuture(
         priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL,
         block: () -> T
