@@ -1063,7 +1063,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     internal fun invalidateScriptIndex() = scriptIndex.invalidate()
 
     // Last seen state of each script file; lets /ksl reload changed skip everything that did not change.
-    private val scriptStamps = ConcurrentHashMap<String, String>()
+    private val scriptStamps = ConcurrentHashMap<String, Long>()
 
     // Scripts whose code is currently registered (listeners, commands, ...).
     private val liveScripts = ConcurrentHashMap.newKeySet<String>()
@@ -1072,8 +1072,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private val reloadCompileInProgress = java.util.concurrent.atomic.AtomicBoolean(false)
     private val shuttingDown = java.util.concurrent.atomic.AtomicBoolean(false)
 
-    private fun stampOf(file: File): String =
-        if (!file.isFile) "<missing>" else runCatching { KSLSourceFingerprint.of(file.readBytes()) }.getOrElse { "<unreadable>" }
+    private fun stampOf(file: File): Long = file.lastModified() * 31 + file.length()
 
     fun scriptInfos(): List<KSLScriptInfo> = findScriptFiles().map { file ->
         val id = scriptId(file)
@@ -1101,7 +1100,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 logger.warning("[$id] ${KSLError.SCRIPT_KEPT_PREVIOUS.tag} ${message("console.script.previous-version-kept")}")
             }
             // Recorded so a broken script is not recompiled until it changes.
-            scriptStamps[id] = unit.sourceStamp.ifBlank { stampOf(unit.file) }
+            scriptStamps[id] = stampOf(unit.file)
             addonManager.publish("ksl.script.failed", KSLScriptEvent(id, unit.compileMillis, unit.errors.firstOrNull() ?: unit.crash?.message))
             val code = unit.failure ?: KSLError.SCRIPT_COMPILE
             notifyAdmins("§c✘ §f$id§7: ${unit.errors.firstOrNull() ?: unit.crash?.message ?: "ошибка"} §8[${code.code}] §7(подробнее: /ksl errors)")
@@ -1117,7 +1116,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         if (ok) liveScripts.add(id)
         val totalMs = unit.compileMillis + (System.nanoTime() - startedAt) / 1_000_000
         loadMillisById[id] = totalMs
-        scriptStamps[id] = unit.sourceStamp.ifBlank { stampOf(unit.file) }
+        scriptStamps[id] = stampOf(unit.file)
         addonManager.publish(if (ok) "ksl.script.loaded" else "ksl.script.failed", KSLScriptEvent(id, totalMs, if (ok) null else "ошибка выполнения"))
         if (!ok) notifyAdmins("§c✘ §f$id§7: ошибка при выполнении, подробности в консоли §8[${KSLError.SCRIPT_RUNTIME.code}] §7(/ksl errors)")
         return ok

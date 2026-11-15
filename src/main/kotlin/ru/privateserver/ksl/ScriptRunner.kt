@@ -53,37 +53,36 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
         val id = plugin.scriptId(file)
         val startedAt = System.nanoTime()
         fun elapsedMs() = (System.nanoTime() - startedAt) / 1_000_000
-        var sourceStamp = ""
         return try {
-            // Sandbox validation and Kotlin compilation must inspect the same immutable snapshot.
-            val sourceText = file.readText(Charsets.UTF_8)
-            sourceStamp = KSLSourceFingerprint.of(sourceText)
-            val textIssues = textSandboxIssues(sourceText, id)
+            val textIssues = textSandboxIssues(file, id)
             if (textIssues.isNotEmpty()) {
-                return CompiledUnit(file, id, null, textIssues, emptyList(), KSLError.SCRIPT_SANDBOX, null, elapsedMs(), sourceStamp)
+                return CompiledUnit(file, id, null, textIssues, emptyList(), KSLError.SCRIPT_SANDBOX, null, elapsedMs())
             }
+
             localLibraries.reloadIfChanged()?.let { detail ->
                 if (detail.isNotBlank()) plugin.logger.warning("[libs] $detail")
             }
             val compilationConfig = buildScriptCompilationConfig(plugin.addonManager, localLibraries)
             val compile = {
-                plugin.withCompilePermit { runBlocking { scriptCompiler(sourceText.toScriptSource(file.absolutePath), compilationConfig) } }
+                plugin.withCompilePermit { runBlocking { scriptCompiler(file.toScriptSource(), compilationConfig) } }
             }
             val result = plugin.watchdogMonitor?.trackOperation("KSL compile '$id'", compile) ?: compile()
-            val warnings = result.reports.filter { it.severity == ScriptDiagnostic.Severity.WARNING }
+            val warnings = result.reports
+                .filter { it.severity == ScriptDiagnostic.Severity.WARNING }
                 .map { formatDiagnostic(it, file) }
             when (result) {
                 is ResultWithDiagnostics.Failure -> CompiledUnit(
                     file, id, null,
                     result.reports.filter { it.severity >= ScriptDiagnostic.Severity.ERROR }.map { formatDiagnostic(it, file) },
-                    warnings, KSLError.SCRIPT_COMPILE, null, elapsedMs(), sourceStamp
+                    warnings, KSLError.SCRIPT_COMPILE, null, elapsedMs()
                 )
-                is ResultWithDiagnostics.Success -> CompiledUnit(file, id, result.value, emptyList(), warnings, null, null, elapsedMs(), sourceStamp)
+                is ResultWithDiagnostics.Success -> CompiledUnit(file, id, result.value, emptyList(), warnings, null, null, elapsedMs())
             }
         } catch (ex: Throwable) {
-            CompiledUnit(file, id, null, listOf("${file.name}: ${ex::class.simpleName}: ${ex.message}"), emptyList(), KSLError.SCRIPT_COMPILER_CRASH, ex, elapsedMs(), sourceStamp)
+            CompiledUnit(file, id, null, listOf("${file.name}: ${ex::class.simpleName}: ${ex.message}"), emptyList(), KSLError.SCRIPT_COMPILER_CRASH, ex, elapsedMs())
         }
     }
+
     fun reportFailure(unit: CompiledUnit) {
         val id = unit.id
         val failureCode = unit.failure ?: KSLError.SCRIPT_COMPILE
@@ -254,9 +253,9 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
         }
     }
 
-    private fun textSandboxIssues(source: String, id: String): List<String> {
+    private fun textSandboxIssues(file: File, id: String): List<String> {
         if (!plugin.isSandboxed(id)) return emptyList()
-        return KSLSandboxRules.scanSource(source, plugin.sandboxPatterns)
+        return KSLSandboxRules.scan(file, plugin.sandboxPatterns)
             .map { "строка ${it.line}: запрещённый паттерн '${it.pattern}'" }
     }
 
