@@ -55,8 +55,11 @@ jobs:
             exit 1
           fi
           python - <<'PY'
+          import hashlib
+          import io
           import json
           import os
+          import zipfile
           from pathlib import Path
           from urllib.parse import urlencode
           from urllib.request import Request, urlopen
@@ -77,6 +80,57 @@ jobs:
               with urlopen(request, timeout=30) as response:
                   return json.load(response)
 
+          download_dir = Path("website/downloads")
+          download_dir.mkdir(parents=True, exist_ok=True)
+          branch_slugs = {
+              "main": "main",
+              "compat/mc-1.16.5-1.21": "compat-mc-1.16.5-1.21",
+              "compat/mc-1.18-plus": "compat-mc-1.18-plus",
+          }
+
+          def mirror_jar(branch, run, artifact):
+              request = Request(
+                  f"{api_base}/actions/artifacts/{artifact['id']}/zip",
+                  headers=headers,
+              )
+              with urlopen(request, timeout=120) as response:
+                  archive_bytes = response.read()
+
+              with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
+                  jars = [
+                      item for item in archive.namelist()
+                      if item.lower().endswith(".jar")
+                      and not item.lower().endswith(("-sources.jar", "-javadoc.jar"))
+                  ]
+                  if not jars:
+                      raise RuntimeError(
+                          f"No plugin JAR found in artifact {artifact['name']}"
+                      )
+                  jar_path = sorted(jars, key=lambda value: ("/libs/" not in value, value))[0]
+                  jar_bytes = archive.read(jar_path)
+
+              filename = (
+                  f"KSL-{branch_slugs[branch]}-build-{run['run_number']}-"
+                  f"{Path(jar_path).name}"
+              )
+              destination = download_dir / filename
+              destination.write_bytes(jar_bytes)
+              digest = hashlib.sha256(jar_bytes).hexdigest()
+              checksum_path = destination.with_suffix(destination.suffix + ".sha256")
+              checksum_path.write_text(f"{digest}  {filename}\n", encoding="utf-8")
+
+              return {
+                  "id": artifact["id"],
+                  "name": artifact.get("name"),
+                  "size_in_bytes": artifact.get("size_in_bytes"),
+                  "jar_name": Path(jar_path).name,
+                  "jar_size_in_bytes": len(jar_bytes),
+                  "sha256": digest,
+                  "site_download_url": f"./downloads/{filename}",
+                  "checksum_url": f"./downloads/{filename}.sha256",
+                  "source_expires_at": artifact.get("expires_at"),
+              }
+
           build_specs = {
               "main": "KSL-build-",
               "compat/mc-1.16.5-1.21": "KSL-compat-1.16.5-1.21-",
@@ -94,6 +148,9 @@ jobs:
               if not runs:
                   return None
 
+              latest_run = runs[0]
+              selected_run = latest_run
+              selected_artifact = None
               for run in runs:
                   artifacts = api_json(
                       f"actions/runs/{run['id']}/artifacts?per_page=100"
@@ -105,31 +162,24 @@ jobs:
                       and not item.get("expired", False)
                   ), None)
                   if artifact:
+                      selected_run = run
+                      selected_artifact = artifact
                       break
 
               result = {
-                  "run_id": run["id"],
-                  "run_number": run.get("run_number"),
-                  "name": run.get("name"),
+                  "run_id": selected_run["id"],
+                  "run_number": selected_run.get("run_number"),
+                  "name": selected_run.get("name"),
                   "branch": branch,
-                  "sha": run.get("head_sha"),
-                  "created_at": run.get("created_at"),
-                  "html_url": run.get("html_url"),
+                  "sha": selected_run.get("head_sha"),
+                  "created_at": selected_run.get("created_at"),
+                  "html_url": selected_run.get("html_url"),
                   "artifact": None,
               }
-              if artifact:
-                  result["artifact"] = {
-                      "id": artifact["id"],
-                      "name": artifact.get("name"),
-                      "size_in_bytes": artifact.get("size_in_bytes"),
-                      "created_at": artifact.get("created_at"),
-                      "expires_at": artifact.get("expires_at"),
-                      "expired": artifact.get("expired", False),
-                      "download_url": (
-                          f"https://github.com/{repository}/actions/runs/"
-                          f"{run['id']}/artifacts/{artifact['id']}"
-                      ),
-                  }
+              if selected_artifact:
+                  result["artifact"] = mirror_jar(
+                      branch, selected_run, selected_artifact
+                  )
               return result
 
           data = {
@@ -144,13 +194,14 @@ jobs:
           }
           assert isinstance(data["branches"], list) and data["branches"], "No repository branches returned"
           assert isinstance(data["commits"], list) and data["commits"], "No main-branch commits returned"
+          for branch, build in data["builds"].items():
+              artifact_name = build["artifact"]["name"] if build and build["artifact"] else "none"
+              jar_name = build["artifact"]["jar_name"] if build and build["artifact"] else "none"
+              print(f"Latest successful build for {branch}: {build['run_number'] if build else 'none'}; artifact={artifact_name}; jar={jar_name}")
           Path("website/data.json").write_text(
               json.dumps(data, ensure_ascii=False, separators=(",", ":")),
               encoding="utf-8",
           )
-          for branch, build in data["builds"].items():
-              artifact_name = build["artifact"]["name"] if build and build["artifact"] else "none"
-              print(f"Latest successful build for {branch}: {build['run_number'] if build else 'none'}; artifact={artifact_name}")
           print(f"Generated website/data.json: {len(data['branches'])} branches, {len(data['commits'])} commits, release={bool(data['release'])}")
           PY
       - name: Validate website
