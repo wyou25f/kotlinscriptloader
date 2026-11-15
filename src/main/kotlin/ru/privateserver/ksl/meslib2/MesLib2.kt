@@ -183,8 +183,12 @@ private fun normalizeNamespace(owner: String): String {
     val validStart = if (normalized.first().isLetter()) normalized else "script-$normalized"
     if (validStart.length <= MAX_IDENTIFIER_LENGTH) return validStart
 
-    // Keep long script paths usable while avoiding collisions from simple truncation.
-    val suffix = Integer.toHexString(owner.hashCode()).padStart(8, '0')
+    // Keep long script paths usable and make accidental namespace collisions impractical.
+    val digest = java.security.MessageDigest.getInstance("SHA-256")
+        .digest(owner.toByteArray(Charsets.UTF_8))
+    val suffix = digest.take(8).joinToString("") { byte ->
+        "%02x".format(byte.toInt() and 0xff)
+    }
     return validStart.take(MAX_IDENTIFIER_LENGTH - suffix.length - 1) + "-" + suffix
 }
 
