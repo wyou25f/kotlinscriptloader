@@ -56,7 +56,7 @@ class KSLSkriptNamesTest {
             )
         } finally {
             root.toFile().deleteRecursively()
-            outside.toFile().deleteIfExists()
+            Files.deleteIfExists(outside)
         }
     }
 }
