@@ -36,7 +36,7 @@ class KSLMinecraftVersionTest {
         assertFalse(KSLServerCompatibility.classAvailable("not.a.real.ServerClass"))
         assertTrue(KSLServerCompatibility.methodAvailable("java.lang.String", "substring", 1))
         assertFalse(KSLServerCompatibility.methodAvailable("java.lang.String", "notAMethod", 0))
-        assertTrue(KSLServerCompatibility.enumConstantAvailable("java.lang.Thread$State", "RUNNABLE"))
+        assertTrue(KSLServerCompatibility.enumConstantAvailable("java.lang.Thread\$State", "RUNNABLE"))
         assertFalse(KSLServerCompatibility.enumConstantAvailable("java.lang.String", "RUNNABLE"))
     }
 
