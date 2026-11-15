@@ -7,7 +7,7 @@ package ru.privateserver.ksl.api
  * read this metadata instead of maintaining a second, divergent import list.
  */
 const val KSL_SCRIPT_FILE_EXTENSION: String = "kts"
-const val KSL_SCRIPT_JVM_TARGET: String = "21"
+const val KSL_SCRIPT_JVM_TARGET: String = "16"
 const val KSL_SCRIPT_CONTEXT_CLASS: String = "ru.privateserver.ksl.BukkitScriptContext"
 
 /** Imports available to every KSL script without an explicit import statement. */
