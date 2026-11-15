@@ -43,6 +43,7 @@ scripts:
   empty: "§eNo scripts were found."
   title: "§9§lKSL §7— loaded scripts: {loaded}/{total}"
   entry: "{mark} §f{name} §8— §7load time: {time}, errors: {errors}"
+  error-count: " §c{count} error(s)"
 
 debug:
   usage: "§eUsage: §f/ksl debug <script>"
@@ -58,6 +59,8 @@ debug:
   metrics-title: "§bExecution (total / average / maximum):"
   metric: "  §f{operation} §7— {calls} calls, {failures} errors, {total} ms / {average} ms / {maximum} ms"
   last-failure: "    §cLast failure: {failure}"
+  yes: "yes"
+  no: "no"
 
 resources:
   empty: "§eNo tracked resources were found."
