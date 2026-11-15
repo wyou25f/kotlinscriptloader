@@ -23,18 +23,43 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
-      - name: Snapshot recent commit history
+      - name: Generate static GitHub data
         env:
           GITHUB_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          curl --fail --silent --show-error \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/commits?sha=main&per_page=20" \
-            -o website/commits.json
-          python -c "import json; data=json.load(open('website/commits.json')); assert isinstance(data, list) and data, 'Commit history is empty'"
+          set -euo pipefail
+          api="https://api.github.com/repos/${GITHUB_REPOSITORY}"
+          headers=(-H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${GITHUB_TOKEN}" -H "X-GitHub-Api-Version: 2022-11-28")
+          curl --fail --silent --show-error "${headers[@]}" "${api}" -o /tmp/ksl-repo.json
+          curl --fail --silent --show-error "${headers[@]}" "${api}/branches?per_page=100" -o /tmp/ksl-branches.json
+          curl --fail --silent --show-error "${headers[@]}" "${api}/commits?sha=main&per_page=20" -o /tmp/ksl-commits.json
+          release_status=$(curl --silent --show-error "${headers[@]}" "${api}/releases/latest" -o /tmp/ksl-release-response.json -w '%{http_code}')
+          if [[ "${release_status}" == "200" ]]; then
+            cp /tmp/ksl-release-response.json /tmp/ksl-release.json
+          elif [[ "${release_status}" == "404" ]]; then
+            printf 'null' > /tmp/ksl-release.json
+          else
+            echo "GitHub Releases API returned HTTP ${release_status}"
+            cat /tmp/ksl-release-response.json
+            exit 1
+          fi
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          def read(path):
+              return json.loads(Path(path).read_text(encoding="utf-8"))
+          data = {
+              "repo": read("/tmp/ksl-repo.json"),
+              "branches": read("/tmp/ksl-branches.json"),
+              "release": read("/tmp/ksl-release.json"),
+              "commits": read("/tmp/ksl-commits.json"),
+          }
+          assert isinstance(data["branches"], list) and data["branches"], "No repository branches returned"
+          assert isinstance(data["commits"], list) and data["commits"], "No main-branch commits returned"
+          Path("website/data.json").write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+          print(f"Generated website/data.json: {len(data['branches'])} branches, {len(data['commits'])} commits, release={bool(data['release'])}")
+          PY
       - name: Validate website
         shell: bash
         run: |
@@ -47,6 +72,7 @@ jobs:
           test -s website/changelog.html
           test -s website/assets/style.css
           test -s website/assets/app.js
+          test -s website/data.json
       - uses: actions/upload-pages-artifact@v3
         with:
           path: website
