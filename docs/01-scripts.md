@@ -29,6 +29,8 @@ KSL исполняет Kotlin Script с расширением .kts. Это не
 15. Ошибки и диагностика
 16. Безопасность и production
 17. Стиль кода и чек-лист
+18. GUI и инвентари
+19. PersistentDataContainer и теги
 
 ---
 
@@ -807,6 +809,106 @@ if (auth == null) {
 - [ ] После reload старые обработчики не дублируются.
 - [ ] Диагностика не содержит секретов.
 
+
+---
+
+## Глава 18. GUI и инвентари
+
+KSL предоставляет DSL для собственных инвентарь-меню через `gui(title, rows) { ... }`. Размер меню — от 1 до 6 строк по 9 слотов. Меню нужно создавать и изменять в основном потоке Bukkit; `open(player)` сам переносит открытие на следующий тик, если вызван из async-контекста или обработчика клика.
+
+~~~kotlin
+val menu = gui("<gold>Профиль</gold>", rows = 3) {
+    border(ItemStack(Material.BLACK_STAINED_GLASS_PANE))
+
+    button(13, ItemStack(Material.BOOK)) { player ->
+        player.sendMessage("Это кнопка меню")
+    }
+
+    onClose { player ->
+        player.sendActionBarMessage("<gray>Меню закрыто")
+    }
+}
+
+menu.open(player)
+~~~
+
+Основные методы:
+
+| Метод | Назначение |
+|---|---|
+| `set(slot, item) { player, event -> ... }` | Установить предмет и необязательный обработчик клика |
+| `button(slot, item) { player -> ... }` | Кнопка без параметра события |
+| `clear(slot)` | Очистить слот вместе с обработчиком |
+| `fill(item)` / `border(item)` | Заполнить пустые слоты или рамку |
+| `allowItemMovement(slot)` | Явно разрешить перемещение предметов в конкретном слоте |
+| `paginate(...)` | Отрисовать список на нескольких страницах с кнопками навигации |
+| `showPage(index)` / `refresh()` | Перейти на существующую страницу или перерисовать текущую |
+| `onClose { player -> ... }` | Обработать закрытие меню |
+
+### Пагинация
+
+`slots` — список слотов для содержимого, `prevSlot` и `nextSlot` — отдельные слоты навигации. Значение `-1` отключает соответствующую кнопку. KSL проверяет диапазоны и пересечения: список содержимого не должен содержать дубликаты, а слоты навигации не могут совпадать друг с другом или с содержимым.
+
+~~~kotlin
+val products = listOf(Material.DIAMOND, Material.EMERALD, Material.GOLD_INGOT)
+
+val menu = gui("<green>Магазин</green>", rows = 4) {
+    paginate(
+        items = products,
+        slots = (10..16).toList(),
+        prevSlot = 28,
+        nextSlot = 34,
+        render = { material -> ItemStack(material) },
+        onClick = { player, material ->
+            player.sendMessage("Выбрано: ${material.name}")
+        }
+    )
+}
+
+menu.showPage(0)
+menu.refresh()
+menu.open(player)
+~~~
+
+Список элементов копируется при вызове `paginate`: последующее добавление или удаление элементов во внешнем MutableList не меняет уже созданную пагинацию. Для обновления содержимого вызовите `paginate` повторно либо `refresh()`, если изменились данные, используемые функцией `render`.
+
+`showPage(index)` принимает только существующий индекс. Неверное значение не исправляется автоматически: KSL оставляет текущую страницу и пишет предупреждение. Перемещение предметов запрещено по умолчанию; вызывайте `allowItemMovement` только для действительно интерактивных слотов и после установки предмета в слот. При `fill`, `border`, `set` и `clear` обработчики/права движения обновляются вместе с содержимым.
+
+Открытые меню и их callbacks очищаются при выгрузке скрипта. Старая ссылка на GUI после reload не сможет снова открыть меню или выполнить старый обработчик.
+
+## Глава 19. PersistentDataContainer и пользовательские теги
+
+В Bukkit/Paper для пользовательских данных предметов и сущностей предназначен `PersistentDataContainer` (PDC). В KSL доступны типизированные методы для `ItemStack`, `Player` и других объектов `PersistentDataHolder`:
+
+- строки: `setStringTag / getStringTag / hasStringTag`;
+- целые числа: `setIntTag / getIntTag / hasIntTag`;
+- длинные числа и дробные значения: `setLongTag`, `setDoubleTag` и соответствующие методы чтения/проверки;
+- Boolean: `setBooleanTag / getBooleanTag / hasBooleanTag`;
+- UUID: `setUuidTag / getUuidTag / hasUuidTag`;
+- удаление: `removePersistentTag(key)`.
+
+~~~kotlin
+import java.util.UUID
+
+onEvent<PlayerJoinEvent> {
+    val visits = player.getIntTag("visits") ?: 0
+    player.setIntTag("visits", visits + 1)
+}
+
+val reward = ItemStack(Material.PAPER)
+reward.setStringTag("reward_kind", "daily")
+reward.setBooleanTag("claimed", false)
+reward.setUuidTag("reward_id", UUID.randomUUID())
+
+val kind = reward.getStringTag("reward_kind")
+~~~
+
+Новые методы хранят значения в ключевом пути, отдельном для текущего скрипта: скрипты не перезаписывают пользовательские данные друг друга. Ключ должен содержать от 1 до 128 символов из латинских букв, цифр, `.`, `_`, `-` и `/`; регистр нормализуется в нижний.
+
+**Совместимость:** старые строковые методы `ItemStack.setTag/getTag/hasTag` оставлены без изменения и продолжают читать/писать прежний ключ в namespace плагина. Новые типизированные методы используют отдельный путь `scriptdata` и не затрагивают старые значения или внутренние метки KSL (`ksl_owner`, `ksl_ephemeral`).
+
+PDC — это штатное хранилище пользовательских метаданных Bukkit/Paper, а не API произвольного редактирования внутренних NBT-тегов Minecraft. Для данных, которые должны быть общей серверной базой с транзакциями и SQL-запросами, используйте `table` или SQL API; сохранение PDC зависит от жизненного цикла соответствующего предмета/сущности.
+
 ## Словарь основных понятий
 
 | Термин | Объяснение |
@@ -821,6 +923,7 @@ if (auth == null) {
 | Reload | Замена активной версии скрипта |
 | Resource ownership | Кто отвечает за закрытие ресурса |
 | runtimeScope | Ресурсный scope скрипта |
+| PDC | PersistentDataContainer — типизированное хранилище пользовательских данных Bukkit/Paper |
 | MesLib2 | Обмен типизированными объектами между скриптами |
 | Hook | Необязательная интеграция |
 | Addon | Отдельный Paper-плагин, расширяющий KSL |

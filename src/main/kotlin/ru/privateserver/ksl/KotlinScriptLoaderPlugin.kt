@@ -839,6 +839,45 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 appendLine("fun ItemStack.setTag(key: String, value: String) = Unit")
                 appendLine("fun ItemStack.getTag(key: String): String? = null")
                 appendLine("fun ItemStack.hasTag(key: String): Boolean = false")
+
+                appendLine("fun org.bukkit.persistence.PersistentDataHolder.setStringTag(key: String, value: String) = Unit")
+                appendLine("fun org.bukkit.persistence.PersistentDataHolder.getStringTag(key: String): String? = null")
+                appendLine("fun org.bukkit.persistence.PersistentDataHolder.hasStringTag(key: String): Boolean = false")
+                appendLine("fun ItemStack.setStringTag(key: String, value: String) = Unit")
+                appendLine("fun ItemStack.getStringTag(key: String): String? = null")
+                appendLine("fun ItemStack.hasStringTag(key: String): Boolean = false")
+                appendLine("fun org.bukkit.persistence.PersistentDataHolder.setIntTag(key: String, value: Int) = Unit")
+                appendLine("fun org.bukkit.persistence.PersistentDataHolder.getIntTag(key: String): Int? = null")
+                appendLine("fun org.bukkit.persistence.PersistentDataHolder.hasIntTag(key: String): Boolean = false")
+                appendLine("fun ItemStack.setIntTag(key: String, value: Int) = Unit")
+                appendLine("fun ItemStack.getIntTag(key: String): Int? = null")
+                appendLine("fun ItemStack.hasIntTag(key: String): Boolean = false")
+                appendLine("fun org.bukkit.persistence.PersistentDataHolder.setLongTag(key: String, value: Long) = Unit")
+                appendLine("fun org.bukkit.persistence.PersistentDataHolder.getLongTag(key: String): Long? = null")
+                appendLine("fun org.bukkit.persistence.PersistentDataHolder.hasLongTag(key: String): Boolean = false")
+                appendLine("fun ItemStack.setLongTag(key: String, value: Long) = Unit")
+                appendLine("fun ItemStack.getLongTag(key: String): Long? = null")
+                appendLine("fun ItemStack.hasLongTag(key: String): Boolean = false")
+                appendLine("fun org.bukkit.persistence.PersistentDataHolder.setDoubleTag(key: String, value: Double) = Unit")
+                appendLine("fun org.bukkit.persistence.PersistentDataHolder.getDoubleTag(key: String): Double? = null")
+                appendLine("fun org.bukkit.persistence.PersistentDataHolder.hasDoubleTag(key: String): Boolean = false")
+                appendLine("fun ItemStack.setDoubleTag(key: String, value: Double) = Unit")
+                appendLine("fun ItemStack.getDoubleTag(key: String): Double? = null")
+                appendLine("fun ItemStack.hasDoubleTag(key: String): Boolean = false")
+                appendLine("fun org.bukkit.persistence.PersistentDataHolder.setBooleanTag(key: String, value: Boolean) = Unit")
+                appendLine("fun org.bukkit.persistence.PersistentDataHolder.getBooleanTag(key: String): Boolean? = null")
+                appendLine("fun org.bukkit.persistence.PersistentDataHolder.hasBooleanTag(key: String): Boolean = false")
+                appendLine("fun ItemStack.setBooleanTag(key: String, value: Boolean) = Unit")
+                appendLine("fun ItemStack.getBooleanTag(key: String): Boolean? = null")
+                appendLine("fun ItemStack.hasBooleanTag(key: String): Boolean = false")
+                appendLine("fun org.bukkit.persistence.PersistentDataHolder.setUuidTag(key: String, value: java.util.UUID) = Unit")
+                appendLine("fun org.bukkit.persistence.PersistentDataHolder.getUuidTag(key: String): java.util.UUID? = null")
+                appendLine("fun org.bukkit.persistence.PersistentDataHolder.hasUuidTag(key: String): Boolean = false")
+                appendLine("fun ItemStack.setUuidTag(key: String, value: java.util.UUID) = Unit")
+                appendLine("fun ItemStack.getUuidTag(key: String): java.util.UUID? = null")
+                appendLine("fun ItemStack.hasUuidTag(key: String): Boolean = false")
+                appendLine("fun org.bukkit.persistence.PersistentDataHolder.removePersistentTag(key: String) = Unit")
+                appendLine("fun ItemStack.removePersistentTag(key: String) = Unit")
                 appendLine()
                 appendLine("fun weSelection(player: Player): Pair<org.bukkit.Location, org.bukkit.Location>? = null")
                 appendLine("fun weSelectionVolume(player: Player): Long? = null")
@@ -1483,8 +1522,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             true
         }
 
-    fun trackGui(scriptName: String) {
+    fun trackGui(scriptName: String, gui: KSLGuiInstance) {
         scriptsWithGuis.add(scriptName)
+        guiManager.track(gui)
     }
 
     fun trackListener(scriptName: String, listener: Listener) {

@@ -23,6 +23,8 @@ import org.bukkit.event.Event
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.inventory.ItemStack
+import org.bukkit.persistence.PersistentDataHolder
+import org.bukkit.persistence.PersistentDataContainer
 import org.bukkit.persistence.PersistentDataType
 import org.bukkit.plugin.EventExecutor
 import org.bukkit.scheduler.BukkitTask
@@ -33,6 +35,7 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.sql.ResultSet
 import java.time.Duration
+import java.util.UUID
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -966,6 +969,104 @@ open class BukkitScriptContext(
     fun ItemStack.hasTag(key: String): Boolean =
         itemMeta?.persistentDataContainer?.has(NamespacedKey(internalPlugin, key), PersistentDataType.STRING) == true
 
+    // New typed PDC tags live under a script-specific path and never overwrite KSL's internal keys.
+    private val persistentTagStore by lazy(LazyThreadSafetyMode.NONE) {
+        KSLPersistentTagStore(internalPlugin, scriptName)
+    }
+
+    private fun ItemStack.updateScriptTag(block: (PersistentDataContainer) -> Unit) {
+        val meta = itemMeta ?: return
+        block(meta.persistentDataContainer)
+        itemMeta = meta
+    }
+
+    private fun <T> ItemStack.readScriptTag(block: (PersistentDataContainer) -> T): T? =
+        itemMeta?.let { block(it.persistentDataContainer) }
+
+    fun PersistentDataHolder.setStringTag(key: String, value: String) =
+        persistentTagStore.setString(persistentDataContainer, key, value)
+    fun PersistentDataHolder.getStringTag(key: String): String? =
+        persistentTagStore.getString(persistentDataContainer, key)
+    fun PersistentDataHolder.hasStringTag(key: String): Boolean =
+        persistentTagStore.hasString(persistentDataContainer, key)
+
+    fun ItemStack.setStringTag(key: String, value: String) =
+        updateScriptTag { persistentTagStore.setString(it, key, value) }
+    fun ItemStack.getStringTag(key: String): String? =
+        readScriptTag { persistentTagStore.getString(it, key) }
+    fun ItemStack.hasStringTag(key: String): Boolean =
+        readScriptTag { persistentTagStore.hasString(it, key) } == true
+
+    fun PersistentDataHolder.setIntTag(key: String, value: Int) =
+        persistentTagStore.setInt(persistentDataContainer, key, value)
+    fun PersistentDataHolder.getIntTag(key: String): Int? =
+        persistentTagStore.getInt(persistentDataContainer, key)
+    fun PersistentDataHolder.hasIntTag(key: String): Boolean =
+        persistentTagStore.hasInt(persistentDataContainer, key)
+    fun ItemStack.setIntTag(key: String, value: Int) =
+        updateScriptTag { persistentTagStore.setInt(it, key, value) }
+    fun ItemStack.getIntTag(key: String): Int? =
+        readScriptTag { persistentTagStore.getInt(it, key) }
+    fun ItemStack.hasIntTag(key: String): Boolean =
+        readScriptTag { persistentTagStore.hasInt(it, key) } == true
+
+    fun PersistentDataHolder.setLongTag(key: String, value: Long) =
+        persistentTagStore.setLong(persistentDataContainer, key, value)
+    fun PersistentDataHolder.getLongTag(key: String): Long? =
+        persistentTagStore.getLong(persistentDataContainer, key)
+    fun PersistentDataHolder.hasLongTag(key: String): Boolean =
+        persistentTagStore.hasLong(persistentDataContainer, key)
+    fun ItemStack.setLongTag(key: String, value: Long) =
+        updateScriptTag { persistentTagStore.setLong(it, key, value) }
+    fun ItemStack.getLongTag(key: String): Long? =
+        readScriptTag { persistentTagStore.getLong(it, key) }
+    fun ItemStack.hasLongTag(key: String): Boolean =
+        readScriptTag { persistentTagStore.hasLong(it, key) } == true
+
+    fun PersistentDataHolder.setDoubleTag(key: String, value: Double) =
+        persistentTagStore.setDouble(persistentDataContainer, key, value)
+    fun PersistentDataHolder.getDoubleTag(key: String): Double? =
+        persistentTagStore.getDouble(persistentDataContainer, key)
+    fun PersistentDataHolder.hasDoubleTag(key: String): Boolean =
+        persistentTagStore.hasDouble(persistentDataContainer, key)
+    fun ItemStack.setDoubleTag(key: String, value: Double) =
+        updateScriptTag { persistentTagStore.setDouble(it, key, value) }
+    fun ItemStack.getDoubleTag(key: String): Double? =
+        readScriptTag { persistentTagStore.getDouble(it, key) }
+    fun ItemStack.hasDoubleTag(key: String): Boolean =
+        readScriptTag { persistentTagStore.hasDouble(it, key) } == true
+
+    fun PersistentDataHolder.setBooleanTag(key: String, value: Boolean) =
+        persistentTagStore.setBoolean(persistentDataContainer, key, value)
+    fun PersistentDataHolder.getBooleanTag(key: String): Boolean? =
+        persistentTagStore.getBoolean(persistentDataContainer, key)
+    fun PersistentDataHolder.hasBooleanTag(key: String): Boolean =
+        persistentTagStore.hasBoolean(persistentDataContainer, key)
+    fun ItemStack.setBooleanTag(key: String, value: Boolean) =
+        updateScriptTag { persistentTagStore.setBoolean(it, key, value) }
+    fun ItemStack.getBooleanTag(key: String): Boolean? =
+        readScriptTag { persistentTagStore.getBoolean(it, key) }
+    fun ItemStack.hasBooleanTag(key: String): Boolean =
+        readScriptTag { persistentTagStore.hasBoolean(it, key) } == true
+
+    fun PersistentDataHolder.setUuidTag(key: String, value: UUID) =
+        persistentTagStore.setUuid(persistentDataContainer, key, value)
+    fun PersistentDataHolder.getUuidTag(key: String): UUID? =
+        persistentTagStore.getUuid(persistentDataContainer, key)
+    fun PersistentDataHolder.hasUuidTag(key: String): Boolean =
+        persistentTagStore.hasUuid(persistentDataContainer, key)
+    fun ItemStack.setUuidTag(key: String, value: UUID) =
+        updateScriptTag { persistentTagStore.setUuid(it, key, value) }
+    fun ItemStack.getUuidTag(key: String): UUID? =
+        readScriptTag { persistentTagStore.getUuid(it, key) }
+    fun ItemStack.hasUuidTag(key: String): Boolean =
+        readScriptTag { persistentTagStore.hasUuid(it, key) } == true
+
+    fun PersistentDataHolder.removePersistentTag(key: String) =
+        persistentTagStore.remove(persistentDataContainer, key)
+    fun ItemStack.removePersistentTag(key: String) =
+        updateScriptTag { persistentTagStore.remove(it, key) }
+
     fun registerPlaceholder(key: String, resolver: (OfflinePlayer) -> String?) {
         if (!internalPlugin.papiEnabled) {
             internalPlugin.logger.warning("[$scriptName] ${KSLError.PAPI_MISSING.tag} PlaceholderAPI не найден — плейсхолдер '$key' пропущен"); return
@@ -1044,7 +1145,7 @@ open class BukkitScriptContext(
 
     fun gui(title: String, rows: Int = 3, builder: KSLGuiInstance.() -> Unit): KSLGuiInstance {
         val instance = KSLGuiInstance(scriptName, internalPlugin, rows, title)
-        internalPlugin.trackGui(scriptName)
+        internalPlugin.trackGui(scriptName, instance)
         instance.builder()
         return instance
     }

@@ -34,6 +34,7 @@ class KSLGuiInstance(
     private var pageClick: ((Player, Any) -> Unit)? = null
     private var prevSlot = -1
     private var nextSlot = -1
+    @Volatile private var disposed = false
 
     init {
         if (rows != requestedRows) {
@@ -55,42 +56,70 @@ class KSLGuiInstance(
         holder.bind(inventory)
     }
 
+    private fun canMutate(operation: String): Boolean {
+        if (disposed) {
+            plugin.logger.warning("[$scriptName] GUI уже выгружен — вызов $operation проигнорирован")
+            return false
+        }
+        if (!Bukkit.isPrimaryThread()) {
+            plugin.logger.warning("[$scriptName] ${KSLError.GUI_WRONG_THREAD.tag} gui.$operation должен вызываться из основного потока; используйте runSync")
+            return false
+        }
+        return true
+    }
+
     fun set(slot: Int, item: ItemStack, onClick: ((Player, InventoryClickEvent) -> Unit)? = null) {
+        if (!canMutate("set")) return
         if (slot !in 0 until size) {
             plugin.logger.warning("[$scriptName] ${KSLError.GUI_BAD_SLOT.tag} gui: слот $slot вне 0..${size - 1} — предмет не добавлен")
             return
         }
-        inventory.setItem(slot, item)
+        inventory.setItem(slot, item.clone())
         clickHandlers[slot] = onClick
+        allowedMovement[slot] = false
     }
 
-    // Same as set(), minus the event parameter most click handlers ignore.
-    fun button(slot: Int, item: ItemStack, onClick: (Player) -> Unit) = set(slot, item) { player, _ -> onClick(player) }
+    fun button(slot: Int, item: ItemStack, onClick: (Player) -> Unit) =
+        set(slot, item) { player, _ -> onClick(player) }
 
     fun clear(slot: Int) {
-        if (slot !in 0 until size) return
+        if (!canMutate("clear") || slot !in 0 until size) return
         inventory.setItem(slot, null)
         clickHandlers[slot] = null
+        allowedMovement[slot] = false
     }
 
     fun allowItemMovement(slot: Int) {
+        if (!canMutate("allowItemMovement")) return
         if (slot in 0 until size) allowedMovement[slot] = true
     }
 
     fun fill(item: ItemStack) {
-        for (i in 0 until size) if (inventory.getItem(i) == null) inventory.setItem(i, item)
+        if (!canMutate("fill")) return
+        for (i in 0 until size) {
+            if (inventory.getItem(i) == null) {
+                inventory.setItem(i, item.clone())
+                clickHandlers[i] = null
+                allowedMovement[i] = false
+            }
+        }
     }
 
     fun border(item: ItemStack) {
+        if (!canMutate("border")) return
         for (i in 0 until size) {
             val col = i % 9
             val row = i / 9
-            if (row == 0 || row == rows - 1 || col == 0 || col == 8) inventory.setItem(i, item)
+            if (row == 0 || row == rows - 1 || col == 0 || col == 8) {
+                inventory.setItem(i, item.clone())
+                clickHandlers[i] = null
+                allowedMovement[i] = false
+            }
         }
     }
 
     fun onClose(handler: (Player) -> Unit) {
-        closeHandler = handler
+        if (canMutate("onClose")) closeHandler = handler
     }
 
     fun <T : Any> paginate(
@@ -101,13 +130,23 @@ class KSLGuiInstance(
         render: (T) -> ItemStack,
         onClick: (Player, T) -> Unit
     ) {
-        if (slots.isEmpty()) {
-            plugin.logger.warning("[$scriptName] ${KSLError.GUI_PAGINATE_EMPTY.tag} gui paginate: список slots пуст — страницы не будет")
+        if (!canMutate("paginate")) return
+        val slotSnapshot = slots.toList()
+        val validationError = KSLGuiLayout.validationError(size, slotSnapshot, prevSlot, nextSlot)
+        if (validationError != null) {
+            plugin.logger.warning("[$scriptName] ${KSLError.GUI_BAD_SLOT.tag} gui paginate: $validationError — пагинация не изменена")
             return
         }
-        @Suppress("UNCHECKED_CAST")
-        pageItems = items as List<Any>
-        pageSlots = slots.toIntArray()
+
+        // Remove the previous page's items and handlers only after the new layout is known to be valid.
+        (pageSlots.toList() + listOf(this.prevSlot, this.nextSlot))
+            .filter { it in 0 until size }
+            .distinct()
+            .forEach(::clear)
+
+        // Snapshot the caller's list: later external mutations must not silently change menu pages.
+        pageItems = items.toList()
+        pageSlots = slotSnapshot.toIntArray()
         this.prevSlot = prevSlot
         this.nextSlot = nextSlot
         @Suppress("UNCHECKED_CAST")
@@ -119,11 +158,13 @@ class KSLGuiInstance(
     }
 
     private fun renderPage() {
+        if (disposed) return
         val render = pageRender ?: return
         try {
             val perPage = pageSlots.size
+            if (perPage == 0) return
             val from = pageIndex * perPage
-            pageSlots.forEach { slot -> clear(slot) }
+            pageSlots.forEach(::clear)
             for (i in pageSlots.indices) {
                 val itemIndex = from + i
                 if (itemIndex >= pageItems.size) break
@@ -147,33 +188,58 @@ class KSLGuiInstance(
         get() = if (pageSlots.isEmpty()) 0 else maxOf(1, (pageItems.size + pageSlots.size - 1) / pageSlots.size)
 
     fun showPage(index: Int) {
-        if (pageSlots.isEmpty()) return
-        pageIndex = index.coerceIn(0, pageCount - 1)
+        if (!canMutate("showPage") || pageSlots.isEmpty()) return
+        if (index !in 0 until pageCount) {
+            plugin.logger.warning("[$scriptName] ${KSLError.GUI_BAD_SLOT.tag} gui.showPage: индекс $index вне 0..${pageCount - 1} — текущая страница сохранена")
+            return
+        }
+        pageIndex = index
         renderPage()
     }
 
+    fun refresh() {
+        if (canMutate("refresh")) renderPage()
+    }
+
     private fun nextPage() {
+        if (disposed || pageIndex + 1 >= pageCount) return
         pageIndex++
         renderPage()
     }
 
     private fun prevPage() {
-        if (pageIndex > 0) pageIndex--
+        if (disposed || pageIndex <= 0) return
+        pageIndex--
         renderPage()
     }
 
-    // Opening an inventory from an async thread throws, and opening one inside a click event can lose the cursor item,
-    // so both cases are deferred by a tick.
     fun open(player: Player) {
+        if (disposed) {
+            plugin.logger.warning("[$scriptName] ${KSLError.GUI_CLICK_FAILED.tag} Нельзя открыть GUI после выгрузки скрипта")
+            return
+        }
         if (Bukkit.isPrimaryThread() && clickDepth == 0) {
-            player.openInventory(inventory)
+            openNow(player)
         } else {
-            Bukkit.getScheduler().runTask(plugin, Runnable { if (player.isOnline) player.openInventory(inventory) })
+            try {
+                Bukkit.getScheduler().runTask(plugin, Runnable { openNow(player) })
+            } catch (ex: Throwable) {
+                KSLErrors.log(plugin, scriptName, "gui open", ex, KSLError.GUI_CLICK_FAILED)
+            }
         }
     }
 
-    // Called when the owning script unloads: drops every lambda so a viewer's open inventory cannot keep the old classloader alive.
+    private fun openNow(player: Player) {
+        if (disposed || !player.isOnline) return
+        try {
+            player.openInventory(inventory)
+        } catch (ex: Throwable) {
+            KSLErrors.log(plugin, scriptName, "gui open", ex, KSLError.GUI_CLICK_FAILED)
+        }
+    }
+
     internal fun dispose() {
+        disposed = true
         clickHandlers.fill(null)
         closeHandler = null
         pageRender = null
@@ -182,11 +248,13 @@ class KSLGuiInstance(
     }
 
     internal fun handleClick(event: InventoryClickEvent) {
-        // A double-click on an allowed slot gathers matching items from every other slot, locked ones included.
+        if (disposed) {
+            event.isCancelled = true
+            return
+        }
         if (event.action == InventoryAction.COLLECT_TO_CURSOR && !allowedMovement.all { it }) event.isCancelled = true
         val slot = event.rawSlot
         if (slot !in 0 until size) {
-            // Shift-click and double-click in the player's own inventory move items into or out of the GUI.
             if (event.isShiftClick || event.action == InventoryAction.COLLECT_TO_CURSOR) event.isCancelled = true
             return
         }
@@ -204,10 +272,13 @@ class KSLGuiInstance(
     }
 
     internal fun handleDrag(event: InventoryDragEvent) {
-        if (event.rawSlots.any { it in 0 until size && !allowedMovement[it] }) event.isCancelled = true
+        if (disposed || event.rawSlots.any { it in 0 until size && !allowedMovement[it] }) {
+            event.isCancelled = true
+        }
     }
 
     internal fun handleClose(player: Player) {
+        if (disposed) return
         try {
             closeHandler?.invoke(player)
         } catch (ex: Throwable) {
@@ -216,7 +287,6 @@ class KSLGuiInstance(
     }
 
     private companion object {
-        // Click handlers run on the main thread only, so a plain counter is enough.
         var clickDepth = 0
     }
 }

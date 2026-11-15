@@ -7,11 +7,19 @@ import org.bukkit.event.Listener
 import org.bukkit.event.inventory.InventoryClickEvent
 import org.bukkit.event.inventory.InventoryCloseEvent
 import org.bukkit.event.inventory.InventoryDragEvent
+import java.util.WeakHashMap
 
 class KSLGuiManager(private val plugin: KotlinScriptLoaderPlugin) : Listener {
 
+    // Weak keys prevent the manager from retaining every short-lived GUI a script ever creates.
+    private val trackedGuis = WeakHashMap<KSLGuiInstance, Boolean>()
+
     fun register() {
         Bukkit.getPluginManager().registerEvents(this, plugin)
+    }
+
+    fun track(gui: KSLGuiInstance) {
+        synchronized(trackedGuis) { trackedGuis[gui] = true }
     }
 
     // getHolder(false): the default variant snapshots block state on every click in any container, server-wide.
@@ -35,12 +43,17 @@ class KSLGuiManager(private val plugin: KotlinScriptLoaderPlugin) : Listener {
     }
 
     fun closeGuisForScript(scriptName: String) {
+        val owned = synchronized(trackedGuis) {
+            trackedGuis.keys.filter { it.scriptName == scriptName }
+        }
+        if (owned.isEmpty()) return
+
+        // Dispose all still-referenced GUIs, not only the one currently visible to a player.
+        owned.forEach { it.dispose() }
         Bukkit.getOnlinePlayers().forEach { player ->
             val holder = player.openInventory.topInventory.getHolder(false) as? KSLGuiHolder ?: return@forEach
-            if (holder.gui.scriptName == scriptName) {
-                holder.gui.dispose()
-                player.closeInventory()
-            }
+            if (holder.gui.scriptName == scriptName) player.closeInventory()
         }
+        synchronized(trackedGuis) { owned.forEach(trackedGuis::remove) }
     }
 }

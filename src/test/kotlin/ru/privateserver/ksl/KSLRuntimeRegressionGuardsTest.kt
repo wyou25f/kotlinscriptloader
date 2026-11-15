@@ -10,6 +10,15 @@ import java.lang.reflect.Proxy
 
 class KSLRuntimeRegressionGuardsTest {
     @Test
+    fun `PDC tag paths are script scoped and key normalized`() {
+        val alpha = KSLPersistentTagKey.path("alpha.kts", "Join_Count")
+        val beta = KSLPersistentTagKey.path("beta.kts", "join_count")
+        assertTrue(alpha.endsWith("/join_count"))
+        assertFalse(alpha == beta)
+        assertFalse(runCatching { KSLPersistentTagKey.path("alpha.kts", "bad key") }.isSuccess)
+    }
+
+    @Test
     fun `mob death alias excludes players`() {
         val player = fakeProxy(Player::class.java)
         val mob = fakeProxy(LivingEntity::class.java)
@@ -40,4 +49,21 @@ class KSLRuntimeRegressionGuardsTest {
                 else -> null
             }
         } as T
+    @Test
+    fun `GUI pagination rejects out of range slots`() {
+        assertFalse(KSLGuiLayout.validationError(27, listOf(0, 27), -1, -1).isNullOrEmpty())
+    }
+
+    @Test
+    fun `GUI pagination rejects duplicate content and navigation slots`() {
+        assertFalse(KSLGuiLayout.validationError(27, listOf(1, 1), -1, -1).isNullOrEmpty())
+        assertFalse(KSLGuiLayout.validationError(27, listOf(1, 2), 2, -1).isNullOrEmpty())
+        assertFalse(KSLGuiLayout.validationError(27, listOf(1, 2), 25, 25).isNullOrEmpty())
+    }
+
+    @Test
+    fun `GUI pagination accepts a valid independent layout`() {
+        assertTrue(KSLGuiLayout.validationError(27, listOf(10, 11, 12), 18, 26) == null)
+    }
+
 }

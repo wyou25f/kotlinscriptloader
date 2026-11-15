@@ -12,7 +12,7 @@ registerCommand("shop") { player, args ->
     val menu = gui("<gradient:#a29bfe:#6c5ce7>Магазин</gradient>", rows = 4) {
         border(ItemStack(Material.BLACK_STAINED_GLASS_PANE))
 
-        set(31, ItemStack(Material.BARRIER)) { p, _ -> p.closeInventory() }
+        button(31, ItemStack(Material.BARRIER)) { p -> p.closeInventory() }
 
         paginate(
             items = shopItems,

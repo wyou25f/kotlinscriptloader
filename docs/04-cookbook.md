@@ -36,6 +36,8 @@ Cookbook не заменяет первые три книги. Он показы
 28. Перенос данных в фоновом потоке
 29. Проверка конфигурации перед запуском механики
 30. Правила адаптации рецептов
+31. GUI с пагинацией
+32. Типизированные PDC-теги
 
 ---
 
@@ -598,6 +600,61 @@ if (issues.isEmpty()) {
 Валидация до регистрации позволяет не запускать механику с неполной или заведомо неверной конфигурацией.
 
 ---
+
+
+---
+
+## Рецепт 31. GUI с пагинацией
+
+~~~kotlin
+val products = listOf(
+    Material.DIAMOND,
+    Material.EMERALD,
+    Material.GOLD_INGOT,
+    Material.IRON_INGOT
+)
+
+val menu = gui("<gold>Магазин</gold>", rows = 3) {
+    button(22, ItemStack(Material.BARRIER)) { player ->
+        player.closeInventory()
+    }
+
+    paginate(
+        items = products,
+        slots = (10..16).toList(),
+        prevSlot = 18,
+        nextSlot = 26,
+        render = { material -> ItemStack(material) },
+        onClick = { player, material ->
+            player.sendMessage("Вы выбрали: ${material.name}")
+        }
+    )
+}
+
+menu.open(player)
+~~~
+
+Слоты контента и навигации должны быть уникальными и находиться внутри меню. Для ручной перерисовки текущей страницы вызовите `menu.refresh()`, а для переключения — `menu.showPage(index)`. Не вызывайте методы изменения инвентаря из async-кода.
+
+## Рецепт 32. Типизированные PDC-теги
+
+~~~kotlin
+import java.util.UUID
+
+onEvent<PlayerJoinEvent> {
+    val previous = player.getIntTag("join_count") ?: 0
+    player.setIntTag("join_count", previous + 1)
+}
+
+val reward = ItemStack(Material.PAPER)
+reward.setStringTag("kind", "daily")
+reward.setBooleanTag("claimed", false)
+reward.setUuidTag("id", UUID.randomUUID())
+
+val rewardId = reward.getUuidTag("id")
+~~~
+
+Эти методы работают с `ItemStack` и с `PersistentDataHolder` (например, Player/Entity). Ключи привязаны к скрипту и не конфликтуют с внутренними метками KSL. Старые `ItemStack.setTag/getTag/hasTag` остаются для обратной совместимости. PDC не заменяет SQL, если данным нужны общие транзакции или централизованный поиск.
 
 ## Глава 30. Правила адаптации рецептов
 
