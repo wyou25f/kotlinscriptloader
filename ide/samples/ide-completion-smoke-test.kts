@@ -46,7 +46,7 @@ val clickTimeline = soundSequence {
 
 if (false && player != null) {
     clickSound.playTo(player)
-    player.location.particles(Particle.DUST) {
+    player.location.particles(Particle.REDSTONE) {
         amount(3)
         every(2)
         durationTicks = 40
