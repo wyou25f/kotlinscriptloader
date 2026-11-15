@@ -60,6 +60,7 @@ jobs:
           import os
           from pathlib import Path
           from urllib.parse import urlencode
+          from concurrent.futures import ThreadPoolExecutor
           from urllib.request import Request, urlopen
 
           repository = os.environ["GITHUB_REPOSITORY"]
@@ -77,6 +78,102 @@ jobs:
               request = Request(f"{api_base}/{path}", headers=headers)
               with urlopen(request, timeout=30) as response:
                   return json.load(response)
+
+
+          branches_data = read("/tmp/ksl-branches.json")
+          history_limit = 40
+          summaries_by_branch = {}
+          for branch_item in branches_data:
+              branch_name = branch_item["name"]
+              query = urlencode({"sha": branch_name, "per_page": history_limit})
+              summaries_by_branch[branch_name] = api_json(f"commits?{query}")
+
+          def enrich_commit(pair):
+              branch_name, summary = pair
+              payload = api_json(f"commits/{summary['sha']}")
+              commit_data = payload.get("commit") or {}
+              author_data = commit_data.get("author") or {}
+              committer_data = commit_data.get("committer") or {}
+              stats = payload.get("stats") or {}
+              files = payload.get("files") or []
+              return branch_name, {
+                  "sha": payload.get("sha") or summary.get("sha"),
+                  "html_url": payload.get("html_url") or summary.get("html_url"),
+                  "message": commit_data.get("message") or "",
+                  "author_name": author_data.get("name") or (payload.get("author") or {}).get("login") or "Unknown",
+                  "author_login": (payload.get("author") or {}).get("login") or "",
+                  "date": author_data.get("date") or committer_data.get("date") or "",
+                  "additions": stats.get("additions"),
+                  "deletions": stats.get("deletions"),
+                  "total": stats.get("total"),
+                  "changed_files": len(files),
+                  "tree_sha": (commit_data.get("tree") or {}).get("sha"),
+                  "files": [
+                      {
+                          "filename": item.get("filename"),
+                          "status": item.get("status"),
+                          "additions": item.get("additions", 0),
+                          "deletions": item.get("deletions", 0),
+                          "changes": item.get("changes", 0),
+                      }
+                      for item in files
+                  ],
+              }
+
+          history_branches = {branch_name: [] for branch_name in summaries_by_branch}
+          commit_tasks = [
+              (branch_name, summary)
+              for branch_name, summaries in summaries_by_branch.items()
+              for summary in summaries
+          ]
+          with ThreadPoolExecutor(max_workers=8) as executor:
+              for branch_name, commit_data in executor.map(enrich_commit, commit_tasks):
+                  history_branches[branch_name].append(commit_data)
+
+          source_branches = {}
+          for branch_name, commits in history_branches.items():
+              head_tree_sha = commits[0].get("tree_sha") if commits else None
+              if not head_tree_sha:
+                  source_branches[branch_name] = {"truncated": False, "entries": []}
+                  continue
+              tree_data = api_json(f"git/trees/{head_tree_sha}?recursive=1")
+              source_branches[branch_name] = {
+                  "truncated": tree_data.get("truncated", False),
+                  "entries": [
+                      {
+                          "path": item.get("path"),
+                          "type": item.get("type"),
+                          "size": item.get("size", 0),
+                          "sha": item.get("sha"),
+                      }
+                      for item in tree_data.get("tree", [])
+                      if item.get("type") in ("blob", "tree", "commit")
+                  ],
+              }
+
+          Path("website/history.json").write_text(
+              json.dumps(
+                  {
+                      "generated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+                      "limit_per_branch": history_limit,
+                      "branches": history_branches,
+                  },
+                  ensure_ascii=False,
+                  separators=(",", ":"),
+              ),
+              encoding="utf-8",
+          )
+          Path("website/source-tree.json").write_text(
+              json.dumps(
+                  {
+                      "generated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+                      "branches": source_branches,
+                  },
+                  ensure_ascii=False,
+                  separators=(",", ":"),
+              ),
+              encoding="utf-8",
+          )
 
           build_specs = {
               "main": ("KSL-build-", "main"),
@@ -260,6 +357,8 @@ jobs:
           test -s website/assets/style.css
           test -s website/assets/app.js
           test -s website/data.json
+          test -s website/history.json
+          test -s website/source-tree.json
       - uses: actions/upload-pages-artifact@v3
         with:
           path: website

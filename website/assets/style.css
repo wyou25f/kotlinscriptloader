@@ -22,3 +22,67 @@
 .download-footer-links{display:flex;gap:16px;flex-wrap:wrap}
 @media(max-width:900px){.download-main-grid{grid-template-columns:1fr}.download-build-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.download-build-grid{grid-template-columns:1fr}.download-card{padding:19px}.download-topline{align-items:flex-start}.download-source{padding:18px}.download-footer-links{gap:10px}}
+
+
+/* Changelog explorer */
+.changelog{display:grid;gap:16px}
+.history-filters{display:grid;grid-template-columns:1.1fr .8fr .8fr 1.5fr .65fr auto;gap:10px;align-items:end;padding:18px;border:1px solid var(--line);border-radius:14px;background:#111522}
+.history-field{display:grid;gap:7px;min-width:0}
+.history-field>span{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.history-input{width:100%;min-width:0;box-sizing:border-box;background:#0b0f19;border:1px solid var(--line);border-radius:8px;color:#eef0fb;padding:11px 12px;font:12px var(--mono);color-scheme:dark}
+.history-field .select{width:100%;min-width:0;box-sizing:border-box}
+.history-reset{white-space:nowrap;justify-content:center}
+.history-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.history-stat{border:1px solid var(--line);border-radius:12px;padding:16px;background:linear-gradient(145deg,#171c2c,#101420)}
+.history-stat span{display:block;color:var(--muted);font-size:11px;margin-bottom:7px}
+.history-stat strong{font-size:23px;letter-spacing:-.5px}
+.diff-add{color:#72dfa9!important;font-family:var(--mono);font-weight:700}
+.diff-del{color:#ff929d!important;font-family:var(--mono);font-weight:700}
+.diff-neutral{color:var(--muted);font-family:var(--mono)}
+.history-result-line,.history-footnote{font-size:11px;color:var(--muted)}
+.history-commits{gap:12px}
+.commit-card{min-width:0;padding:18px 20px;border:1px solid var(--line);border-radius:13px;background:linear-gradient(145deg,#171c2c,#101420)}
+.commit-card-top,.commit-meta,.commit-diff{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.commit-card-top{justify-content:space-between}
+.commit-branch,.commit-sha{font:10px var(--mono);color:#bfb5ff}
+.commit-branch{border:1px solid #514a7c;border-radius:20px;padding:3px 9px;background:#8b72ff17}
+.commit-card h3{font-size:15px;line-height:1.5;margin:11px 0 7px;overflow-wrap:anywhere}
+.commit-meta{font-size:10px;color:var(--muted);padding-bottom:12px;border-bottom:1px solid var(--line)}
+.commit-diff{padding-top:12px;font-size:12px}
+.commit-files{margin-top:13px;border-top:1px solid var(--line);padding-top:10px}
+.commit-files summary,.commit-message summary{cursor:pointer;font-size:11px;color:#bfb5ff}
+.commit-file-list{display:grid;gap:7px;margin-top:10px}
+.commit-file{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:10px;align-items:center;font-size:10px}
+.commit-file code{overflow-wrap:anywhere;color:#bfc6da}
+.file-status{color:var(--muted)}
+.commit-message{margin-top:10px}
+.commit-message pre{white-space:pre-wrap;overflow-wrap:anywhere;color:#aeb5ca;font:11px/1.6 var(--mono);background:#0b0f19;padding:12px;border-radius:8px}
+.history-pagination{display:flex;align-items:center;justify-content:center;gap:16px;padding:10px}
+.history-pagination span{font:11px var(--mono);color:var(--muted)}
+.history-pagination .btn:disabled{opacity:.35;cursor:not-allowed}
+
+/* Source code browser */
+.source-explorer{display:grid;gap:13px}
+.source-toolbar{display:grid;grid-template-columns:minmax(190px,.85fr) minmax(220px,1.5fr) auto;gap:12px;align-items:end;padding:18px;border:1px solid var(--line);border-radius:14px;background:#111522}
+.source-search{min-width:0}
+.source-meta{display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--muted);padding:3px 2px}
+.source-meta b{color:#d9d3ff}
+.source-breadcrumb{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:11px 14px;background:#111522;border:1px solid var(--line);border-radius:10px}
+.source-breadcrumb button{border:0;background:none;color:#bfb5ff;font:11px var(--mono);cursor:pointer;padding:2px}
+.source-breadcrumb button:hover{text-decoration:underline}
+.crumb-separator{color:#60677c}
+.source-list{display:grid;gap:7px}
+.source-row{display:flex;align-items:center;justify-content:space-between;gap:15px;min-width:0;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:#111522}
+.source-folder{width:100%;text-align:left;color:inherit;cursor:pointer}
+.source-folder:hover,.source-row:hover{border-color:#62568f;background:#171b2b}
+.source-row-main{display:flex;align-items:center;gap:12px;min-width:0}
+.source-folder-icon,.source-file-icon{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:36px;height:30px;border-radius:7px;background:#8b72ff17;color:#bfb5ff;font:9px var(--mono);letter-spacing:.04em}
+.source-file-icon{background:#72dfa915;color:#72dfa9}
+.source-file-name{display:block;color:#dbe0f0;font:12px var(--mono);overflow-wrap:anywhere}
+.source-row-main small{display:block;color:var(--muted);font-size:10px;margin-top:4px}
+.source-row-hint{font-size:10px;color:var(--muted);white-space:nowrap}
+.source-row-actions{display:flex;gap:13px;flex:0 0 auto}
+.source-row-actions a{font-size:10px;color:#bfb5ff}
+.source-footnote{font-size:11px;color:var(--muted)}
+@media(max-width:1050px){.history-filters{grid-template-columns:repeat(3,minmax(0,1fr))}.history-search{grid-column:span 2}.source-toolbar{grid-template-columns:1fr 1.4fr}.source-toolbar>.btn{grid-column:1/-1;justify-self:start}}
+@media(max-width:650px){.history-filters,.history-summary{grid-template-columns:1fr}.history-search{grid-column:auto}.history-reset{width:100%}.commit-card{padding:15px}.commit-file{grid-template-columns:minmax(0,1fr) auto auto}.commit-file .file-status{display:none}.history-pagination{gap:9px}.history-pagination .btn{padding:9px 11px}.source-toolbar{grid-template-columns:1fr}.source-toolbar>.btn{grid-column:auto}.source-row{align-items:flex-start;flex-direction:column}.source-row-actions{padding-left:48px}.source-row-hint{padding-left:48px}}
