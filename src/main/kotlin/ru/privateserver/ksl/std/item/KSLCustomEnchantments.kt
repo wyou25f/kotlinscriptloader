@@ -358,14 +358,14 @@ fun ItemStack.withCustomEnchant(
         "Item already has an enchantment that conflicts with ${enchantment.namespacedId}"
     }
 
-    val oldLore = meta.lore().orEmpty()
+    val oldLore = meta.kslLore()
     val cleanedLore = oldLore.filterNot { line ->
         (1..enchantment.maxLevel).any { previousLevel ->
             line == enchantmentLore(enchantment, previousLevel)
         }
     }
     data.set(enchantment.storageKey, PersistentDataType.INTEGER, level)
-    meta.lore(cleanedLore + enchantmentLore(enchantment, level))
+    meta.setKslLore(cleanedLore + enchantmentLore(enchantment, level))
     result.itemMeta = meta
     return result
 }
@@ -383,12 +383,12 @@ fun ItemStack.withoutCustomEnchant(enchantment: KSLCustomEnchantment): ItemStack
     val result = clone()
     val meta = result.itemMeta ?: return result
     meta.persistentDataContainer.remove(enchantment.storageKey)
-    val cleanedLore = meta.lore().orEmpty().filterNot { line ->
+    val cleanedLore = meta.kslLore().filterNot { line ->
         (1..enchantment.maxLevel).any { previousLevel ->
             line == enchantmentLore(enchantment, previousLevel)
         }
     }
-    meta.lore(cleanedLore.takeIf { it.isNotEmpty() })
+    meta.setKslLore(cleanedLore.takeIf { it.isNotEmpty() })
     result.itemMeta = meta
     return result
 }
