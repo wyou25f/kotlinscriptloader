@@ -257,9 +257,10 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                         val pageSize = 20
                         val pages = ((entries.size + pageSize - 1) / pageSize).coerceAtLeast(1)
                         val page = (args.getOrNull(3)?.toIntOrNull() ?: 1).coerceIn(1, pages)
-                        sender.sendMessage(plugin.message("errors.catalog-title", "category" to (category?.title ?: plugin.message("errors.catalog-all")), "count" to entries.size, "page" to page, "pages" to pages))
-                        entries.drop((page - 1) * pageSize).take(pageSize).forEach {
-                            sender.sendMessage("  §e${it.code} §8— §f${it.title}")
+                        sender.sendMessage(plugin.message("errors.catalog-title", "category" to (category?.let { plugin.message("error-codes.categories.${it.letter}") } ?: plugin.message("errors.catalog-all")), "count" to entries.size, "page" to page, "pages" to pages))
+                        entries.drop((page - 1) * pageSize).take(pageSize).forEach { entry ->
+                            val title = plugin.message("error-codes.entries.${entry.code}.title")
+                            sender.sendMessage("  §e${entry.code} §8— §f$title")
                         }
                         sender.sendMessage(plugin.message("errors.catalog-next", "category" to (category?.letter ?: "all"), "page" to (page + 1)))
                     }
@@ -272,7 +273,7 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                         val ago = (System.currentTimeMillis() - last.timestamp) / 1000
                         sender.sendMessage(plugin.message("errors.last", "script" to last.scriptName, "where" to last.where, "seconds" to ago))
                         sender.sendMessage("§7${last.message}")
-                        sender.sendMessage(plugin.message("errors.code", "code" to last.code.code, "title" to last.code.title))
+                        sender.sendMessage(plugin.message("errors.code", "code" to last.code.code, "title" to plugin.message("error-codes.entries.${last.code.code}.title")))
                         KSLReport.compactErrors(KSLErrors.lastDetails, 8).forEach { sender.sendMessage("  §c$it") }
                     } else {
                         sender.sendMessage(plugin.message("errors.none"))
@@ -289,8 +290,8 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                     if (error == null) {
                         sender.sendMessage(plugin.message("error.not-found", "code" to query))
                     } else {
-                        sender.sendMessage(plugin.message("error.title", "code" to error.code, "title" to error.title, "category" to error.category.title))
-                        sender.sendMessage(plugin.message("error.hint", "hint" to error.hint))
+                        sender.sendMessage(plugin.message("error.title", "code" to error.code, "title" to plugin.message("error-codes.entries.${error.code}.title"), "category" to plugin.message("error-codes.categories.${error.category.letter}")))
+                        sender.sendMessage(plugin.message("error.hint", "hint" to plugin.message("error-codes.entries.${error.code}.hint")))
                     }
                 }
             }
