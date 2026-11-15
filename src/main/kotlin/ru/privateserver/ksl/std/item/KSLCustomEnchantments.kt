@@ -395,7 +395,7 @@ fun ItemStack.withCustomEnchant(
         "Item already has an enchantment that conflicts with ${enchantment.namespacedId}"
     }
 
-    val oldLore = meta.getLore().orEmpty()
+    val oldLore = runCatching { meta.getLore() }.getOrNull().orEmpty()
     val cleanedLore = oldLore.filterNot { line ->
         (1..enchantment.maxLevel).any { previousLevel ->
             line == enchantmentLore(enchantment, previousLevel)
@@ -420,7 +420,7 @@ fun ItemStack.withoutCustomEnchant(enchantment: KSLCustomEnchantment): ItemStack
     val result = clone()
     val meta = result.itemMeta ?: return result
     meta.persistentDataContainer.remove(enchantment.storageKey)
-    val cleanedLore = meta.getLore().orEmpty().filterNot { line ->
+    val cleanedLore = runCatching { meta.getLore() }.getOrNull().orEmpty().filterNot { line ->
         (1..enchantment.maxLevel).any { previousLevel ->
             line == enchantmentLore(enchantment, previousLevel)
         }
