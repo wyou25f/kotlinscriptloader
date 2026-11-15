@@ -10,7 +10,9 @@ open class KSLLuckPermsHook : KSLHook {
     override val hookId = KSLHookIds.LUCK_PERMS
     override val pluginName = "LuckPerms"
 
-    private val api: LuckPerms = LuckPermsProvider.get()
+    private val api: LuckPerms by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        LuckPermsProvider.get()
+    }
 
     fun primaryGroup(player: Player): String? =
         KSLErrors.hookSafe("LuckPerms", null) { api.userManager.getUser(player.uniqueId)?.primaryGroup }
