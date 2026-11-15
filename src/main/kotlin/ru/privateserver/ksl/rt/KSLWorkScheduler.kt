@@ -202,7 +202,9 @@ class KSLWorkScheduler(
 
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
-        tasks.values.toList().forEach { it.cancel() }
+        // ConcurrentHashMap's weakly-consistent iterator is safe while task.finish() removes entries.
+        // Avoid toList(), whose size-based array copy can race with those removals.
+        tasks.values.forEach { it.cancel() }
         executor.shutdownNow().forEach { queued ->
             (queued as? WorkTask)?.finish()
         }
