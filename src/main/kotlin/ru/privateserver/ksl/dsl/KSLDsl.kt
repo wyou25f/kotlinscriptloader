@@ -26,6 +26,7 @@ import org.bukkit.event.player.PlayerRespawnEvent
 import org.bukkit.inventory.ItemStack
 import ru.privateserver.ksl.BukkitScriptContext
 import ru.privateserver.ksl.KSLHook
+import ru.privateserver.ksl.std.item.KSLItemBuilder
 import java.time.Duration
 import java.util.concurrent.ThreadLocalRandom
 
@@ -100,6 +101,10 @@ fun item(material: Material, name: String? = null, lore: List<String> = emptyLis
     }
     return stack
 }
+
+/** Builds an item with a compact, chainable DSL. */
+fun item(material: Material, amount: Int = 1, block: KSLItemBuilder.() -> Unit): ItemStack =
+    KSLItemBuilder(material, amount).apply(block).build()
 
 // Whatever does not fit is dropped at the player's feet instead of silently vanishing. True if everything fit.
 fun Player.giveItem(stack: ItemStack): Boolean {

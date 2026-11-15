@@ -13,6 +13,7 @@ import org.bukkit.event.Listener
 import org.bukkit.plugin.java.JavaPlugin
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+import ru.privateserver.ksl.std.item.KSLCustomEnchantManager
 
 internal fun isTaskOwnedBy(scriptName: String, taskId: Int, tasksByScript: Map<String, Set<Int>>): Boolean =
     tasksByScript[scriptName]?.contains(taskId) == true
@@ -132,6 +133,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         private set
 
     lateinit var entityManager: KSLEntityManager
+        private set
+
+    internal lateinit var customEnchantManager: KSLCustomEnchantManager
         private set
 
     lateinit var libraryRegistry: KSLLibraryRegistry
@@ -478,6 +482,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         effectManager = KSLEffectManager(this)
         entityManager = KSLEntityManager(this)
         entityManager.register()
+        customEnchantManager = KSLCustomEnchantManager(this).also { it.register() }
         libraryRegistry = KSLLibraryRegistry(this)
         setupIntegrations()
         discord = KSLDiscordHook(this).takeIf { it.channels().isNotEmpty() }
@@ -548,6 +553,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         }.onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} ${message("console.database.queue-stop-failed", "error" to it.message)}") }
         runCatching { if (::database.isInitialized) database.close() }
             .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} ${message("console.database.close-failed", "error" to it.message)}") }
+        if (::customEnchantManager.isInitialized) runCatching { customEnchantManager.close() }
         KSL.shutdown()
         logger.info("$c9$bold■ ${message("console.shutdown.complete")}$r")
     }
@@ -1226,6 +1232,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     }
 
     private fun unloadScript(scriptName: String) {
+        if (::customEnchantManager.isInitialized) runCatching { customEnchantManager.unregisterOwner(scriptName) }
         if (::workScheduler.isInitialized) runCatching { workScheduler.cancelOwner(scriptName) }
         if (::effectManager.isInitialized) runCatching { effectManager.cleanupForScript(scriptName) }
         scriptStamps.remove(scriptName)

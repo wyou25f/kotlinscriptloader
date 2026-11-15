@@ -2,6 +2,8 @@ package ru.privateserver.ksl.std.item
 
 import net.kyori.adventure.text.Component
 import org.bukkit.inventory.ItemStack
+import org.bukkit.inventory.ItemFlag
+import org.bukkit.enchantments.Enchantment
 
 /**
  * Returns a cloned stack with [amount]. The original stack is not modified.
@@ -88,3 +90,107 @@ fun ItemStack.withoutEnchantment(enchantment: org.bukkit.enchantments.Enchantmen
 /** Checks whether this stack carries [enchantment]. */
 fun ItemStack.hasEnchantment(enchantment: org.bukkit.enchantments.Enchantment): Boolean =
     itemMeta?.hasEnchant(enchantment) == true
+
+
+/** Short alias for copyWithAmount; the original stack remains unchanged. */
+fun ItemStack.amount(value: Int): ItemStack = copyWithAmount(value)
+
+/** Short alias for withDisplayName. */
+fun ItemStack.withName(name: String): ItemStack = withDisplayName(name)
+
+/** Short alias for withDisplayName. */
+fun ItemStack.named(name: String): ItemStack = withDisplayName(name)
+
+/** Appends plain-text lore lines while preserving the existing lore. */
+fun ItemStack.withAddedLore(vararg lines: String): ItemStack =
+    withAddedLore(lines.map(Component::text))
+
+/** Appends Adventure lore lines while preserving the existing lore. */
+fun ItemStack.withAddedLore(lines: List<Component>): ItemStack =
+    clone().apply {
+        val meta = itemMeta ?: return@apply
+        meta.lore(meta.lore().orEmpty() + lines)
+        itemMeta = meta
+    }
+
+/** Removes all lore from a cloned stack. */
+fun ItemStack.withoutLore(): ItemStack =
+    clone().apply {
+        val meta = itemMeta ?: return@apply
+        meta.lore(null)
+        itemMeta = meta
+    }
+
+/** Adds or replaces several vanilla enchantments on a cloned stack. */
+fun ItemStack.withEnchantments(
+    enchantments: Map<Enchantment, Int>,
+    ignoreLevelRestriction: Boolean = false
+): ItemStack {
+    require(enchantments.values.all { it > 0 }) { "enchantment levels must be positive" }
+    return clone().apply {
+        val meta = itemMeta ?: return@apply
+        enchantments.forEach { (enchantment, level) ->
+            meta.addEnchant(enchantment, level, ignoreLevelRestriction)
+        }
+        itemMeta = meta
+    }
+}
+
+/** Short alias for withEnchantment. */
+fun ItemStack.enchant(
+    enchantment: Enchantment,
+    level: Int = 1,
+    unsafe: Boolean = false
+): ItemStack = withEnchantment(enchantment, level, unsafe)
+
+/** Short alias for withoutEnchantment. */
+fun ItemStack.unenchant(enchantment: Enchantment): ItemStack =
+    withoutEnchantment(enchantment)
+
+/** Returns the current level of enchantment, or zero when absent. */
+fun ItemStack.enchantmentLevel(enchantment: Enchantment): Int =
+    itemMeta?.getEnchantLevel(enchantment) ?: 0
+
+/** Returns the vanilla enchantments currently present on this stack. */
+fun ItemStack.enchantments(): Map<Enchantment, Int> =
+    itemMeta?.enchants?.toMap().orEmpty()
+
+/** Removes all vanilla enchantments from a cloned stack. */
+fun ItemStack.withoutEnchantments(): ItemStack =
+    clone().apply {
+        val meta = itemMeta ?: return@apply
+        meta.enchants.keys.toList().forEach { meta.removeEnchant(it) }
+        itemMeta = meta
+    }
+
+/** Adds item flags to a cloned stack. */
+fun ItemStack.withItemFlags(vararg flags: ItemFlag): ItemStack =
+    clone().apply {
+        val meta = itemMeta ?: return@apply
+        meta.addItemFlags(*flags)
+        itemMeta = meta
+    }
+
+/** Removes item flags from a cloned stack. */
+fun ItemStack.withoutItemFlags(vararg flags: ItemFlag): ItemStack =
+    clone().apply {
+        val meta = itemMeta ?: return@apply
+        meta.removeItemFlags(*flags)
+        itemMeta = meta
+    }
+
+/** Short alias for withItemFlags. */
+fun ItemStack.withFlags(vararg flags: ItemFlag): ItemStack =
+    withItemFlags(*flags)
+
+/** Short alias for withoutItemFlags. */
+fun ItemStack.withoutFlags(vararg flags: ItemFlag): ItemStack =
+    withoutItemFlags(*flags)
+
+/** True when this stack's material matches one of materials. */
+fun ItemStack.isOf(vararg materials: org.bukkit.Material): Boolean =
+    type in materials
+
+/** Alias for Bukkit's similarity check. */
+fun ItemStack.isSimilarTo(other: ItemStack): Boolean =
+    isSimilar(other)

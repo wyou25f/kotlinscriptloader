@@ -51,4 +51,17 @@ class ItemExtensionsTest {
             ItemStack(Material.STONE).copyWithAmount(-1)
         }
     }
+    @Test
+    fun `immutable item aliases preserve the original`() {
+        val original = ItemStack(Material.STONE)
+        val named = original.withName("Example").withAddedLore("first", "second")
+        val changedAmount = named.amount(8)
+
+        assertEquals(1, original.amount)
+        assertEquals(1, named.amount)
+        assertEquals(8, changedAmount.amount)
+        assertTrue(named.itemMeta?.hasDisplayName() == true)
+        assertEquals(2, named.itemMeta?.lore()?.size)
+    }
+
 }
