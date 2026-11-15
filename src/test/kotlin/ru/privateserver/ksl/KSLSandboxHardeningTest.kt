@@ -129,3 +129,26 @@ class KSLSandboxHardeningTest {
         assertSame(String::class.java, loader.loadClass("java.lang.String"))
     }
 }
+
+    @Test
+    fun `class denial diagnostics are capped while all denied names stay blocked`() {
+        val denied = mutableListOf<String>()
+        val loader = KSLSandboxClassLoader(
+            javaClass.classLoader,
+            KSLClassDenyList(extra = listOf("ksl.blocked.")),
+            "sandbox-test",
+            denied::add
+        )
+
+        repeat(KSLSandboxClassLoader.MAX_REPORTED_DENIALS + 20) { index ->
+            assertThrows(ClassNotFoundException::class.java) {
+                loader.loadClass("ksl.blocked.Type$index")
+            }
+        }
+
+        assertEquals(KSLSandboxClassLoader.MAX_REPORTED_DENIALS, denied.size)
+        assertThrows(ClassNotFoundException::class.java) {
+            loader.loadClass("ksl.blocked.StillBlocked")
+        }
+    }
+}
