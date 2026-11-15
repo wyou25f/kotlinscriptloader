@@ -30,12 +30,16 @@ fun String.toMiniMessageMarkup(): String {
 
 /** Converts supported legacy colors to section-sign formatting for Bukkit String APIs. */
 fun String.colorizeLegacy(): String {
-    val expanded = expandedHexColor.replace(this) { match -> match.value.replace('&', '§') }
-    val simple = simpleHexColor.replace(expanded) { match ->
+    // Translate single-character codes before expanding hex; otherwise §A in a hex color
+    // would be mistaken for the legacy green code and its original hex case would be lost.
+    val legacy = legacyColor.replace(this) { match ->
+        "§" + match.groupValues[1].lowercase(Locale.ROOT)
+    }
+    val simple = simpleHexColor.replace(legacy) { match ->
         val hex = match.groupValues[1]
         "§x" + hex.map { "§" + it }.joinToString("")
     }
-    return legacyColor.replace(simple) { match -> "§" + match.groupValues[1].lowercase(Locale.ROOT) }
+    return expandedHexColor.replace(simple) { match -> match.value.replace('&', '§') }
 }
 
 /** Short alias for [colorizeLegacy]. */
