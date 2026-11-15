@@ -4,6 +4,7 @@ import org.bukkit.Bukkit
 import org.bukkit.OfflinePlayer
 import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Player
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import ru.privateserver.ksl.api.library.KSLModulePlanner
@@ -85,8 +86,8 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
 
         synchronized(readyLock) {
             addons[id] = addon
-            readyAddons.remove(id.lowercase())
-            loadingAddons.add(id.lowercase())
+            readyAddons.remove(id.lowercase(Locale.ROOT))
+            loadingAddons.add(id.lowercase(Locale.ROOT))
         }
         loadOrder.add(id)
         val before = services.keys()
@@ -112,8 +113,8 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
             releaseOwned(id)
             synchronized(readyLock) {
                 addons.remove(id, addon)
-                readyAddons.remove(id.lowercase())
-                loadingAddons.remove(id.lowercase())
+                readyAddons.remove(id.lowercase(Locale.ROOT))
+                loadingAddons.remove(id.lowercase(Locale.ROOT))
             }
             loadOrder.remove(id)
             return
@@ -125,12 +126,12 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         plugin.logger.info("§9[KSL] §a✔ $id §7v${addon.addonVersion} §aзагружен")
 
         val callbacks = synchronized(readyLock) {
-            loadingAddons.remove(id.lowercase())
+            loadingAddons.remove(id.lowercase(Locale.ROOT))
             if (addons[id] !== addon) {
                 emptyList()
             } else {
-                readyAddons.add(id.lowercase())
-                readyCallbacks.remove(id.lowercase())?.toList().orEmpty()
+                readyAddons.add(id.lowercase(Locale.ROOT))
+                readyCallbacks.remove(id.lowercase(Locale.ROOT))?.toList().orEmpty()
             }
         }
         callbacks.forEach { runReady(addon, it) }
@@ -143,7 +144,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
             plugin.logger.warning("§9[KSL] Аддон '$registeredId' не выгружен: другой аддон не может управлять его жизненным циклом")
             return
         }
-        if (registeredId.lowercase() in loadingAddons) {
+        if (registeredId.lowercase(Locale.ROOT) in loadingAddons) {
             plugin.logger.warning("§9[KSL] §eАддон '$registeredId' нельзя выгрузить во время выполнения onLoad()")
             return
         }
@@ -173,7 +174,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         synchronized(readyLock) {
             if (addons[registeredId] !== addon) return
             addons.remove(registeredId, addon)
-            readyAddons.remove(registeredId.lowercase())
+            readyAddons.remove(registeredId.lowercase(Locale.ROOT))
         }
         loadOrder.remove(registeredId)
 
@@ -353,10 +354,10 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         val hook = ReadyHook(currentlyLoading.get(), callback)
         val existing = synchronized(readyLock) {
             val registeredId = registeredAddonId(addonId)
-            if (registeredId != null && registeredId.lowercase() in readyAddons) {
+            if (registeredId != null && registeredId.lowercase(Locale.ROOT) in readyAddons) {
                 addons[registeredId]
             } else {
-                readyCallbacks.computeIfAbsent(addonId.lowercase()) { CopyOnWriteArrayList() }.add(hook)
+                readyCallbacks.computeIfAbsent(addonId.lowercase(Locale.ROOT)) { CopyOnWriteArrayList() }.add(hook)
                 null
             }
         }
@@ -397,17 +398,21 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     }
 
     override fun registerHook(hook: KSLHook) {
-        hookRegistry.putOwned("Хук", hook.hookId.lowercase(), hook)
+        require(hook.hookId.matches(Regex("[a-z][a-z0-9._-]*", RegexOption.IGNORE_CASE))) {
+            "Hook id must be a non-blank identifier: '${hook.hookId}'"
+        }
+        require(hook.pluginName.isNotBlank()) { "Hook pluginName must not be blank" }
+        hookRegistry.putOwned("Хук", hook.hookId.lowercase(Locale.ROOT), hook)
     }
 
     override fun unregisterHook(hookId: String) {
-        val key = hookId.lowercase()
+        val key = hookId.lowercase(Locale.ROOT)
         if (hookRegistry.removeOwned(key, currentlyLoading.get()) == KSLRegistryRemovalResult.OWNED_BY_OTHER) {
             plugin.logger.warning("§9[KSL] Хук '$hookId' не удалён: он принадлежит другому владельцу")
         }
     }
 
-    override fun getHook(hookId: String): KSLHook? = hookRegistry.get(hookId.lowercase())
+    override fun getHook(hookId: String): KSLHook? = hookRegistry.get(hookId.lowercase(Locale.ROOT))
 
     override fun <T : KSLHook> getHook(hookId: String, type: Class<T>): T? {
         val hook = getHook(hookId) ?: return null
@@ -426,11 +431,11 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     override fun isPluginEnabled(pluginName: String): Boolean = Bukkit.getPluginManager().isPluginEnabled(pluginName)
 
     override fun registerPlaceholder(key: String, resolver: (OfflinePlayer) -> String?) {
-        plugin.placeholders.putOwned("Плейсхолдер", key.lowercase(), resolver)
+        plugin.placeholders.putOwned("Плейсхолдер", key.lowercase(Locale.ROOT), resolver)
     }
 
     override fun unregisterPlaceholder(key: String) {
-        val normalized = key.lowercase()
+        val normalized = key.lowercase(Locale.ROOT)
         if (plugin.placeholders.removeOwned(normalized, currentlyLoading.get()) == KSLRegistryRemovalResult.OWNED_BY_OTHER) {
             plugin.logger.warning("§9[KSL] Placeholder '$key' не удалён: он принадлежит другому владельцу")
         }
@@ -441,14 +446,14 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     }
 
     override fun unregisterTextPlaceholder(key: String) {
-        val normalized = key.lowercase()
+        val normalized = key.lowercase(Locale.ROOT)
         if (plugin.textPlaceholders.removeOwned(normalized, currentlyLoading.get()) == KSLRegistryRemovalResult.OWNED_BY_OTHER) {
             plugin.logger.warning("§9[KSL] Текстовый placeholder '$key' не удалён: он принадлежит другому владельцу")
         }
     }
 
     override fun registerEffectShape(name: String, factory: KSLShapeFactory) {
-        effectShapes.putOwned("Форма эффекта", name.lowercase(), factory)
+        effectShapes.putOwned("Форма эффекта", name.lowercase(Locale.ROOT), factory)
     }
 
     override fun registerEntityAttribute(key: String, handler: (LivingEntity, String) -> Unit) {
