@@ -168,7 +168,24 @@ class KSLEffectSpec(
     fun dust(hex: String, size: Float = 1f) = color(hex, size)
 
     fun transition(fromHex: String, toHex: String, size: Float = 1f) {
-        data = Particle.DustTransition(parseHexColor(fromHex), parseHexColor(toHex), validatedDustSize(size))
+        val from = parseHexColor(fromHex)
+        val to = parseHexColor(toHex)
+        val dustSize = validatedDustSize(size)
+        val transitionClassName = "org.bukkit.Particle" + 36.toChar() + "DustTransition"
+        val transitionType = try {
+            Class.forName(transitionClassName, false, Particle::class.java.classLoader)
+        } catch (ex: ClassNotFoundException) {
+            throw UnsupportedOperationException(
+                "Particle color transitions require Paper 1.18.2 or newer; this server provides no Particle.DustTransition",
+                ex
+            )
+        }
+        data = try {
+            transitionType.getConstructor(Color::class.java, Color::class.java, java.lang.Float.TYPE)
+                .newInstance(from, to, dustSize)
+        } catch (ex: ReflectiveOperationException) {
+            throw IllegalStateException("This server exposes Particle.DustTransition but its constructor is incompatible", ex)
+        }
     }
 
     fun block(material: Material) {
