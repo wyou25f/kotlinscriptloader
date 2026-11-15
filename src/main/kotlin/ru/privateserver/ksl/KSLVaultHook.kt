@@ -20,14 +20,26 @@ class KSLVaultHook : KSLHook {
     fun balance(player: OfflinePlayer): Double? =
         KSLErrors.hookSafe("Vault", null) { economy?.getBalance(player) }
 
-    fun deposit(player: OfflinePlayer, amount: Double): Boolean =
-        KSLErrors.hookSafe("Vault", false) { economy?.depositPlayer(player, amount)?.transactionSuccess() ?: false }
+    fun deposit(player: OfflinePlayer, amount: Double): Boolean {
+        if (!isValidAmount(amount)) return false
+        return KSLErrors.hookSafe("Vault", false) {
+            economy?.depositPlayer(player, amount)?.transactionSuccess() ?: false
+        }
+    }
 
-    fun withdraw(player: OfflinePlayer, amount: Double): Boolean =
-        KSLErrors.hookSafe("Vault", false) { economy?.withdrawPlayer(player, amount)?.transactionSuccess() ?: false }
+    fun withdraw(player: OfflinePlayer, amount: Double): Boolean {
+        if (!isValidAmount(amount)) return false
+        return KSLErrors.hookSafe("Vault", false) {
+            economy?.withdrawPlayer(player, amount)?.transactionSuccess() ?: false
+        }
+    }
 
-    fun has(player: OfflinePlayer, amount: Double): Boolean =
-        KSLErrors.hookSafe("Vault", false) { economy?.has(player, amount) ?: false }
+    fun has(player: OfflinePlayer, amount: Double): Boolean {
+        if (!isValidAmount(amount)) return false
+        return KSLErrors.hookSafe("Vault", false) { economy?.has(player, amount) ?: false }
+    }
+
+    private fun isValidAmount(amount: Double): Boolean = amount.isFinite() && amount >= 0.0
 
     fun format(amount: Double): String =
         KSLErrors.hookSafe("Vault", amount.toString()) { economy?.format(amount) ?: amount.toString() }
