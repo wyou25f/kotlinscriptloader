@@ -31,7 +31,6 @@ import ru.privateserver.ksl.rt.KSLCache as CoreKSLCache
 import ru.privateserver.ksl.rt.KSLProfiler as CoreKSLProfiler
 import ru.privateserver.ksl.rt.KSLWorkScheduler as CoreKSLWorkScheduler
 import ru.privateserver.ksl.rt.KSLWorkPriority as CoreKSLWorkPriority
-import ru.privateserver.ksl.rt.KSLWorkPriority as CoreKSLWorkPriority
 import ru.privateserver.ksl.rt.KSLWorkHandle as CoreKSLWorkHandle
 import ru.privateserver.ksl.rt.KSLWorkState as CoreKSLWorkState
 import ru.privateserver.ksl.rt.KSLWorkInfo as CoreKSLWorkInfo
@@ -94,7 +93,6 @@ typealias MesLib2Info = CoreMesLib2Info
 typealias KSLCache<K, V> = CoreKSLCache<K, V>
 typealias KSLProfiler = CoreKSLProfiler
 typealias KSLWorkScheduler = CoreKSLWorkScheduler
-typealias KSLWorkPriority = CoreKSLWorkPriority
 typealias KSLWorkPriority = CoreKSLWorkPriority
 typealias KSLWorkHandle = CoreKSLWorkHandle
 typealias KSLWorkState = CoreKSLWorkState
