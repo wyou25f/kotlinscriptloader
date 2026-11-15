@@ -5,9 +5,20 @@ on:
     branches: [main]
   release:
     types: [published]
+  workflow_run:
+    workflows:
+      - Build
+      - 'KSL Compatibility Build · Minecraft 1.16.5–1.21'
+      - 'KSL Compatibility Build · Minecraft 1.18+'
+    types: [completed]
+    branches:
+      - main
+      - 'compat/mc-1.16.5-1.21'
+      - 'compat/mc-1.18-plus'
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
   pages: write
   id-token: write
@@ -45,18 +56,101 @@ jobs:
           fi
           python - <<'PY'
           import json
+          import os
           from pathlib import Path
+          from urllib.parse import urlencode
+          from urllib.request import Request, urlopen
+
+          repository = os.environ["GITHUB_REPOSITORY"]
+          api_base = f"https://api.github.com/repos/{repository}"
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
           def read(path):
               return json.loads(Path(path).read_text(encoding="utf-8"))
+
+          def api_json(path):
+              request = Request(f"{api_base}/{path}", headers=headers)
+              with urlopen(request, timeout=30) as response:
+                  return json.load(response)
+
+          build_specs = {
+              "main": "KSL-build-",
+              "compat/mc-1.16.5-1.21": "KSL-compat-1.16.5-1.21-",
+              "compat/mc-1.18-plus": "KSL-compat-1.18-plus-",
+          }
+
+          def latest_build(branch, artifact_prefix):
+              query = urlencode({"branch": branch, "status": "success", "per_page": 50})
+              runs = api_json(f"actions/runs?{query}").get("workflow_runs", [])
+              runs = [
+                  run for run in runs
+                  if run.get("path") == ".github/workflows/build.yml"
+                  and run.get("conclusion") == "success"
+              ]
+              if not runs:
+                  return None
+
+              for run in runs:
+                  artifacts = api_json(
+                      f"actions/runs/{run['id']}/artifacts?per_page=100"
+                  ).get("artifacts", [])
+                  artifact = next((
+                      item for item in artifacts
+                      if item.get("name", "").startswith(artifact_prefix)
+                      and "diagnostics" not in item.get("name", "").lower()
+                      and not item.get("expired", False)
+                  ), None)
+                  if artifact:
+                      break
+
+              result = {
+                  "run_id": run["id"],
+                  "run_number": run.get("run_number"),
+                  "name": run.get("name"),
+                  "branch": branch,
+                  "sha": run.get("head_sha"),
+                  "created_at": run.get("created_at"),
+                  "html_url": run.get("html_url"),
+                  "artifact": None,
+              }
+              if artifact:
+                  result["artifact"] = {
+                      "id": artifact["id"],
+                      "name": artifact.get("name"),
+                      "size_in_bytes": artifact.get("size_in_bytes"),
+                      "created_at": artifact.get("created_at"),
+                      "expires_at": artifact.get("expires_at"),
+                      "expired": artifact.get("expired", False),
+                      "download_url": (
+                          f"https://github.com/{repository}/actions/runs/"
+                          f"{run['id']}/artifacts/{artifact['id']}"
+                      ),
+                  }
+              return result
+
           data = {
               "repo": read("/tmp/ksl-repo.json"),
               "branches": read("/tmp/ksl-branches.json"),
               "release": read("/tmp/ksl-release.json"),
               "commits": read("/tmp/ksl-commits.json"),
+              "builds": {
+                  branch: latest_build(branch, prefix)
+                  for branch, prefix in build_specs.items()
+              },
           }
           assert isinstance(data["branches"], list) and data["branches"], "No repository branches returned"
           assert isinstance(data["commits"], list) and data["commits"], "No main-branch commits returned"
-          Path("website/data.json").write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+          Path("website/data.json").write_text(
+              json.dumps(data, ensure_ascii=False, separators=(",", ":")),
+              encoding="utf-8",
+          )
+          for branch, build in data["builds"].items():
+              artifact_name = build["artifact"]["name"] if build and build["artifact"] else "none"
+              print(f"Latest successful build for {branch}: {build['run_number'] if build else 'none'}; artifact={artifact_name}")
           print(f"Generated website/data.json: {len(data['branches'])} branches, {len(data['commits'])} commits, release={bool(data['release'])}")
           PY
       - name: Validate website
