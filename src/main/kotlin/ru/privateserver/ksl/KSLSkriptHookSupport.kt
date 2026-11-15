@@ -1,5 +1,7 @@
 package ru.privateserver.ksl
 
+import java.util.Locale
+
 data class KSLSkriptDiagnostics(
     val installed: Boolean,
     val enabled: Boolean,
