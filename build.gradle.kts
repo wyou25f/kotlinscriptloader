@@ -120,6 +120,7 @@ val verifyShadowJar by tasks.registering {
                 "ru/privateserver/ksl/KSLEssentialsHook.class",
                 "ru/privateserver/ksl/hooks/KSLHookIds.class",
                 "ru/privateserver/ksl/hooks/KSLPluginHook.class",
+                "ru/privateserver/ksl/hooks/KSLHookReflectionCore.class",
                 "ru/privateserver/ksl/hooks/KSLHookAliasesKt.class",
                 "ru/privateserver/ksl/hooks/KSLTabHook.class",
                 "ru/privateserver/ksl/hooks/KSLSkinHook.class",
