@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
+import java.nio.file.Files
 
 class KSLSkriptNamesTest {
     @Test
@@ -29,5 +30,33 @@ class KSLSkriptNamesTest {
         assertNull(KSLSkriptNames.scriptPath("../secrets"))
         assertNull(KSLSkriptNames.scriptPath("events/../secret.sk"))
         assertNull(KSLSkriptNames.scriptPath("folder/my script"))
+    }
+
+
+    @Test
+    fun loadedScriptPathsMustRemainInsideCanonicalScriptsFolder() {
+        val root = Files.createTempDirectory("ksl-skript-scripts")
+        val nested = root.resolve("nested")
+        Files.createDirectories(nested)
+        val inside = nested.resolve("allowed.sk")
+        Files.writeString(inside, "on load:")
+        val outside = Files.createTempFile("ksl-skript-outside", ".sk")
+
+        try {
+            assertEquals(
+                "nested/allowed.sk",
+                KSLSkriptNames.relativeScriptPath(root.toFile(), inside.toFile())
+            )
+            assertNull(KSLSkriptNames.relativeScriptPath(root.toFile(), outside.toFile()))
+            assertNull(
+                KSLSkriptNames.relativeScriptPath(
+                    root.toFile(),
+                    nested.resolve("not-a-script.txt").toFile()
+                )
+            )
+        } finally {
+            root.toFile().deleteRecursively()
+            outside.toFile().deleteIfExists()
+        }
     }
 }
