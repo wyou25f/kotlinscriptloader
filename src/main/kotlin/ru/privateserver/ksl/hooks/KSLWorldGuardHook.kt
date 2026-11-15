@@ -29,7 +29,7 @@ open class KSLWorldGuardHook : KSLHook {
         query.testState(BukkitAdapter.adapt(location), localPlayer, Flags.BUILD)
     }
 
-    fun canPvp(player: Player, location: Location): Boolean = KSLErrors.hookSafe("WorldGuard", true) {
+    fun canPvp(player: Player, location: Location): Boolean = KSLErrors.hookSafe("WorldGuard", false) {
         val localPlayer = WorldGuardPlugin.inst().wrapPlayer(player)
         val query = WorldGuard.getInstance().platform.regionContainer.createQuery()
         query.testState(BukkitAdapter.adapt(location), localPlayer, Flags.PVP)
