@@ -14,9 +14,12 @@ function highlightCode(source, language) {
  var sets={
   kotlin:"as break class continue do else false for fun if in interface is null object package return super this throw true try typealias typeof val var when while by catch constructor delegate finally get import init lateinit open override private protected public internal companion data enum sealed suspend",
   java:"abstract assert boolean break byte case catch char class const continue default do double else enum extends final finally float for goto if implements import instanceof int interface long native new package private protected public return short static super switch synchronized this throw throws transient try void volatile while",
-  sql:"add all alter and as asc between by case column constraint create database default delete desc distinct drop else end exists false foreign from group having if in index inner insert into is join key left like limit not null offset on or order outer primary references right select set table then true union unique update using values where"
+  sql:"add all alter and as asc between by case column constraint create database default delete desc distinct drop else end exists false foreign from group having if in index inner insert into is join key left like limit not null offset on or order outer primary references right select set table then true union unique update using values where",
+  bash:"alias begin break case cd chmod chown continue cp do done echo elif else end esac exit export fi for foreach function if in local mkdir move mv param popd printf pushd pwd read return rm set shift source then trap unset while",
+  powershell:"begin break catch class continue data do dynamicparam else elseif end exit filter finally for foreach from function if in param process return switch throw trap try until using var while"
  };
  var keywords=new Set((sets[lang]||"").split(" "));
+ var sqlTypes=new Set("bigint binary bit blob boolean char date datetime decimal double enum float int integer json longblob longtext mediumint mediumtext numeric real serial smallint text time timestamp tinyint varbinary varchar".split(" "));
  var types=new Set("Any Array Boolean Byte Char Class Double Float Int Long Nothing Number Pair Result Short String Throwable Triple Unit UUID Duration File Path List MutableList Set MutableSet Map MutableMap Collection Sequence Object Integer Void Exception RuntimeException IOException ArrayList HashSet HashMap".split(" "));
  var builtins=new Set("println print require check error listOf mutableListOf setOf mapOf arrayOf sequenceOf run let also apply with toString hashCode equals next getLong getString getInt execute query queryAsync queryYaml executeYaml log logWarn runSync runAsync worker every onEvent registerCommand persist table featureEnabled enableFeature disableFeature jsonObjectOf loadToml saveToml editToml".split(" "));
  var pattern=/\/\*[\s\S]*?\*\/|\/\/[^\n]*|--[^\n]*|#[^\n]*|"""[\s\S]*?"""|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|@[A-Za-z_$][\w$]*|\b(?:0[xX][0-9a-fA-F]+|0[bB][01]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b|[A-Za-z_$][\w$]*|\s+|./g;
@@ -29,7 +32,9 @@ function highlightCode(source, language) {
   else if(/^(?:0[xX]|0[bB]|\d)/.test(t))kind="number";
   else if(/^[A-Za-z_$]/.test(t)){
    if(["true","false","null","undefined","nan","infinity"].indexOf(lower)>=0)kind="constant";
-   else if((lang==="yaml"||lang==="toml"||lang==="json")&&nextChar===":")kind="property";
+   else if((lang==="yaml"||lang==="json")&&nextChar===":")kind="property";
+   else if(lang==="toml"&&(nextChar==="="||nextChar===":"))kind="property";
+   else if(lang==="sql"&&sqlTypes.has(lower))kind="type";
    else if(keywords.has(lower))kind="keyword";
    else if(types.has(t)||(/^[A-Z][A-Za-z0-9_$]*$/.test(t)&&["kotlin","java","gradle"].indexOf(lang)>=0))kind="type";
    else if(nextChar==="(")kind="function";
