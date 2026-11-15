@@ -7,11 +7,15 @@ import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
+import org.bukkit.entity.Entity
+import org.bukkit.event.Event
+import org.bukkit.event.EventPriority
+import org.bukkit.event.world.ChunkLoadEvent
+import org.bukkit.event.world.ChunkUnloadEvent
+import org.bukkit.plugin.EventExecutor
 import org.bukkit.event.entity.EntityDamageByEntityEvent
 import org.bukkit.event.entity.EntityDamageEvent
 import org.bukkit.event.entity.EntityDeathEvent
-import org.bukkit.event.entity.EntityRemoveEvent
-import org.bukkit.event.world.EntitiesLoadEvent
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
 import java.util.UUID
@@ -36,9 +40,56 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
     private val attackHooks = ConcurrentHashMap<UUID, Hook<(LivingEntity, EntityDamageByEntityEvent) -> Unit>>()
     private val dropSpecs = ConcurrentHashMap<UUID, DropSpec>()
     private val tickTasks = ConcurrentHashMap<UUID, MutableSet<Hook<BukkitTask>>>()
+    private val unloadingEntityIds = ConcurrentHashMap.newKeySet<UUID>()
 
     fun register() {
         Bukkit.getPluginManager().registerEvents(this, plugin)
+        registerEntityRemovalEvent()
+        // Chunks already loaded before this plugin's onEnable do not emit ChunkLoadEvent again.
+        // Scan them one tick later so orphan cleanup also covers entities restored at server startup.
+        Bukkit.getScheduler().runTask(plugin, Runnable {
+            if (!plugin.isEnabled) return@Runnable
+            Bukkit.getWorlds().forEach { world ->
+                world.loadedChunks.forEach { chunk -> removeOrphanedEntities(chunk.entities.asList()) }
+            }
+        })
+    }
+
+    /**
+     * Paper renamed its removal event over time. Register whichever event exists
+     * without linking either class into the plugin's constant pool.
+     */
+    private fun registerEntityRemovalEvent() {
+        val eventNames = listOf(
+            "org.bukkit.event.entity.EntityRemoveEvent",
+            "com.destroystokyo.paper.event.entity.EntityRemoveFromWorldEvent"
+        )
+        val eventClass = eventNames.firstNotNullOfOrNull { name ->
+            try {
+                Class.forName(name, false, Bukkit::class.java.classLoader)
+                    .takeIf { Event::class.java.isAssignableFrom(it) }
+            } catch (_: ClassNotFoundException) {
+                null
+            } catch (_: LinkageError) {
+                null
+            } catch (_: SecurityException) {
+                null
+            }
+        } ?: run {
+            plugin.logger.warning("Paper entity-removal event is unavailable; non-death entity cleanup will use script unload and chunk lifecycle fallbacks")
+            return
+        }
+
+        @Suppress("UNCHECKED_CAST")
+        val typedEventClass = eventClass as Class<out Event>
+        Bukkit.getPluginManager().registerEvent(
+            typedEventClass,
+            this,
+            EventPriority.MONITOR,
+            EventExecutor { _, event -> handleEntityRemoval(event) },
+            plugin,
+            true
+        )
     }
 
     fun scriptNames(): Set<String> = entitiesByScript.keys +
@@ -183,40 +234,59 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
         runHook(hook.scriptName, "entity onAttack") { hook.callback(attacker, event) }
     }
 
-    // Catches every removal cause (death, /kill, distance despawn, other plugins), not only script unload.
-    // Without it the maps would grow forever on a server where mobs spawn and die naturally.
-    // NOTE: never touch the entity itself (no .remove()) in here; Paper can throw
-    // ConcurrentModificationException if removal happens while the world is iterating its entities.
+    // Entity removal event APIs differ between Paper versions. Chunk events provide
+    // the unload distinction needed by the older EntityRemoveFromWorldEvent.
     @EventHandler
-    fun onRemove(event: EntityRemoveEvent) {
+    fun onChunkUnload(event: ChunkUnloadEvent) {
+        event.chunk.entities.forEach { entity ->
+            if (entity is LivingEntity) unloadingEntityIds.add(entity.uniqueId)
+        }
+    }
+
+    @EventHandler
+    fun onChunkLoad(event: ChunkLoadEvent) {
+        val entities = event.chunk.entities.asList()
+        entities.forEach { unloadingEntityIds.remove(it.uniqueId) }
+        // Entity data is fully attached to the world after the chunk event completes.
+        Bukkit.getScheduler().runTask(plugin, Runnable {
+            if (plugin.isEnabled) removeOrphanedEntities(entities)
+        })
+    }
+
+    private fun handleEntityRemoval(event: Event) {
         if (hooksIdle() && entitiesByScript.isEmpty() && removeOnReload.isEmpty()) return
-        val entity = event.entity as? LivingEntity ?: return
-        // UNLOAD is not a despawn: the entity may be saved with its chunk and reloaded later.
-        // isPersistent controls despawning, not whether a chunk-unloaded entity is saved.
-        if (event.cause == EntityRemoveEvent.Cause.UNLOAD) return
+        val entity = runCatching {
+            event.javaClass.getMethod("getEntity").invoke(event) as? LivingEntity
+        }.getOrNull() ?: return
+
+        // Newer Paper exposes the cause directly; older Paper uses the world-removal event.
+        val cause = runCatching { event.javaClass.getMethod("getCause").invoke(event) }.getOrNull()
+        if ((cause as? Enum<*>)?.name.equals("UNLOAD", ignoreCase = true)) return
+
         val uuid = entity.uniqueId
-        // Hooks can exist for entities we never spawned, so this must not depend on the owner tag.
+        // EntityRemoveFromWorldEvent is also fired for chunk unloads on older Paper.
+        if (unloadingEntityIds.remove(uuid)) return
+
         dropHooks(uuid)
         removeOnReload.remove(uuid)
         cancelTickTasks(uuid)
         untrackEntity(uuid, ownerOf(entity))
     }
 
-    // Saved entities outlive the in-memory index (restart, script unloaded while the chunk was unloaded).
-    // An ephemeral one that nobody tracks has lost its script behavior; drop it instead of leaving an inert mob.
-    @EventHandler
-    fun onEntitiesLoad(event: EntitiesLoadEvent) {
+    // Ephemeral entities left in saved chunks after their owning script disappeared
+    // have lost their callbacks, so remove them once they're safely in the world.
+    private fun removeOrphanedEntities(entities: Iterable<Entity>) {
         if (!plugin.isEnabled) return
-        // Only living entities are ever spawned by scripts; reading the PDC of items and armor stands in every loaded chunk is wasted work.
-        val orphans = event.entities.filter { entity ->
-            if (entity !is LivingEntity) return@filter false
+        val orphans = entities.filterIsInstance<LivingEntity>().filter { entity ->
             val pdc = entity.persistentDataContainer
             val owner = pdc.get(ownerKey, PersistentDataType.STRING) ?: return@filter false
-            pdc.has(ephemeralKey, PersistentDataType.BYTE) && entitiesByScript[owner]?.contains(entity.uniqueId) != true
+            pdc.has(ephemeralKey, PersistentDataType.BYTE) &&
+                entitiesByScript[owner]?.contains(entity.uniqueId) != true
         }
         if (orphans.isEmpty()) return
-        // Removal is deferred: the entities are still being added to the world inside this event.
-        Bukkit.getScheduler().runTask(plugin, Runnable { orphans.forEach { if (it.isValid) it.remove() } })
+        Bukkit.getScheduler().runTask(plugin, Runnable {
+            orphans.forEach { if (it.isValid) it.remove() }
+        })
     }
 
     fun cleanupForScript(scriptName: String) {
