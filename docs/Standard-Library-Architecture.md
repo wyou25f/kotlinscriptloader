@@ -23,6 +23,10 @@ The security standard library uses Java 21 cryptographic APIs and adds no extern
 
 The JSON standard library uses kotlinx.serialization JSON and is bundled with KSL; scripts receive `kotlinx.serialization.json.*` imports by default. JSON files are restricted to the script `scripts/` directory and saved through atomic replacement. File I/O is synchronous.
 
+The script DSL helper `chance(percent)` follows the same contract as
+`randomChance(percent)`: the percentage must be finite and within 0..100.
+Invalid values now fail immediately instead of silently producing a result.
+
 The existing `ru.privateserver.ksl.dsl.*` package remains available. Its `.sec`, `.mins` and `.hours` extensions use checked arithmetic and throw on overflow instead of silently wrapping.
 
 ## Examples
