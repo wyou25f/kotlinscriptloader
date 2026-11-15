@@ -139,7 +139,7 @@ fun Player.count(item: ItemStack): Int =
 /** Copies all non-empty storage contents, then clears those storage slots. Armor and offhand are preserved. */
 fun Player.clearStorage(): List<ItemStack> {
     val removed = inventory.storageContents.filterNotNull().filterNot(ItemStack::isEmptyStack).map(ItemStack::clone)
-    inventory.storageContents = arrayOfNulls(inventory.storageContents.size)
+    inventory.storageContents = arrayOfNulls<ItemStack>(inventory.storageContents.size)
     return removed
 }
 
