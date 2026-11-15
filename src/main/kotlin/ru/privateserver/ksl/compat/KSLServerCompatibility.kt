@@ -76,13 +76,16 @@ object KSLServerCompatibility {
         KSLServerCapability.PAPER_ASYNC_CHAT_EVENT ->
             classAvailable("io.papermc.paper.event.player.AsyncChatEvent")
         KSLServerCapability.PAPER_ENTITY_REMOVE_EVENT ->
-            classAvailable("org.bukkit.event.entity.EntityRemoveEvent")
+            classAvailable("org.bukkit.event.entity.EntityRemoveEvent") ||
+                classAvailable("com.destroystokyo.paper.event.entity.EntityRemoveFromWorldEvent")
         KSLServerCapability.PAPER_ENTITIES_LOAD_EVENT ->
             classAvailable("org.bukkit.event.world.EntitiesLoadEvent")
         KSLServerCapability.PARTICLE_DUST ->
-            enumConstantAvailable("org.bukkit.Particle", "DUST")
+            enumConstantAvailable("org.bukkit.Particle", "REDSTONE") &&
+                classAvailable("org.bukkit.Particle\$DustOptions")
         KSLServerCapability.PARTICLE_DUST_TRANSITION ->
-            classAvailable("org.bukkit.Particle\$DustTransition")
+            enumConstantAvailable("org.bukkit.Particle", "DUST_COLOR_TRANSITION") &&
+                classAvailable("org.bukkit.Particle\$DustTransition")
         KSLServerCapability.ATTRIBUTE_REGISTRY ->
             publicStaticFieldAvailable("org.bukkit.Registry", "ATTRIBUTE")
         KSLServerCapability.PAPER_MOB_PATHFINDER ->
@@ -130,4 +133,18 @@ object KSLCompatibilityTarget {
     const val MINIMUM_MINECRAFT_VERSION: String = "1.18.2"
     const val MINIMUM_JAVA_VERSION: Int = 17
     const val COMPILE_API_BASELINE: String = "Paper 1.18.2"
+
+    /** Returns a startup failure message, or null when this server meets the branch baseline. */
+    fun runtimeFailure(version: KSLMinecraftVersion?, javaFeature: Int): String? {
+        if (version == null) return "Unable to determine the running Minecraft version from Bukkit."
+        val minimum = KSLMinecraftVersion.parse(MINIMUM_MINECRAFT_VERSION)
+            ?: return "Invalid KSL compatibility profile: $MINIMUM_MINECRAFT_VERSION"
+        if (version < minimum) {
+            return "This KSL build requires Minecraft $MINIMUM_MINECRAFT_VERSION or newer; detected $version."
+        }
+        if (javaFeature < MINIMUM_JAVA_VERSION) {
+            return "This KSL build requires Java $MINIMUM_JAVA_VERSION or newer; detected Java $javaFeature."
+        }
+        return null
+    }
 }
