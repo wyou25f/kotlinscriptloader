@@ -109,6 +109,840 @@ error:
   title: "§aKSL error §e{code} §8— §f{title} §8({category})"
   hint: "§7What to do: {hint}"
 
+error-codes:
+  categories:
+    a: "Script loading and execution"
+    b: "Database and storage"
+    c: "Commands and events"
+    d: "Effects and particles"
+    e: "Mobs and entities"
+    f: "GUI menus"
+    g: "Integrations, hooks, and Discord"
+    h: "Addons and API"
+    i: "Configuration and files"
+    j: "Scheduler and tasks"
+    k: "Placeholders and text"
+    l: "System, diagnostics, and plugin shutdown"
+  entries:
+    '6156a':
+      title: "Script compilation failed"
+      hint: "Read the diagnostic message below for the line and cause. Validate the script with /ksl validate."
+    '2413a':
+      title: "Compiler warning"
+      hint: "The script loaded, but the compiler found a suspicious construct. Fix it to avoid unexpected behavior."
+    '8470a':
+      title: "An exception occurred while executing a script"
+      hint: "The error occurred in script code. The log identifies the .kts line. Fix the code and run /ksl reload <script>."
+    '0248a':
+      title: "The script explicitly stopped the current operation with error()"
+      hint: "This is a controlled error: the current operation stops, but the script is not unloaded. Read the script's message and fix the reported cause."
+    '0878a':
+      title: "The script called fatal() and was unloaded"
+      hint: "This is an intentional signal: KSL stopped the current script and released resources owned by it. Review the message before reloading."
+    '1029a':
+      title: "An internal failure occurred during script compilation"
+      hint: "This is not an ordinary syntax error. Check Java and the integrity of the KSL JAR, run /ksl doctor, and save the stack trace for a report."
+    '1292a':
+      title: "The script engine could not execute a compiled script"
+      hint: "Review the diagnostic lines below the message. If the script has no obvious issue, check compatibility between Java, the Kotlin scripting engine, and KSL."
+    '4726a':
+      title: "A forbidden call was detected by Sandbox"
+      hint: "The script uses a pattern from the Sandbox deny-list. Remove the call or disable Sandbox in config.yml only if the script is trusted."
+    '0983a':
+      title: "Script loading took too long"
+      hint: "The script's top-level code may perform expensive work (network, disk, or database I/O). Move it to runAsync or an event callback."
+    '7040a':
+      title: "Script was not found"
+      hint: "Check the name: it is relative to scripts/ without .kts, for example economy/shop. Use /ksl reload and Tab completion to inspect IDs."
+    '3297a':
+      title: "The script path resolves outside scripts/"
+      hint: "Use a path inside scripts/ and do not use '..'."
+    '9353a':
+      title: "@requires points to a missing script"
+      hint: "Check the name in // @requires: it must match the script ID (path without .kts)."
+    '5610a':
+      title: "A cyclic @requires dependency was detected"
+      hint: "Scripts depend on each other in a loop. Break the cycle by moving shared code into a third script."
+    '1867a':
+      title: "Some resources could not be removed while unloading the script"
+      hint: "Some script resources (tasks, listeners, commands) may remain. If this repeats, restart the server."
+    '7924b':
+      title: "The database connection failed"
+      hint: "Check database.* in config.yml, that MySQL/MariaDB is running, the database exists, and the user has permissions. See docs/Database-Guide.md."
+    '4180b':
+      title: "Some records were not saved during shutdown"
+      hint: "The database write queue did not drain in time. Do not forcibly kill the server; let it shut down normally."
+    '0437b':
+      title: "A persist value could not be read"
+      hint: "Check the database connection with /ksl doctor. The script will receive its default value."
+    '6494b':
+      title: "A persist value could not be saved"
+      hint: "The value remains in memory only until restart. Check the database connection with /ksl doctor."
+    '2750b':
+      title: "A table() operation failed"
+      hint: "Check the database connection with /ksl doctor. The operation did not complete; other scripts were not affected."
+    '8807b':
+      title: "The storage does not support this value type"
+      hint: "Store only String, Int, Long, Double, Boolean, or null. Serialize lists and objects to strings yourself."
+    '5064b':
+      title: "A SQL query from a script failed"
+      hint: "Check the query text. It should be portable across SQLite and MySQL/MariaDB (avoid PRAGMA and AUTOINCREMENT)."
+    '1321b':
+      title: "KSL service tables are unavailable"
+      hint: "Migrations were not applied. Check whether the database user can CREATE TABLE, then restart the server."
+    '7377b':
+      title: "A key is longer than 190 characters"
+      hint: "MySQL/MariaDB cannot store keys this long. Shorten the key in ksl.db and retry /ksl dbmigrate confirm."
+    '3634b':
+      title: "increment() failed"
+      hint: "The key contains a non-numeric value or the database is unavailable. Check the value and /ksl doctor."
+    '9691c':
+      title: "Command conflicts with another command"
+      hint: "Another plugin or script already owns the name. Rename the command or use the ksl: prefix."
+    '5948c':
+      title: "An exception occurred in a command handler"
+      hint: "The error is in the script command. The player saw a generic message; details are in the console."
+    '2204c':
+      title: "An exception occurred in Tab completion"
+      hint: "The command's tabComplete handler failed. Suggestions were omitted."
+    '8261c':
+      title: "commandMap is not available for modification"
+      hint: "Old commands may remain until the server restarts. This usually indicates an incompatible Paper version."
+    '4518c':
+      title: "An exception occurred in an event handler"
+      hint: "The error occurred in onEvent/on/onJoin or a similar callback. Other plugins processed the event normally."
+    '0775c':
+      title: "A background /ksl command failed"
+      hint: "See the error message. Retry the command; report it if the problem repeats."
+    '6831d':
+      title: "The particle requires additional data"
+      hint: "For DUST, call color(255, 0, 0); for other particles, assign data = ... (BlockData, ItemStack, etc.)."
+    '3088d':
+      title: "An exception occurred while rendering an effect"
+      hint: "The effect was stopped. Check custom{}, stopWhen{}, and onEnd{} in this effect."
+    '9145d':
+      title: "count is outside the allowed range"
+      hint: "count is limited to 0..100 per point to prevent client lag."
+    '5401d':
+      title: "Unknown effect shape"
+      hint: "Check the name in shape(\"...\"); available shapes are listed in the message."
+    '1658d':
+      title: "Invalid color format"
+      hint: "Use color(r, g, b) or a HEX value such as \"#RRGGBB\"."
+    '7715e':
+      title: "Unknown TYPE in the mob template"
+      hint: "Use a name from EntityType, such as ZOMBIE. A ZOMBIE was spawned instead."
+    '3972e':
+      title: "The entity is not a living mob"
+      hint: "spawnCustomEntity creates only LivingEntity types (ZOMBIE, COW, etc.). Items and projectiles cannot be spawned this way."
+    '0228e':
+      title: "The location has no world"
+      hint: "The world may be unloaded or the location was created without a world. Check loc(...) for null."
+    '6285e':
+      title: "HP is outside the allowed range"
+      hint: "HP must be greater than 0 and no more than 1024. The value was ignored."
+    '2542e':
+      title: "Unknown mob-template key"
+      hint: "Allowed keys are listed in the message; custom keys can be added with api.registerEntityAttribute."
+    '8599e':
+      title: "A mob attribute could not be applied"
+      hint: "Check the value and whether this mob supports the attribute (a cow has no attack_damage)."
+    '4855e':
+      title: "Unknown slot in equip()"
+      hint: "Supported slots: HAND, OFFHAND, HELMET, CHESTPLATE, LEGGINGS, BOOTS."
+    '1112e':
+      title: "equip() contains a value that is not an item"
+      hint: "Check the material name, for example DIAMOND_SWORD."
+    '7169e':
+      title: "The mob's onTick handler was disabled after errors"
+      hint: "The handler failed five times consecutively and was stopped. Fix the code and recreate the mob."
+    '3426e':
+      title: "An exception occurred in a mob handler"
+      hint: "The error occurred in onTick/onDeath/onDamaged/onAttack. The mob's other behavior continues."
+    '9482e':
+      title: "A mob could not be removed during unload"
+      hint: "The mob may remain in the world and will be removed when the chunk is loaded again."
+    '5739f':
+      title: "rows is outside 1..6"
+      hint: "An inventory must have 1..6 rows. The nearest valid value was used."
+    '1996f':
+      title: "Slot is outside the inventory"
+      hint: "Slots are numbered from 0 to rows*9-1. The item was not added."
+    '8052f':
+      title: "MiniMessage could not parse the GUI title"
+      hint: "Check title tags. The title was displayed as plain text."
+    '4309f':
+      title: "paginate() was called without slots"
+      hint: "Pass a non-empty list of page slots."
+    '0566f':
+      title: "An exception occurred in a GUI handler"
+      hint: "An error occurred while clicking, closing, or rendering a GUI page. The menu remains open."
+    '6623f':
+      title: "gui() was called outside the main thread"
+      hint: "Wrap menu creation in sync { } or call it from an event."
+    '2879g':
+      title: "Could not initialize a hook"
+      hint: "The plugin is installed, but its API is unavailable or incompatible. Check the plugin version."
+    '8936g':
+      title: "Discord channel is not configured"
+      hint: "Add a webhook to config.yml: discord.webhooks.<channel>."
+    '5193g':
+      title: "Could not send a Discord message"
+      hint: "Network error. Check whether the server can reach discord.com."
+    '1450g':
+      title: "Discord returned an error"
+      hint: "The response code is in the message: 401/404 usually means an invalid webhook; 400 means invalid content."
+    '7506g':
+      title: "Could not register PlaceholderAPI expansion"
+      hint: "Check the PlaceholderAPI version. %ksl_*% placeholders will not work."
+    '3763g':
+      title: "PlaceholderAPI is not installed"
+      hint: "The placeholder was skipped. Install PlaceholderAPI to use %ksl_*%."
+    '9820h':
+      title: "Addon failed to load"
+      hint: "onLoad threw an exception; the addon's registrations were rolled back. See the error message for details."
+    '6077h':
+      title: "KSL API version is too old for the addon"
+      hint: "Update KotlinScriptLoader or use an earlier addon version."
+    '2333h':
+      title: "An addon with this ID is already loaded"
+      hint: "The old instance was unloaded before replacement. Check for duplicate addon JARs."
+    '8390h':
+      title: "Error while unloading an addon"
+      hint: "onUnload threw an exception. The addon's registrations were still removed."
+    '4647h':
+      title: "Addon dependency is not loaded"
+      hint: "Add depend to the addon's plugin.yml or use api.whenReady(id) { } inside onLoad."
+    '0903h':
+      title: "An addon is being unloaded while other addons depend on it"
+      hint: "Unload dependent addons first or restart the server."
+    '6960h':
+      title: "Registration replaced a resource owned by another addon"
+      hint: "A service, hook, shape, attribute, or placeholder with this name already exists. Use a unique key prefixed with your addon ID."
+    '3217h':
+      title: "Service or hook type did not match"
+      hint: "The class was loaded by different classloaders. Do not bundle the provider API in your JAR; use compileOnly."
+    '9274h':
+      title: "Exception in an addon callback"
+      hint: "An error occurred in onAddonReady, a context extension, or an event-bus subscriber. Other callbacks still ran."
+    '5530h':
+      title: "Exception in api.listen"
+      hint: "An error occurred in a Bukkit event handler registered by the addon."
+    '1787h':
+      title: "A library export was overwritten"
+      hint: "Two scripts export the same key. Use unique keys in export()."
+    '7844i':
+      title: "YAML file is corrupted"
+      hint: "A *.broken-<time> copy was created and an empty config is being used. Fix indentation and quotes, then reload the script."
+    '4101i':
+      title: "Could not read YAML"
+      hint: "Check file permissions and whether another program has locked the file."
+    '0357i':
+      title: "Could not save YAML"
+      hint: "Check write permissions and available disk space."
+    '6414i':
+      title: "YAML path escapes the scripts/ directory"
+      hint: "loadYaml accepts only paths inside scripts/."
+    '2671i':
+      title: "Invalid database setting in config.yml"
+      hint: "Correct the value according to the error message. See docs/Database-Guide.md for an example."
+    '8728j':
+      title: "Exception in a scheduled task"
+      hint: "An error occurred in delay/every/sync/async or a similar callback. A repeating task will continue."
+    '4984j':
+      title: "Task period is less than one tick"
+      hint: "The period must be at least one tick. A value of 1 was used."
+    '1241k':
+      title: "An @placeholder@ token was not replaced in text"
+      hint: "Check the key name in message()/richMessage(), or register it with textPlaceholder."
+    '7298k':
+      title: "Exception in a %ksl_...% resolver"
+      hint: "An error occurred in placeholder { }. Players received an empty string."
+    '3554k':
+      title: "Placeholder key is already in use"
+      hint: "Another script or addon registered the same key. The new resolver replaced the old one."
+    '9611k':
+      title: "Text placeholder name is reserved"
+      hint: "player, world, online, maxplayers, health, and ping are built in. Choose another key."
+    '5868k':
+      title: "Exception in a text placeholder"
+      hint: "An error occurred in textPlaceholder { }. An empty string was substituted."
+    '2125l':
+      title: "Error while stopping the plugin"
+      hint: "Some resources were not released normally. If this happens on every shutdown, report the issue."
+    '8181l':
+      title: "Could not create .autocomplete.kts"
+      hint: "Check write permissions for scripts/. Script execution is not affected."
+    '4438a':
+      title: "Script auto-reload did not start"
+      hint: "Check permissions for scripts/ and the operating-system file watcher limit. Scripts can still be reloaded with /ksl reload."
+    '0695a':
+      title: "The script tried to access a forbidden class"
+      hint: "Sandbox denied a class from its deny-list (Runtime, ProcessBuilder, reflection, ClassLoader, etc.). Remove the call or add the script to security.sandbox-trusted if it is trusted."
+    '6752a':
+      title: "The script exceeded its event-handler limit"
+      hint: "The script registers onEvent in a loop or from another event. Register each handler once at top level. Limit: security.limits.max-listeners-per-script."
+    '3008a':
+      title: "The script exceeded its task limit"
+      hint: "The script creates too many delay/every/sync tasks. Do not create tasks in an unbounded loop. Limit: security.limits.max-tasks-per-script."
+    '9065a':
+      title: "The new version did not compile; the previous version remains active"
+      hint: "The old script version is still running. Fix the errors above and run /ksl reload <script> again."
+    '5322c':
+      title: "A console command was blocked"
+      hint: "The command is listed in security.console-command-blocklist. Remove it only if the script is trusted."
+    '1579b':
+      title: "The database write queue is growing"
+      hint: "The database writes more slowly than scripts submit writes. Check database performance and set()/persist frequency; see /ksl doctor."
+    '4958a':
+      title: "A script import could not be resolved"
+      hint: "Check the file name and import path; the file must be inside the permitted scripts/ directory."
+    '8623a':
+      title: "Cyclic import"
+      hint: "Remove the mutual import and move shared declarations into a separate script."
+    '7342a':
+      title: "Invalid import syntax"
+      hint: "Compare the import format with KSL documentation and check the name's capitalization."
+    '5689a':
+      title: "Script compilation timed out"
+      hint: "Check expensive constructs and the number of imports; try validating one script separately."
+    '4902a':
+      title: "The compiler ran out of memory"
+      hint: "Check available JVM memory and the size of the script being compiled."
+    '4039a':
+      title: "The compiler is unavailable"
+      hint: "Check the KSL JAR and Java version; restart the server after updating."
+    '6132a':
+      title: "Script classes conflict"
+      hint: "Rename conflicting declarations or move the shared type into an addon API."
+    '4010a':
+      title: "A script ID is duplicated"
+      hint: "Keep only one file with that relative path under scripts/."
+    '3519a':
+      title: "Dependency order is invalid"
+      hint: "Declare required scripts with // @requires and check for dependency cycles."
+    '9317a':
+      title: "A dependency could not be loaded"
+      hint: "Fix the dependent script first, then reload the current script."
+    '5242a':
+      title: "A reload is already running"
+      hint: "Wait for the current operation to finish, then retry."
+    '7995a':
+      title: "Reload was cancelled"
+      hint: "Check whether the plugin is shutting down or an administrator cancelled the task."
+    '4409a':
+      title: "The script is busy and could not be unloaded"
+      hint: "Check long-running callbacks and active tasks; retry unloading after they finish."
+    '0858a':
+      title: "Script source is unavailable"
+      hint: "Check file read permissions and encoding; use UTF-8."
+    '7529a':
+      title: "Invalid source encoding"
+      hint: "Save the .kts file as UTF-8 and check for corrupted characters."
+    '9652b':
+      title: "The connection pool is exhausted"
+      hint: "Check long transactions and unclosed resources. Increase pool-size only after measuring the load."
+    '4479b':
+      title: "Connection acquisition timed out"
+      hint: "Check database availability, network connectivity, and pool size."
+    '8877b':
+      title: "The database connection was lost"
+      hint: "Check the MySQL/MariaDB or SQLite log and network interruptions."
+    '3713b':
+      title: "The database rejected authentication"
+      hint: "Check the username, password, and permissions for the selected database."
+    '1376b':
+      title: "The database schema is newer than this KSL version"
+      hint: "Update KSL to a version that supports the schema. Do not edit the version manually to downgrade it."
+    '8532b':
+      title: "The database migration did not complete"
+      hint: "Save a backup and inspect the original SQL error before retrying."
+    '5999b':
+      title: "A migration is already running"
+      hint: "Make sure another KSL instance is not changing the same database."
+    '9244b':
+      title: "A transaction could not be started"
+      hint: "Check the connection and transaction support of the selected database engine."
+    '9201b':
+      title: "A transaction could not be committed"
+      hint: "Check database state. The operation result may be unknown; verify the stored data."
+    '8667b':
+      title: "A transaction could not be rolled back"
+      hint: "Save the original error and check the connection. Restore from backup if necessary."
+    '8127b':
+      title: "A SQL query took too long"
+      hint: "Check the query plan, indexes, and locks. Do not run a heavy query on the main thread."
+    '4792b':
+      title: "SQL syntax error"
+      hint: "Check the SQL and compatibility with the SQLite/MySQL/MariaDB dialect."
+    '8205b':
+      title: "A table constraint was violated"
+      hint: "Check uniqueness, NOT NULL constraints, and foreign keys for the supplied data."
+    '1139b':
+      title: "The database detected a deadlock"
+      hint: "Retry a safe operation and check row-update order across concurrent transactions."
+    '1272b':
+      title: "The write queue rejected an operation"
+      hint: "Check the queue size and database speed. Handle the rejection; do not assume the value was saved."
+    '6515c':
+      title: "Invalid command name"
+      hint: "Use Latin letters, numbers, and hyphens; check Bukkit naming restrictions."
+    '3602c':
+      title: "The sender does not have permission to run the command"
+      hint: "Check the permission node and the permissions assigned to the player."
+    '5377c':
+      title: "A required command argument is missing"
+      hint: "Add the required argument or display the usage message."
+    '1350c':
+      title: "A command argument has an invalid format"
+      hint: "Check the type, allowed range, and usage message."
+    '0499c':
+      title: "A command alias is already in use"
+      hint: "Choose a unique alias or remove the conflicting registration."
+    '0462c':
+      title: "Command registration failed"
+      hint: "Check commandMap, the command name, and conflicts with other plugins."
+    '3845c':
+      title: "Command unregistration failed"
+      hint: "Check commandMap state. A server restart may be required to clear it."
+    '6341c':
+      title: "The command called Bukkit API from an async thread"
+      hint: "Move the Bukkit call into sync { } or the main thread."
+    '9751c':
+      title: "This command sender type is not supported"
+      hint: "Check whether the command permits the console, players, or command blocks."
+    '3682c':
+      title: "The command is still on cooldown"
+      hint: "Wait for the cooldown or check its configuration."
+    '4929d':
+      title: "Unknown particle type"
+      hint: "Use a Particle value that exists in your Paper version."
+    '1494d':
+      title: "Particle data is incompatible with the particle type"
+      hint: "Pass data of the type expected by the selected particle."
+    '7459d':
+      title: "Invalid effect location"
+      hint: "Check the world and coordinates before starting the effect."
+    '3263d':
+      title: "The effect world is unavailable"
+      hint: "Make sure the world is loaded and is not being unloaded."
+    '6917d':
+      title: "The active-effect limit has been reached"
+      hint: "Stop unnecessary effects and reduce how often they are created."
+    '2903d':
+      title: "The effect was cancelled"
+      hint: "Check stopWhen, script lifecycle, and task cancellation."
+    '1617d':
+      title: "Invalid effect duration"
+      hint: "Pass a duration in the supported ticks or milliseconds unit according to the API."
+    '1169d':
+      title: "Invalid animation step"
+      hint: "Use a positive step and check the allowed range."
+    '2449d':
+      title: "The effect exceeded its rendering budget"
+      hint: "Reduce count, the number of points, or the update frequency."
+    '8956d':
+      title: "An effect callback failed"
+      hint: "Check custom{}, stopWhen{}, and onEnd{}; details are in the stack trace."
+    '9891e':
+      title: "The entity could not be created"
+      hint: "Check the world, entity type, coordinates, and server restrictions."
+    '8830e':
+      title: "The entity's world was unloaded"
+      hint: "Do not use an entity after its world is unloaded; check its lifecycle."
+    '3902e':
+      title: "Invalid entity coordinates"
+      hint: "Check that coordinates are finite and that the chunk is available."
+    '4278e':
+      title: "The entity's chunk is not loaded"
+      hint: "Load the chunk through the supported API or defer the operation."
+    '9031e':
+      title: "The entity has already been removed"
+      hint: "Check isValid and do not use stale references."
+    '5904e':
+      title: "Invalid entity data"
+      hint: "Check the type and format of metadata/PersistentDataContainer values."
+    '9953e':
+      title: "The entity does not support equipment"
+      hint: "Check that the entity type implements the required Equipment interface."
+    '5039e':
+      title: "An attribute value is outside its allowed range"
+      hint: "Check the attribute's bounds and whether the mob type supports it."
+    '0532e':
+      title: "The entity target is unavailable"
+      hint: "Make sure the target is alive, in the same world, and accessible."
+    '7797e':
+      title: "An entity operation was called outside the main thread"
+      hint: "Perform the entity change through sync { }."
+    '5769f':
+      title: "Could not create the GUI inventory"
+      hint: "Check the size, title, and Bukkit inventory availability."
+    '6183f':
+      title: "Invalid GUI item"
+      hint: "Check Material, ItemMeta, and serializable data."
+    '7235f':
+      title: "GUI action was cancelled"
+      hint: "Check event cancellation and the state of the open menu."
+    '2070f':
+      title: "The GUI window is already closed"
+      hint: "Do not update an inventory after it closes; check the player's lifecycle."
+    '7750f':
+      title: "The GUI player is no longer online"
+      hint: "Check isOnline before opening or updating the menu."
+    '9431f':
+      title: "A non-existent page was requested"
+      hint: "Recalculate the number of pages and check the zero-based index."
+    '2155f':
+      title: "Two GUI elements use the same slot"
+      hint: "Assign unique slots or explicitly define a priority."
+    '3341f':
+      title: "Could not update the GUI"
+      hint: "Check inventory state and perform updates on the main thread."
+    '8339f':
+      title: "GUI title is too long"
+      hint: "Shorten the title according to the limits of your server version."
+    '4601f':
+      title: "The GUI session is stale"
+      hint: "Open the menu again and do not use the old session object."
+    '9388g':
+      title: "The integration plugin was not found"
+      hint: "Install the dependency or disable the corresponding hook."
+    '0270g':
+      title: "The integration version is not supported"
+      hint: "Update the dependent plugin or use a compatible KSL version."
+    '7120g':
+      title: "The integration API does not contain a required method"
+      hint: "Check the API version and binary compatibility."
+    '1208g':
+      title: "The integration API denied access"
+      hint: "Check permissions, configuration, and service availability."
+    '1752g':
+      title: "Discord rate-limited requests"
+      hint: "Reduce the send frequency and respect Retry-After."
+    '2968g':
+      title: "Discord message is too long"
+      hint: "Shorten the text or split it into multiple messages."
+    '6572g':
+      title: "Discord webhook is invalid"
+      hint: "Create a new webhook and update config.yml."
+    '5637g':
+      title: "PlaceholderAPI expansion was not registered"
+      hint: "Check expansion registration and when the placeholder is called."
+    '1955g':
+      title: "The placeholder received an invalid argument"
+      hint: "Check %ksl_...% syntax and the supplied parameters."
+    '8499g':
+      title: "The integration did not respond in time"
+      hint: "Check the network and service timeout; do not perform network operations on the main thread."
+    '2488g':
+      title: "The integration returned an invalid response"
+      hint: "Check the response format and third-party API version."
+    '3737g':
+      title: "Integration is disabled by configuration"
+      hint: "Enable the required integration or remove its call from the script."
+    '3783g':
+      title: "A dependency cycle between integrations was detected"
+      hint: "Break the cycle and load the provider before the consumer."
+    '5789g':
+      title: "Integration classloader conflict"
+      hint: "Use compileOnly for the API and do not package duplicate classes."
+    '3950g':
+      title: "Integration initialization timed out"
+      hint: "Check for a slow onEnable in the dependency and avoid network calls during startup."
+    '1692h':
+      title: "Invalid addon descriptor"
+      hint: "Check the addon's plugin.yml/metadata and required fields."
+    '4752h':
+      title: "Invalid addon identifier"
+      hint: "Use a stable, unique ID in the supported format."
+    '5668h':
+      title: "Addon version could not be parsed"
+      hint: "Use a consistent version format."
+    '7399h':
+      title: "Could not register an addon resource"
+      hint: "Check for a key conflict and the addon manager state."
+    '1082h':
+      title: "Addon resources remained after unload"
+      hint: "Check task, listener, and callback registrations in onUnload."
+    '2243h':
+      title: "Addon shutdown took too long"
+      hint: "Check for blocking work in onUnload and ensure background threads are released."
+    '1888h':
+      title: "Addon context is already closed"
+      hint: "Do not register resources after onUnload; check lifecycle order."
+    '0318h':
+      title: "The requested addon service was not found"
+      hint: "Check the service ID and whether the provider addon is loaded."
+    '2510h':
+      title: "The addon service is already closed"
+      hint: "Retrieve the service again after the provider addon loads."
+    '6870h':
+      title: "Addon callback took too long"
+      hint: "Move long-running work out of lifecycle callbacks."
+    '0718i':
+      title: "Configuration file is missing"
+      hint: "Restore the file from a template or restart KSL so it can create defaults."
+    '4150i':
+      title: "Configuration access was denied"
+      hint: "Check the server user permissions for reading and writing."
+    '4875i':
+      title: "A required setting is missing"
+      hint: "Add the key to config.yml and consult the documentation."
+    '6473i':
+      title: "Configuration setting has the wrong type"
+      hint: "Use the expected type: string, number, boolean, or list."
+    '9773i':
+      title: "A setting is outside its allowed range"
+      hint: "Use the range described in the comment or error message."
+    '3870i':
+      title: "Unknown configuration setting"
+      hint: "Check the key spelling; an unknown parameter may be ignored."
+    '0648i':
+      title: "Could not reload configuration"
+      hint: "Fix the YAML and retry reload; make sure the active configuration is not corrupted."
+    '0835i':
+      title: "Configuration migration failed"
+      hint: "Back up config.yml and inspect the migration error message."
+    '4572i':
+      title: "Invalid configuration encoding"
+      hint: "Save the YAML file as UTF-8."
+    '3039i':
+      title: "A file was expected, but another path type was found"
+      hint: "Check the path and replace the directory with a file, or vice versa."
+    '8316i':
+      title: "Path escapes the plugin directory"
+      hint: "Use an allowed path inside dataFolder."
+    '2292i':
+      title: "Could not create a backup"
+      hint: "Check available disk space and write permissions."
+    '6789i':
+      title: "Could not write default settings"
+      hint: "Check dataFolder permissions and disk space."
+    '6056i':
+      title: "YAML contains a duplicate key"
+      hint: "Remove the duplicate key; the YAML parser may select only one value."
+    '9103i':
+      title: "YAML contains too many aliases"
+      hint: "Simplify the YAML and avoid excessive expansion of anchors/aliases."
+    '6662j':
+      title: "Task queue is full"
+      hint: "Reduce task submission frequency or increase queue-capacity after checking resources."
+    '5161j':
+      title: "Scheduler is already stopping"
+      hint: "Do not create new tasks from onDisable or after a script unload."
+    '5120j':
+      title: "Task was cancelled"
+      hint: "Check owner cancellation, script unload, and shutdown."
+    '9576j':
+      title: "Task exceeded the allowed execution time"
+      hint: "Split long work into stages or move I/O to async code."
+    '5100j':
+      title: "Operation ran on the wrong thread"
+      hint: "Use sync/async according to Bukkit API requirements."
+    '3470j':
+      title: "Script task quota was exceeded"
+      hint: "Stop unnecessary tasks and check loops that create delay/every tasks."
+    '6223j':
+      title: "Invalid task priority"
+      hint: "Use a supported KSLWorkPriority value."
+    '6382j':
+      title: "Task executor is unavailable"
+      hint: "Check runtime status and worker-pool restart state."
+    '7602j':
+      title: "Worker thread was interrupted"
+      hint: "Check task cancellation and handle InterruptedException correctly."
+    '8987j':
+      title: "Repeating task stopped after errors"
+      hint: "Fix the original handler error and create the task again."
+    '5427j':
+      title: "Task delay is too large"
+      hint: "Pass a value within the allowed Long range."
+    '2934j':
+      title: "Task owner is not registered"
+      hint: "Make sure the task is created within a script or addon lifecycle."
+    '0173j':
+      title: "Cannot cancel another owner's task"
+      hint: "Cancel a task only from its owning context."
+    '0204j':
+      title: "Scheduler is closed"
+      hint: "Do not submit tasks after KSL has stopped."
+    '9796j':
+      title: "Task executor failed"
+      hint: "Inspect the stack trace and check the state of resources used by the task."
+    '2035k':
+      title: "Invalid placeholder name"
+      hint: "Use allowed characters and do not add format delimiters."
+    '4383k':
+      title: "Placeholder was not registered"
+      hint: "Check that the script or addon registered the key before using it."
+    '0149k':
+      title: "Placeholder is already owned by another provider"
+      hint: "Choose a unique key prefixed with your script or addon ID."
+    '0946k':
+      title: "Placeholder resolution took too long"
+      hint: "Do not perform synchronous SQL or network requests during substitution."
+    '4687k':
+      title: "Placeholder has no player context"
+      hint: "Check whether it is called from a player or console context."
+    '5715k':
+      title: "Resolver returned an empty value"
+      hint: "Return a default string or explicitly handle the missing value."
+    '7820k':
+      title: "Recursive placeholder substitution detected"
+      hint: "Do not call the same placeholder from within its own resolver."
+    '8429k':
+      title: "Could not process expansion"
+      hint: "Check the implementation and PlaceholderAPI compatibility."
+    '5297k':
+      title: "Text placeholder is already registered"
+      hint: "Rename the key or remove the previous registration."
+    '5818k':
+      title: "Text placeholder returned an unsupported value"
+      hint: "Return a String or null according to the API."
+    '9454l':
+      title: "Main-thread stall detected"
+      hint: "Open the watchdog dump in plugins/KotlinScriptLoader/dumps and compare multiple stack snapshots."
+    '5589l':
+      title: "Could not write the watchdog dump"
+      hint: "Check write permissions for dumps and available disk space."
+    '0600l':
+      title: "JVM detected a thread deadlock"
+      hint: "Find the listed thread IDs and lock owner in the dump; fix lock acquisition order."
+    '7092l':
+      title: "Watchdog dump was size-limited"
+      hint: "Check thread count and stacks; the full dump may have been shortened to protect disk space."
+    '0413l':
+      title: "A KSL service thread terminated unexpectedly"
+      hint: "Inspect the stack trace and restart the server after fixing the cause."
+    '9848l':
+      title: "KSL executor rejected a task"
+      hint: "Check whether the executor is closed or its queue is full."
+    '8855l':
+      title: "Could not close a system resource"
+      hint: "Check resource ownership and shutdown errors."
+    '3367l':
+      title: "Not enough disk space to write diagnostics"
+      hint: "Free disk space and check log/dump sizes."
+    '4331l':
+      title: "Unsupported Java version"
+      hint: "Install the Java version required by the current Paper and KSL versions."
+    '8647l':
+      title: "Paper API does not match KSL expectations"
+      hint: "Check the server version and use a compatible KSL build."
+    '6256l':
+      title: "Plugin shutdown order violated a dependency"
+      hint: "Check depend/softdepend and do not unload a provider before its consumer."
+    '6451l':
+      title: "Diagnostic collection was interrupted"
+      hint: "Check whether the server stopped while the report was being written."
+    '0623l':
+      title: "JVM/OS thread limit was reached"
+      hint: "Check for thread leaks and avoid creating a new Thread for every operation."
+    '0384l':
+      title: "JVM is under memory pressure"
+      hint: "Check heap, GC, and plugin memory usage; do not increase Xmx without investigating."
+    '1426a':
+      title: "The source file changed during compilation"
+      hint: "Run reload again after the file has finished saving."
+    '1842a':
+      title: "The script context is already closed"
+      hint: "Do not run callbacks or register resources after a script has been unloaded."
+    '3065a':
+      title: "The script is incompatible with the current API"
+      hint: "Check changed KSL methods and update the script calls."
+    '7657b':
+      title: "The database is read-only"
+      hint: "Check SQLite file mode or MySQL/MariaDB user permissions."
+    '7974b':
+      title: "There is not enough disk space for the database"
+      hint: "Free disk space and check the filesystem."
+    '6550b':
+      title: "A SQL result could not be converted"
+      hint: "Compare column types with the types expected by the script."
+    '7002c':
+      title: "Command handler was not found"
+      hint: "Check command registration and that the script is still loaded."
+    '5222c':
+      title: "A command handler took too long"
+      hint: "Do not wait for network or database operations on the main thread."
+    '7267d':
+      title: "The effect has already stopped"
+      hint: "Create a new effect instance instead of trying to restart the old one."
+    '3924d':
+      title: "The effect has too many points"
+      hint: "Reduce shape detail or split the effect into multiple stages."
+    '5452e':
+      title: "Invalid entity UUID"
+      hint: "Pass a UUID in the standard format and verify the value source."
+    '4224e':
+      title: "The entity could not be moved"
+      hint: "Check world/chunk loading and whether the target location is valid."
+    '2181f':
+      title: "Could not open the GUI for the player"
+      hint: "Check that the player is online and that opening runs on the main thread."
+    '9125f':
+      title: "Event belongs to an outdated GUI"
+      hint: "Compare the current menu session with the object handling the click."
+    '4248g':
+      title: "A hook is already registered by another owner"
+      hint: "Use a unique key or disable the duplicate integration."
+    '2850g':
+      title: "Discord channel was not found in configuration"
+      hint: "Add the channel to discord.webhooks and check the exact key name."
+    '0297g':
+      title: "PlaceholderAPI was called without a player"
+      hint: "Use the placeholder only where a Player context is available."
+    '4200h':
+      title: "The addon's dependency version is incompatible"
+      hint: "Compare the minimum and actual API versions of the dependency."
+    '0119h':
+      title: "The addon registered one of its resources twice"
+      hint: "Remove the old registration before creating a new one."
+    '9556i':
+      title: "Could not parse configuration"
+      hint: "Check YAML indentation, quotes, and value types."
+    '8289i':
+      title: "Could not safely replace the configuration file"
+      hint: "Check permissions, filesystem status, and available disk space."
+    '5275i':
+      title: "No migration step exists for this configuration version"
+      hint: "Update KSL as a whole; do not change the version field manually."
+    '2817j':
+      title: "A task waited too long in the queue"
+      hint: "Check worker-pool overload and reduce the number of background tasks."
+    '1009j':
+      title: "A repeating task was registered more than once"
+      hint: "Check whether every() is created from every event callback or reload."
+    '8569j':
+      title: "Task returned after its owner was unloaded"
+      hint: "Do not apply a result to a closed context; check task cancellation."
+    '0808k':
+      title: "Unknown placeholder key"
+      hint: "Check the exact key name and registration order."
+    '2710k':
+      title: "Invalid placeholder format"
+      hint: "Check opening and closing delimiters."
+    '3398l':
+      title: "Could not capture one watchdog snapshot"
+      hint: "Check JVM health and permissions for thread diagnostics; other snapshots may still have been saved."
+    '2780l':
+      title: "The dump reached its displayed-thread limit"
+      hint: "Check the summary for the number of omitted threads and investigate thread leaks."
+    '7061l':
+      title: "JVM is already shutting down"
+      hint: "Do not start new operations; check the shutdown sequence."
+    '8098l':
+      title: "Diagnostics are disabled by configuration"
+      hint: "Enable diagnostics.watchdog.enabled in config.yml and restart the server."
+    '0745l':
+      title: "Main thread recovered after a stall"
+      hint: "The server is processing ticks again. Save the watchdog dump and compare stable main-thread frames."
+    '7564l':
+      title: "Could not delete an old watchdog dump"
+      hint: "Check permissions for dumps and available disk space; old diagnostic files may remain."
+    '0668l':
+      title: "An internal KSL invariant was violated"
+      hint: "Save the complete stack trace and server version, then report the issue to KSL developers."
 watchdog:
   disabled: "§eKSL Watchdog is disabled."
   active: "§aKSL Watchdog §7— active; no stalls have been recorded since startup."
