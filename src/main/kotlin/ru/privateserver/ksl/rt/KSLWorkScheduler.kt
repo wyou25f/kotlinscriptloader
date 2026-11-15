@@ -556,18 +556,18 @@ class KSLWorkScheduler(
             closed.set(true)
         }
         timer.shutdownNow()
-        records.values.filter { it.repeating || it.state == KSLWorkState.SCHEDULED }.forEach { cancelRecord(it, false) }
+        recordsSnapshot().filter { it.repeating || it.state == KSLWorkState.SCHEDULED }.forEach { cancelRecord(it, false) }
         executor.shutdown()
         return try {
             if (executor.awaitTermination(timeout, unit)) true else {
-                records.values.toList().forEach { cancelRecord(it, true) }
+                recordsSnapshot().forEach { cancelRecord(it, true) }
                 executor.shutdownNow()
                 executor.awaitTermination(2, TimeUnit.SECONDS)
                 false
             }
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
-            records.values.toList().forEach { cancelRecord(it, true) }
+            recordsSnapshot().forEach { cancelRecord(it, true) }
             executor.shutdownNow()
             false
         }
@@ -577,7 +577,7 @@ class KSLWorkScheduler(
     override fun close() {
         synchronized(lifecycleLock) { closed.set(true) }
         timer.shutdownNow()
-        records.values.toList().forEach { cancelRecord(it, true) }
+        recordsSnapshot().forEach { cancelRecord(it, true) }
         executor.shutdownNow().forEach { queued -> (queued as? WorkTask)?.let { cancelRecord(it.record, false) } }
         try { executor.awaitTermination(2, TimeUnit.SECONDS) }
         catch (_: InterruptedException) { Thread.currentThread().interrupt() }
