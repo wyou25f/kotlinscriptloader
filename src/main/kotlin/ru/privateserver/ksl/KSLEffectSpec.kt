@@ -171,8 +171,9 @@ class KSLEffectSpec(
         val from = parseHexColor(fromHex)
         val to = parseHexColor(toHex)
         val dustSize = validatedDustSize(size)
+        val transitionClassName = "org.bukkit.Particle" + 36.toChar() + "DustTransition"
         val transitionType = try {
-            Class.forName("org.bukkit.Particle\\$DustTransition", false, Particle::class.java.classLoader)
+            Class.forName(transitionClassName, false, Particle::class.java.classLoader)
         } catch (ex: ClassNotFoundException) {
             throw UnsupportedOperationException(
                 "Particle color transitions require Paper 1.18.2 or newer; this server provides no Particle.DustTransition",
