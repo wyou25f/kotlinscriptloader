@@ -1,6 +1,7 @@
 package ru.privateserver.ksl.rt
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -140,6 +141,29 @@ class KSLWorkSchedulerTest {
             assertTrue(finished.await(2, TimeUnit.SECONDS))
             assertEquals(listOf("high", "normal-1", "normal-2", "low"), order)
         } finally { release.countDown(); scheduler.close() }
+    }
+
+    @Test
+    fun `close tolerates tasks completing while cancellation is in progress`() {
+        repeat(24) {
+            val scheduler = KSLWorkScheduler(workers = 4, queueCapacity = 8)
+            val ready = CountDownLatch(4)
+            val release = CountDownLatch(1)
+            repeat(4) {
+                scheduler.submit("closing") {
+                    ready.countDown()
+                    try { release.await(2, TimeUnit.SECONDS) } catch (_: InterruptedException) { Thread.currentThread().interrupt() }
+                }
+            }
+            assertTrue(ready.await(2, TimeUnit.SECONDS))
+            val failure = java.util.concurrent.atomic.AtomicReference<Throwable?>()
+            val closer = Thread { runCatching { scheduler.close() }.onFailure(failure::set) }
+            closer.start()
+            release.countDown()
+            closer.join(2_000)
+            assertFalse(closer.isAlive, "scheduler.close() should finish promptly")
+            assertEquals(null, failure.get())
+        }
     }
 
     @Test

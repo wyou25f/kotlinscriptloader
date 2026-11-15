@@ -35,7 +35,7 @@ fun String.colorizeLegacy(): String {
         val hex = match.groupValues[1]
         "§x" + hex.map { "§" + it }.joinToString("")
     }
-    return legacyColor.replace(simple) { match -> "§" + match.groupValues[1].lowercase(Locale.ROOT) }
+    return legacyColor.replace(simple) { match -> "§" + match.groupValues[1] }
 }
 
 /** Short alias for [colorizeLegacy]. */
