@@ -11,8 +11,9 @@ open class KSLEssentialsHook : KSLHook {
     override val hookId = KSLHookIds.ESSENTIALS
     override val pluginName = "Essentials"
 
-    private val essentials: Essentials =
-        Bukkit.getPluginManager().getPlugin("Essentials") as Essentials
+    private val essentials: Essentials
+        get() = Bukkit.getPluginManager().getPlugin(pluginName) as? Essentials
+            ?: error("EssentialsX is not currently available")
 
     fun balance(player: Player): Double? =
         KSLErrors.hookSafe("EssentialsX", null) { essentials.getUser(player)?.money?.toDouble() }
