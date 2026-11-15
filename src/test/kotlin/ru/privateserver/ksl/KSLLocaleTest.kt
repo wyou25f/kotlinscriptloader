@@ -110,6 +110,30 @@ class KSLLocaleTest {
     }
 
     @Test
+    fun every_error_category_and_catalog_entry_is_localized() {
+        val english = loadLocale("en")
+        val russian = loadLocale("ru")
+        val template = loadLocale("template")
+        val locales = listOf("en" to english, "ru" to russian, "template" to template)
+
+        KSLErrorCategory.entries.forEach { category ->
+            val key = "error-codes.categories.${category.letter}"
+            locales.forEach { (locale, messages) ->
+                assertTrue(messages[key]?.isNotBlank() == true, "$locale is missing $key")
+            }
+        }
+
+        KSLError.entries.forEach { error ->
+            listOf("title", "hint").forEach { field ->
+                val key = "error-codes.entries.${error.code}.$field"
+                locales.forEach { (locale, messages) ->
+                    assertTrue(messages[key]?.isNotBlank() == true, "$locale is missing $key")
+                }
+            }
+        }
+    }
+
+    @Test
     fun nested_keys_resolve_through_bukkit_yaml_configuration() {
         val english = loadLocale("en")
         val russian = loadLocale("ru")
