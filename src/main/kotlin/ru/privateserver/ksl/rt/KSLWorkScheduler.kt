@@ -435,8 +435,11 @@ class KSLWorkScheduler(
             runCatching {
                 failureHandler?.invoke(KSLWorkFailure(record.id, record.owner, record.priority, cause, System.currentTimeMillis()))
             }
-        } else if (result.state == KSLWorkState.CANCELLED) record.completion.cancel(false)
-        else record.completion.complete(result)
+        } else {
+            // Cancellation is a task outcome, not a missing result: await() and
+            // completion callbacks can inspect KSLWorkState.CANCELLED.
+            record.completion.complete(result)
+        }
     }
 
     private fun remember(info: KSLWorkInfo) {
