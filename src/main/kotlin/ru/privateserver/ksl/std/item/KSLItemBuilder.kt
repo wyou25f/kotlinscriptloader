@@ -9,7 +9,7 @@ import org.bukkit.inventory.ItemFlag
 import org.bukkit.inventory.ItemStack
 
 private fun noItalicIfUnset(component: Component): Component =
-    if (component.decoration(TextDecoration.ITALIC) == null) {
+    if (component.decoration(TextDecoration.ITALIC) == TextDecoration.State.NOT_SET) {
         component.decoration(TextDecoration.ITALIC, TextDecoration.State.FALSE)
     } else {
         component
