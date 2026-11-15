@@ -32,6 +32,13 @@ import ru.privateserver.ksl.rt.KSLCache as CoreKSLCache
 import ru.privateserver.ksl.rt.KSLProfiler as CoreKSLProfiler
 import ru.privateserver.ksl.rt.KSLWorkScheduler as CoreKSLWorkScheduler
 import ru.privateserver.ksl.rt.KSLWorkPriority as CoreKSLWorkPriority
+import ru.privateserver.ksl.rt.KSLWorkHandle as CoreKSLWorkHandle
+import ru.privateserver.ksl.rt.KSLWorkState as CoreKSLWorkState
+import ru.privateserver.ksl.rt.KSLWorkInfo as CoreKSLWorkInfo
+import ru.privateserver.ksl.rt.KSLWorkResult as CoreKSLWorkResult
+import ru.privateserver.ksl.rt.KSLWorkSnapshot as CoreKSLWorkSnapshot
+import ru.privateserver.ksl.rt.KSLWorkFailure as CoreKSLWorkFailure
+import ru.privateserver.ksl.rt.KSLWorkOwnerSnapshot as CoreKSLWorkOwnerSnapshot
 import ru.privateserver.ksl.rt.KSLRuntimeSnapshot as CoreKSLRuntimeSnapshot
 import ru.privateserver.ksl.rt.KSLRuntimeMonitor
 
@@ -90,6 +97,13 @@ typealias KSLCache<K, V> = CoreKSLCache<K, V>
 typealias KSLProfiler = CoreKSLProfiler
 typealias KSLWorkScheduler = CoreKSLWorkScheduler
 typealias KSLWorkPriority = CoreKSLWorkPriority
+typealias KSLWorkHandle = CoreKSLWorkHandle
+typealias KSLWorkState = CoreKSLWorkState
+typealias KSLWorkInfo = CoreKSLWorkInfo
+typealias KSLWorkResult = CoreKSLWorkResult
+typealias KSLWorkSnapshot = CoreKSLWorkSnapshot
+typealias KSLWorkFailure = CoreKSLWorkFailure
+typealias KSLWorkOwnerSnapshot = CoreKSLWorkOwnerSnapshot
 typealias KSLRuntimeSnapshot = CoreKSLRuntimeSnapshot
 
 /** Current read-only JVM, CPU, thread and GC telemetry. */
