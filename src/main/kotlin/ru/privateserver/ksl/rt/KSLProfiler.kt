@@ -19,6 +19,10 @@ data class KSLProfileSnapshot(
 
 /** Aggregates elapsed wall-clock timings. measure() records and rethrows failures. */
 class KSLProfiler(val name: String) {
+    companion object {
+        const val MAX_NAME_LENGTH: Int = 256
+    }
+
     private val calls = LongAdder()
     private val failures = LongAdder()
     private val totalNanos = LongAdder()
@@ -26,6 +30,7 @@ class KSLProfiler(val name: String) {
 
     init {
         require(name.isNotBlank()) { "Profiler name must not be blank" }
+        require(name.length <= MAX_NAME_LENGTH) { "Profiler name must not exceed $MAX_NAME_LENGTH characters" }
     }
 
     fun record(elapsedNanos: Long, failed: Boolean = false) {
