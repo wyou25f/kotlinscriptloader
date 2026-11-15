@@ -2,6 +2,7 @@ package ru.privateserver.ksl.api
 
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.MiniMessage
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import org.bukkit.scheduler.BukkitTask
@@ -32,14 +33,35 @@ fun KSLAPI.isPlayerOnline(uniqueId: UUID): Boolean = Bukkit.getPlayer(uniqueId)?
 fun KSLAPI.onlinePlayerCount(): Int = Bukkit.getOnlinePlayers().size
 
 /** Sends literal text to every online player. MiniMessage markup is not interpreted. */
-fun KSLAPI.broadcast(message: String): Int = Bukkit.broadcast(Component.text(message))
+fun KSLAPI.broadcast(message: String): Int = broadcast(Component.text(message))
 
 /** Sends an Adventure component to every online player. */
-fun KSLAPI.broadcast(component: Component): Int = Bukkit.broadcast(component)
+fun KSLAPI.broadcast(component: Component): Int {
+    try {
+        return Bukkit.broadcast(component)
+    } catch (_: AbstractMethodError) {
+        // Some older Bukkit forks and MockBukkit releases expose but do not implement this Paper overload.
+    } catch (_: NoSuchMethodError) {
+        // Fall through to the long-standing player message API.
+    }
+
+    val recipients = Bukkit.getOnlinePlayers().toList()
+    val legacyMessage = LegacyComponentSerializer.legacySection().serialize(component)
+    recipients.forEach { player ->
+        try {
+            player.sendMessage(component)
+        } catch (_: AbstractMethodError) {
+            player.sendMessage(legacyMessage)
+        } catch (_: NoSuchMethodError) {
+            player.sendMessage(legacyMessage)
+        }
+    }
+    return recipients.size
+}
 
 /** Sends MiniMessage-formatted text to every online player. */
 fun KSLAPI.broadcastRich(message: String): Int =
-    Bukkit.broadcast(MiniMessage.miniMessage().deserialize(message))
+    broadcast(MiniMessage.miniMessage().deserialize(message))
 
 /** Whether the current caller is on the Bukkit server thread. */
 fun KSLAPI.isServerThread(): Boolean = Bukkit.isPrimaryThread()
