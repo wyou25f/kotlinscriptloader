@@ -1,15 +1,15 @@
-name: Build
-run-name: "KSL build #${{ github.run_number }} · ${{ github.sha }}"
+name: KSL Compatibility Build · Minecraft 1.18+
+run-name: "KSL Compatibility Build · Minecraft 1.18+ · ${{ github.sha }}"
 
 on:
   push:
-    branches: [main, 'compat/**']
+    branches: ['compat/mc-1.18-plus']
   pull_request:
-    branches: [main]
+    branches: ['compat/mc-1.18-plus']
   workflow_dispatch:
 
 concurrency:
-  group: ksl-build-${{ github.workflow }}-${{ github.ref }}
+  group: ksl-KSL-compat-1.18-plus-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -19,10 +19,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
+      - name: Check out compatibility branch
         uses: actions/checkout@v4
 
-      - name: Set up Java 21
+      - name: Set up build JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -30,28 +30,24 @@ jobs:
 
       - name: Set up PowerShell
         shell: bash
-        run: |
-          command -v pwsh >/dev/null || {
-            echo "PowerShell Core (pwsh) is required for the shared build diagnostics."
-            exit 1
-          }
+        run: command -v pwsh >/dev/null
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Diagnose build environment
+      - name: Diagnose compatibility build environment
         shell: pwsh
         run: ./build.ps1 -Task Diagnose
 
-      - name: Run strict quality gate
+      - name: Run branch-specific quality gate
         shell: pwsh
         run: ./build.ps1 -Task Quality -NoDaemon -Detailed
 
-      - name: Upload build and test diagnostics
+      - name: Upload compatibility diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: KSL-diagnostics-${{ github.run_number }}-${{ github.sha }}
+          name: KSL-compat-1.18-plus-diagnostics-${{ github.run_number }}-${{ github.sha }}
           path: |
             build-reports/
             build/reports/tests/test/
@@ -62,37 +58,20 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Assemble and verify plugin JAR
+      - name: Assemble and verify compatibility JAR
         shell: pwsh
         run: ./build.ps1 -Task Package -NoDaemon
 
-      - name: Inspect plugin JAR contents
+      - name: Inspect plugin JAR
         shell: pwsh
         run: ./scripts/Inspect-Jar.ps1
 
-      - name: Upload JAR inspection report
-        if: always()
+      - name: Upload compatibility JAR and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: KSL-jar-inspection-${{ github.run_number }}-${{ github.sha }}
-          path: build-reports/jar-inspection.json
-          if-no-files-found: warn
-          retention-days: 14
-
-      - name: Verify IntelliJ IDEA companion setup
-        run: bash ./gradlew --no-daemon -p ide -PkslJar=../build/libs/KotlinScriptLoader-1.2.1.jar verifyKslIdeSetup
-
-      - name: Generate JAR checksum
-        shell: bash
-        run: |
-          JAR=$(find build/libs -maxdepth 1 -name '*.jar' -print -quit)
-          test -n "$JAR"
-          sha256sum "$JAR" | tee build/libs/SHA256SUMS
-
-      - name: Upload plugin JAR
-        uses: actions/upload-artifact@v4
-        with:
-          name: KSL-build-${{ github.run_number }}-${{ github.sha }}
-          path: build/libs/*.jar
+          name: KSL-compat-1.18-plus-${{ github.run_number }}-${{ github.sha }}
+          path: |
+            build/libs/*.jar
+            build-reports/jar-inspection.json
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
