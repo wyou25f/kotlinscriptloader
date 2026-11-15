@@ -47,4 +47,17 @@ class KSLMinecraftVersionTest {
         assertEquals(17, KSLCompatibilityTarget.MINIMUM_JAVA_VERSION)
         assertEquals("Paper 1.18.2", KSLCompatibilityTarget.COMPILE_API_BASELINE)
     }
+
+    @Test
+    fun `runtime guard accepts the compatibility baseline and newer servers`() {
+        assertTrue(KSLCompatibilityTarget.runtimeFailure(KSLMinecraftVersion.parse("1.18.2"), 17) == null)
+        assertTrue(KSLCompatibilityTarget.runtimeFailure(KSLMinecraftVersion(1, 99, 0), 17) == null)
+    }
+
+    @Test
+    fun `runtime guard rejects older Minecraft and insufficient Java`() {
+        assertTrue(KSLCompatibilityTarget.runtimeFailure(KSLMinecraftVersion(1, 1, 0), 17) != null)
+        assertTrue(KSLCompatibilityTarget.runtimeFailure(KSLMinecraftVersion.parse("1.18.2"), 16) != null)
+        assertTrue(KSLCompatibilityTarget.runtimeFailure(null, 17) != null)
+    }
 }
