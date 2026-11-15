@@ -22,7 +22,7 @@ class KSLWorldGuardHook : KSLHook {
         regionsAt(location).any { it.equals(regionId, ignoreCase = true) }
     }
 
-    fun canBuild(player: Player, location: Location): Boolean = KSLErrors.hookSafe("WorldGuard", true) {
+    fun canBuild(player: Player, location: Location): Boolean = KSLErrors.hookSafe("WorldGuard", false) {
         val localPlayer = WorldGuardPlugin.inst().wrapPlayer(player)
         val query = WorldGuard.getInstance().platform.regionContainer.createQuery()
         query.testState(BukkitAdapter.adapt(location), localPlayer, Flags.BUILD)
