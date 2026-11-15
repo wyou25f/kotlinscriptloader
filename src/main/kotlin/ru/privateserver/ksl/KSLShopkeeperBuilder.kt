@@ -68,7 +68,7 @@ class KSLShopkeeperBuilder internal constructor(private val villager: Villager) 
         villager.setGravity(gravity)
         villager.isPersistent = true
         villager.setRemoveWhenFarAway(false)
-        villager.setRecipes(trades.map { MerchantRecipe(it) })
+        villager.setRecipes(trades.toList())
         return this
     }
 
@@ -102,8 +102,6 @@ internal object KSLShopkeeperTradeFactory {
         return MerchantRecipe(result.clone(), maxUses).apply {
             setIngredients(listOfNotNull(cost.clone(), secondCost?.clone()))
             setUses(0)
-            setDemand(0)
-            setSpecialPrice(0)
             setExperienceReward(rewardExperience)
             setVillagerExperience(villagerExperience)
             setPriceMultiplier(priceMultiplier)
