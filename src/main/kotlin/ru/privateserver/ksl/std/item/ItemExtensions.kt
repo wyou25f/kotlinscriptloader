@@ -76,7 +76,7 @@ internal fun ItemMeta.setKslLore(lines: List<Component>?) {
     if (called) return
 
     @Suppress("DEPRECATION")
-    setLore(lines?.map(kslLegacyComponentSerializer::serialize))
+    setLore(lines?.map(kslLegacyComponentSerializer::serialize).orEmpty())
 }
 
 /**
