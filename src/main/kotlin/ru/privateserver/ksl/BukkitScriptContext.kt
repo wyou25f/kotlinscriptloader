@@ -3,7 +3,8 @@ package ru.privateserver.ksl
 import com.zaxxer.hikari.HikariDataSource
 import de.tr7zw.changeme.nbtapi.NBT
 import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.minimessage.MiniMessage
+import ru.privateserver.ksl.std.component.toMiniMessageComponent
+import ru.privateserver.ksl.std.text.colorizeLegacy
 import net.kyori.adventure.title.Title
 import org.bukkit.Bukkit
 import org.bukkit.Location
@@ -87,7 +88,6 @@ open class BukkitScriptContext(
     private val scriptDatabase: HikariDataSource
         get() = internalPlugin.database
 
-    private val mm: MiniMessage = MiniMessage.miniMessage()
 
     /** Parsed Minecraft server version, or null when the server reports an unknown format. */
     val minecraftVersion: KSLMinecraftVersion?
@@ -961,14 +961,14 @@ open class BukkitScriptContext(
 
     fun publish(topic: String, payload: Any? = null): Int = internalPlugin.addonManager.publish(topic, payload)
 
-    fun parseMM(text: String): Component = mm.deserialize(text)
+    fun parseMM(text: String): Component = text.toMiniMessageComponent()
 
     fun broadcastMM(text: String) = Bukkit.getServer().broadcast(parseMM(text))
     fun mm(text: String): Component = parseMM(text)
     fun broadcastRich(text: String) = broadcastMM(text)
 
     fun broadcast(message: String) =
-        Bukkit.getOnlinePlayers().forEach { it.sendMessage(message.replace('&', '§')) }
+        Bukkit.getOnlinePlayers().forEach { it.sendMessage(message.colorizeLegacy()) }
 
     /** Snapshot of currently online players; safe to iterate while handling a script callback. */
     fun onlinePlayers(): List<Player> = Bukkit.getOnlinePlayers().toList()
