@@ -1,9 +1,82 @@
 package ru.privateserver.ksl.std.item
 
 import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.inventory.ItemStack
 import org.bukkit.inventory.ItemFlag
+import org.bukkit.inventory.meta.ItemMeta
+import java.lang.reflect.InvocationTargetException
 import org.bukkit.enchantments.Enchantment
+
+
+private val kslLegacyComponentSerializer: LegacyComponentSerializer by lazy(LazyThreadSafetyMode.PUBLICATION) {
+    LegacyComponentSerializer.legacySection()
+}
+
+/**
+ * Calls the Paper Adventure ItemMeta method when the implementation supplies it.
+ * Older MockBukkit builds expose the interface method but do not implement it;
+ * in that case callers fall back to Bukkit's long-standing string API.
+ */
+private fun invokeAdventureMeta(
+    meta: ItemMeta,
+    methodName: String,
+    parameterTypes: Array<Class<*>>,
+    vararg arguments: Any?
+): Pair<Boolean, Any?> {
+    val method = runCatching {
+        ItemMeta::class.java.getMethod(methodName, *parameterTypes)
+    }.getOrNull() ?: return false to null
+
+    return try {
+        true to method.invoke(meta, *arguments)
+    } catch (failure: InvocationTargetException) {
+        val cause = failure.targetException
+        if (cause is AbstractMethodError || cause is NoSuchMethodError) {
+            false to null
+        } else {
+            throw cause
+        }
+    } catch (_: AbstractMethodError) {
+        false to null
+    } catch (_: NoSuchMethodError) {
+        false to null
+    }
+}
+
+internal fun ItemMeta.kslDisplayName(): Component? {
+    val (called, value) = invokeAdventureMeta(this, "displayName", emptyArray())
+    if (called) return value as? Component
+
+    @Suppress("DEPRECATION")
+    return if (hasDisplayName()) kslLegacyComponentSerializer.deserialize(getDisplayName()) else null
+}
+
+internal fun ItemMeta.setKslDisplayName(name: Component) {
+    val (called, _) = invokeAdventureMeta(this, "displayName", arrayOf(Component::class.java), name)
+    if (called) return
+
+    @Suppress("DEPRECATION")
+    setDisplayName(kslLegacyComponentSerializer.serialize(name))
+}
+
+internal fun ItemMeta.kslLore(): List<Component> {
+    val (called, value) = invokeAdventureMeta(this, "lore", emptyArray())
+    if (called) {
+        return (value as? List<*>)?.mapNotNull { it as? Component }.orEmpty()
+    }
+
+    @Suppress("DEPRECATION")
+    return getLore().orEmpty().map(kslLegacyComponentSerializer::deserialize)
+}
+
+internal fun ItemMeta.setKslLore(lines: List<Component>?) {
+    val (called, _) = invokeAdventureMeta(this, "lore", arrayOf(List::class.java), lines)
+    if (called) return
+
+    @Suppress("DEPRECATION")
+    setLore(lines?.map(kslLegacyComponentSerializer::serialize))
+}
 
 /**
  * Returns a cloned stack with [amount]. The original stack is not modified.
@@ -19,13 +92,13 @@ fun ItemStack.isEmptyStack(): Boolean = type.isAir || amount <= 0
 
 /** Returns the Adventure display name, or null when no custom name is set. */
 fun ItemStack.displayNameOrNull(): Component? =
-    itemMeta?.takeIf { it.hasDisplayName() }?.displayName()
+    itemMeta?.takeIf { it.hasDisplayName() }?.kslDisplayName()
 
 /** Returns a cloned stack with the supplied Adventure display name. */
 fun ItemStack.withDisplayName(name: Component): ItemStack =
     clone().apply {
         val meta = itemMeta ?: return@apply
-        meta.displayName(name)
+        meta.setKslDisplayName(name)
         itemMeta = meta
     }
 
@@ -37,7 +110,7 @@ fun ItemStack.withDisplayName(name: String): ItemStack =
 fun ItemStack.withLore(lines: List<Component>): ItemStack =
     clone().apply {
         val meta = itemMeta ?: return@apply
-        meta.lore(lines.toList())
+        meta.setKslLore(lines.toList())
         itemMeta = meta
     }
 
@@ -109,7 +182,7 @@ fun ItemStack.withAddedLore(vararg lines: String): ItemStack =
 fun ItemStack.withAddedLore(lines: List<Component>): ItemStack =
     clone().apply {
         val meta = itemMeta ?: return@apply
-        meta.lore(meta.lore().orEmpty() + lines)
+        meta.setKslLore(meta.kslLore() + lines)
         itemMeta = meta
     }
 
@@ -117,7 +190,7 @@ fun ItemStack.withAddedLore(lines: List<Component>): ItemStack =
 fun ItemStack.withoutLore(): ItemStack =
     clone().apply {
         val meta = itemMeta ?: return@apply
-        meta.lore(null)
+        meta.setKslLore(null)
         itemMeta = meta
     }
 
