@@ -58,6 +58,13 @@ if ($ProjectVersion -ne "1.2.1") {
     Stop-Build "This release line must remain 1.2.1; found $ProjectVersion in build.gradle.kts."
 }
 
+$ExpectedJvmTarget = "17"
+if ($GradleBuild -notmatch "JvmTarget\.JVM_$ExpectedJvmTarget" -or
+    $GradleBuild -notmatch "options\.release\.set\($ExpectedJvmTarget\)") {
+    Stop-Build "This compatibility branch must emit JVM $ExpectedJvmTarget bytecode. Check Kotlin jvmTarget and Java release in build.gradle.kts."
+}
+
+
 $GradleTasks = switch ($Task) {
     "Build"   { @("clean", "build", "koverVerify", "koverHtmlReport", "koverXmlReport", "componentTestAudit") }
     "Test"    { @("clean", "test", "koverVerify", "koverHtmlReport", "koverXmlReport", "componentTestAudit") }
@@ -78,8 +85,9 @@ $GradleTasks = switch ($Task) {
 
 Write-Host ""
 Write-Host "  K O T L I N S C R I P T L O A D E R" -ForegroundColor Cyan
-Write-Host "  Strict build controller" -ForegroundColor DarkCyan
-Write-Host "  Version: $ProjectVersion" -ForegroundColor Gray
+Write-Host "  Compatibility build controller" -ForegroundColor DarkCyan
+Write-Host "  Track: ${label}" -ForegroundColor Gray
+Write-Host "  Version: $ProjectVersion · Build JDK 21 · Target JVM $ExpectedJvmTarget" -ForegroundColor Gray
 Write-Host "  Task: $Task" -ForegroundColor White
 Write-Host ""
 
