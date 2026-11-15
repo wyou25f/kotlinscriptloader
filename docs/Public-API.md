@@ -167,3 +167,37 @@ and `serviceOrThrow<T>(key)` aliases `requireService<T>(key)`.
 
 These are Kotlin conveniences. Kotlin typealiases are not Java classes; Java
 addons should keep using the real `ru.privateserver.ksl.KSLAPI` interface.
+
+
+## Addon resource scopes
+
+```kotlin
+class MyAddon : KSLAddon {
+    private var resources: KSLAddonScope? = null
+
+    override fun onLoad(api: KSLAPI) {
+        val scope = api.addonScope()
+        resources = scope
+
+        scope.listen<PlayerJoinEvent> { event ->
+            event.player.sendMessage("Welcome!")
+        }
+        scope.subscribe("server.maintenance") {
+            // React to a KSL event-bus message.
+        }
+        scope.runSyncRepeating(periodTicks = 20L) {
+            // Bukkit work on the server thread.
+        }
+        scope.own(myExternalClient)
+    }
+
+    override fun onUnload() {
+        resources?.close()
+        resources = null
+    }
+}
+```
+
+`KSLAddonScope` is additive and does not change the `KSLAPI` interface or its API version. It can own external `AutoCloseable` resources, KSL event-bus subscriptions, Bukkit listeners, typed event handlers, and sync/async Bukkit tasks. Resources are closed in reverse registration order. A failed close does not prevent the remaining resources from being released; failures are reported as one exception with suppressed causes.
+
+The scope is explicit: create it during addon initialization and close it from `onUnload()`. It does not automatically observe addon lifecycle callbacks. Registration of Bukkit listeners must happen on the server thread. Async tasks must not access Bukkit world, entity, player, or inventory state. The existing raw `scheduleSync*` and `scheduleAsync*` extensions remain available and retain their existing behavior; use a scope when automatic grouped cancellation is needed.

@@ -16,6 +16,7 @@ These packages are included in the default imports for KSL scripts:
 - ru.privateserver.ksl.std.world.*: block, location, and entity-query helpers.
 - ru.privateserver.ksl.std.json.*: Kotlin-value conversion, JSON object/array builders, and typed object accessors; file persistence is exposed by the script context.
 - ru.privateserver.ksl.std.security.*: SHA-256 checksums, PBKDF2-HMAC-SHA256 password hashing, HMAC-SHA256, constant-time comparisons, secure random tokens, and Base64 helpers.
+- ru.privateserver.ksl.std.validation.*: composable validators, accumulated validation issues, Unicode code-point string length, regex matching, and bounded integer/long/double rules.
 
 Inventory and ItemStack helpers that inspect or modify Bukkit objects must be called on the server thread. ItemStack transformation helpers return clones and leave the original stack unchanged. toTextComponent() treats input as literal text; use toMiniMessageComponent() only when the input is intentionally MiniMessage markup.
 
@@ -26,6 +27,33 @@ The JSON standard library uses kotlinx.serialization JSON and is bundled with KS
 The script DSL helper chance(percent) follows the same contract as randomChance(percent): the percentage must be finite and within 0..100. Invalid values fail immediately instead of silently producing a result.
 
 The existing ru.privateserver.ksl.dsl.* package remains available. Its .sec, .mins, and .hours extensions use checked arithmetic and throw on overflow instead of silently wrapping.
+
+
+## Validation
+
+The validation package is dependency-free and works with command arguments, YAML values, JSON fields, and addon input. Rules are composable and all failures are collected in one result:
+
+```kotlin
+val usernameValidator = kslValidator(
+    notBlank(),
+    codePointLength(3, 16),
+    matches(Regex("[A-Za-z0-9_]+"))
+)
+
+when (val result = args.firstOrNull().orEmpty().validateWith(usernameValidator)) {
+    is KSLValidationResult.Valid -> createProfile(result.value)
+    is KSLValidationResult.Invalid -> {
+        result.errors.forEach { issue ->
+            player.sendMessage("${issue.rule}: ${issue.message}")
+        }
+    }
+}
+
+val priceValidator = kslValidator(doubleRange(0.0, 1_000_000.0))
+val price = priceValidator.validate(config.getDouble("shop.price")).getOrNull()
+```
+
+Built-in rules include `notBlank()`, `codePointLength(min, max)`, `matches(regex)`, `intRange(range)`, `longRange(range)`, and `doubleRange(min, max)`. Use `validationRule(name, message) { value -> ... }` for application-specific checks. `KSLValidator.and(...)` returns a new validator and does not mutate the original. Invalid inputs are ordinary results; `getOrThrow()` is available when exception-based flow is preferred.
 
 ## Examples
 

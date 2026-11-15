@@ -293,3 +293,31 @@ Feature names may use dot-separated keys. In Kotlin scripts, `//` and `/* ... */
 ## Short API and Standard Library aliases
 
 The public API exposes `Api`, `KslApi`, `KslAddon`, `KslHook`, `KslScriptInfo` and `kslInstance` as concise alternatives to the full KSL names. The standard import set also includes compact helpers: `sha256sum()`, `passwordHash()`, `passwordCheck()`, `passwordVerify()`, `checksum()`, `checksumFile()`, `token()`, `secureToken()`, `jsonObj()`, `jsonArr()`, `jsonObject()`, `jsonArray()`, `json()` and `toJsonValue()`. Existing descriptive names remain available and are preferred in larger codebases.
+
+
+## Validation
+
+The validation package is dependency-free and works with command arguments, YAML values, JSON fields, and addon input. Rules are composable and all failures are collected in one result:
+
+```kotlin
+val usernameValidator = kslValidator(
+    notBlank(),
+    codePointLength(3, 16),
+    matches(Regex("[A-Za-z0-9_]+"))
+)
+
+when (val result = args.firstOrNull().orEmpty().validateWith(usernameValidator)) {
+    is KSLValidationResult.Valid -> createProfile(result.value)
+    is KSLValidationResult.Invalid -> {
+        result.errors.forEach { issue ->
+            player.sendMessage("${issue.rule}: ${issue.message}")
+        }
+    }
+}
+
+val priceValidator = kslValidator(doubleRange(0.0, 1_000_000.0))
+val price = priceValidator.validate(config.getDouble("shop.price")).getOrNull()
+```
+
+Built-in rules include `notBlank()`, `codePointLength(min, max)`, `matches(regex)`, `intRange(range)`, `longRange(range)`, and `doubleRange(min, max)`. Use `validationRule(name, message) { value -> ... }` for application-specific checks. `KSLValidator.and(...)` returns a new validator and does not mutate the original. Invalid inputs are ordinary results; `getOrThrow()` is available when exception-based flow is preferred.
+

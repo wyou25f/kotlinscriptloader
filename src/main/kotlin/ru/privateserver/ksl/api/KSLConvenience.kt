@@ -84,3 +84,12 @@ fun KSLAPI.scheduleAsyncRepeating(
     require(periodTicks > 0L) { "periodTicks must be positive" }
     return Bukkit.getScheduler().runTaskTimerAsynchronously(kslPlugin, Runnable(block), initialDelayTicks, periodTicks)
 }
+
+
+/**
+ * Creates an explicit resource owner for an addon.
+ *
+ * Keep the returned scope for the addon's lifetime and call close() from onUnload().
+ * Every resource registered through the scope is released in reverse order.
+ */
+fun KSLAPI.addonScope(): KSLAddonScope = KSLAddonScope.create(this)

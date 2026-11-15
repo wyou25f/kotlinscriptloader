@@ -202,6 +202,8 @@ Resources registered from onLoad (services, imports, and context extensions) are
 
 Use onUnload() to close the addon's own resources, such as connections, threads, or files. Automatic cleanup only covers resources registered through KSLAPI.
 
+For a grouped lifecycle, create an explicit `KSLAddonScope` with `api.addonScope()` inside `onLoad`. Register Bukkit listeners, typed event handlers, event-bus subscriptions, scheduled tasks, and external `AutoCloseable` resources through that scope. Call `scope.close()` in `onUnload`; it releases resources in reverse registration order. The scope does not change KSLAPI's binary contract or API version. See [Public API](Public-API.md#addon-resource-scopes) for the complete example.
+
 ## 5. Minimal working example
 
 The following example exposes an in-memory currency service.
