@@ -14,8 +14,11 @@ open class KSLVaultHook : KSLHook {
     override val hookId = KSLHookIds.VAULT
     override val pluginName = "Vault"
 
-    private val economy: Economy? = Bukkit.getServicesManager().getRegistration(Economy::class.java)?.provider
-    private val permission: Permission? = Bukkit.getServicesManager().getRegistration(Permission::class.java)?.provider
+    // Resolve providers on access: Vault economy/permission services may register after KSL starts.
+    private val economy: Economy?
+        get() = Bukkit.getServicesManager().getRegistration(Economy::class.java)?.provider
+    private val permission: Permission?
+        get() = Bukkit.getServicesManager().getRegistration(Permission::class.java)?.provider
 
     val hasEconomy get() = economy != null
     val hasPermissions get() = permission != null
