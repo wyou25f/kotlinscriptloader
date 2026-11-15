@@ -86,7 +86,7 @@ $GradleTasks = switch ($Task) {
 Write-Host ""
 Write-Host "  K O T L I N S C R I P T L O A D E R" -ForegroundColor Cyan
 Write-Host "  Compatibility build controller" -ForegroundColor DarkCyan
-Write-Host "  Track: ${label}" -ForegroundColor Gray
+Write-Host "  Track: Minecraft 1.18+ (JVM 17 bytecode)" -ForegroundColor Gray
 Write-Host "  Version: $ProjectVersion · Build JDK 21 · Target JVM $ExpectedJvmTarget" -ForegroundColor Gray
 Write-Host "  Task: $Task" -ForegroundColor White
 Write-Host ""
