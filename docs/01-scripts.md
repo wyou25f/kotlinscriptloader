@@ -422,7 +422,7 @@ task.completion.whenComplete { result, error ->
 task.cancel()
 ~~~
 
-Для вычисления значения используйте workerFuture { ... }, возвращающий CompletableFuture<T>. Его callback выполняется в фоновом потоке: Bukkit-операции внутри callback обязательно переносите через runSync.
+Для вычисления значения используйте workerFuture { ... }, возвращающий CompletableFuture<T>. Callback может выполниться в рабочем потоке либо в потоке, который его зарегистрировал, если future уже завершился. Bukkit-операции внутри callback обязательно переносите через runSync.
 
 ### Отложенные и повторяющиеся worker-задачи
 
