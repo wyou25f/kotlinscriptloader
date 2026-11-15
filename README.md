@@ -38,7 +38,7 @@ onEvent<PlayerJoinEvent> {
 }
 ```
 
-Save the file and run `/ksl reload`. See the [Getting Started guide](docs/Getting-Started.md) for a full walkthrough.
+Save the file and run `/ksl reload`. Continue with [Book I — Script Development](docs/01-scripts.md).
 
 ## Common commands
 
@@ -60,26 +60,23 @@ Most administrative commands require the `ksl.admin` permission.
 
 KSL includes Russian (`ru`) and English (`en`) messages. Set `language: ru` or `language: en` in `config.yml`, or change it at runtime with `/ksl language <ru|en|custom>`.
 
-To add another language, copy `locale/template.yml` to a file such as `locale/de.yml`, translate the values, then run `/ksl language de`. See [Localization](docs/Localization.md) for the complete format and fallback rules.
+To add another language, copy `locale/template.yml` to a file such as `locale/de.yml`, translate the values, then run `/ksl language de`. The language files and fallback rules are kept in the KSL plugin data folder; consult Book I and the source template when customizing them.
 
 ## Documentation
 
-The full English documentation is in [docs/README.md](docs/README.md).
+KSL's user documentation is organized as four large books instead of dozens of separate pages.
 
-| Topic | Guide |
+| Book | Contents |
 |---|---|
-| Installation and first script | [Getting Started](docs/Getting-Started.md) |
-| Script DSL | [Script DSL Reference](docs/Script-DSL-Reference.md) |
-| Practical examples | [Cookbook](docs/Cookbook.md) |
-| Architecture and features | [KSL Encyclopedia](docs/KSL-Encyclopedia.md) · [Developer Handbook](docs/KSL-Developer-Handbook.md) |
-| Public API and addon development | [Public API](docs/Public-API.md) · [Complete API Reference](docs/Public-API-Complete-Reference.md) · [Addon Development](docs/Addon-Development-Guide.md) |
-| Standard library | [STD Complete Reference](docs/STD-Complete-Reference.md) · [Standard Library Architecture](docs/Standard-Library-Architecture.md) |
-| Databases and data formats | [Database Guide](docs/Database-Guide.md) · [Data Formats](docs/Data-Formats.md) |
-| Runtime, performance, and production | [Runtime API](docs/Runtime-API.md) · [Performance and Scaling](docs/Performance-and-Scaling.md) · [Production Operations](docs/Production-Operations.md) |
-| Security | [Security and Sandbox](docs/Security-and-Sandbox.md) |
-| Errors and troubleshooting | [Error Codes](docs/Error-Codes.md) · [Troubleshooting](docs/Troubleshooting.md) |
-| Localization | [Localization](docs/Localization.md) |
-| Build and CI | [Build Diagnostics](docs/Build-Diagnostics.md) |
+| [Book I — Script Development](docs/01-scripts.md) | Kotlin basics, .kts structure, events, commands, scheduler, lifecycle, STD and runtime |
+| [Book II — Plugins, Addons and Libraries](docs/02-addons.md) | Gradle setup, KSLAPI, services, imports, classloaders, hooks, modules and KSLAddonScope |
+| [Book III — Data and Databases](docs/03-data-and-databases.md) | SQLite, MySQL, MariaDB, phpMyAdmin, SQL, persist/table, YAML, TOML and JSON |
+| [Book IV — Cookbook](docs/04-cookbook.md) | Practical recipes for commands, events, inventory, databases, caching and integrations |
+
+**Offline reading:** download the complete [docs/site folder](docs/site/) and open `index.html` on your PC. The reader includes all four books, search, chapter navigation, code copy buttons and print layout. It does not require a server or an internet connection.
+
+[Documentation index](docs/README.md) · [Offline reader files](docs/site/)
+
 
 ## Build and test
 
