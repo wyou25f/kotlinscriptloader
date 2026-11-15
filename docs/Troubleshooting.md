@@ -1,91 +1,69 @@
-# Если что-то пошло не так
+# Troubleshooting
 
-Коды ошибок из консоли расшифровываются командой `/ksl error <код>`, каталог доступен через `/ksl errors list`, а справочник — в [Error-Codes.md](Error-Codes.md).
+Look up an error code printed to the console with `/ksl error <code>`. The catalog is available through `/ksl errors list`; see [Error Codes](Error-Codes.md) for the full reference.
 
----
+## “The server has not responded for 10 seconds” / “DO NOT REPORT THIS TO PAPER”
 
-## «The server has not responded for 10 seconds» и «DO NOT REPORT THIS TO PAPER»
+This warning comes from Paper's watchdog: the server main thread was busy for more than 10 seconds and could not keep up with ticks. The thread dump may identify the plugin in the `Current Thread: Server thread` section. Look for `KotlinScriptLoader` in the stack.
 
-**Это не краш сервера и не ошибка в твоём коде.** Так выглядит предупреждение watchdog самого Paper: главный поток сервера был занят
-больше 10 секунд и не успевал делать тики. Paper печатает дамп потоков и подписывает его «не сообщайте это в Paper», потому что
-проблему создал какой-то плагин. Чей именно, видно в строке `Current Thread: Server thread` и ниже: ищи там `KotlinScriptLoader`.
+Kotlin script compilation initializes a large compiler runtime. In older KSL versions, compilation could block the main thread during `/ksl reload`. Current reload/validation flows compile scripts in the background; applying the script still runs its top-level code on the main thread because it may access Bukkit, worlds, players, and entities.
 
-**Почему это было у KSL.** Первая компиляция Kotlin-скрипта поднимает весь компилятор (десятки тысяч классов, и Paper ещё
-пропускает каждый загружаемый класс плагина через собственную обработку). На слабом хостинге это 10-20 секунд. Раньше `/ksl reload`
-делал это прямо на главном потоке.
+- `/ksl reload` (all scripts, one script, a folder, or `changed`) compiles in the background.
+- `/ksl validate` and `/ksl doctor` run expensive checks outside the main thread.
+- Large top-level loops, mass entity spawning, synchronous SQL/network calls, or `Thread.sleep` can still block ticks.
+- For mass spawning, use `spawnCustomEntities(..., perTick = 1..10)`.
+- Return Bukkit operations from background code with `runSync { ... }`.
 
-**Что сделано.** Компиляция Kotlin-скриптов переведена в фоновый поток, но применение скомпилированного скрипта остаётся в главном потоке: верхнеурочный код `.kts` может обращаться к Bukkit, миру, игрокам и сущностям, для которых требуется главный поток.
-- `/ksl reload` (все скрипты, один, папка, `changed`), автоперезагрузка и загрузка при старте компилируют скрипты в фоне;
-- `/ksl validate` и `/ksl doctor` выполняют тяжёлые проверки вне главного потока;
-- верхнеурочный код каждого скрипта выполняется при применении на главном потоке. Большие циклы, массовый спавн мобов, долгий синхронный SQL/сеть или `Thread.sleep` в нём всё ещё могут вызвать watchdog;
-- для массового спавна используй `spawnCustomEntities(..., perTick = 1..10)`: он распределяет создание сущностей между тиками. Bukkit-операции из фонового кода возвращай через `runSync { ... }`.
+KSL can write an early diagnostic dump to `plugins/KotlinScriptLoader/dumps/` when it detects a main-thread stall. The report contains multiple thread snapshots, main-thread frames, lock information, deadlocks, heap/GC data, and database queues. Compare snapshots to see which frames remain unchanged. This does not replace Paper Watchdog or prove the root cause by itself.
 
-**Дополнительная диагностика KSL.** По умолчанию KSL следит за heartbeat главного потока и при остановке
-дольше 5 секунд записывает ранний дамп в `plugins/KotlinScriptLoader/dumps/`. Отчёт содержит несколько снимков потоков (по умолчанию 3 с интервалом 750мс), стабильные верхние кадры главного потока, lock owner, удерживаемые мониторы/синхронизаторы, deadlock, heap/GC и очереди БД. Сравнение кадров показывает, что не менялось между снимками, но само по себе не доказывает виновника. Команда `/ksl watchdog` показывает путь к последнему файлу. Количество снимков и интервал настраиваются в `diagnostics.watchdog.snapshot-count` и `snapshot-interval-ms`. Это не отключает Paper Watchdog и не заменяет его собственный дамп.
+If a dump points to an old KSL build or an addon calling `api.reloadScripts()`/`api.reloadScript(...)` on the main thread, update the addon to use `api.reloadScriptsAsync { }`. If the stack points to another plugin, investigate that plugin separately. Do not hide Paper's watchdog warning through server settings.
 
-**Если предупреждение всё равно появилось:**
-1. Посмотри в дампе, какой плагин в `Server thread`. Если там `KotlinScriptLoader...ScriptRunner.loadScript` или `reloadScripts`, значит это старая версия плагина или аддон вызвал
-   `api.reloadScripts()`/`api.reloadScript(...)` из главного потока. Переключи вызов на `api.reloadScriptsAsync { }`.
-2. Если в стеке что-то другое (другой плагин), к KSL это не относится.
-3. Не скрывай предупреждение настройкой Paper (`paper-global.yml`, раздел `watchdog`): оно показывает реальную проблему, а не создаёт её.
+## Script errors in the console
 
----
+KSL can print script errors as yellow WARN messages with a concise message and an error code:
 
-## Красные строки при ошибке в скрипте
+~~~text
+[prefixes] [6156a] Script compilation failed; 4 errors
+  line 1: Expecting an element (×3)
+  line 68: Expecting '}'
+~~~
 
-Ошибки в скриптах это дело автора скрипта, а не поломка сервера, поэтому KSL теперь пишет их **жёлтым (WARN)**, коротко и с кодом:
+Duplicate lines may be grouped. Use `/ksl errors` for the latest error and `/ksl error <code>` for its explanation. Players with `ksl.admin` may receive a short notification after a failed reload.
 
-```
-[prefixes] [6156a] ❌ Скрипт не скомпилировался, ошибок: 4
-  строка 1: Expecting an element (×3)
-  строка 68: Expecting '}'
-```
+If an active script is edited and the new version fails to compile, the previous working version remains active (code `9065a`) until the source is fixed.
 
-- Одинаковые строки сворачиваются в одну с `(×N)`, длинные списки обрезаются: `… и ещё 7: /ksl errors`.
-- Полный список последней ошибки: `/ksl errors`. Расшифровка кода: `/ksl error <код>`.
-- Игроки с правом `ksl.admin` получают в чат одну короткую строку, когда скрипт не загрузился после перезагрузки.
-- Если рабочий скрипт отредактировали с ошибкой, **он продолжает работать прежней версией** (код `9065a`), пока ты не исправишь.
+Example settings:
 
-Настройки в `config.yml`:
-```yaml
+~~~yaml
 logging:
-  script-errors-as-warnings: true   # false - красные (ERROR) строки, как раньше
+  script-errors-as-warnings: true
 notifications:
-  admins-in-game: true              # короткое сообщение в чат админам
-```
+  admins-in-game: true
+~~~
 
----
+## Common compiler messages
 
-## Что значат типичные сообщения компилятора
-
-| Сообщение | Что это |
+| Message | Meaning |
 |---|---|
-| `Expecting an element` | в строке стоит что-то, что не является кодом: случайные символы, обрывок текста, лишняя скобка. Проверь начало файла (иногда редактор вставил мусор) |
-| `Expecting '}'` | не закрыта фигурная скобка где-то выше указанной строки. Скобки открываются и закрываются парами |
-| `Unresolved reference` | неизвестное имя: опечатка, не импортирован класс или нет нужного аддона |
-| `Type mismatch` | передан не тот тип (например, `Int` вместо `Long`: пиши `20L`) |
+| `Expecting an element` | The line contains invalid code, stray text, or an extra bracket. Check the start of the file for unwanted characters. |
+| `Expecting '}'` | A closing brace is missing somewhere above the reported line. |
+| `Unresolved reference` | A name is unknown: it may be misspelled, not imported, or supplied by a missing addon. |
+| `Type mismatch` | The supplied value has the wrong type (for example, `Int` instead of `Long`; use `20L`). |
 
-Проверить скрипт, не загружая его: `/ksl validate`. Подробнее про DSL: `docs/KSL-Encyclopedia.md`.
+Validate scripts without loading them: `/ksl validate`. For DSL details, see [KSL Encyclopedia](KSL-Encyclopedia.md).
 
----
+## Strange characters in the console
 
-## Странные символы в консоли
+Random characters between log lines may come from keyboard input displayed by the server console, including keys typed while switching keyboard layouts. This is not caused by KSL and does not affect the plugin.
 
-Если между строками лога появляются случайные символы (например, из-за нажатых клавиш), это не KSL: консоль сервера показывает всё, что набрано
-на клавиатуре, в том числе при смене раскладки. На работу плагина это не влияет.
+## First load after startup is slower
 
----
+KSL initializes the Kotlin compiler at startup. The first script may take longer to load than later scripts. On multi-core hosts, adjusting `scripts.compile-threads` can speed up compilation of several scripts.
 
-## Первая загрузка после старта чуть медленнее
+## What to include in a bug report
 
-Плагин при старте сам себя прогревает: компилятор Kotlin инициализируется один раз. Поэтому первый скрипт после запуска может грузиться
-дольше остальных. Если это важно, можно распределить нагрузку: `scripts.compile-threads: 2` ускорит загрузку многих скриптов на многоядерном хосте.
-
----
-
-## Что прислать, если нужна помощь
-
-- версия плагина и сервера (`/version`);
-- вывод `/ksl doctor`;
-- код ошибки из консоли (`[0000x]`) и строки рядом;
-- если это про «not responded», стек из дампа, где виден `Server thread`.
+- Plugin and server versions (`/version`).
+- Output from `/ksl doctor`.
+- The console error code and nearby log lines.
+- The affected script and its YAML configuration, with secrets removed.
+- For a watchdog warning, the dump section showing `Server thread`.

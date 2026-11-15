@@ -1,71 +1,61 @@
-# Данные и конфигурации KSL: YAML, TOML и JSON
+# KSL Data and Configuration: YAML, TOML, and JSON
 
-Руководство по выбору формата, чтению/записи, комментариям, миграциям и безопасному хранению файлов.
+A guide to choosing a format, reading and writing data, comments, migrations, and safe file storage.
 
-## 1. Какой формат выбрать
+## 1. Choosing a format
 
-| Формат | Лучше подходит для | Комментарии | KSL |
+| Format | Best suited for | Comments | KSL |
 |---|---|---|---|
-| YAML | Настройки сервера и скрипта, вложенные конфиги | `#` | Bukkit YAML API и helpers |
-| TOML | Структурированные настройки с таблицами и типами | `#` | Tomlj codec + helpers |
-| JSON | Обмен данными, API payloads, машинные структуры | Стандартный JSON комментарии не поддерживает | kotlinx.serialization JSON |
+| YAML | Server and script settings, nested configuration | # | Bukkit YAML API and helpers |
+| TOML | Structured settings with tables and types | # | Tomlj codec and helpers |
+| JSON | Data exchange and API payloads | Standard JSON has no comments | kotlinx.serialization JSON |
 
-Не выбирай формат только по скорости записи: размер файла, частота обновления, сериализация и место выполнения часто важнее.
+Do not choose a format based on write speed alone. File size, update frequency, serialization, and execution context are often more important.
 
-## 2. Где находятся файлы
+## 2. File locations
 
-- Конфиг плагина: `plugins/KotlinScriptLoader/config.yml`.
-- Конфиг скрипта `shop.kts`: файл `shop.yml` в каталоге плагина.
-- JSON/TOML данные через контекст: внутри каталога `plugins/KotlinScriptLoader/scripts/`, с ограничением пути на эту директорию.
+- Plugin config: plugins/KotlinScriptLoader/config.yml.
+- Config for shop.kts: shop.yml in the plugin data directory.
+- JSON/TOML data accessed through a script context: inside plugins/KotlinScriptLoader/scripts/, with paths restricted to that directory.
 
-Для дополнительных YAML файлов используй контекстные методы `editYaml(fileName) { ... }` и `saveYaml(fileName, yaml)`, если нужен отдельный файл внутри разрешённой области. Не используй относительные пути с `../`.
+For additional YAML files, use editYaml(fileName) { ... } and saveYaml(fileName, yaml) within the allowed area. Do not use relative paths containing ../.
 
-## 3. YAML: базовый доступ
+## 3. YAML: basic access
 
-```yaml
-# Настройки магазина
+~~~yaml
+# Shop settings
 shop:
   enabled: true
   max-items: 24
-  title: "<gold>Магазин</gold>"
+  title: "<gold>Shop</gold>"
   worlds:
     - world
     - world_nether
-```
+~~~
 
-```kotlin
+~~~kotlin
 val enabled = config.getBoolean("shop.enabled", true)
 val maxItems = config.getInt("shop.max-items", 24)
-val title = config.getString("shop.title") ?: "<gold>Магазин</gold>"
+val title = config.getString("shop.title") ?: "<gold>Shop</gold>"
 val worlds = config.getStringList("shop.worlds")
-```
+~~~
 
-Удобные accessors в Standard Library/context:
+Useful accessors in the Standard Library/context include hasPath, stringOr, intOr, longOr, boolOr, listOfStrings, and removePath. Existing string/int/long/double/bool/strings and Bukkit methods remain available. For receiver-style extensions, make sure the receiver is YamlConfiguration.
 
-- `hasPath(path)`
-- `stringOr(path, default)`
-- `intOr(path, default)`
-- `longOr(path, default)`
-- `boolOr(path, default)`
-- `listOfStrings(path)`
-- `removePath(path)`
+## 4. Safe YAML editing
 
-Существующие `string/int/long/double/bool/strings` и Bukkit методы сохраняются. При использовании receiver-style extension убедись, что receiver — `YamlConfiguration`.
-
-## 4. Безопасное редактирование YAML
-
-```kotlin
+~~~kotlin
 editConfig {
     set("shop.enabled", true)
     set("shop.max-items", 32)
 }
-```
+~~~
 
-`editConfig` синхронизирует блок изменений и сохранение. Не разделяй конкурентное изменение и сохранение на несколько несогласованных вызовов. Для файловых YAML-конфигов используй `editYaml`/`saveYaml` с разрешёнными путями.
+editConfig synchronizes the change block and save operation. Do not split concurrent modification and saving across several unsynchronized calls. For file-based YAML, use editYaml/saveYaml with allowed paths.
 
-### Проверка схемы
+### Schema validation
 
-```kotlin
+~~~kotlin
 val issues = validateConfig {
     string("messages.prefix", default = "<gray>[Server]</gray>")
     int("shop.max-items", default = 24, min = 1, max = 54)
@@ -75,32 +65,28 @@ val issues = validateConfig {
 issues.forEach { issue ->
     logWarn("Config '${issue.path}': ${issue.message}")
 }
-```
+~~~
 
-По умолчанию отсутствующие/некорректные значения могут быть заменены defaults из схемы. Передавай `applyDefaults = false`, если нужна только диагностика без изменения файла. Диапазоны проверяются; KSL не должен незаметно подрезать ошибочные значения до границы.
+By default, missing/invalid values may be replaced with schema defaults. Pass applyDefaults = false for diagnostics without changing the file. Ranges are validated; KSL must not silently clamp invalid values to a boundary.
 
-### Миграция YAML
+### YAML migrations
 
-```kotlin
+~~~kotlin
 val configVersion = migrateConfig(
     targetVersion = 2,
     migrations = mapOf(
-        1 to {
-            if (!contains("shop.max-items")) set("shop.max-items", 24)
-        },
-        2 to {
-            if (!contains("shop.enabled")) set("shop.enabled", true)
-        }
+        1 to { if (!contains("shop.max-items")) set("shop.max-items", 24) },
+        2 to { if (!contains("shop.enabled")) set("shop.enabled", true) }
     )
 )
-```
+~~~
 
-Шаги выполняются по порядку. Пропущенные версии и конфиг с версией выше target отклоняются. Изменения применяются к временной копии; исходный файл обновляется только после успешного выполнения миграций. После публикации скрипта не переписывай старые миграции — добавляй следующий номер.
+Migration steps run in order. Missing versions and configs with a version higher than the target are rejected. Changes are applied to a temporary copy; the original file is updated only after every step succeeds. Once a script has been published, do not rewrite old migrations — add the next version instead.
 
-## 5. TOML: файлы
+## 5. TOML files
 
-```toml
-# Основные настройки
+~~~toml
+# Main settings
 port = 25565
 enabled = true
 motd = "Welcome"
@@ -111,20 +97,20 @@ pool-size = 4
 
 [features]
 shop = true
-```
+~~~
 
-Чтение:
+Reading:
 
-```kotlin
+~~~kotlin
 val settings = loadToml("data/settings.toml")
 val port = settings?.tomlInt("port", 25565) ?: 25565
 val database = settings?.tomlTable("database")
 val host = database?.tomlString("host", "localhost") ?: "localhost"
-```
+~~~
 
-Запись и редактирование:
+Writing and editing:
 
-```kotlin
+~~~kotlin
 editToml("data/settings.toml") {
     this["port"] = 25566
     this["motd"] = "New server"
@@ -136,25 +122,21 @@ writeToml("data/backup.toml", mapOf("enabled" to true))
 updateToml("data/settings.toml") {
     this["maintenance"] = false
 }
-```
+~~~
 
-Доступные операции:
-- контекст: `loadToml`, `saveToml`, `editToml`;
-- короткие helpers: `readToml`, `writeToml`, `updateToml`;
-- accessors Map: `tomlHas`, `tomlString`, `tomlLong`, `tomlInt`, `tomlDouble`, `tomlBoolean`, `tomlTable`, `tomlList`;
-- mutable map: `putTomlIfAbsent`, `removeToml`.
+Available operations include loadToml/saveToml/editToml, readToml/writeToml/updateToml, tomlHas/tomlString/tomlLong/tomlInt/tomlDouble/tomlBoolean/tomlTable/tomlList, putTomlIfAbsent, and removeToml.
 
-Числа TOML после чтения могут быть представлены как `Long` или другой Number. Для целых значений используй числовые accessors, а не небезопасное приведение к Int.
+TOML numbers may be represented as Long or another Number. Use numeric accessors rather than unsafe casts to Int.
 
-### Поддерживаемая запись
+### Writing behavior and comments
 
-**Важно о комментариях:** TOML parser превращает документ в обычную Map-структуру, а saveToml/editToml сериализуют значения заново. Поэтому комментарии, исходное форматирование и пробелы не являются частью модели данных и могут исчезнуть после записи. Если поясняющие комментарии важны, держи их отдельно или добавляй после автоматической генерации файла.
+The TOML parser converts a document into a regular Map; saveToml/editToml serialize values again. Comments, original formatting, and whitespace are not part of the data model and may be lost after writing. Keep important explanatory comments separately or add them after automatic generation.
 
-Codec поддерживает scalar values, arrays и nested tables. Null и arrays of tables не поддерживаются и должны приводить к явной ошибке, а не к потере данных. Запись выполняется атомарной заменой. Повреждённый исходный файл сохраняется/резервируется перед сообщением об ошибке, если это возможно.
+The codec supports scalar values, arrays, and nested tables. Null and arrays of tables are not supported and must produce an explicit error rather than silently losing data. Writing uses an atomic replacement. When possible, a malformed source file is preserved/backed up before an error is reported.
 
-## 6. JSON: объекты и файлы
+## 6. JSON objects and files
 
-```kotlin
+~~~kotlin
 val profile = loadJsonObject("data/profile.json")
 val coins = profile?.long("coins", 0L) ?: 0L
 
@@ -169,49 +151,49 @@ val payload = jsonObjectOf(
     "tags" to listOf("builder", "vip")
 )
 saveJson("cache/player.json", payload)
-```
+~~~
 
-Преобразователи `jsonObjectOf`, `jsonArrayOf` и `toJsonElement` поддерживают обычные Kotlin значения/коллекции. Для типизированного доступа к `JsonObject` смотри методы `string/int/long/double/bool`, `objectValue`, `arrayValue`.
+jsonObjectOf, jsonArrayOf, and toJsonElement support ordinary Kotlin values and collections. For typed JsonObject access, see string/int/long/double/bool, objectValue, and arrayValue.
 
-JSON по стандарту не поддерживает комментарии. Не вставляй `//` или `#` в JSON-файл: используй отдельное поле `_comment` только если формат твоего приложения это допускает.
+JSON does not support comments in the standard. Do not put // or # in JSON files. Use a separate _comment field only if your application's format allows it.
 
-## 7. Комментарии и выключение настроек
+## 7. Comments and disabling settings
 
-- Kotlin `.kts`: `//` и `/* ... */`.
-- YAML: `#`.
-- TOML: `#`.
-- JSON: комментарии стандартом не предусмотрены.
+- Kotlin .kts: // and /* ... */.
+- YAML: #.
+- TOML: #.
+- JSON: comments are not part of the standard.
 
-Точка с запятой в Kotlin — разделитель инструкций, не синтаксис отключения функции. В YAML/TOML точка с запятой не превращает настройку в комментарий. Чтобы выключить возможность, используй boolean:
+A semicolon in Kotlin separates statements; it does not disable a function. A semicolon in YAML/TOML does not start a comment. To disable a feature, use a boolean:
 
-```yaml
+~~~yaml
 features:
   shop:
     enabled: false
-```
+~~~
 
-Или KSL feature flags:
+Or use KSL feature flags:
 
-```kotlin
+~~~kotlin
 if (featureEnabled("shop.enabled", default = true)) {
-    // Выполняется только если feature flag включён
+    // Runs only while the feature flag is enabled
 }
-```
+~~~
 
-Feature flags — конфигурация, а не контроль доступа. Для защищённых команд отдельно проверяй permission.
+Feature flags are configuration, not access control. Check permissions separately for protected commands.
 
-## 8. Производительность и потоки
+## 8. Performance and threading
 
-Операции с файлами синхронные. Большие JSON/TOML/YAML файлы не читай и не записывай часто на главном потоке. Переноси файловые операции в фоновую задачу, а Bukkit state меняй через `runSync`.
+File operations are synchronous. Do not frequently read or write large JSON/TOML/YAML files on the main thread. Move file operations to a background task and update Bukkit state through runSync.
 
-Не сохраняй конфиг каждую игровую tick. Группируй изменения и записывай пакетно. Для высокочастотных значений используй подходящее хранилище/батчинг вместо переписывания большого текстового файла.
+Do not save a config every game tick. Group changes and write them in batches. For high-frequency values, use a suitable storage/batching strategy instead of repeatedly rewriting a large text file.
 
-## 9. Безопасность
+## 9. Security
 
-- Не храни пароли, API keys, Discord webhook URL в примерах и публичных YAML/TOML/JSON.
-- Проверяй значения из файла: конфиг может быть испорчен или отредактирован вручную.
-- Пути контекстных файлов ограничены каталогом скриптов.
-- Не считай сериализацию шифрованием.
-- Секреты базы задавай через переменную окружения `KSL_DB_PASSWORD` и ограничивай права DB пользователя.
+- Do not store passwords, API keys, or Discord webhook URLs in examples or public YAML/TOML/JSON.
+- Validate values loaded from files: config may be corrupted or edited manually.
+- Context file paths are restricted to the scripts directory.
+- Serialization is not encryption.
+- Set database secrets through KSL_DB_PASSWORD and restrict database user permissions.
 
-См. [Security and Sandbox](Security-and-Sandbox.md) и [Database Guide](Database-Guide.md).
+See [Security and Sandbox](Security-and-Sandbox.md) and [Database Guide](Database-Guide.md).

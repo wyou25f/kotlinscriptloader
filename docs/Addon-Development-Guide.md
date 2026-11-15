@@ -1,61 +1,56 @@
-# Разработка аддонов для KotlinScriptLoader (KSL API)
+# Developing KotlinScriptLoader Addons (KSL API)
 
-Это руководство для тех, кто хочет написать свой Bukkit/Paper-плагин, который расширяет KotlinScriptLoader: добавляет сервисы, доступные из `.kts`-скриптов, свои импорты и хуки в жизненный цикл скрипта.
+This guide explains how to build a Bukkit/Paper plugin that extends KotlinScriptLoader with services available to .kts scripts, default imports, and script lifecycle hooks.
 
-Аддон KSL — это обычный Paper-плагин, который дополнительно реализует интерфейс `KSLAddon` и регистрируется в KSL через статический объект `KSL`.
+A KSL addon is a regular Paper plugin that implements KSLAddon and registers with KSL through the static KSL object.
 
----
+## 1. Architecture
 
-## 1. Как это устроено
+The public API consists of four main contracts:
 
-Три сущности составляют публичный API:
-
-| Сущность | Назначение |
+| Type | Purpose |
 |---|---|
-| `KSL` | Точка входа. Статический `object`, живёт пока жив плагин KSL. |
-| `KSLAPI` | Интерфейс, через который аддон регистрирует свои возможности. |
-| `KSLAddon` | Интерфейс, который реализует твой плагин. |
-| `KSLContextExtension` | Опционально — хук на создание/уничтожение контекста каждого скрипта. |
+| KSL | Entry point. A static object that remains available while the KSL plugin is running. |
+| KSLAPI | Interface used by addons to register capabilities. |
+| KSLAddon | Interface implemented by your plugin. |
+| KSLContextExtension | Optional hook for creation/destruction of each script context. |
 
-Схема потока:
+Registration flow:
 
-```
-Твой плагин onEnable()
-        │
-        ▼
-KSL.isAvailable ? ──нет──► лог ошибки, isEnabled = false
-        │ да
-        ▼
+~~~text
+Your plugin onEnable()
+        |
+        v
+KSL.isAvailable?
+        | no -> log an error and disable your plugin
+        | yes
+        v
 KSL.api.registerAddon(this)
-        │
-        ▼
-KSLAddonManager вызывает твой onLoad(api: KSLAPI)
-        │
-        ▼
-Внутри onLoad ты вызываешь:
-  api.registerService("ключ", instance)
-  api.addDefaultImports("com.example.*")
-  api.registerContextExtension(...)
-```
+        |
+        v
+KSLAddonManager calls onLoad(api: KSLAPI)
+        |
+        v
+Register services, imports, and context extensions
+~~~
 
-Дальше любой `.kts`-скрипт на сервере может получить твой сервис через:
+A script can then obtain your service:
 
-```kotlin
-val myService = service<MyService>("ключ") ?: error("аддон не установлен")
-```
+~~~kotlin
+val myService = service<MyService>("service-key")
+    ?: error("The addon is not installed")
+~~~
 
----
+## 2. Project requirements
 
-## 2. Требования к проекту
-
-- Kotlin 2.0+, JVM target 21 (как и сам KSL — иначе будет `Cannot inline bytecode built with JVM target 21 into bytecode built with JVM target 1.8`, если ты добавляешь свои inline-функции в скрипты).
+- Kotlin 2.0+ and JVM target 21. This must match KSL; otherwise inline bytecode may fail with a JVM target 21 versus 1.8 error.
 - Paper API 1.21.1+.
-- `KotlinScriptLoader.jar` как `compileOnly` зависимость (сам класс не шейдится в твой jar — он должен быть уже загружен как отдельный плагин на сервере).
-- `depend: [KotlinScriptLoader]` в `plugin.yml` — гарантирует, что KSL загрузится раньше твоего аддона.
+- The KotlinScriptLoader JAR as a compileOnly dependency. Do not shade KSL classes into your addon JAR; KSL must already be loaded as a separate server plugin.
+- depend: [KotlinScriptLoader] in plugin.yml to ensure KSL loads before your addon.
 
 ### build.gradle.kts
 
-```kotlin
+~~~kotlin
 plugins {
     kotlin("jvm") version "2.0.21"
 }
@@ -85,27 +80,25 @@ kotlin {
 tasks.processResources {
     filesMatching("plugin.yml") { expand("version" to project.version) }
 }
-```
+~~~
 
-Путь `files("libs/KotlinScriptLoader-1.0.0.jar")` — положи собранный jar основного плагина в `libs/` своего проекта (или подключи как `compileOnly project(":KotlinScriptLoader")`, если это модуль одного мультипроекта).
+Place the built KSL JAR in your project's libs/ directory, or use compileOnly project(":KotlinScriptLoader") when both plugins are modules in one Gradle multi-project build.
 
 ### plugin.yml
 
-```yaml
+~~~yaml
 name: MyKSLAddon
 version: ${version}
 main: com.example.MyAddonPlugin
 api-version: '1.21'
 depend: [KotlinScriptLoader]
-```
+~~~
 
-`depend`, а не `softdepend` — твой аддон без KSL не имеет смысла, и явная зависимость гарантирует правильный порядок загрузки.
+Use depend rather than softdepend: an addon that requires KSL cannot operate without it, and the hard dependency establishes load order.
 
----
+## 3. KSLAddon
 
-## 3. Интерфейс `KSLAddon`
-
-```kotlin
+~~~kotlin
 interface KSLAddon {
     val addonId: String
     val addonVersion: String
@@ -114,22 +107,19 @@ interface KSLAddon {
     fun onLoad(api: KSLAPI)
     fun onUnload()
 }
-```
+~~~
 
-- `addonId` — уникальный ключ, под которым аддон виден в `/ksl addons`. Используй kebab-case: `my-addon`, а не название плагина с большой буквы.
-- `addonVersion` — просто для отображения в логах и `/ksl addons`.
-- `addonDescription` — опционально, тоже только для отображения.
-- `dependsOn` — список `addonId` других KSL-аддонов, от сервисов которых ты зависишь. Не блокирует загрузку и не влияет на порядок — это просто информация: если зависимость ещё не загружена на момент твоего `onLoad`, в лог уйдёт явный warning с подсказкой, что делать. Для реальной безопасной привязки используй `onAddonReady` (раздел 4).
-- `onLoad(api)` — вызывается один раз при регистрации. Здесь регистрируй сервисы, импорты, расширения контекста.
-- `onUnload()` — вызывается при `unregisterAddon`. Обычно вызывается из твоего же `onDisable()`.
+- addonId is the unique key shown by /ksl addons. Use kebab-case, such as my-addon.
+- addonVersion and addonDescription are displayed in logs and /ksl addons.
+- dependsOn lists the addon IDs whose services you depend on. It is diagnostic metadata; it does not block loading or control load order. Use onAddonReady (section 4) for an actual readiness dependency.
+- onLoad(api) runs once when the addon is registered. Register services, imports, and context extensions here.
+- onUnload() runs when the addon is unregistered. It is usually called from your plugin's onDisable().
 
----
+## 4. KSLAPI
 
-## 4. Интерфейс `KSLAPI`
+The API available inside onLoad includes:
 
-Это то, что тебе доступно внутри `onLoad`:
-
-```kotlin
+~~~kotlin
 interface KSLAPI {
     val kslPlugin: JavaPlugin
     fun registerAddon(addon: KSLAddon)
@@ -144,15 +134,15 @@ interface KSLAPI {
     fun isAddonLoaded(addonId: String): Boolean
     fun onAddonReady(addonId: String, callback: (KSLAddon) -> Unit)
 }
-```
+~~~
 
-### Hooks и отдельный пакет `ru.privateserver.ksl.hooks`
+### Hooks and the ru.privateserver.ksl.hooks package
 
-Реализации встроенных интеграций находятся в отдельном пакете `ru.privateserver.ksl.hooks`: общий контракт остаётся `ru.privateserver.ksl.KSLHook`, а старые имена встроенных классов в корневом пакете сохранены как совместимые фасады.
+Built-in hook implementations live in ru.privateserver.ksl.hooks. The shared KSLHook contract remains in ru.privateserver.ksl, and old root-package class names remain as compatibility facades.
 
-Для нового hook можно использовать базовый класс и отдельные aliases:
+For a new hook, use the base class and aliases:
 
-```kotlin
+~~~kotlin
 import ru.privateserver.ksl.hooks.*
 
 class EconomyHook : KSLPluginHook("economy", "Vault") {
@@ -162,78 +152,69 @@ class EconomyHook : KSLPluginHook("economy", "Vault") {
 override fun onLoad(api: KSLAPI) {
     api.registerHookIfEnabled("Vault") { EconomyHook() }
 }
-```
+~~~
 
-`KSLPluginHook` проверяет ID и имя плагина, `registerHookIfEnabled` не создаёт hook, если provider-плагин выключен, а `findHook<T>()` и `requireHookAlias<T>()` дают короткий типизированный доступ; стандартный `hookOrNull<T>()` остаётся доступен через `ru.privateserver.ksl.api.*`. Для встроенных интеграций используй константы `KSLHookIds`, чтобы не дублировать строковые ID. Hook, зарегистрированный внутри `onLoad`, автоматически снимается при выгрузке аддона.
+KSLPluginHook validates the hook ID and plugin name. registerHookIfEnabled skips creation when the provider plugin is disabled. findHook<T>() and requireHookAlias<T>() provide typed access; hookOrNull<T>() remains available through ru.privateserver.ksl.api.*. Use KSLHookIds constants for built-in integrations rather than repeating string IDs. A hook registered during onLoad is removed automatically when the addon unloads.
 
-### `registerService(key, instance)`
+### registerService(key, instance)
 
-Регистрирует произвольный объект под строковым ключом. Скрипты достают его через `service<T>(key)`. Ключ — то, что видит пользователь скрипта, выбирай осмысленное имя (`"coins"`, `"gui"`, `"warps"`).
+Registers an object under a string key. Scripts retrieve it with service<T>(key). Choose a descriptive key such as coins, gui, or warps.
 
-### `addDefaultImports(vararg packages)`
+### addDefaultImports(vararg packages)
 
-Добавляет пакеты в `defaultImports` компиляции скриптов — так пользователю не нужно писать `import com.example.CoinService` в каждом `.kts`. Принимает то же, что и обычный Kotlin `import`: `"com.example.CoinService"` или `"com.example.*"`.
+Adds packages to the default imports used to compile scripts, so users do not need to repeat imports in every .kts file. Values use regular Kotlin import syntax, such as com.example.CoinService or com.example.*.
 
-### `registerContextExtension(extension)`
+### registerContextExtension(extension)
 
-Регистрирует хук, который получает уведомление при создании и уничтожении контекста каждого скрипта — полезно, если твоему сервису нужно держать состояние на скрипт (например, свою мини-БД для конкретного `.kts` файла).
+Registers a hook that receives notifications when each script context is created and destroyed. Use it when your service needs per-script state.
 
-### `onAddonReady(addonId, callback)` — привязка к другому аддону
+### onAddonReady(addonId, callback)
 
-Самый безопасный способ зависеть от сервиса другого KSL-аддона. Bukkit сам решает,
-в каком порядке загружать плагины (даже с `depend`/`softdepend` в plugin.yml это
-не всегда даёт то, что ожидаешь, особенно если оба аддона — softdepend друг у
-друга). `onAddonReady` снимает эту проблему полностью:
+This is the safest way to depend on another KSL addon. Bukkit plugin load order may differ from what you expect, especially when plugins use soft dependencies. onAddonReady handles both cases:
 
-```kotlin
+~~~kotlin
 override fun onLoad(api: KSLAPI) {
     api.onAddonReady("example-addon") { addon ->
         coins = api.getService("coins") as? CoinService
     }
 }
-```
+~~~
 
-Если `"example-addon"` уже загружен на момент вызова — callback выполнится
-немедленно, синхронно. Если ещё не загружен — callback просто запомнится и
-выполнится автоматически в момент, когда тот аддон зарегистрируется, в каком
-бы порядке Bukkit ни грузил сами плагины. Тебе никогда не нужно гадать
-"а точно ли тот аддон уже загрузился к этому моменту".
+If the target addon is already loaded, the callback runs immediately and synchronously. Otherwise, KSL stores the callback and invokes it when that addon registers, regardless of Bukkit plugin order.
 
-### `isAddonLoaded(addonId)`
+### isAddonLoaded(addonId)
 
-Простая синхронная проверка, если тебе не нужен callback, а нужно просто
-одноразово узнать: `if (api.isAddonLoaded("example-addon")) { ... }`.
+A synchronous one-time check when a callback is not needed:
 
-### `getService` / `unregisterService` / `unregisterAddon` / `registeredAddons`
+~~~kotlin
+if (api.isAddonLoaded("example-addon")) {
+    // The addon is already registered.
+}
+~~~
 
-Симметричные операции — обычно нужны только если ты пишешь что-то вроде мета-аддона, который сам работает с другими аддонами.
+### getService, unregisterService, unregisterAddon, registeredAddons
 
-### Автоматическая очистка при выгрузке
+These are symmetric management operations, usually needed by meta-addons that manage other addons.
 
-Всё, что зарегистрировано внутри `onLoad` (сервисы, импорты, расширения
-контекста), автоматически снимается при `unregisterAddon`, даже если ты
-забыл явно отписать это в своём `onUnload()`. Так другой аддон/скрипт не
-получит `service<T>("твой-ключ")`, указывающий на давно выгруженный объект.
-`onUnload()` по-прежнему стоит использовать для закрытия своих собственных
-ресурсов (соединения, потоки, файлы) — автоочистка касается только того, что
-регистрировалось именно через `KSLAPI`.
+### Automatic cleanup
 
----
+Resources registered from onLoad (services, imports, and context extensions) are automatically removed by unregisterAddon, even if onUnload does not explicitly unregister each item. This prevents scripts and other addons from retaining services owned by an unloaded addon.
 
-## 5. Минимальный рабочий пример
+Use onUnload() to close the addon's own resources, such as connections, threads, or files. Automatic cleanup only covers resources registered through KSLAPI.
 
-Разберём на примере аддона с внутриигровой валютой.
+## 5. Minimal working example
 
-### CoinService.kt — сам сервис
+The following example exposes an in-memory currency service.
 
-```kotlin
+### CoinService.kt
+
+~~~kotlin
 package com.example
 
 import org.bukkit.entity.Player
 import java.util.concurrent.ConcurrentHashMap
 
 class CoinService {
-
     private val coins = ConcurrentHashMap<String, Long>()
 
     fun get(player: Player): Long = coins.getOrDefault(player.name, 0L)
@@ -253,13 +234,13 @@ class CoinService {
         coins[player.name] = amount
     }
 }
-```
+~~~
 
-Ничего специфичного для KSL здесь нет — обычный Kotlin-класс. Используй `ConcurrentHashMap`, а не `HashMap`, если к сервису могут одновременно обращаться скрипты с разных потоков (PAPI, асинхронные таски и т.д.).
+There is nothing KSL-specific in this class. It is ordinary Kotlin. Use ConcurrentHashMap instead of HashMap if scripts may access the service concurrently from different threads.
 
-### MyAddonPlugin.kt — точка входа плагина
+### MyAddonPlugin.kt
 
-```kotlin
+~~~kotlin
 package com.example
 
 import org.bukkit.plugin.java.JavaPlugin
@@ -268,16 +249,15 @@ import ru.privateserver.ksl.KSLAPI
 import ru.privateserver.ksl.KSLAddon
 
 class MyAddonPlugin : JavaPlugin(), KSLAddon {
-
     override val addonId = "coins-addon"
     override val addonVersion = "1.0.0"
-    override val addonDescription = "Внутриигровая валюта для скриптов"
+    override val addonDescription = "In-game currency service for scripts"
 
     private val coinService = CoinService()
 
     override fun onEnable() {
         if (!KSL.isAvailable) {
-            logger.severe("KotlinScriptLoader не найден!")
+            logger.severe("KotlinScriptLoader was not found")
             isEnabled = false
             return
         }
@@ -285,9 +265,7 @@ class MyAddonPlugin : JavaPlugin(), KSLAddon {
     }
 
     override fun onDisable() {
-        if (KSL.isAvailable) {
-            KSL.api.unregisterAddon(addonId)
-        }
+        if (KSL.isAvailable) KSL.api.unregisterAddon(addonId)
     }
 
     override fun onLoad(api: KSLAPI) {
@@ -295,299 +273,163 @@ class MyAddonPlugin : JavaPlugin(), KSLAddon {
         api.addDefaultImports("com.example.CoinService")
     }
 
-    override fun onUnload() {
-    }
+    override fun onUnload() = Unit
 }
-```
+~~~
 
-Обрати внимание:
+Important points:
 
-- Проверка `KSL.isAvailable` в `onEnable` обязательна. Если по какой-то причине KSL не загрузился (например, ошибка инициализации БД), твой плагин не должен пытаться дёргать `KSL.api` — это кинет исключение (`KSL.api` бросает `error(...)`, если `_api == null`). Вместо этого мягко выключаем себя через `isEnabled = false`.
-- `onUnload()` может быть пустым, если сервису нечего освобождать. Если сервис держит соединения, потоки или файлы — закрывай их здесь.
+- Check KSL.isAvailable before accessing KSL.api in onEnable(). If KSL failed to initialize, accessing the API can throw. Disable your plugin gracefully instead.
+- onUnload() can be empty when the service owns no external resources. Close connections, threads, and files here when applicable.
 
-### Использование в скрипте
+### Use the service from a script
 
-```kotlin
+~~~kotlin
 val coins = service<com.example.CoinService>("coins")
-    ?: error("CoinsAddon не установлен")
+    ?: error("CoinsAddon is not installed")
 
 registerCommand("coins") { player, args ->
     when (args.getOrNull(0)) {
         "give" -> {
             val amount = args.getOrNull(1)?.toLongOrNull() ?: 0L
             coins.give(player, amount)
-            player.sendRichMessage("<green>+$amount монет. Итого: ${coins.get(player)}")
+            player.sendRichMessage("<green>+$amount coins. Total: ${coins.get(player)}")
         }
         "take" -> {
             val amount = args.getOrNull(1)?.toLongOrNull() ?: 0L
             if (coins.take(player, amount)) {
-                player.sendRichMessage("<red>-$amount монет. Итого: ${coins.get(player)}")
+                player.sendRichMessage("<red>-$amount coins. Total: ${coins.get(player)}")
             } else {
-                player.sendRichMessage("<red>Недостаточно монет!")
+                player.sendRichMessage("<red>Not enough coins!")
             }
         }
-        else -> player.sendRichMessage("<yellow>Монеты: <white>${coins.get(player)}")
+        else -> player.sendRichMessage("<yellow>Coins: <white>${coins.get(player)}")
     }
 }
-```
+~~~
 
-Если ты вызвал `addDefaultImports("com.example.CoinService")` в `onLoad`, то в скрипте можно писать просто `service<CoinService>("coins")` без полного пути.
+If you registered com.example.CoinService through addDefaultImports(), the script can use CoinService without the fully qualified class name.
 
-### Пример: аддон, зависящий от другого аддона
+## 6. KSLContextExtension — per-script state
 
-Допустим, ты пишешь второй аддон, который выдаёт бонусные монеты при входе на
-сервер — но только если установлен `coins-addon` из примера выше. Порядок,
-в котором Bukkit загрузит два ЭТИХ плагина, заранее не известен (зависит от
-`depend`/`softdepend` в plugin.yml каждого, и от того, как их назвал автор
-сервера в `plugins/`). `dependsOn` + `onAddonReady` решают это без гаданий:
+Use KSLContextExtension when a service needs data isolated for each .kts file rather than global state:
 
-```kotlin
-package com.example.bonus
-
-import org.bukkit.entity.Player
-import org.bukkit.event.EventHandler
-import org.bukkit.event.Listener
-import org.bukkit.event.player.PlayerJoinEvent
-import org.bukkit.plugin.java.JavaPlugin
-import com.example.CoinService
-import ru.privateserver.ksl.KSL
-import ru.privateserver.ksl.KSLAPI
-import ru.privateserver.ksl.KSLAddon
-
-class BonusAddonPlugin : JavaPlugin(), KSLAddon, Listener {
-
-    override val addonId = "bonus-addon"
-    override val addonVersion = "1.0.0"
-    override val dependsOn = listOf("example-addon")
-
-    private var coins: CoinService? = null
-
-    override fun onEnable() {
-        if (!KSL.isAvailable) { isEnabled = false; return }
-        KSL.api.registerAddon(this)
-        server.pluginManager.registerEvents(this, this)
-    }
-
-    override fun onDisable() {
-        if (KSL.isAvailable) KSL.api.unregisterAddon(addonId)
-    }
-
-    override fun onLoad(api: KSLAPI) {
-        api.onAddonReady("example-addon") { addon ->
-            coins = api.getService("coins") as? CoinService
-        }
-    }
-
-    override fun onUnload() {
-        coins = null
-    }
-
-    @EventHandler
-    fun onJoin(event: PlayerJoinEvent) {
-        coins?.give(event.player, 10L)
-    }
-}
-```
-
-Работает одинаково надёжно в обоих случаях: если `ExampleAddon` загрузился
-раньше `BonusAddon` — `onAddonReady` вызовет колбэк сразу же внутри `onLoad`.
-Если позже — колбэк просто подождёт и сработает автоматически в момент, когда
-`ExampleAddon` зарегистрируется. `BonusAddon` при этом не падает и не блокирует
-собственную загрузку, если `ExampleAddon` вообще не установлен — `coins`
-остаётся `null`, и `onJoin` просто ничего не выдаёт.
-
----
-
-## 6. `KSLContextExtension` — состояние на каждый скрипт
-
-Если сервису нужно хранить что-то отдельно для каждого `.kts`-файла (а не глобально), используй `KSLContextExtension`:
-
-```kotlin
+~~~kotlin
 interface KSLContextExtension {
     val extensionId: String
     fun onContextCreated(context: BukkitScriptContext)
     fun onContextDestroyed(scriptName: String)
 }
-```
+~~~
 
-- `onContextCreated(context)` вызывается при загрузке каждого скрипта (включая `/ksl reload`). `context.scriptName` — имя скрипта без `.kts`.
-- `onContextDestroyed(scriptName)` вызывается при выгрузке скрипта — самое подходящее место, чтобы почистить состояние, привязанное к этому скрипту.
+onContextCreated(context) runs when each script loads, including during /ksl reload. context.scriptName identifies the script. onContextDestroyed(scriptName) runs when the context is unloaded. Release per-script state here.
 
-Пример — сервис, который считает, сколько раз каждый скрипт вызвал определённое действие:
+## 7. Lifecycle and thread safety
 
-```kotlin
-package com.example
+An addon should register with KSL during onEnable() and unregister during onDisable(). Do not hold onto script contexts after they are destroyed. If callbacks are asynchronous, account for the addon being unloaded before the callback completes.
 
-import ru.privateserver.ksl.BukkitScriptContext
-import ru.privateserver.ksl.KSLContextExtension
-import java.util.concurrent.ConcurrentHashMap
+Bukkit world, entity, player, and inventory operations usually need the main server thread. Use the supported scheduler for Bukkit operations and background workers for SQL, network calls, or CPU-heavy work. Do not block the main thread with Future.get(), join(), or Thread.sleep().
 
-class CoinContextExtension(private val coinService: CoinService) : KSLContextExtension {
+Use thread-safe collections for services that may be accessed concurrently. A ConcurrentHashMap does not make the objects stored in it thread-safe.
 
-    override val extensionId = "coins-context"
+## 8. Compatibility and API versions
 
-    override fun onContextCreated(context: BukkitScriptContext) {
-    }
+Use the API version required by the features your addon calls. When a minimum API version is required, declare minApiVersion so an incompatible KSL version produces a clear load error rather than a later linkage failure.
 
-    override fun onContextDestroyed(scriptName: String) {
-    }
-}
-```
+Do not bundle KSL API classes into your addon. Keep the KSL JAR as compileOnly. Duplicate copies loaded through different classloaders can break type checks and service lookup.
 
-Зарегистрируй его вместе с сервисом в `onLoad`:
+## 9. Troubleshooting
 
-```kotlin
-override fun onLoad(api: KSLAPI) {
-    api.registerService("coins", coinService)
-    api.registerContextExtension(CoinContextExtension(coinService))
-    api.addDefaultImports("com.example.CoinService")
-}
-```
+**JVM target mismatch:** Ensure both Java and Kotlin toolchains target JVM 21. The addon target must be compatible with the server and KSL runtime.
 
-Если тебе не нужно состояние на скрипт — просто не регистрируй `KSLContextExtension`, он не обязателен.
+**ClassNotFoundException for your service:** The addon JAR may not be on the classpath used to compile scripts. Confirm that the addon is loaded and that addDefaultImports() references a real class/package.
+
+**A dependency warning during startup:** dependsOn is diagnostic metadata and does not delay loading. If you need another addon to be ready before using its service, call api.onAddonReady(id) { ... } instead of reading api.getService(...) immediately inside onLoad.
+
+## 10. Addon release checklist
+
+- [ ] addonId is unique and uses kebab-case.
+- [ ] plugin.yml declares depend: [KotlinScriptLoader].
+- [ ] onEnable checks KSL.isAvailable before accessing KSL.api.
+- [ ] onDisable calls KSL.api.unregisterAddon(addonId).
+- [ ] Services accessed concurrently use thread-safe collections.
+- [ ] The addon is built for JVM target 21.
+- [ ] The addon README includes at least one .kts usage example.
 
 ---
 
-## 7. Жизненный цикл и порядок загрузки
+## API v2: Addon author features
 
-1. Сервер запускается. Paper грузит плагины в порядке зависимостей — раньше всех то, от чего зависят остальные.
-2. KSL включается (`onEnable`), инициализирует БД, интеграции, вызывает `KSL.init(addonManager)` — с этого момента `KSL.isAvailable == true`.
-3. Твой аддон включается (позже, благодаря `depend: [KotlinScriptLoader]`), вызывает `KSL.api.registerAddon(this)`.
-4. `KSLAddonManager.registerAddon` вызывает твой `onLoad(api)` — здесь ты регистрируешь сервисы, импорты, расширения.
-5. KSL загружает `.kts`-скрипты из `scripts/` — уже с учётом твоих сервисов и импортов.
+KSL.API_VERSION = 2. The additions below are backward-compatible; addons built against v1 continue to work.
 
-При `/ksl reload`:
+### Minimum API version
 
-- Скрипты выгружаются и загружаются заново.
-- Аддоны **не** перезагружаются — твой плагин продолжает жить, сервисы остаются зарегистрированными.
-- Новые скрипты сразу видят твои сервисы и импорты.
+~~~kotlin
+override val minApiVersion = 2
+~~~
 
-При остановке сервера:
+An addon requiring a newer API will not load on an older KSL version; the log reports the reason.
 
-- KSL вызывает `unregisterAddon` для всех аддонов в своём `onDisable`, но по-хорошему твой плагин должен и сам вызвать `unregisterAddon` в своём `onDisable` — Paper не гарантирует порядок остановки плагинов настолько строго, насколько порядок запуска.
+### Typed services
 
----
-
-## 8. Команды для проверки
-
-- `/ksl addons` — список загруженных аддонов с версиями и описанием.
-- `/ksl services` — список зарегистрированных ключей сервисов.
-
-Если твой аддон не появляется в `/ksl addons` — скорее всего `onEnable` упал раньше `registerAddon` (смотри лог на предмет ошибки инициализации) либо `depend` в `plugin.yml` не указан и твой плагин пытался вызвать `KSL.api` до того, как KSL успел проинициализироваться.
-
----
-
-## 9. Частые ошибки
-
-**`error("KotlinScriptLoader не установлен или ещё не инициализирован")` при старте сервера**
-Значит `KSL.api` вызван до `KSL.init(...)`. Проверь `depend: [KotlinScriptLoader]` в своём `plugin.yml` — без него порядок загрузки не гарантирован.
-
-**Скрипт компилируется, но `service<T>(key)` возвращает `null`**
-Ключ в `service<T>("ключ")` должен точно совпадать со строкой в `registerService("ключ", ...)`. Также проверь `/ksl services` — если ключа там нет, значит `onLoad` либо не был вызван, либо упал с исключением (смотри лог, `KSLAddonManager` ловит исключения из `onLoad` и логирует их, не давая упасть всему серверу).
-
-**`Cannot inline bytecode built with JVM target 21 into bytecode built with JVM target 1.8`**
-Возникает, если ты регистрируешь в `addDefaultImports` пакет с inline-функциями, которые сам не собирал под `-jvm-target 21`. Собирай свой аддон под Java 21 (см. `build.gradle.kts` выше) — этого обычно достаточно, конфигурация компиляции скриптов уже выставляет `-jvm-target 21` на стороне KSL.
-
-**`ClassNotFoundException` на классы твоего сервиса при выполнении скрипта**
-Обычно значит, что твой jar не оказался в classpath, из которого KSL собирает скрипты. Проверь, что твой плагин действительно загружен (`/plugins`) и что `addDefaultImports` указывает реальный путь к классу.
-
-**Warning "объявил зависимость от [...], но он ещё не загружен" в логе при старте**
-Это не ошибка, а просто диагностическое сообщение от `dependsOn` — твой аддон
-всё равно загрузился. Если тебе реально нужно дождаться другого аддона перед
-тем, как начать его использовать — заверни это в `api.onAddonReady(id) { }`
-вместо того, чтобы читать `api.getService(...)` сразу в `onLoad`.
-
----
-
-## 10. Чеклист перед публикацией аддона
-
-- [ ] `addonId` уникален и в kebab-case.
-- [ ] `depend: [KotlinScriptLoader]` в `plugin.yml`.
-- [ ] `onEnable` проверяет `KSL.isAvailable` перед обращением к `KSL.api`.
-- [ ] `onDisable` вызывает `KSL.api.unregisterAddon(addonId)`.
-- [ ] Сервисы, к которым могут одновременно обращаться разные скрипты/потоки, используют потокобезопасные коллекции.
-- [ ] Собран под JVM target 21.
-- [ ] Есть хотя бы один пример `.kts`-скрипта в описании/README аддона — так пользователям проще понять, как им пользоваться.
-
----
-
-## API v2: что нового для авторов аддонов
-
-`KSL.API_VERSION = 2`. Всё ниже обратно совместимо: аддоны, собранные под v1, продолжают работать.
-
-### Требование версии
-
-```kotlin
-override val minApiVersion = 2   // на более старом KSL аддон не загрузится, а в лог попадёт понятная причина
-```
-
-### Типизированные сервисы
-
-```kotlin
-// provider
+~~~kotlin
+// Provider
 api.registerService("economy", MyEconomy())
 
-// consumer
-val eco = api.service<MyEconomy>("economy")          // null, если нет или другой тип
-val eco2 = api.requireService<MyEconomy>("economy")  // бросает понятную ошибку
-```
+// Consumer
+val eco = api.service<MyEconomy>("economy")             // null if missing or of another type
+val required = api.requireService<MyEconomy>("economy") // throws a descriptive error
+~~~
 
-Если в логе появилось предупреждение «тип совпадает по имени, но классы разные» — аддон-потребитель упаковал
-интерфейс сервиса в свой jar. Подключай API провайдера как `compileOnly`, не `implementation`.
+If the log says the type names match but the classes differ, the consumer addon may have bundled the service interface into its JAR. Add the provider API as compileOnly, not implementation.
 
-### Шина событий
+### Event bus
 
-Позволяет аддонам и скриптам общаться без жёсткой зависимости друг от друга.
+The event bus lets addons and scripts communicate without a hard dependency on each other.
 
-```kotlin
-// addon.onLoad(api)
-api.subscribe("shop.purchase") { payload -> /* payload: Any? */ }   // снимется сам при выгрузке аддона
+~~~kotlin
+// In addon.onLoad(api)
+api.subscribe("shop.purchase") { payload -> /* payload: Any? */ }
 
-// где угодно (аддон или скрипт)
-api.publish("shop.purchase", PurchaseInfo(player.uniqueId, 100))    // вернёт число сработавших обработчиков
-```
+// From an addon or script
+api.publish("shop.purchase", PurchaseInfo(player.uniqueId, 100))
+~~~
 
-Обработчики вызываются синхронно в потоке публикатора. Исключение одного обработчика не мешает остальным.
-В скриптах те же `subscribe(topic) { }` и `publish(topic, payload)`; подписки скрипта снимаются при его выгрузке.
-Подписки, созданные вне `onLoad`, автоматически не снимаются — храни возвращённый `AutoCloseable` и вызывай `close()`.
+Handlers run synchronously on the publisher's thread. An exception in one handler does not prevent the others from running. In scripts, use subscribe(topic) { ... } and publish(topic, payload); script subscriptions are removed on unload. Subscriptions created outside onLoad are not automatically removed: retain the returned AutoCloseable and call close().
 
-### Владение ресурсами
+### Resource ownership
 
-Всё, что аддон регистрирует **внутри `onLoad`** (сервисы, расширения контекста, default imports, подписки,
-`onAddonReady`-колбэки), привязывается к нему и снимается автоматически при `unregisterAddon`.
-Регистрации вне `onLoad` владельца не имеют — снимай их сам.
+Services, context extensions, default imports, subscriptions, and onAddonReady callbacks registered inside onLoad are owned by the addon and removed by unregisterAddon. Registrations made outside onLoad have no automatic owner and must be cleaned up manually.
 
-Если `onLoad` бросил исключение, аддон считается незагруженным, а всё, что он успел зарегистрировать, откатывается.
-Повторная регистрация того же `addonId` сначала выгружает старый экземпляр.
+If onLoad throws, the addon is considered not loaded and its partial registrations are rolled back. Registering an already registered addonId unloads the old instance first.
 
-### Добавление функций в DSL скриптов
+### Adding functions to the script DSL
 
-Скрипт видит `BukkitScriptContext` как неявный получатель, поэтому функции-расширения на нём работают как встроенные:
+The script uses BukkitScriptContext as an implicit receiver, so extension functions on it behave like built-in DSL functions:
 
-```kotlin
+~~~kotlin
 // addon.onLoad(api)
 api.addDefaultImports("com.example.myaddon.dsl.*")
 
 // com/example/myaddon/dsl/Dsl.kt
 fun BukkitScriptContext.shopOpen(player: Player) { /* ... */ }
-```
+~~~
 
-Для ресурсов, привязанных к скрипту, реализуй `KSLContextExtension` (оба метода теперь необязательные) и
-чисти состояние в `onContextDestroyed(scriptName)`.
+For script-owned resources, implement KSLContextExtension (both callbacks may be optional in the current API) and clear state in onContextDestroyed(scriptName).
 
 ---
 
-## API v3: хуки, формы эффектов, атрибуты мобов
+## API v3: Hooks, particle shapes, and mob attributes
 
-`KSL.API_VERSION = 3` (укажи `override val minApiVersion = 3`, если используешь это).
+KSL.API_VERSION = 3. Set minApiVersion = 3 when using these features.
 
-### Свой хук (интеграция с другим плагином)
+### Custom hook (integration with another plugin)
 
-```kotlin
+~~~kotlin
 class PointsHook : KSLHook {
     override val hookId = "playerpoints"
     override val pluginName = "PlayerPoints"
-    private val api = PlayerPoints.getInstance().api          // класс стороннего плагина остаётся внутри хука
+    private val api = PlayerPoints.getInstance().api
 
     fun balance(player: Player): Int = api.look(player.uniqueId)
     fun give(player: Player, amount: Int) = api.give(player.uniqueId, amount)
@@ -595,14 +437,13 @@ class PointsHook : KSLHook {
 
 // addon.onLoad(api)
 if (api.isPluginEnabled("PlayerPoints")) api.registerHook(PointsHook())
-```
+~~~
 
-В скрипте: `val points = requireHook<PointsHook>("playerpoints")`. Хук, зарегистрированный в `onLoad`, снимается
-вместе с аддоном. Скрипты должны видеть класс `PointsHook` — добавь его пакет через `api.addDefaultImports(...)`.
+A script can use requireHook<PointsHook>("playerpoints"). Register the hook's package through addDefaultImports() so scripts can resolve the class. A hook registered during onLoad is removed with the addon.
 
-### Своя форма частиц
+### Custom particle shape
 
-```kotlin
+~~~kotlin
 api.registerEffectShape("spiral") { params, durationTicks ->
     val radius = params.num("radius", 1.0)
     val height = params.num("height", 2.0)
@@ -611,123 +452,115 @@ api.registerEffectShape("spiral") { params, durationTicks ->
         listOf(Vector(cos(angle) * radius, (tick % 20) / 20.0 * height, sin(angle) * radius))
     }
 }
-```
+~~~
 
-В скрипте: `location.playEffect(Particle.FLAME) { shape("spiral", "radius" to 1.5, "height" to 3.0) }`.
-Встроенные формы доступны по тем же именам: `circle`, `helix`, `sphere`, `square`, `point`.
+In a script: location.playEffect(Particle.FLAME) { shape("spiral", "radius" to 1.5, "height" to 3.0) }. Built-in shapes include circle, helix, sphere, square, and point.
 
-### Свой ключ шаблона моба
+### Custom mob-template key
 
-```kotlin
+~~~kotlin
 api.registerEntityAttribute("SIZE") { entity, value ->
     (entity as? Slime)?.size = value.toInt()
 }
-```
+~~~
 
-В скрипте: `spawnCustomEntity(loc, "TYPE:SLIME HP:40 SIZE:4")`. Исключение в обработчике не убивает спавн:
-оно логируется как предупреждение, остальные ключи применяются.
+A script can then use spawnCustomEntity(loc, "TYPE:SLIME HP:40 SIZE:4"). An exception in an attribute handler is logged as a warning and does not abort the spawn; other keys continue to be applied.
 
 ---
 
-## Алиасы для авторов аддонов (`ru.privateserver.ksl.addon.*`)
+## Addon aliases (ru.privateserver.ksl.addon.*)
 
-Подключается одной строкой: `import ru.privateserver.ksl.addon.*`. Это тонкие обёртки над `KSLAPI`; длинные имена продолжают работать.
+Import ru.privateserver.ksl.addon.* for concise wrappers around KSLAPI. The longer API names remain available.
 
-| Алиас | Что делает |
+| Alias | Purpose |
 |---|---|
-| `simpleAddon(id, version) { api -> }` | аддон без своего класса (`unload = { }`, `requires`, `needsApi`) |
-| `KSLBaseHook(hookId, pluginName)` | базовый класс для хука |
-| `api.provide(key, obj)` / `api.revoke(key)` | `registerService` / `unregisterService` |
-| `api.hasService(key)` | есть ли сервис |
-| `api.serviceOr<T>(key, default)` | сервис или значение по умолчанию |
-| `api.imports("pkg.*")` | `addDefaultImports` |
-| `api.whenReady(id) { addon -> }` | `onAddonReady` |
-| `api.isLoaded(id)`, `api.findAddon(id)`, `api.addonIds()` | про загруженные аддоны |
-| `api.requireApi(3)` | падает с понятным сообщением на слишком старом KSL |
-| `api.kslVersion` | версия плагина KSL |
-| `api.reload()` | `reloadScripts()` |
-| `api.contextExtension("id", onCreated, onDestroyed)` | расширение контекста без своего класса |
-| `api.hasHook(id)`, `api.hookIds()` | про хуки |
-| `api.hookIf("Plugin") { MyHook() }` | регистрирует хук, только если плагин включён; ошибка фабрики логируется |
-| `api.shape(name) { params, ticks -> }` | `registerEffectShape` |
-| `api.entityAttribute(KEY) { entity, value -> }` | `registerEntityAttribute` |
-| `shapeOf { tick, center -> points }` | форма из лямбды |
-| `ringPoints(radius, count, y)` | точки кольца для своих форм |
-| `parseTemplate("A:1 B:2")` | разбор шаблона `KEY:value` |
-| `entity.attr(name, v)`, `entity.attrBase(name)` | базовое значение атрибута по ванильному имени |
-| `params.num/int/long/bool/str(key, default)` | чтение параметров формы (пакет `ru.privateserver.ksl`) |
-| `api.on(topic) { }` / `api.emit(topic, payload)` | `subscribe` / `publish` |
-| `api.table("myaddon_data")` | таблица в SQLite KSL (добавляй префикс аддона) |
-| `api.log(..)`, `api.warn(..)`, `api.severe(..)` | лог с префиксом `[KSL]` |
-| `api.sync { }`, `api.async { }`, `api.later(ticks) { }`, `api.every(ticks) { }` | задачи Bukkit; возвращают `BukkitTask`, при выгрузке аддона их нужно отменить самому |
-| `api.listen<Event>(priority, ignoreCancelled) { }` | Bukkit-слушатель; `close()` на результате снимает его |
+| simpleAddon(id, version) { api -> } | Define an addon without a dedicated class; supports unload, requires, and needsApi |
+| KSLBaseHook(hookId, pluginName) | Base class for a hook |
+| api.provide(key, obj) / api.revoke(key) | registerService / unregisterService |
+| api.hasService(key) | Check whether a service exists |
+| api.serviceOr<T>(key, default) | Return a service or a default value |
+| api.imports("pkg.*") | addDefaultImports |
+| api.whenReady(id) { addon -> } | onAddonReady |
+| api.isLoaded(id), api.findAddon(id), api.addonIds() | Inspect loaded addons |
+| api.requireApi(3) | Fail with a clear message when KSL is too old |
+| api.kslVersion | KSL plugin version |
+| api.reload() | reloadScripts() |
+| api.contextExtension("id", onCreated, onDestroyed) | Context extension without a custom class |
+| api.hasHook(id), api.hookIds() | Inspect hooks |
+| api.hookIf("Plugin") { MyHook() } | Register a hook only when the plugin is enabled |
+| api.shape(name) { params, ticks -> } | registerEffectShape |
+| api.entityAttribute(KEY) { entity, value -> } | registerEntityAttribute |
+| shapeOf { tick, center -> points } | Shape from a lambda |
+| ringPoints(radius, count, y) | Ring points for custom shapes |
+| parseTemplate("A:1 B:2") | Parse KEY:value templates |
+| entity.attr(name, v), entity.attrBase(name) | Base attribute value by vanilla name |
+| params.num/int/long/bool/str(key, default) | Read shape parameters |
+| api.on(topic) { }, api.emit(topic, payload) | subscribe / publish |
+| api.table("myaddon_data") | KSL SQLite table (use an addon prefix) |
+| api.log(...), api.warn(...), api.severe(...) | Log with a [KSL] prefix |
+| api.sync { }, api.async { }, api.later(ticks) { }, api.every(ticks) { } | Bukkit tasks; cancel them yourself when the addon unloads |
+| api.listen<Event>(priority, ignoreCancelled) { } | Bukkit listener; close() unregisters it |
 
-Пример минимального аддона целиком:
+Example:
 
-```kotlin
+~~~kotlin
 val addon = simpleAddon("greeter", "1.0", needsApi = 3) { api ->
     api.imports("com.example.greeter.dsl.*")
     api.provide("greeter", Greeter())
     api.on("player.welcome") { name -> api.log("welcome $name") }
 }
-```
+~~~
 
 ---
 
-## API v4: плейсхолдеры
+## API v4: Placeholders
 
-```kotlin
+~~~kotlin
 // addon.onLoad(api)
-api.placeholder("online") { player -> Bukkit.getOnlinePlayers().size.toString() }   // %ksl_online%
-```
+api.placeholder("online") { player -> Bukkit.getOnlinePlayers().size.toString() } // %ksl_online%
+~~~
 
-То же без алиаса: `api.registerPlaceholder(key) { player -> }` и `api.unregisterPlaceholder(key)`. Нужен установленный PlaceholderAPI.
-Ключи нечувствительны к регистру; плейсхолдер, зарегистрированный в `onLoad`, снимается вместе с аддоном.
-Исключение внутри резолвера логируется как ошибка и даёт пустую строку, PlaceholderAPI оно не затрагивает.
-Если ключ уже занят скриптом или другим аддоном, в консоль выводится предупреждение, а новый резолвер заменяет старый.
+The equivalent API is registerPlaceholder(key) { player -> ... } and unregisterPlaceholder(key). PlaceholderAPI must be installed. Keys are case-insensitive. A placeholder registered inside onLoad is removed with the addon.
 
----
+An exception in a resolver is logged and returns an empty string; it does not affect PlaceholderAPI. If a key is already used by a script or another addon, KSL logs a warning and the new resolver replaces the old one.
 
-## API v5: текстовые плейсхолдеры
+## API v5: Text placeholders
 
-```kotlin
-api.textPlaceholder("rank") { player -> player?.let { lookupRank(it) } ?: "Гость" }   // @rank@ в message()/richMessage()
-```
+~~~kotlin
+api.textPlaceholder("rank") { player -> player?.let { lookupRank(it) } ?: "Guest" }
+~~~
 
-То же без алиаса: `api.registerTextPlaceholder(key) { player -> }` и `api.unregisterTextPlaceholder(key)`.
-Игрок может быть `null`, если текст ни к кому не обращён. Имена встроенных токенов заняты, регистр не важен.
-Токен, зарегистрированный в `onLoad`, снимается вместе с аддоном.
+The equivalent methods are registerTextPlaceholder(key) { player -> ... } and unregisterTextPlaceholder(key). The player may be null for text that is not addressed to a specific player. Built-in tokens are reserved and names are case-insensitive. A placeholder registered during onLoad is removed with the addon.
 
----
+## API v6: Scripts, reload, and security
 
-## API v6: скрипты, перезагрузка, безопасность
-
-```kotlin
-// список скриптов: id, загружен ли, время загрузки, число ошибок
+~~~kotlin
+// Script list: ID, loaded state, load time, error count
 api.scripts().forEach { println("${it.id} loaded=${it.loaded} ${it.loadMillis}ms errors=${it.errors}") }
 
-// реагировать на жизненный цикл (шина событий; подписки аддона снимаются вместе с ним)
-api.onScriptLoaded { event -> api.log("загружен ${event.scriptId} за ${event.millis}мс") }
+// Lifecycle events
+api.onScriptLoaded { event -> api.log("loaded ${event.scriptId} in ${event.millis}ms") }
 api.onScriptFailed { event -> api.warn(KSLError.SCRIPT_COMPILE, "${event.scriptId}: ${event.error}") }
 
-// перезагрузка: компиляция в фоне, скрипт с ошибкой компиляции продолжает работать прежней версией
-api.reloadScriptsAsync { result -> if (result == null) api.log("уже идёт") else api.log("загружено ${result.first}") }
-api.reloadScript("economy/shop")      // блокирующий вариант, только из главного потока
-```
+// Compile asynchronously; the previous script version remains active if compilation fails
+api.reloadScriptsAsync { result ->
+    if (result == null) api.log("reload already running")
+    else api.log("loaded ${result.first}")
+}
+api.reloadScript("economy/shop") // blocking variant; call only from the main thread
+~~~
 
-`api.isSandboxed(id)` и `api.isConsoleCommandBlocked(cmd)` позволяют аддону применять те же правила, что и KSL.
-`api.warn(код, текст)` и `api.severe(код, текст)` пишут сообщение с кодом из каталога `KSLError`, чтобы `/ksl error` умел его расшифровать.
+api.isSandboxed(id) and api.isConsoleCommandBlocked(cmd) allow an addon to apply the same rules as KSL. api.warn(code, text) and api.severe(code, text) log a catalogued KSLError code so /ksl error can explain it.
 
+## API v8: Addon configuration files
 
-## API v8: собственные конфиги аддонов
+Starting with API v8, KSLAPI provides createConfig, a convenience wrapper around Bukkit YAML configuration. The file is stored in the addon's data folder, and defaults are read from a resource bundled in the addon JAR.
 
-Начиная с API v8, `KSLAPI` предоставляет `createConfig` — удобную обёртку над Bukkit YAML configuration. Конфиг хранится в папке самого аддона, а значения по умолчанию читаются из ресурса внутри его JAR.
+### Creating and reading a config
 
-### Создание и чтение
+Place config.yml in src/main/resources/ and create the config:
 
-Положи `config.yml` в `src/main/resources/` аддона, затем создай конфиг:
-
-```kotlin
+~~~kotlin
 class MyAddonPlugin : JavaPlugin(), KSLAddon {
     private lateinit var settings: KSLAddonConfig
     override val minApiVersion = 8
@@ -741,7 +574,7 @@ class MyAddonPlugin : JavaPlugin(), KSLAddon {
     override fun onLoad(api: KSLAPI) {
         val enabled = settings.getBoolean("settings.enabled", true)
         val prefix = settings.getString("settings.prefix", "&6[MyAddon]")
-        if (enabled) logger.info("Аддон включён, prefix=$prefix")
+        if (enabled) logger.info("Addon enabled, prefix=$prefix")
     }
 
     override fun onDisable() {
@@ -749,40 +582,39 @@ class MyAddonPlugin : JavaPlugin(), KSLAddon {
     }
     override fun onUnload() = Unit
 }
-```
+~~~
 
-`createConfig(this)` создаёт `plugins/MyAddon/config.yml` при первом запуске, копируя туда одноимённый ресурс из JAR. Если ресурса нет, создаётся пустой YAML-файл. По умолчанию `copyDefaults = true`: значения из ресурса доступны через getters, даже если их ещё нет в пользовательском файле.
+createConfig(this) creates plugins/MyAddon/config.yml on first startup by copying the matching resource from the JAR. If the resource does not exist, an empty YAML file is created. By default, copyDefaults = true: getters can read resource defaults even when those values are not yet present in the user config.
 
-Поддерживаемые методы: `getString`, `getInt`, `getLong`, `getDouble`, `getBoolean`, `getStringList`, `contains`, `getKeys`, `getSection`, `set`, `save` и `reload`. Свойство `config` открывает исходный Bukkit `FileConfiguration` для расширенных сценариев.
+Supported methods include getString, getInt, getLong, getDouble, getBoolean, getStringList, contains, getKeys, getSection, set, save, and reload. The config property exposes the underlying Bukkit FileConfiguration for advanced use cases.
 
-Можно указать другой относительный путь и отключить копирование defaults:
+A different relative path can be selected, and copying defaults can be disabled:
 
-```kotlin
+~~~kotlin
 val messages = api.createConfig(this, "messages.yml", copyDefaults = false)
-messages.set("welcome", "Привет!")
+messages.set("welcome", "Hello!")
 messages.save()
-messages.reload() // перечитать файл с диска
-```
+messages.reload() // reload from disk
+~~~
 
-Абсолютные пути и пути с выходом за пределы папки аддона отклоняются. Как и обычный Bukkit config, конфигурацию следует читать и изменять в основном потоке сервера, если сторонний код не обеспечивает собственную синхронизацию.
+Absolute paths and paths escaping the addon's data folder are rejected. As with ordinary Bukkit config, read and modify configuration on the server thread unless your own code provides synchronization.
 
-### Обычный Bukkit API по-прежнему поддерживается
+### Regular Bukkit configuration remains supported
 
-`KSLAddonConfig` — необязательная надстройка. Аддоны могут продолжать использовать `saveDefaultConfig()`, `config`, `saveConfig()` и `reloadConfig()` из `JavaPlugin`. Новый API не меняет и не перехватывает стандартный конфиг Bukkit.
+KSLAddonConfig is optional. Addons can continue using JavaPlugin methods such as saveDefaultConfig(), config, saveConfig(), and reloadConfig(). The new API does not change or intercept Bukkit's standard config behavior.
 
-В `examples/ExampleAddon` есть полный пример: `config.yml` в ресурсах, загрузка через `KSLAPI.createConfig` и чтение параметров при запуске.
+The examples/ExampleAddon project contains a complete example with a packaged config.yml, KSLAPI.createConfig(), and startup settings.
 
----
-## Пакеты, локальные импорты и собственные библиотеки
+## Packages, local imports, and custom libraries
 
-KSL подключает classloader каждого зарегистрированного аддона к компиляции и выполнению .kts. Поэтому аддон может публиковать обычные Kotlin-пакеты, классы и top-level extension-функции. В скрипте они доступны через обычный import:
+KSL includes each registered addon's classloader in .kts compilation and execution. An addon can therefore expose regular Kotlin packages, classes, and top-level extension functions. Scripts import them normally:
 
 ~~~kotlin
 import com.example.myaddon.player.*
 import com.example.myaddon.service.MyService
 ~~~
 
-Чтобы не повторять импорты в каждом скрипте, зарегистрируй их в onLoad:
+To avoid repeating imports in every script, register them in onLoad:
 
 ~~~kotlin
 override fun onLoad(api: KSLAPI) {
@@ -793,8 +625,8 @@ override fun onLoad(api: KSLAPI) {
 }
 ~~~
 
-Импорт не добавляет классы в classpath: сами классы должны быть скомпилированы в JAR аддона (или в доступную ему runtime-зависимость). Wildcard действует только на указанный пакет, не на вложенные подпакеты.
+An import does not add a class to the classpath. Classes must be compiled into the addon JAR or one of its available runtime dependencies. A wildcard import applies only to the specified package, not its subpackages.
 
-**Разделение файлов:** объявляй package в обычных .kt исходниках аддона. .kts — это скрипт, который импортирует уже скомпилированные объявления; KSL не компилирует произвольные .kt-файлы, просто лежащие рядом в scripts/.
+Declare packages in ordinary .kt source files in the addon. A .kts file is a script that imports compiled declarations; KSL does not compile arbitrary .kt files placed next to scripts/ automatically.
 
-Подробный пример структуры проекта, Gradle, явных и автоматических импортов, нескольких библиотек и диагностики см. в [Пакеты, импорты и локальные библиотеки](Packages-and-Imports.md).
+For project layout, Gradle setup, explicit/default imports, multiple libraries, and diagnostics, see [Packages and Imports](Packages-and-Imports.md).

@@ -1,114 +1,99 @@
-# Безопасность скриптов и sandbox
+# Script Security and Sandbox
 
-Коды ошибок из консоли расшифровываются командой `/ksl error <код>` и в [Error-Codes.md](Error-Codes.md).
+Look up console error codes with /ksl error <code> or in [Error-Codes.md](Error-Codes.md).
 
----
+## 1. What can realistically be protected?
 
-## 1. Что здесь честно можно защитить
+A KSL script executes **inside the server process and with the server's permissions**. The primary security rule is therefore: **only trusted people should be able to write or edit scripts** (access to scripts/ and the ksl.admin permission).
 
-Скрипт KSL выполняется **внутри сервера, с теми же правами**, что и сам Minecraft-сервер. Поэтому главное правило:
-**скрипты должны писать и редактировать только доверенные люди** (доступ к папке `scripts/` и право `ksl.admin`).
+Sandbox is not intended to defend against an attacker who already has full KSL access. It is intended to:
 
-Sandbox нужен не от злоумышленника с полным доступом к KSL, а чтобы:
-- поймать опасные ошибки (случайный `Runtime.exec`, `System.exit`);
-- закрыть самые опасные «лазейки» JVM для скриптов, которым ты доверяешь не полностью (например, скрипты помощников);
-- не дать ошибке в цикле положить сервер (лимиты).
+- catch dangerous mistakes such as accidental Runtime.exec or System.exit calls;
+- block some high-risk JVM access for scripts whose authors are not fully trusted;
+- limit runaway resource registration that could damage server performance.
 
-Чего sandbox **не** делает: это не отдельный процесс и не полноценная JVM-изоляция. Он не ограничивает все возможности Bukkit API, KSL DSL и вызовы других плагинов. В strict-режиме дополнительно блокируются прямые Java API для файлов и сети, но похожие операции могут оставаться доступны через объекты Bukkit или API другого плагина.
+Sandbox is **not** a separate process or a full JVM isolation boundary. It does not restrict every capability exposed by Bukkit, the KSL DSL, or other plugins. Strict mode additionally blocks direct Java APIs for files and network, but similar operations may remain available through Bukkit objects or another plugin's API.
 
-В sandboxed-контексте прямое получение `plugin` (экземпляра `KotlinScriptLoaderPlugin`) и `database` (сырого `HikariDataSource`) теперь завершается `SecurityException`. Для обычных задач используй методы контекста KSL. Это убирает два широких escape hatch, но **не** вводит SQL-права на уровне скриптов: доступные SQL-методы KSL по-прежнему работают с настроенной базой данных.
+In a sandboxed context, direct access to plugin (the KotlinScriptLoaderPlugin instance) and database (the raw HikariDataSource) throws SecurityException. Use normal KSL context methods for ordinary tasks. This removes two broad escape hatches, but does not create per-script SQL permissions: available KSL SQL methods still use the configured database.
 
----
+## 2. Three layers of protection
 
-## 2. Три слоя защиты
+Enable the feature with sandbox: true at the root of config.yml.
 
-Включаются так: в `config.yml` на верхнем уровне `sandbox: true`.
+### Layer 1: Source-text filter
 
-### Слой 1. Текстовый фильтр
-Перед компиляцией исходник проверяется на опасные фрагменты (`Runtime.getRuntime`, `System.exit`, `Class.forName`, `ProcessBuilder`,
-`dispatchCommand(` и др.). Комментарии вырезаются, пробелы, переносы и обратные кавычки не прячут вызов.
-Плюс: ошибка видна сразу с номером строки (`строка 12: запрещённый паттерн 'Runtime.getRuntime'`), скрипт даже не компилируется.
-Минус: имя можно собрать из кусков строки, поэтому это только ранняя подсказка.
+Before compilation, the source is checked for dangerous fragments such as Runtime.getRuntime, System.exit, Class.forName, ProcessBuilder, and dispatchCommand(. Comments are stripped, and whitespace, line breaks, or backticks do not hide a detected call.
 
-### Слой 2. Запрет классов (`security.sandbox-level: strict`, по умолчанию)
-У скрипта в sandbox свой загрузчик классов. Когда скрипт впервые обращается к классу из чёрного списка, загрузчик отказывает, и скрипт получает
-`NoClassDefFoundError`. Список по умолчанию:
+Advantage: the issue is reported immediately with a line number, and the script is not compiled.
 
-| Что | Классы |
+Limitation: a name can be assembled dynamically from string fragments, so this is an early warning, not a complete defense.
+
+### Layer 2: Class deny-list (security.sandbox-level: strict)
+
+This is the default level. A sandboxed script uses its own classloader. When it first accesses a blocked class, the classloader denies the request and the script receives NoClassDefFoundError.
+
+The default deny-list includes:
+
+| Category | Classes/packages |
 |---|---|
-| Запуск процессов и JVM | `Runtime`, `ProcessBuilder`, `Process`, `ProcessHandle`, `Thread`, `Timer`, основные executor-пулы |
-| Загрузка чужого кода | `ClassLoader`, `URLClassLoader` |
-| Рефлексия | весь пакет `java.lang.reflect.`, `invoke.MethodHandle`, `MethodHandles`, `MethodHandles$Lookup`, `VarHandle` |
-| Файлы и сеть | пакеты `java.io.`, `java.nio.file.`, `java.nio.channels.`, `java.net.` |
-| Внутренности | пакеты `sun.misc.`, `jdk.internal.`, `com.sun.`, `javax.script.`, `javax.tools.`, `java.rmi.` |
-| Рефлексия Kotlin и компилятор | пакеты `kotlin.reflect.full.`, `kotlin.reflect.jvm.`, `org.jetbrains.kotlin.`, ASM, Javassist, ByteBuddy |
+| Process/JVM control | Runtime, ProcessBuilder, Process, ProcessHandle, Thread, Timer, common executor pools |
+| Loading external code | ClassLoader, URLClassLoader |
+| Reflection | java.lang.reflect.*, invoke.MethodHandle, MethodHandles, MethodHandles$Lookup, VarHandle |
+| Files and network | java.io.*, java.nio.file.*, java.nio.channels.*, java.net.* |
+| Internals | sun.misc.*, jdk.internal.*, com.sun.*, javax.script.*, javax.tools.*, java.rmi.* |
+| Kotlin reflection/compiler | kotlin.reflect.full.*, kotlin.reflect.jvm.*, org.jetbrains.kotlin.*, ASM, Javassist, ByteBuddy |
 
-Почему это надёжнее фильтра по тексту: запрет действует в момент обращения к классу, а не по виду исходника.
-Конкатенация строк, псевдонимы импорта, `Class.forName("java.lang." + "Runtime")` и рефлексия по имени дают тот же отказ.
-Лямбды и обычный код работают: служебные классы, которые компилятор Kotlin генерирует для лямбд (`LambdaMetafactory`, `MethodType`
-и др.), не запрещены.
+This is stronger than a text-only filter because the denial happens when the class is accessed, rather than based only on the source spelling. String concatenation, import aliases, Class.forName("java.lang." + "Runtime"), and reflection by name reach the same classloader restriction.
 
-Проверить, что изоляция работает именно на твоём сервере: `/ksl doctor`, пункт **«Изоляция классов (sandbox)»**.
-Он запускает пробный скрипт, который пытается загрузить `Runtime` и проверить raw-доступ. Проверка использует текущий class deny/allow list и тот же путь загрузчиков, что и обычное выполнение. Если пункт красный, используй `security.sandbox-level: text`.
+Normal lambdas and ordinary code continue to work. Compiler support classes used for Kotlin lambdas, such as LambdaMetafactory and MethodType, are not blocked.
 
-Если скрипт нарушил запрет, в консоли будет строка с кодом `0695a` с именем класса. Для одного script classloader логируются первые 128 разных запрещённых имён; последующие обращения по-прежнему блокируются, но не создают новые записи в логе. Точный класс можно вернуть в allow-list через `security.class-deny-allowed`; пакетный префикс разрешается записью с точкой на конце, например `java.io.`. Разрешение пакета снимает запрет со всех его классов.
+Verify the current configuration on your server with /ksl doctor, under “Class isolation (sandbox)”. It runs a probe that attempts to load Runtime and checks raw access through the same classloader path as regular script execution. If the check fails, use security.sandbox-level: text.
 
-### Слой 3. Консольные команды и лимиты
-- `plugin` и `database` — raw-доступ к объектам плагина и HikariCP — разрешены только доверенным/несандбоксированным скриптам; в sandboxed-скрипте чтение этих свойств выбрасывает `SecurityException`.
-- `executeConsole(...)` выполняет команду **с правами консоли**. Команды из `security.console-command-blocklist` (по умолчанию
-  `op`, `deop`, `stop`, `restart`, `reload`, `rl`) запрещены всегда; регистр, `/`, `minecraft:` и пробелы не обходят список.
-- Для скрипта с включённой песочницей доступ к консоли **закрыт по умолчанию**. При необходимости можно разрешить отдельные корневые команды через
-  `security.sandbox-console-allowlist` (например, `[say, tell]`). Глобальный blocklist имеет приоритет над allowlist.
-  Доверенные скрипты из `security.sandbox-trusted` не считаются sandboxed и сохраняют прежнее поведение.
-- Попытка выполнить запрещённую команду пишет в лог код `5322c`.
-- Один скрипт не может создать больше `max-listeners-per-script` обработчиков событий (500) и `max-tasks-per-script` активных задач (2000).
-  Лишние отклоняются и пишется код `6752a` или `3008a`.
-  Это защита от скрипта, который в цикле или внутри события регистрирует новые обработчики.
+When a script violates the deny-list, the console logs error code 0695a and the class name. For one script classloader, the first 128 distinct forbidden names are logged; later requests remain blocked but do not create more log entries. Add a specific class to security.class-deny-allowed to permit it. A package prefix ending in a dot, such as java.io., allows every class in that package.
 
----
+### Layer 3: Console commands and resource limits
 
-## 3. Настройка
+- plugin and database (raw access to the plugin and HikariCP) are available only to trusted/non-sandboxed scripts. Access from a sandboxed script throws SecurityException.
+- executeConsole(...) runs commands **with console permissions**. Commands listed in security.console-command-blocklist (by default op, deop, stop, restart, reload, rl) are always blocked. Case, slash prefix, minecraft: namespace, and whitespace do not bypass the check.
+- Console access is disabled by default for sandboxed scripts. Allow selected root commands through security.sandbox-console-allowlist (for example, [say, tell]). The global blocklist has priority over the allowlist.
+- Scripts in security.sandbox-trusted are treated as trusted and retain the previous behavior.
+- Attempts to execute a blocked command log code 5322c.
+- Per-script limits default to 500 event listeners and 2,000 active tasks. Excess registrations are rejected with code 6752a or 3008a. This protects against scripts that register new handlers inside loops or recurring events.
 
-```yaml
+## 3. Configuration
+
+~~~yaml
 sandbox: true
 
 security:
   sandbox-level: strict          # strict | text
-  sandbox-trusted: [admin/tools] # эти скрипты sandbox не затрагивает (имена как в /ksl reload)
-  sandbox-extra-forbidden: []    # добавить запрещённые фрагменты текста
-  sandbox-allowed: ["System.exit"]  # разрешить что-то из списка по умолчанию
-  class-deny-extra: [com.example.Secret, org.apache.commons.exec.]   # точное имя или пакет с точкой на конце
-  class-deny-allowed: [java.lang.Runtime]   # снять запрет с класса из списка по умолчанию
+  sandbox-trusted: [admin/tools] # These scripts are exempt from sandbox checks
+  sandbox-extra-forbidden: []    # Additional source fragments to reject
+  sandbox-allowed: ["System.exit"] # Allow selected default text patterns
+  class-deny-extra: [com.example.Secret, org.apache.commons.exec.]
+  class-deny-allowed: [java.lang.Runtime]
   console-command-blocklist: [op, deop, stop, restart, reload, rl, ban]
-  sandbox-console-allowlist: [say, tell] # sandboxed scripts may run only these console commands
+  sandbox-console-allowlist: [say, tell] # Sandboxed scripts may run only these console commands
   limits:
     max-listeners-per-script: 500
     max-tasks-per-script: 2000
-```
+~~~
 
-`/ksl sandbox` показывает текущее состояние: уровень, доверенные скрипты, заблокированные команды.
-Изменения подхватываются командой `/ksl reload`.
+/ksl sandbox displays the current status, level, trusted scripts, and blocked commands. Apply changes with /ksl reload.
 
----
+## 4. Production checklist
 
-## 4. Чек-лист для боевого сервера
+1. Grant ksl.admin only to people allowed to execute server code. Access to scripts/ is equivalent.
+2. Run helper/third-party scripts with sandbox: true and strict mode. Check /ksl doctor.
+3. Add your own trusted scripts to security.sandbox-trusted when they legitimately need reflection or process APIs.
+4. Do not keep the database password in config.yml. Leave database.password empty and set KSL_DB_PASSWORD. Create a dedicated database user with access only to database ksl; see [Database Guide](Database-Guide.md).
+5. Treat Discord webhooks as secrets. KSL avoids logging them, but do not publish config.yml.
+6. Before running a script from the Internet, validate it with /ksl validate, inspect the source, and start with sandbox enabled.
 
-1. Права `ksl.admin` только у тех, кому можно запускать код на сервере. Доступ к папке `scripts/` равен тому же праву.
-2. Скрипты помощников и чужие скрипты запускай с `sandbox: true` (strict). Проверь `/ksl doctor`.
-3. Доверенные скрипты (ваши) вынеси в `security.sandbox-trusted`, если им нужна рефлексия или процессы.
-4. Пароль БД не держи в `config.yml`: оставь `database.password` пустым и задай переменную окружения `KSL_DB_PASSWORD`.
-   Для БД заведи отдельного пользователя с правами только на базу `ksl` (см. [Database-Guide.md](Database-Guide.md)).
-5. Вебхуки Discord это секрет: KSL не пишет их в лог, но `config.yml` не публикуй.
-6. Выложил скрипт из интернета? Сначала `/ksl validate`, затем запуск с `sandbox: true`, затем чтение кода.
+## 5. Known limitations
 
----
-
-## 5. Известные ограничения
-
-- Запрет классов срабатывает в момент обращения, то есть возможно после загрузки скрипта (внутри обработчика события).
-  Ранние нарушения ловит слой 1 с номером строки.
-- Законные случаи тоже блокируются: `Runtime.getRuntime().availableProcessors()` в sandbox не сработает.
-  Если такой скрипт тебе нужен, добавь его в `sandbox-trusted` или `class-deny-allowed`.
-- Sandbox не является границей безопасности для Bukkit и KSL DSL: некоторые опасные операции могут оставаться доступны через Bukkit API, интеграции и методы KSL. Например, доступный скрипту SQL helper может выполнить `DROP TABLE`, если у DB-пользователя есть такие права. Ограничивай полномочия DB-пользователя и доступ к запуску скриптов.
-- Запрет проверяется по имени класса: если у чужой библиотеки совпало имя с запрещённым пакетом, добавь точечное исключение в `class-deny-allowed`. Для пакета можно указать префикс с точкой на конце, но это снимает запрет со всего пакета.
-- Если у тебя высокие требования к безопасности, запускай недоверенный код в отдельном процессе или контейнере.
+- Class denial occurs when a class is accessed, which may be after the script has loaded (for example, inside an event handler). Layer 1 can catch some violations earlier with a line number.
+- Legitimate operations may also be blocked. For example, Runtime.getRuntime().availableProcessors() will not work in sandbox mode. Add the script to sandbox-trusted or adjust class-deny-allowed if appropriate.
+- Sandbox is not a security boundary around Bukkit or the KSL DSL. Some dangerous operations may remain available through Bukkit, integrations, or KSL methods. For example, an available SQL helper may execute DROP TABLE if the database user has permission. Restrict the database user's privileges and access to script execution.
+- The deny-list works by class name. If an external library has a class name that matches a blocked package, add a narrow exception to class-deny-allowed. A package prefix ending in a dot removes protection for the entire package.
+- For strong isolation requirements, run untrusted code in a separate process or container.

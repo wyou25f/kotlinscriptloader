@@ -1,116 +1,108 @@
-# KSL — эксплуатация production-сервера
+# KSL — Production Server Operations
 
-Руководство по установке, обновлению, секретам, резервным копиям, мониторингу и восстановлению.
+A guide to installation, upgrades, secrets, backups, monitoring, and recovery.
 
-## 1. До запуска
+## 1. Before startup
 
-- Используй совместимые Paper и Java 21.
-- Скачивай KSL из доверенного релиза или CI артефакта.
-- Сохраняй копию текущего JAR и каталога plugins/KotlinScriptLoader/.
-- Проверь свободное место, доступность БД и сетевые правила.
-- Доступ на запись в scripts/ оставь только доверенным администраторам.
-- Проверь скрипты на тестовом сервере с той же версией Paper/Java.
+- Use compatible versions of Paper and Java 21.
+- Download KSL from a trusted release or CI artifact.
+- Keep a copy of the current JAR and plugins/KotlinScriptLoader/.
+- Check free disk space, database availability, and network rules.
+- Allow only trusted administrators to write to scripts/.
+- Test scripts on a staging server with the same Paper/Java versions.
 
-## 2. Секреты и доступ
+## 2. Secrets and access
 
-### Пароль БД
+Never commit passwords to Git. KSL can read the password from the KSL_DB_PASSWORD environment variable when database.password is empty.
 
-Не коммить пароль в Git. KSL может получить пароль из переменной окружения KSL_DB_PASSWORD, если database.password оставлен пустым.
-
-Пример для тестового shell окружения:
-
-```sh
+~~~sh
 export KSL_DB_PASSWORD='[DB_PASSWORD]'
-```
+~~~
 
-В production предпочтительнее задавать переменную в конфигурации systemd/Docker/панели хостинга с ограниченным доступом, а не хранить её в общем startup script.
+In production, define the variable in a restricted systemd/Docker/hosting-panel configuration rather than a shared startup script. Create a separate database user for KSL; do not use root. Restrict access by IP and enable TLS with certificate verification for remote databases when supported.
 
-### Минимальные привилегии
+Do not put secrets in .kts source files, YAML, TOML, JSON, changelogs, or issues. If a secret appears in a log or commit, treat it as exposed and rotate it.
 
-Создай отдельного DB user только для базы KSL. Не используй root. Ограничь доступ по IP и включи TLS для удалённой БД с проверкой сертификата, если это поддерживает окружение.
+## 3. Backups
 
-### Webhook и API tokens
+Back up:
 
-Не вставляй секреты в исходник .kts, YAML, TOML, JSON, changelog или issue. Не включай значения переменных окружения в диагностический отчёт. Если секрет попал в лог или commit, считай его раскрытым и замени.
-
-## 3. Бэкапы
-
-Архивируй:
 - plugins/KotlinScriptLoader/config.yml;
 - plugins/KotlinScriptLoader/scripts/;
-- скриптовые YAML конфиги в корне каталога KSL;
-- ksl.db, если используется SQLite;
-- MySQL/MariaDB dump, если используется удалённая БД;
-- необходимые addon JAR и конфиги.
+- script YAML configs in the KSL directory root;
+- ksl.db when SQLite is used;
+- a MySQL/MariaDB dump when using a remote database;
+- required addon JARs and configs.
 
-Не копируй активный SQLite файл как обычный файл без согласованного snapshot/остановки. Для простого безопасного бэкапа останови сервер или используй поддерживаемый SQLite backup mechanism.
+Do not copy an active SQLite file as an ordinary file without a coordinated snapshot or server shutdown. For a safe simple backup, stop the server or use a supported SQLite backup mechanism.
 
-Бэкап не считается проверенным, пока не сделано пробное восстановление на тестовом сервере. Храни несколько поколений, одно — отдельно от хоста сервера.
+A backup is not verified until you perform a test restore on a staging server. Keep several generations, with at least one copy stored separately from the server host.
 
-## 4. Обновление KSL
+## 4. Updating KSL
 
-1. Прочитай CHANGELOG и release notes.
-2. Сделай backup файлов и БД.
-3. Проверь Java/Paper compatibility.
-4. Обнови JAR на остановленном сервере.
-5. Запусти тестовый сервер и проверь startup log.
-6. Выполни /ksl doctor.
-7. Проверь скрипты, команды, placeholders и интеграции.
-8. Проверь сообщения database migrations.
-9. При проблеме сохрани логи и верни предыдущий JAR/backup по заранее проверенной процедуре.
+1. Read the CHANGELOG and release notes.
+2. Back up files and the database.
+3. Check Java/Paper compatibility.
+4. Update the JAR while the server is stopped.
+5. Start a staging server and inspect the startup log.
+6. Run /ksl doctor.
+7. Check scripts, commands, placeholders, and integrations.
+8. Review database migration messages.
+9. If a problem occurs, save the logs and restore the previous JAR/backup using a tested procedure.
 
-Не удаляй plugins/KotlinScriptLoader/ ради «чистой установки»: там могут быть пользовательские скрипты и данные.
+Do not delete plugins/KotlinScriptLoader/ for a “clean install”: it may contain user scripts and data.
 
-## 5. После старта
+## 5. After startup
 
-- /ksl doctor — состояние подсистем.
+- /ksl doctor — subsystem status.
 - /ksl runtime — runtime/heap/worker telemetry.
-- /ksl scripts — состояние скриптов, если команда доступна в текущей сборке.
-- `/ksl errors` — последние ошибки; `/ksl errors list` — каталог причин с фильтром по категории.
-- `/ksl error <code>` — объяснение кода и что проверить.
-- `/ksl watchdog` — путь к последнему раннему дампу, если watchdog monitor сработал.
-- `dumps/` — многоснимковые thread dumps с анализом стабильных кадров, блокировок и состояния JVM.
+- /ksl scripts — script status, if available in the current build.
+- /ksl errors — recent errors; /ksl errors list — error catalog.
+- /ksl error <code> — explanation of a code and what to check.
+- /ksl watchdog — path to the latest early dump, if the monitor has triggered.
+- dumps/ — multi-snapshot thread dumps with lock and JVM state analysis.
 
-Watchdog monitor помогает собрать диагностику, но не заменяет Paper watchdog и не исправляет причину зависания.
+The watchdog monitor helps collect diagnostics, but does not replace Paper Watchdog or fix the cause of a stall.
 
-## 6. Перезагрузка скриптов
+## 6. Reloading scripts
 
-Перед reload:
-- не редактируй один файл одновременно из нескольких редакторов;
-- проверь синтаксис и зависимости;
-- учитывай, что перенос скрипта может изменить его ID и namespace persistent data;
-- убедись, что внешние задачи/ресурсы имеют владельца и закрываются.
+Before reloading:
 
-Если новая версия не компилируется, используй ошибки KSL для исправления; не удаляй рабочую версию/данные без backup.
+- Do not edit the same file simultaneously in multiple editors.
+- Check syntax and dependencies.
+- Remember that moving a script may change its ID and persistent-data namespace.
+- Ensure that external tasks/resources have an owner and are closed.
 
-## 7. Инцидент: сервер лагает
+If the new version does not compile, use KSL errors to fix it. Do not delete the working version or its data without a backup.
 
-1. Не увеличивай сразу все пулы.
-2. Сними /ksl runtime и /ksl doctor.
-3. Посмотри очереди DB write/read.
-4. Найди долгие SQL и проверь индексы.
-5. Проверь worker queue и per-script limits.
-6. Если главный поток зависает, сохрани thread dump.
-7. Сопоставь стек Server thread с активной операцией KSL.
-8. Если стек указывает на другой плагин, изолируй его на тестовом сервере.
+## 7. Incident: server lag
 
-## 8. Инцидент: БД недоступна
+1. Do not increase every pool immediately.
+2. Capture /ksl runtime and /ksl doctor.
+3. Inspect database read/write queues.
+4. Find long-running SQL and check indexes.
+5. Check worker queue and per-script limits.
+6. If the main thread stalls, save a thread dump.
+7. Match the Server thread stack to the active KSL operation.
+8. If the stack points to another plugin, isolate it on a staging server.
 
-Проверь host/port, credentials, grants, SSL mode, firewall и лимит подключений. Убедись, что очередь не растёт после восстановления. Часть незавершённых операций при shutdown может быть потеряна; проверяй предупреждения KSL и целостность данных. Не переключай источник истины автоматически на другую базу.
+## 8. Incident: database unavailable
 
-## 9. Права и доверие
+Check host/port, credentials, grants, SSL mode, firewall, and connection limits. Ensure the queue does not continue growing after recovery. Some unfinished operations may be lost during shutdown; inspect KSL warnings and verify data integrity. Do not automatically switch the source of truth to another database.
 
-Скрипты исполняются внутри JVM сервера. Sandbox не является security boundary для враждебного кода. Не разрешай незнакомым пользователям загружать .kts, аддоны или JAR. Резервная копия не заменяет контроль доступа.
+## 9. Permissions and trust
 
-## 10. Операционный чек-лист
+Scripts execute inside the server JVM. Sandbox is not a security boundary for hostile code. Do not allow unknown users to upload .kts files, addons, or JARs. A backup is not a substitute for access control.
 
-- [ ] Java 21 и совместимый Paper.
-- [ ] KSL JAR из доверенного источника.
-- [ ] Скрипты и аддоны проверены.
-- [ ] Пароль БД не в Git.
-- [ ] DB user не root, права ограничены.
-- [ ] Удалённая БД защищена firewall/TLS.
-- [ ] Бэкап сделан и восстановление протестировано.
-- [ ] /ksl doctor без ошибок.
-- [ ] Очереди и worker pool не перегружены.
-- [ ] Thread dumps и логи доступны администраторам.
+## 10. Operations checklist
+
+- [ ] Java 21 and a compatible Paper version.
+- [ ] KSL JAR from a trusted source.
+- [ ] Scripts and addons reviewed.
+- [ ] Database password is not in Git.
+- [ ] Database user is not root; permissions are restricted.
+- [ ] Remote database is protected by firewall/TLS.
+- [ ] Backup created and restore tested.
+- [ ] /ksl doctor reports no errors.
+- [ ] Queues and worker pool are not overloaded.
+- [ ] Thread dumps and logs are available to administrators.

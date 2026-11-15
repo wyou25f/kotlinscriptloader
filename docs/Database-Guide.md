@@ -1,242 +1,206 @@
-# База данных KSL: подробное руководство
+# KSL Database Guide
 
-Это руководство для тех, кто хочет хранить данные KSL в MySQL или MariaDB и смотреть их через phpMyAdmin.
-Если ничего не настраивать, KSL работает на SQLite (файл `ksl.db`), и этого хватает для маленького сервера.
+This guide explains how to store KSL data in MySQL or MariaDB and inspect it with phpMyAdmin. By default, KSL uses SQLite (the ksl.db file), which is sufficient for a small server.
 
-Коды ошибок из консоли расшифровываются командой `/ksl error <код>` или в [Error-Codes.md](Error-Codes.md).
+Look up console error codes with /ksl error <code> or in [Error-Codes.md](Error-Codes.md).
 
----
+## 1. What is stored, and when should you use MySQL?
 
-## 1. Что где хранится и зачем выбирать MySQL
+KSL stores three categories of data:
 
-KSL хранит в базе три вида данных:
-
-| Что | Как используется в скрипте | Таблица |
+| Data | Script API | Table |
 |---|---|---|
-| Значения `persist(...)` | `var coins by persist("coins", persistent = true) { 0 }` | `ksl_persist` |
-| Таблицы `table(...)` | `table("stats").set(uuid, "kills", 5)` | `ksl_table` |
-| Ваши запросы | `database.connection`, `dbExecute`, `dbQuery` | любые ваши |
+| persist(...) values | var coins by persist("coins", persistent = true) { 0 } | ksl_persist |
+| table(...) values | table("stats").set(uuid, "kills", 5) | ksl_table |
+| Custom SQL data | database.connection, dbExecute, dbQuery | Your tables |
 
-Ещё есть служебные `ksl_meta` (версия схемы, только MySQL/MariaDB) и `ksl_scripts` (зарезервирована).
+KSL also uses ksl_meta for schema metadata and reserves ksl_scripts.
 
-| | SQLite (по умолчанию) | MySQL / MariaDB |
+| | SQLite (default) | MySQL / MariaDB |
 |---|---|---|
-| Настройка | не нужна | нужен сервер БД |
-| Где лежат данные | файл `plugins/KotlinScriptLoader/ksl.db` | на сервере БД |
-| Смотреть и править руками | DB Browser for SQLite | phpMyAdmin, любой SQL-клиент |
-| Несколько Minecraft-серверов с общими данными | нет | да |
-| Бэкапы | скопировать файл (при остановленном сервере) | `mysqldump`, экспорт в phpMyAdmin |
-| Подходит, если | один сервер, мало данных | хостинг с готовой БД, несколько серверов, нужен просмотр данных |
+| Setup | None | Database server required |
+| Storage | plugins/KotlinScriptLoader/ksl.db | Database server |
+| Manual inspection | DB Browser for SQLite | phpMyAdmin or any SQL client |
+| Shared data across Minecraft servers | No | Yes |
+| Backups | Copy file while server is stopped | mysqldump or phpMyAdmin export |
+| Best fit | One server, small data volume | Hosting with a database, multiple servers, manual inspection |
 
----
+## 2. Requirements
 
-## 2. Что понадобится
+- MySQL 5.7+ or MariaDB 10.2+. Older versions may not be able to create KSL tables because of key-length limits.
+- phpMyAdmin or another SQL client with permission to create databases and users.
+- Network access from the Minecraft host to the database server (usually port 3306).
 
-- MySQL **5.7+** или MariaDB **10.2+**. На более старых версиях KSL не сможет создать таблицы (лимит длины ключа).
-- Доступ к phpMyAdmin (или любому SQL-клиенту) с правами создавать базы и пользователей.
-- Доступ с машины, где стоит Minecraft-сервер, до сервера БД по сети (порт 3306).
+Minecraft hosting providers often supply the database host, port, database name, username, and password. When those are available, skip database installation and user creation and proceed to section 5.
 
-Если у вас хостинг Minecraft: большинство хостингов дают в панели раздел «Базы данных» с готовыми данными для входа:
-хост, порт, имя базы, пользователь, пароль. Тогда шаги 3 и 4 можно пропустить и сразу переходить к шагу 5.
+## 3. Installing a database server
 
----
+### Windows: XAMPP or OpenServer
 
-## 3. Установка сервера БД (если его ещё нет)
-
-### Windows: XAMPP или OpenServer
-1. Скачай XAMPP (xampp.apachefriends.org) или OpenServer и установи.
-2. Запусти модули **Apache** и **MySQL** (в XAMPP: кнопки `Start` рядом с ними).
-3. phpMyAdmin откроется по адресу `http://localhost/phpmyadmin`.
+1. Download and install XAMPP or OpenServer from its official source.
+2. Start Apache and MySQL in the control panel.
+3. Open phpMyAdmin at http://localhost/phpmyadmin.
 
 ### Linux (Ubuntu/Debian)
-```bash
+
+~~~bash
 sudo apt update
 sudo apt install mariadb-server
-sudo mysql_secure_installation        # задай пароль root, убери тестовую базу
-# phpMyAdmin по желанию:
+sudo mysql_secure_installation
+# Install phpMyAdmin only if needed:
 sudo apt install phpmyadmin
-```
+~~~
 
 ### Docker
-```bash
+
+~~~bash
 docker run -d --name ksl-db -p 3306:3306 \
-  -e MARIADB_ROOT_PASSWORD=смени_этот_пароль \
-  -e MARIADB_DATABASE=ksl -e MARIADB_USER=ksl -e MARIADB_PASSWORD=смени_и_этот \
+  -e MARIADB_ROOT_PASSWORD=CHANGE_THIS_PASSWORD \
+  -e MARIADB_DATABASE=ksl -e MARIADB_USER=ksl -e MARIADB_PASSWORD=CHANGE_THIS_TOO \
   mariadb:11
-```
-В этом случае база и пользователь уже созданы, переходи к шагу 5.
+~~~
 
----
+This creates the database and user; continue with section 5.
 
-## 4. Создание базы и пользователя в phpMyAdmin
+## 4. Create a database and user in phpMyAdmin
 
-Не используй для KSL пользователя `root`. Создай отдельного пользователя только с правами на одну базу:
-если пароль утечёт, пострадает только эта база.
+Do not use the root account for KSL. Create a dedicated user with access only to the KSL database.
 
-### Способ А: мышкой
-1. Открой phpMyAdmin и войди под root.
-2. Вкладка **«Базы данных»**. В поле «Имя базы данных» впиши `ksl`, в выпадающем списке выбери
-   `utf8mb4_general_ci`, нажми **«Создать»**.
-3. Вкладка **«Учётные записи пользователей»**, затем **«Добавить учётную запись пользователя»**:
-   - **Имя пользователя:** `ksl`
-   - **Имя хоста:** `Локальный` (то есть `localhost`), если Minecraft-сервер и БД на одной машине.
-     Если на разных: выбери «Любой хост» (`%`) или впиши IP-адрес Minecraft-сервера.
-   - **Пароль:** придумай надёжный (кнопка «Сгенерировать» подходит) и сохрани его.
-   - **Важно:** **сними** галочку «Создать базу данных с именем пользователя и предоставить на неё все привилегии».
-   - Глобальные привилегии не отмечай. Нажми **«Вперёд»**.
-4. Открой созданного пользователя (**«Редактировать привилегии»**), вкладка **«База данных»**,
-   выбери `ksl`, отметь **«Отметить все»**, нажми **«Вперёд»**.
+### Using the UI
 
-### Способ Б: одним SQL-запросом
-Вкладка **«SQL»** в phpMyAdmin, вставь и нажми «Вперёд»:
-```sql
+1. Open phpMyAdmin and sign in as an administrator.
+2. Open Databases, create a database named ksl, and choose utf8mb4_general_ci.
+3. Open User Accounts and choose Add user account:
+   - Username: ksl.
+   - Host: localhost when Minecraft and the database run on the same machine. Otherwise specify the Minecraft host IP or use a restricted host pattern.
+   - Set a strong password and store it securely.
+   - Do not create a database with the same name as the user.
+   - Do not grant global privileges.
+4. Edit the user's privileges, choose database ksl, and grant the permissions required for this database.
+
+### Using SQL
+
+~~~sql
 CREATE DATABASE ksl CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
-CREATE USER 'ksl'@'localhost' IDENTIFIED BY 'ТВОЙ_ПАРОЛЬ';
+CREATE USER 'ksl'@'localhost' IDENTIFIED BY 'YOUR_PASSWORD';
 GRANT ALL PRIVILEGES ON ksl.* TO 'ksl'@'localhost';
 FLUSH PRIVILEGES;
-```
-Если Minecraft-сервер на другой машине, замени `'localhost'` на её IP или на `'%'`.
+~~~
 
----
+When Minecraft runs on another host, replace localhost with that host's IP address. Avoid unrestricted remote access.
 
-## 5. Настройка KSL
+## 5. Configure KSL
 
-Открой `plugins/KotlinScriptLoader/config.yml`. Если секции `database:` нет (файл создан старой версией),
-добавь её в конец. Плагин новые ключи в существующий файл сам не дописывает.
+Open plugins/KotlinScriptLoader/config.yml. If the database: section is missing in an older config, add it manually; KSL does not append every new key to existing files automatically.
 
-```yaml
+~~~yaml
 database:
   type: mariadb          # sqlite | mysql | mariadb
   host: localhost
   port: 3306
   name: ksl
   user: ksl
-  password: "ТВОЙ_ПАРОЛЬ"
+  password: "YOUR_PASSWORD"
   ssl-mode: disable      # disable | trust | verify-ca | verify-full
   pool-size: 4
-  # cache: true          # необязательно, см. раздел 9
-```
+  # cache: true
+~~~
 
-| Параметр | Что значит |
+| Setting | Description |
 |---|---|
-| `type` | `sqlite` (файл), `mysql` или `mariadb`. Работают с обоими серверами, но **для MySQL 8 ставь `mysql`**: так включается поддержка его способа входа |
-| `host`, `port` | адрес сервера БД, порт по умолчанию 3306 |
-| `name` | имя базы. На Linux-серверах регистр важен: `KSL` и `ksl` разные базы |
-| `user`, `password` | созданный в шаге 4 пользователь. Пароль в кавычках, если там спецсимволы |
-| `ssl-mode` | `disable` для локальной БД. Для удалённой по интернету лучше `verify-ca` или `verify-full` (нужны сертификаты); `trust` шифрует без проверки сертификата |
-| `pool-size` | сколько соединений держать (1-32). Для большинства серверов хватает 4 |
+| type | sqlite, mysql, or mariadb. For MySQL 8, use mysql so the appropriate authentication support is enabled. |
+| host, port | Database host and port; the default port is 3306. |
+| name | Database name. On Linux, name case may matter. |
+| user, password | Credentials created in section 4. Quote the password when it contains special characters. |
+| ssl-mode | Use disable for a local database. For remote connections, prefer verify-ca or verify-full with certificates. trust encrypts without certificate validation. |
+| pool-size | Number of connections (1–32). Four is enough for many servers. |
 
-**Пароль хранится в файле открытым текстом.** Не выкладывай `config.yml` в репозиторий и не показывай на скриншотах.
-Чтобы вообще не держать его в файле: оставь `password: ""` и задай переменную окружения `KSL_DB_PASSWORD` для процесса сервера
-(в Linux: `export KSL_DB_PASSWORD='...'` в скрипте запуска, в Docker: `-e KSL_DB_PASSWORD=...`).
+**The password is stored as plain text in config.yml.** Do not publish the file or show it in screenshots. To avoid storing it in the file, leave password empty and set KSL_DB_PASSWORD in the server process environment (for example, in the service manager or Docker environment).
 
-Перезапусти сервер (смены типа БД на лету нет).
+Restart the server. The database type cannot be switched live.
 
----
+## 6. Verify the connection
 
-## 6. Проверка, что всё работает
+1. The startup log should identify the database type, database name, host, and port and report applied migrations.
+2. Run /ksl doctor. The database and database-table checks should pass and identify MySQL or MariaDB.
+3. Open database ksl in phpMyAdmin. The KSL tables should include ksl_scripts, ksl_persist, ksl_table, and ksl_meta.
+4. Test a write from a script: table("test").set("hello", "world", 42). The ksl_table value should be stored with its type prefix, such as i:42.
 
-1. В консоли при старте должна быть строка:
-   ```
-   База данных: MariaDB ksl@localhost:3306/ksl
-   Применено миграций БД: 3
-   ```
-2. В игре или консоли выполни `/ksl doctor`. Пункты «База данных» и «Таблицы БД» должны быть с галочкой,
-   в скобках будет тип (`MariaDB` или `MySQL`).
-3. В phpMyAdmin открой базу `ksl`: должны появиться таблицы `ksl_scripts`, `ksl_persist`, `ksl_table`, `ksl_meta`.
-4. Проверь запись: в любом скрипте выполни
-   `table("test").set("hello", "world", 42)` и обнови таблицу `ksl_table` в phpMyAdmin: появится строка со значением `i:42`.
+KSL table values use type prefixes: i: integer, l: long, d: decimal, b: boolean, s: string, and n: null. Preserve this format when editing values manually.
 
-Как читать значения: в колонке `value` стоит префикс типа. `i:` целое, `l:` длинное целое, `d:` дробное,
-`b:` да/нет, `s:` строка, `n:` пустое значение. Правя вручную, сохраняй этот формат, например `i:100`.
+## 7. Migrate data from SQLite
 
----
+If you already use SQLite and have data to keep:
 
-## 7. Перенос данных из SQLite
+1. Leave ksl.db in the plugin directory.
+2. Change database.type to mysql or mariadb and restart the server.
+3. Run /ksl dbmigrate. This is a preview and does not modify data.
+4. Run /ksl dbmigrate confirm to copy persist and table data.
 
-Если вы уже работали на SQLite и накопили данные:
+Important details:
 
-1. Оставь файл `ksl.db` в папке плагина.
-2. Переключи `database.type` на `mysql`/`mariadb`, перезапусти сервер.
-3. Выполни `/ksl dbmigrate`. Команда ничего не меняет, только показывает, сколько записей найдено в `ksl.db`.
-4. Выполни `/ksl dbmigrate confirm`. Данные скопируются в MySQL/MariaDB.
+- Migration can be repeated. Existing destination keys are overwritten with values from ksl.db.
+- ksl.db is not modified or deleted; keep it as a backup.
+- KSL table names, script names, and keys in MySQL/MariaDB are limited to 190 characters. KSL validates lengths before queueing writes.
+- If a key exceeds 190 characters, migration stops and identifies it (error code 7377b). Shorten the key in ksl.db and retry.
+- Migration runs in the background and does not block server ticks.
 
-Что важно знать:
-- Перенос можно повторять. Существующие ключи перезаписываются значениями из `ksl.db`.
-- `ksl.db` не изменяется и не удаляется. Оставь его как резервную копию.
-- В MySQL/MariaDB имена таблиц KSL, имена скриптов и ключи ограничены 190 символами. KSL проверяет длину до постановки записи в очередь. SQLite сохраняет прежнее поведение без этого ограничения.
-- Если ключ длиннее 190 символов, перенос остановится и назовёт его (код `7377b`).
-  MySQL не принимает такие ключи. Сократи ключ в `ksl.db` и повтори.
-- Команда работает в фоне, сервер не подвисает.
+## 8. Troubleshooting connections
 
----
+Find the KSL error code in the console and run /ksl error <code>.
 
-## 8. Если что-то не работает
-
-Ищи в консоли строку с кодом вида `[7924b]`, затем `/ksl error 7924b`. Типичные причины:
-
-| Что в сообщении | Причина | Что делать |
+| Message | Cause | What to check |
 |---|---|---|
-| `Access denied for user 'ksl'@'localhost'` | неверный пароль или пользователь создан для другого хоста | проверь `user`/`password`; в phpMyAdmin вкладка «Учётные записи» покажет хост пользователя (`localhost` или `%`) |
-| `Unknown database 'ksl'` | базы нет или другое имя | создай базу (шаг 4); проверь регистр имени |
-| `Connection refused` | сервер БД не запущен, неверный `host`/`port`, или он слушает только localhost | запусти MySQL; проверь порт; при удалённой БД проверь `bind-address` в конфиге MySQL |
-| `Connection timed out` | файрвол хостинга или БД | открой порт 3306 для адреса Minecraft-сервера |
-| `RSA public key is not available client side` | MySQL 8 с `type: mariadb` | поставь `type: mysql` |
-| `Specified key was too long; max key length is 767 bytes` | MySQL 5.6 или MariaDB младше 10.2 | обнови сервер БД |
-| `Data too long for column` | ключ длиннее 190 символов | сократи ключ в скрипте |
-| `CREATE command denied` | у пользователя нет прав на создание таблиц | выдай все привилегии на базу (шаг 4) |
-| `Too many connections` | исчерпан лимит соединений сервера БД | уменьши `pool-size` или подними `max_connections` в MySQL |
-| `SSL...` / `PKIX path building failed` | неверный `ssl-mode` | для локальной БД `disable`; для удалённой настрой сертификаты или временно `trust` |
+| Access denied for user | Incorrect password or user host mismatch | Check credentials and the host assigned to the user. |
+| Unknown database | Database does not exist or name is wrong | Create the database and check the name/case. |
+| Connection refused | DB service is stopped, host/port is wrong, or it listens only on localhost | Start MySQL/MariaDB and check bind-address and port. |
+| Connection timed out | Firewall/network restriction | Allow database access from the Minecraft host. |
+| RSA public key is not available | MySQL 8 configured as MariaDB | Set type: mysql. |
+| Key too long (767 bytes) | Old MySQL/MariaDB version | Upgrade to a supported version. |
+| Data too long for column | Key exceeds the supported limit | Shorten the key. |
+| CREATE command denied | User lacks schema privileges | Grant required privileges on the KSL database. |
+| Too many connections | Database connection limit reached | Reduce pool-size or adjust database server limits. |
+| SSL / PKIX certificate error | SSL mode or certificate configuration is incorrect | Configure trusted certificates; use disable only for a local connection. |
 
-Если БД недоступна, плагин **не падает**: скрипты работают, значения `persist` живут в памяти до перезапуска,
-а в консоли пишется причина. Значение по умолчанию при неудачном чтении `persist` кешируется до выгрузки скрипта,
-чтобы каждый доступ к свойству не повторял неудачный запрос. После перезагрузки скрипта чтение из БД выполняется заново.
-Автоматического отката на SQLite нет сознательно, чтобы данные не разъехались по двум хранилищам.
-Исправь настройки и перезапусти сервер.
+KSL does not crash when the database is unavailable. Scripts continue to run, and persist values remain in memory until restart. KSL logs the reason. A default used after a failed persist read is cached until the script unloads, so every property access does not repeat the failed query. Reading is attempted again after a script reload.
 
----
+KSL deliberately does not fall back to SQLite automatically: doing so could split data across two stores. Correct the configuration and restart the server.
 
-## 9. Скорость и кэш
+## 9. Performance and caching
 
-- Значения `table()` кэшируются в памяти: для SQLite кэш включён, для MySQL/MariaDB выключен по умолчанию
-  (данные может менять другой сервер или вы сами в phpMyAdmin). Включить явно: `cache: true`, выключить: `cache: false`.
-- Кэш очищается командой `/ksl reload`. Поэтому если правишь значения руками, сделай `/ksl reload`, чтобы скрипты их увидели.
-- Записи идут через отдельную последовательную фоновую очередь (до 10 000 ожидающих операций), сохраняя порядок изменений.
-- `dbQuery/query` выполняются через отдельный пул читателей размером с пул соединений; медленный SELECT больше не блокирует очередь записей.
-- Очереди чтения и записи ограничены: при перегрузке новые операции отклоняются с предупреждением, вместо бесконечного роста памяти. Смотри обе очереди в `/ksl doctor`.
-- Чтения `table()` по-прежнему синхронизируются с очередью записей, чтобы после `set(...)` видеть актуальное значение.
-- Постановка `set()`, `delete()`, `increment()` и синхронных чтений защищена общей блокировкой таблицы: барьер удаления или инкремента не обгонит уже начатую постановку записи.
-- Частые записи одного и того же ключа склеиваются: если значение обновляется чаще, чем БД успевает писать, в очередь попадёт одна запись с самым новым значением.
-- Размеры обеих очередей видны в `/ksl doctor`; если они постоянно растут, значит БД медленнее скриптов (код `1579b`).
-- `increment()` проверяет переполнение Long и завершится ошибкой вместо незаметного перехода через границу типа.
-- Если несколько Minecraft-серверов пишут в одну базу, `increment()` может потерять обновление при одновременной записи
-  из двух серверов. Для общих счётчиков используй один «главный» сервер или свой `UPDATE ... SET x = x + 1` через `dbExecute`.
+- table() values are cached in memory. Cache is enabled for SQLite and disabled by default for MySQL/MariaDB because another server or an administrator may modify the same database. Set cache: true or cache: false explicitly.
+- /ksl reload clears the cache. Reload scripts after editing values directly in phpMyAdmin.
+- Writes use a separate sequential background queue (up to 10,000 pending operations), preserving update order.
+- dbQuery/query use a separate reader pool sized with the connection pool, so slow SELECT statements do not block the write queue.
+- Read and write queues are bounded. When saturated, new operations are rejected with a warning rather than growing memory without limit. Inspect both queues with /ksl doctor.
+- table() reads remain synchronized with the write queue so a read after set(...) sees the latest value.
+- set(), delete(), increment(), and synchronous reads share a table lock so barriers and increments cannot overtake an already queued write.
+- Repeated writes to the same key are coalesced when possible; the queue stores the newest value instead of every intermediate update.
+- If queues grow continuously, the database is slower than the scripts (error 1579b).
+- increment() checks Long overflow and fails rather than silently wrapping around.
+- With multiple Minecraft servers writing to one database, concurrent increment() operations may lose updates. Use a single writer or an atomic SQL update such as UPDATE ... SET x = x + 1 through dbExecute for shared counters.
 
----
+## 10. Custom SQL from scripts
 
-## 10. Свои запросы из скриптов
+You do not need SQL for table() or persist. Custom tables and queries use database, dbExecute, dbQuery, or the shorter execute and query aliases.
 
-Для `table()` и `persist` SQL писать не нужно. Свои таблицы и запросы работают через `database`, `dbExecute`, `dbQuery` или короткие алиасы `execute` и `query`.
+### Where query YAML files belong
 
-### Где хранить YAML с запросами
+Each script has a config file with the same base name. The file lives in the **KSL plugin directory root**, next to scripts/, not inside scripts/.
 
-У каждого скрипта свой конфиг: имя файла совпадает с именем скрипта, а сам файл находится **в корневой папке плагина**, на одном уровне с каталогом `scripts/`.
+For scripts/money.kts, the layout is:
 
-Например, для `scripts/money.kts` правильная структура такая:
-
-```text
+~~~text
 plugins/
 └── KotlinScriptLoader/
     ├── money.yml
     └── scripts/
         └── money.kts
-```
+~~~
 
-Не клади `money.yml` внутрь `scripts/`: `config` и `dbQueryYaml` читают именно `plugins/KotlinScriptLoader/money.yml`.
+Example money.yml:
 
-Пример `money.yml`:
-
-```yaml
+~~~yaml
 database:
   queries:
     create-coins: |
@@ -246,93 +210,72 @@ database:
       )
     read-coins: "SELECT balance FROM coins WHERE uuid = ?"
     add-coins: "UPDATE coins SET balance = balance + ? WHERE uuid = ?"
-```
+~~~
 
-После изменения файла перезагрузи скрипты командой `/ksl reload`.
+Reload scripts after changing the file with /ksl reload. If KSL cannot find a query, check the config filename, database.queries.* path, and YAML indentation.
 
-Если KSL сообщает, что SQL-запрос не найден, проверь имя файла, путь `database.queries.*` и отступы YAML. Сообщение об ошибке показывает полный ожидаемый путь к YAML-файлу.
+### SQL methods and aliases
 
-### Полный SQL и короткие алиасы
+Write portable SQL that works on SQLite and MySQL/MariaDB:
 
-Пиши **переносимый SQL**, который понимают и SQLite, и MySQL/MariaDB:
+- Avoid PRAGMA, AUTOINCREMENT, and INSERT OR REPLACE.
+- Prefix custom table names with the script name, such as shop_orders.
+- Quote reserved words such as key, order, and group using the database's identifier quoting rules.
 
-- нет `PRAGMA`, `AUTOINCREMENT`, `INSERT OR REPLACE`;
-- имена своих таблиц начинай с префикса скрипта, например `shop_orders`, чтобы они не пересеклись с чужими;
-- слова вроде `key`, `order`, `group` бери в обратные кавычки: `\`key\``.
+Existing methods remain available:
 
-Старые имена API остаются доступными:
+- dbExecute(sql, ...args) — execute without returning rows.
+- dbQuery(sql, ...args) { rs -> ... } — read results through a ResultSet.
+- dbExecuteYaml(path, ...args) and dbQueryYaml(path, ...args) { rs -> ... } — query text comes from YAML.
 
-- `dbExecute(sql, ...args)` — выполнить запрос без чтения результата;
-- `dbQuery(sql, ...args) { rs -> ... }` — прочитать результат через `ResultSet`;
-- `dbExecuteYaml(path, ...args)` и `dbQueryYaml(path, ...args) { rs -> ... }` — те же операции, но SQL берётся из YAML.
+Short aliases are also available:
 
-Для новых скриптов есть короткие алиасы:
+- execute(sql, ...args) and query(sql, ...args) { ... }.
+- executeYaml(path, ...args) and queryYaml(path, ...args) { ... }.
+- executeAsync(...), queryAsync(..., mapper = { ... }), executeYamlAsync(...), and queryYamlAsync(..., mapper = { ... }) return CompletableFuture.
 
-- `execute(sql, ...args)` и `query(sql, ...args) { ... }`;
-- `executeYaml(path, ...args)` и `queryYaml(path, ...args) { ... }`;
-- `executeAsync(...)`, `queryAsync(..., mapper = { ... })`, `executeYamlAsync(...)` и `queryYamlAsync(..., mapper = { ... })` возвращают `CompletableFuture`.
+Future-based methods are useful when chaining operations or handling errors without blocking the caller. A queryAsync mapper must return ordinary Kotlin values/collections: the JDBC ResultSet and connection are closed before the future completes. If the bounded queue is full, the future completes exceptionally with RejectedExecutionException rather than adding unlimited work.
 
-Future-варианты удобны, когда нужно дождаться результата, объединить несколько операций или обработать ошибку без блокировки вызывающего потока. Mapper в `queryAsync` должен вернуть обычные Kotlin-значения/коллекции: JDBC `ResultSet` и соединение закрываются до завершения future. При переполнении ограниченной очереди future завершается с ошибкой `RejectedExecutionException`, а не создаёт бесконечную очередь.
+In query { ... } and queryYaml { ... }, ResultSet is the block receiver, so next() and getLong("balance") can be called directly:
 
-В `query { }` и `queryYaml { }` объект `ResultSet` — receiver блока, поэтому можно писать `next()` и `getLong("balance")` без переменной `rs`:
-
-```kotlin
+~~~kotlin
 execute("CREATE TABLE IF NOT EXISTS coins (uuid VARCHAR(36) PRIMARY KEY, balance BIGINT NOT NULL DEFAULT 0)")
 
 query("SELECT balance FROM coins WHERE uuid = ?", player.uniqueId.toString()) {
     if (next()) {
         val balance = getLong("balance")
-        println("Баланс: $balance")
+        println("Balance: $balance")
     }
 }
+~~~
 
-queryYaml("database.queries.read-coins", player.uniqueId.toString()) {
-    if (next()) println("Баланс: ${getLong("balance")}")
-}
-```
+The older callback form is also supported:
 
-Тот же запрос через прежний API:
-
-```kotlin
+~~~kotlin
 dbQuery("SELECT balance FROM coins WHERE uuid = ?", player.uniqueId.toString()) { rs ->
     if (rs.next()) println(rs.getLong("balance"))
 }
-```
+~~~
 
-**Важно про потоки:** `dbExecute`, `dbQuery`, `execute`, `query` и YAML-варианты выполняются асинхронно на пуле БД. Не вызывай Bukkit API для игрока/мира напрямую внутри `query { }`. Для действий с Bukkit используй `runSync { ... }`. Например:
+**Threading:** database methods execute asynchronously on the DB pool. Do not call Bukkit APIs for players/worlds directly from a query block. Use runSync { ... } for Bukkit changes. Do not leave JDBC connections open; when using database.connection directly, wrap it in use { }. Handle Future failures with exceptionally { ... } or whenComplete { value, error -> ... }; never call join() on the server main thread.
 
-```kotlin
-query("SELECT balance FROM coins WHERE uuid = ?", player.uniqueId.toString()) {
-    val balance = if (next()) getLong("balance") else 0L
-    runSync { player.sendMessage("Баланс: $balance") }
-}
-```
+## 11. Security and backups
 
-Не оставляй JDBC-соединения открытыми: если работаешь напрямую через `database.connection`, обязательно используй `use { }`. Для future API ошибки обрабатывай через `exceptionally { ... }` или `whenComplete { value, error -> ... }`; не вызывай `.join()` на основном потоке сервера.
+- Use a dedicated database account with permissions limited to the ksl database; do not use root.
+- For a local database, restrict access to localhost and do not expose port 3306 publicly.
+- For a remote database, restrict firewall access to the Minecraft server IP and enable SSL.
+- Do not publish config.yml when it contains a password.
+- In phpMyAdmin, select database ksl and use Export with SQL format. From the shell, use mysqldump -u ksl -p ksl > ksl-backup.sql. Restore with mysql -u ksl -p ksl < ksl-backup.sql.
+- Back up before KSL upgrades and before /ksl dbmigrate confirm.
 
-## 11. Безопасность и бэкапы
+## 12. Frequently asked questions
 
-- Отдельный пользователь БД с правами только на базу `ksl` (шаг 4), не `root`.
-- Если БД на той же машине, оставь доступ только с `localhost` и не открывай порт 3306 наружу.
-- Если БД удалённая, ограничь файрволом доступ по IP Minecraft-сервера и включи `ssl-mode`.
-- Не публикуй `config.yml` с паролем.
-- Бэкап из phpMyAdmin: выбери базу `ksl`, вкладка **«Экспорт»**, формат SQL, «Вперёд».
-  Из консоли: `mysqldump -u ksl -p ksl > ksl-backup.sql`. Восстановление: `mysql -u ksl -p ksl < ksl-backup.sql`.
-- Делай бэкап перед обновлением KSL и перед `/ksl dbmigrate confirm`.
+**Can I switch back to SQLite?** Yes. Set type: sqlite and restart. MySQL data is not copied back automatically.
 
----
+**Does phpMyAdmin need to run on the Minecraft server?** No. It is only a management interface. KSL connects directly to the database server.
 
-## 12. Частые вопросы
+**What happens if the database restarts while the server is running?** The connection pool attempts to recover. Writes that have not reached the database may be lost during shutdown. KSL logs a code (4180b) and the number of lost records when this happens.
 
-**Можно ли переключиться обратно на SQLite?** Да, поставь `type: sqlite` и перезапусти. Данные из MySQL обратно сами не переезжают.
+**Can I edit data in phpMyAdmin?** Yes. Reload scripts after editing table values so scripts can see refreshed data. Persist values already loaded in memory are refreshed after restart.
 
-**Нужен ли phpMyAdmin на сервере Minecraft?** Нет. phpMyAdmin только удобная оболочка для просмотра. KSL общается с сервером БД напрямую.
-
-**Что будет, если во время работы БД перезагрузится?** Пул соединений восстановится сам. Записи, не успевшие уйти в БД,
-могут потеряться. Если так случилось при остановке сервера, KSL напишет код `4180b` с числом потерянных записей.
-
-**Можно ли прямо сейчас править данные в phpMyAdmin?** Да. Для SQLite-кэша и скриптов после правки сделай `/ksl reload`.
-Значения `persist` уже загруженные в память обновятся после перезапуска.
-
-**Какая кодировка?** `utf8mb4`: русский текст и эмодзи работают. Ключи сравниваются с учётом регистра (`Foo` и `foo` разные),
-как и в SQLite.
+**What character encoding is used?** utf8mb4 supports Russian text and emoji. Keys are case-sensitive (Foo and foo are different), as in SQLite.

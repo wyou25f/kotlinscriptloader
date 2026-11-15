@@ -1,56 +1,53 @@
-# KSL — начало работы
+# KSL — Getting Started
 
-Практическое руководство для администратора Paper и автора первого Kotlin-скрипта.
+A practical guide for Paper server administrators and authors of their first Kotlin script.
 
-- Целевая среда: Paper 1.21.1, Java 21.
-- Файлы скриптов: `plugins/KotlinScriptLoader/scripts/`.
-- Расширение: `.kts`.
-- Версия проекта в текущей документации: 1.2.1. Проверяй фактический релиз/commit перед обновлением сервера.
+- Target environment: Paper 1.21.1, Java 21.
+- Script directory: `plugins/KotlinScriptLoader/scripts/`.
+- File extension: `.kts`.
 
-## 1. Установка
+## 1. Installation
 
-1. Установи Java 21 и Paper 1.21.1.
-2. Помести собранный `KotlinScriptLoader-1.2.0.jar` в `plugins/`.
-3. Запусти сервер один раз, чтобы KSL создал конфигурацию и каталог скриптов.
-4. Останови сервер перед первой настройкой.
-5. Проверь `plugins/KotlinScriptLoader/config.yml`.
-6. Создай файл `plugins/KotlinScriptLoader/scripts/hello.kts`.
+1. Install Java 21 and Paper 1.21.1.
+2. Place the KSL plugin JAR in `plugins/`.
+3. Start the server once so KSL can create its configuration and script directory.
+4. Stop the server and check `plugins/KotlinScriptLoader/config.yml`.
+5. Create `plugins/KotlinScriptLoader/scripts/hello.kts`.
 
-Не скачивай случайные JAR из сторонних источников. Используй релиз/артефакт из доверенного CI проекта.
+Download JAR files only from a trusted release or CI artifact.
 
-## 2. Первый скрипт
+## 2. Your first script
 
-```kotlin
+~~~kotlin
 onEvent<PlayerJoinEvent> {
-    player.sendRichMessage("<green>Добро пожаловать, <white>${player.name}</white>!</green>")
+    player.sendRichMessage("<green>Welcome, <white>${player.name}</white>!</green>")
 }
-```
+~~~
 
-Сохрани файл и выполни `/ksl reload`. Проверь консоль на ошибки. Если скрипт загружен, зайди на сервер тестовым игроком.
+Save the file and run `/ksl reload`. Check the console for errors. If the script loads, join the server with a test player.
 
-KSL использует `BukkitScriptContext` как implicit receiver. Поэтому функции вроде `onEvent`, `runSync`, `runAsync`, `config`, `database` и `registerCommand` доступны в .kts без создания контекста вручную.
+KSL uses `BukkitScriptContext` as an implicit receiver. Functions such as `onEvent`, `runSync`, `runAsync`, `config`, `database`, and `registerCommand` are therefore available inside a `.kts` file without manually creating a context.
 
-## 3. Команда
+## 3. Register a command
 
-```kotlin
+~~~kotlin
 registerCommand("hello", aliases = listOf("hi")) { sender, args ->
-    sender.sendMessage("Привет! Аргументов: ${args.size}")
+    sender.sendMessage("Hello! Arguments: ${args.size}")
 }
-```
+~~~
 
-Проверяй permissions внутри обработчика, если команда должна быть административной. Не полагайся только на скрытие команды из tab-completion.
+Check permissions inside the handler if the command is administrative. Do not rely only on hiding it from tab completion.
 
-## 4. Конфигурация YAML
+## 4. YAML configuration
 
-У скрипта `hello.kts` есть собственный `hello.yml`. Пример:
+A script can have a companion YAML file with the same base name. For `hello.kts`, create `hello.yml` in the KSL plugin data directory:
 
-```yaml
-# Настройки приветствия
-message: "<green>Добро пожаловать!</green>"
+~~~yaml
+message: "<green>Welcome!</green>"
 enabled: true
-```
+~~~
 
-```kotlin
+~~~kotlin
 val enabled = config.getBoolean("enabled", true)
 val message = config.getString("message") ?: "<green>Welcome!</green>"
 
@@ -59,38 +56,39 @@ if (enabled) {
         player.sendRichMessage(message)
     }
 }
-```
+~~~
 
-Для атомарного группового изменения и сохранения используй `editConfig { ... }`. Прямые вызовы `config.set(...)` из нескольких потоков не становятся автоматически потокобезопасными.
+Use `editConfig { ... }` for grouped changes and saving. Direct calls to `config.set(...)` from multiple threads do not automatically become thread-safe.
 
-## 5. Перезагрузка и выгрузка
+## 5. Reload and diagnostics
 
-- `/ksl reload` — перезагрузка всех скриптов.
-- `/ksl reload <script-id>` — отдельный скрипт.
-- `/ksl doctor` — диагностика.
-- `/ksl errors` — последние ошибки.
-- `/ksl error <code>` — расшифровка кода ошибки.
+- `/ksl reload` — reload all scripts.
+- `/ksl reload <script-id>` — reload one script.
+- `/ksl doctor` — run diagnostics.
+- `/ksl errors` — show recent errors.
+- `/ksl error <code>` — look up an error code.
+- `/ksl language` — show or change the server message language.
 
-При reload KSL снимает ресурсы старого экземпляра скрипта и регистрирует новые. Не создавай неуправляемые потоки и внешние задачи, которые переживут выгрузку.
+During reload, KSL removes resources owned by the old script instance and registers the new ones. Do not create unmanaged threads or external tasks that outlive the script.
 
-## 6. Где читать дальше
+## 6. What to read next
 
-| Цель | Руководство |
+| Goal | Guide |
 |---|---|
-| Полный DSL | [Script DSL Reference](Script-DSL-Reference.md) |
-| SQL, SQLite, MySQL/MariaDB | [Database Guide](Database-Guide.md) |
-| Производительность | [Performance and Scaling](Performance-and-Scaling.md) |
+| Full DSL | [Script DSL Reference](Script-DSL-Reference.md) |
+| SQL and databases | [Database Guide](Database-Guide.md) |
+| Performance | [Performance and Scaling](Performance-and-Scaling.md) |
 | YAML/TOML/JSON | [Data Formats](Data-Formats.md) |
-| Безопасность | [Security and Sandbox](Security-and-Sandbox.md) |
-| Эксплуатация сервера | [Production Operations](Production-Operations.md) |
-| Практические рецепты | [Cookbook](Cookbook.md) |
-| API аддонов | [Public API](Public-API.md) |
+| Security | [Security and Sandbox](Security-and-Sandbox.md) |
+| Server operations | [Production Operations](Production-Operations.md) |
+| Recipes | [Cookbook](Cookbook.md) |
+| Addon API | [Public API](Public-API.md) |
 | IDE | [IDE README](../ide/README.md) |
 
-## 7. Важные ограничения
+## 7. Important limitations
 
-KSL не изолирует скрипты в отдельной JVM. Скрипт имеет доступ к возможностям, которые доступны самому серверу и подключённым API. Разрешай запись в `scripts/` только доверенным людям.
+KSL does not isolate scripts in a separate JVM. A script can access capabilities available to the server and its APIs. Only allow trusted people to write to `scripts/`.
 
-Bukkit API не становится потокобезопасным из-за того, что код написан на Kotlin. Мир, сущности, игроки и инвентари обычно нужно читать/изменять на главном потоке.
+The Bukkit API does not become thread-safe because code is written in Kotlin. World, entity, player, and inventory operations usually need to run on the main thread.
 
-Не храни пароли, webhook URL и токены в публичном репозитории. Для пароля базы KSL поддерживает переменную окружения `KSL_DB_PASSWORD`.
+Do not store passwords, webhook URLs, or tokens in a public repository. For the database password, KSL supports the `KSL_DB_PASSWORD` environment variable.

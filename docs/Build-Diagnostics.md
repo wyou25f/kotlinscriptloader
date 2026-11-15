@@ -1,93 +1,80 @@
-# Диагностика сборки KSL
+# KSL Build Diagnostics
 
-В корне репозитория находится единая точка входа **build.ps1**. Она запускает Gradle через wrapper, сохраняет полный лог и формирует локальный HTML-отчёт.
+The repository root contains a single entry point: **build.ps1**. It runs Gradle through the wrapper, saves the full log, and generates a local HTML report.
 
-## Требования
+## Requirements
 
 - JDK 21;
 - PowerShell 7+ (pwsh);
-- доступ к репозиториям Maven Central и PaperMC при первой сборке.
+- access to Maven Central and PaperMC repositories during the first build.
 
-Плагин собирается для Paper 1.21.1 / Java 21. Сам Gradle устанавливается wrapper-скриптом автоматически.
+The plugin targets Paper 1.21.1 / Java 21. Gradle is installed through the wrapper.
 
-## Быстрый старт
-
-Из корня репозитория:
+## Quick start
 
 ~~~powershell
 ./build.ps1 -Task Build
 ~~~
 
-## Команды
+## Commands
 
-| Команда | Что делает |
+| Command | Purpose |
 |---|---|
-| ./build.ps1 -Task Build | Чистая полная сборка, тесты и проверка JAR |
-| ./build.ps1 -Task Test | Чистый запуск тестов |
-| ./build.ps1 -Task Package | Собирает JAR и проверяет его содержимое, не запускает тесты повторно |
-| ./build.ps1 -Task Verify | Запускает проверки проекта и проверку JAR |
-| ./build.ps1 -Task Diagnose | Проверяет Java, JAVA_HOME, Gradle wrapper, диск, Git и структуру проекта |
-| ./build.ps1 -Task Ide | Проверяет companion-проект IntelliJ IDEA |
-| ./build.ps1 -Task Clean | Удаляет Gradle build outputs |
-| ./build.ps1 -Task Release | Выполняет полную сборку release-кандидата |
+| ./build.ps1 -Task Build | Clean full build, tests, and JAR verification |
+| ./build.ps1 -Task Test | Clean test run |
+| ./build.ps1 -Task Package | Build the JAR and check its contents without rerunning tests |
+| ./build.ps1 -Task Verify | Run project checks and JAR verification |
+| ./build.ps1 -Task Diagnose | Check Java, JAVA_HOME, Gradle wrapper, disk, Git, and project structure |
+| ./build.ps1 -Task Ide | Check the IntelliJ IDEA companion project |
+| ./build.ps1 -Task Clean | Remove Gradle build outputs |
+| ./build.ps1 -Task Release | Build a complete release candidate |
 
-Дополнительные параметры:
+Additional options:
 
-- -NoDaemon — не оставлять Gradle daemon после запуска;
-- -Offline — использовать только уже загруженные зависимости;
-- -Detailed — включить подробный Gradle --info.
+- -NoDaemon — do not leave the Gradle daemon running;
+- -Offline — use only previously downloaded dependencies;
+- -Detailed — enable verbose Gradle --info logging.
 
-## Отдельные инструменты
+## Standalone tools
 
-Скрипты лежат в scripts/ и могут запускаться независимо:
+Scripts are in scripts/ and can be run independently:
 
-| Скрипт | Назначение |
+| Script | Purpose |
 |---|---|
-| scripts/Diagnose-Environment.ps1 | Диагностика локального окружения |
-| scripts/Debug-Build.ps1 | Запуск Gradle-задачи с логом, stacktrace и отчётом |
-| scripts/Test-Build.ps1 | Тесты плюс ссылки на HTML/JUnit-отчёты |
-| scripts/Inspect-Jar.ps1 | Проверка plugin.yml, главного класса и обязательных классов в JAR |
-| scripts/Collect-Diagnostics.ps1 | Собирает логи и отчёты в ZIP-архив для передачи на диагностику |
-| scripts/Build-Report.html | Шаблон HTML-отчёта |
-| scripts/Build-Report.css | Оформление отчёта |
+| scripts/Diagnose-Environment.ps1 | Local environment diagnostics |
+| scripts/Debug-Build.ps1 | Run a Gradle task with logs, stack trace, and report |
+| scripts/Test-Build.ps1 | Run tests and provide links to HTML/JUnit reports |
+| scripts/Inspect-Jar.ps1 | Check plugin.yml, main class, and required classes in the JAR |
+| scripts/Collect-Diagnostics.ps1 | Collect logs and reports into a ZIP archive |
+| scripts/Build-Report.html | HTML report template |
+| scripts/Build-Report.css | Report styling |
 
-Примеры:
+## Where to find results
 
-~~~powershell
-./scripts/Diagnose-Environment.ps1 -Strict
-./scripts/Debug-Build.ps1 -GradleTasks test -NoDaemon
-./scripts/Test-Build.ps1 -Detailed -OpenReport
-./scripts/Inspect-Jar.ps1
-~~~
+- build-reports/index.html — visual summary: status, duration, Gradle tasks, errors, test summary, and environment;
+- build-reports/latest.json — structured report data;
+- build-reports/logs/ — full console output with timestamp;
+- build/reports/tests/test/index.html — Gradle HTML test report;
+- build/test-results/test/ — JUnit XML;
+- build-reports/environment.json — environment check results;
+- build-reports/jar-inspection.json — latest JAR inspection results.
 
-Для передачи отчёта приложи папку build-reports/ и полный лог из build-reports/logs/. Перед отправкой проверь логи на локальные пути, имена пользователей и другие приватные данные.
+The HTML report is self-contained: JSON data is embedded in the generated page. Open build-reports/index.html in a modern browser; no local web server is required.
 
-## Где искать результаты
+## Reading errors
 
-- build-reports/index.html — визуальная сводка: статус, время, Gradle-задачи, ошибки, сводка тестов и окружение;
-- build-reports/latest.json — структурированные данные отчёта;
-- build-reports/logs/ — полный консольный вывод с датой и временем запуска;
-- build/reports/tests/test/index.html — стандартный HTML-отчёт Gradle по тестам;
-- build/test-results/test/ — JUnit XML для CI и анализаторов;
-- build-reports/environment.json — результат проверки окружения;
-- build-reports/jar-inspection.json — результат последней проверки JAR.
+1. Start with the failed status and exit code.
+2. In “Gradle stages”, find the first task marked FAILED.
+3. In “Errors”, look for the first meaningful line beginning with e:, What went wrong, Caused by, or AssertionError. Later errors are often consequences of the first.
+4. If tests failed, inspect build/reports/tests/test/index.html and the JUnit XML. KSL also prints internal self-check names in test stdout.
+5. For dependency failures, attach the full log: it contains the stack trace and Gradle coordinates/repository error.
 
-HTML-отчёт автономный: JSON встраивается в страницу при создании. CSS копируется рядом. Открой build-reports/index.html в современном браузере; локальный веб-сервер не нужен.
+Deprecated warnings alone do not mean the build failed. Look for the first actual error and the final exit code.
 
-## Как читать ошибки
+## Server watchdog diagnostics
 
-1. Сначала смотри красный статус и код выхода.
-2. В секции «Этапы Gradle» найди первую задачу со статусом FAILED.
-3. В секции «Ошибки» ищи первую содержательную строку e:, What went wrong, Caused by или AssertionError. Последующие ошибки часто являются следствием первой.
-4. Если упали тесты, смотри build/reports/tests/test/index.html и JUnit XML. В stdout тестов KSL дополнительно выводит имена внутренних self-check проверок.
-5. Если ошибка связана с зависимостями, приложи полный лог: в нём есть stacktrace и сообщение Gradle о координатах/репозитории.
-
-Предупреждения deprecated сами по себе не означают, что сборка провалилась. Ищи первую реальную ошибку и итоговый exit code.
-
-## Диагностика watchdog на сервере
-
-KSL не отключает и не заменяет Paper Watchdog. При остановке тиков KSL сохраняет `plugins/KotlinScriptLoader/dumps/watchdog-*.txt`. В одном отчёте несколько снимков потоков с интервалом; сравни `MAIN THREAD` между снимками. Важные разделы: состояние JVM/heap/GC, lock owner, locked monitors/synchronizers, обнаруженные deadlock и очереди БД. Количество снимков задаётся `diagnostics.watchdog.snapshot-count` (1–5), интервал — `snapshot-interval-ms` (250–2000). Лимиты потоков и stack frames нужны, чтобы диагностический файл не разрастался бесконтрольно. Команда `/ksl watchdog` показывает путь к последнему дампу.
+KSL does not disable or replace Paper Watchdog. When ticks stop, KSL can save plugins/KotlinScriptLoader/dumps/watchdog-*.txt. A report contains multiple thread snapshots; compare MAIN THREAD between snapshots. Important sections include JVM/heap/GC state, lock owner, locked monitors/synchronizers, detected deadlocks, and database queues. Snapshot count is set by diagnostics.watchdog.snapshot-count (1–5), and the interval by snapshot-interval-ms (250–2000). Thread and stack-frame limits prevent diagnostic files from growing without bounds. The /ksl watchdog command shows the latest dump path.
 
 ## CI
 
-GitHub Actions запускает те же PowerShell-команды, что доступны локально. Диагностический artifact загружается с if: always(), поэтому отчёты тестов и логи сохраняются и при неуспешной сборке. JAR собирается отдельным этапом только после успешных тестов.
+GitHub Actions runs the same PowerShell commands available locally. The diagnostics artifact is uploaded with if: always(), so test reports and logs are preserved even when the build fails. The JAR is built in a separate stage only after tests succeed.

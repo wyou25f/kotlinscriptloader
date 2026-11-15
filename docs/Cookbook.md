@@ -1,45 +1,45 @@
-# KSL Cookbook — практические рецепты
+# KSL Cookbook — Practical Recipes
 
-Шаблоны для типовых задач. Проверь установленные интеграции и версию KSL перед копированием.
+Templates for common tasks. Check installed integrations and the KSL version before copying an example.
 
-## 1. Приветствие с feature flag
+## 1. Welcome message with a feature flag
 
-```kotlin
+~~~kotlin
 if (featureEnabled("welcome.enabled", default = true)) {
     onEvent<PlayerJoinEvent> {
-        player.sendRichMessage("<green>Добро пожаловать, ${player.name}!</green>")
+        player.sendRichMessage("<green>Welcome, ${player.name}!</green>")
     }
 }
-```
+~~~
 
-## 2. Команда с проверкой прав
+## 2. Command with a permission check
 
-```kotlin
+~~~kotlin
 registerCommand("announce") { sender, args ->
     if (!sender.hasPermission("server.announce")) {
-        sender.sendMessage("Недостаточно прав.")
+        sender.sendMessage("You do not have permission.")
         return@registerCommand
     }
     if (args.isEmpty()) {
-        sender.sendMessage("Использование: /announce <текст>")
+        sender.sendMessage("Usage: /announce <text>")
         return@registerCommand
     }
     val message = args.joinToString(" ")
     runSync { Bukkit.broadcastMessage(message) }
 }
-```
+~~~
 
 ## 3. YAML feature toggle
 
-```kotlin
+~~~kotlin
 val enabled = featureEnabled("events.double-xp", default = false)
 log("Double XP enabled: $enabled")
 val newState = toggleFeature("events.double-xp")
-```
+~~~
 
-## 4. SQL: параметризованная запись
+## 4. SQL: parameterized insert
 
-```kotlin
+~~~kotlin
 execute("""
     CREATE TABLE IF NOT EXISTS player_notes (
         uuid VARCHAR(36) NOT NULL,
@@ -54,13 +54,13 @@ execute(
     "first-join",
     System.currentTimeMillis()
 )
-```
+~~~
 
-Для реального приложения добавь primary key/index и миграцию схемы. Не склеивай SQL с пользовательским вводом.
+For a real application, add a primary key/index and a schema migration. Never concatenate user input into SQL.
 
-## 5. SQL async с возвратом результата
+## 5. Async SQL with a result callback
 
-```kotlin
+~~~kotlin
 queryAsync(
     "SELECT COUNT(*) AS total FROM player_notes WHERE uuid = ?",
     player.uniqueId.toString(),
@@ -69,92 +69,92 @@ queryAsync(
     if (error != null) {
         logWarn("Query failed: ${error.message}")
     } else {
-        runSync { player.sendMessage("Заметок: $total") }
+        runSync { player.sendMessage("Notes: $total") }
     }
 }
-```
+~~~
 
-Mapper возвращает обычное значение. Не возвращай JDBC ResultSet: соединение закрывается после завершения mapper.
+The mapper returns a regular value. Do not return a JDBC ResultSet: the connection is closed after the mapper finishes.
 
-## 6. SQL из YAML
+## 6. SQL from YAML
 
-Файл notes.yml для notes.kts находится в корне папки KSL, рядом с scripts/:
+The notes.yml file for notes.kts is located in the KSL plugin directory root, next to scripts/:
 
-```yaml
+~~~yaml
 database:
   queries:
     count-notes: "SELECT COUNT(*) AS total FROM player_notes WHERE uuid = ?"
-```
+~~~
 
-```kotlin
+~~~kotlin
 dbQueryYaml("database.queries.count-notes", player.uniqueId.toString()) {
     val total = if (next()) getInt("total") else 0
-    runSync { player.sendMessage("Заметок: $total") }
+    runSync { player.sendMessage("Notes: $total") }
 }
-```
+~~~
 
-## 7. Кэш с лимитом
+## 7. Bounded cache
 
-```kotlin
+~~~kotlin
 data class ProfileView(val name: String, val level: Int)
 
 val profiles = KSLRT.cache<String, ProfileView>(maxSize = 2_000)
 profiles[player.uniqueId.toString()] = ProfileView(player.name, 5)
 val cached = profiles[player.uniqueId.toString()]
-```
+~~~
 
-Продумай invalidation и TTL. Локальный cache одного сервера не синхронизируется с другими Minecraft-серверами.
+Plan invalidation and TTL. A local cache on one server is not synchronized with other Minecraft servers.
 
-## 8. Измерение операции
+## 8. Measure an operation
 
-```kotlin
+~~~kotlin
 val profile = KSLRT.profiler("shop.price-calculation")
 val price = profile.measure { calculatePrice(player.uniqueId) }
 val stats = profile.snapshot()
 log("calls=${stats.calls}, maxNs=${stats.maxNanos}")
-```
+~~~
 
-Не создавай уникальное имя профиля на каждый вызов. Реестр именованных профилей ограничен.
+Do not create a unique profiler name for every call. The registry of named profilers is bounded.
 
-## 9. Фоновое вычисление
+## 9. Background computation
 
-```kotlin
+~~~kotlin
 val taskId = worker(KSLWorkPriority.NORMAL) {
     val computed = expensiveCalculation()
-    runSync { player.sendMessage("Результат: $computed") }
+    runSync { player.sendMessage("Result: $computed") }
 }
-```
+~~~
 
-Не обращайся к Bukkit объектам в фоновом коде. Если нужно получить данные игрока, собери immutable snapshot на главном потоке до запуска worker.
+Do not access Bukkit objects from background code. Collect an immutable player-data snapshot on the main thread before starting the worker.
 
-## 10. TOML настройки
+## 10. TOML settings
 
-```toml
-# Файл scripts/data/shop.toml
+~~~toml
+# File: scripts/data/shop.toml
 [shop]
 enabled = true
 max-items = 24
-```
+~~~
 
-```kotlin
+~~~kotlin
 val settings = loadToml("data/shop.toml")
 val enabled = settings?.tomlTable("shop")?.tomlBoolean("enabled", true) ?: true
-```
+~~~
 
 ## 11. JSON payload
 
-```kotlin
+~~~kotlin
 val payload = jsonObjectOf(
     "uuid" to player.uniqueId.toString(),
     "name" to player.name,
     "online" to true,
     "seenAt" to System.currentTimeMillis()
 )
-```
+~~~
 
 ## 12. YAML migration
 
-```kotlin
+~~~kotlin
 migrateConfig(
     targetVersion = 2,
     migrations = mapOf(
@@ -162,38 +162,39 @@ migrateConfig(
         2 to { if (!contains("shop.max-items")) set("shop.max-items", 24) }
     )
 )
-```
+~~~
 
-Не переписывай старые migration steps после публикации конфигурации пользователям.
+Do not rewrite old migration steps after users have received the configuration.
 
-## 13. Необязательная интеграция
+## 13. Optional integration
 
-```kotlin
+~~~kotlin
 val auth = hook<KSLAuthMeHook>("authme")
 if (auth == null) {
-    log("AuthMe не установлен; функция проверки входа отключена")
+    log("AuthMe is not installed; login verification is disabled")
 } else {
-    // Используй только методы, документированные для доступного hook.
+    // Use only methods documented for the available hook.
 }
-```
+~~~
 
-## 14. Отладка
+## 14. Troubleshooting
 
-Если скрипт не загружается:
-1. Проверь точную строку компилятора.
-2. Проверь imports и package.
-3. Сверь имя метода с исходником и документацией.
-4. Проверь, не вызывается ли Bukkit API из async.
-5. Выполни /ksl doctor и /ksl errors.
-6. Смотри Troubleshooting.md.
+If a script does not load:
 
-## 15. Чего не делать
+1. Check the exact compiler message.
+2. Check imports and package declarations.
+3. Compare method names with source and documentation.
+4. Verify that Bukkit API is not called from async code.
+5. Run /ksl doctor and /ksl errors.
+6. See Troubleshooting.md.
 
-- Не использовать SHA-256 как password hash.
-- Не сохранять пароли/токены в открытом виде.
-- Не использовать SQL string interpolation для пользовательских данных.
-- Не вызывать join() для долгой операции на главном потоке.
-- Не вызывать Bukkit inventory/world/player методы из произвольного worker thread.
-- Не создавать неограниченные Executors и потоки.
-- Не считать feature flag системой авторизации.
-- Не считать Sandbox изоляцией вредоносного кода.
+## 15. What not to do
+
+- Do not use SHA-256 as a password hash.
+- Do not store passwords/tokens in plain text.
+- Do not use SQL string interpolation for user data.
+- Do not call join() for a long-running operation on the main thread.
+- Do not call Bukkit inventory/world/player methods from an arbitrary worker thread.
+- Do not create unbounded Executors or threads.
+- Do not treat a feature flag as an authorization system.
+- Do not treat Sandbox as isolation from malicious code.

@@ -1,54 +1,54 @@
-# Документация KotlinScriptLoader
+# KotlinScriptLoader Documentation
 
-Документы для пользователей KSL, авторов скриптов, разработчиков аддонов и контрибьюторов.
+Documentation for KSL users, script authors, addon developers, and contributors.
 
-> KSL развивается. Если старый пример расходится с кодом текущей ветки, проверяй исходники и тесты. Упоминание функции в плане или changelog не доказывает, что она есть в текущей сборке.
+> KSL is actively evolving. When an older example differs from source code in the current branch, trust the source and tests. A roadmap or changelog entry does not prove that a feature exists in the current build.
 
-## С чего начать
+## Getting started
 
-| Задача | Документ |
+| Goal | Guide |
 |---|---|
-| Установка и первый скрипт | [Getting Started](Getting-Started.md) |
-| Полный Script DSL | [Script DSL Reference](Script-DSL-Reference.md) |
-| Практические рецепты | [Cookbook](Cookbook.md) |
-| Установка, общий обзор и архитектура | [Энциклопедия KSL](KSL-Encyclopedia.md) |
-| YAML, TOML, JSON и миграции | [Data Formats](Data-Formats.md) |
-| Производительность, DB очереди и worker pool | [Performance and Scaling](Performance-and-Scaling.md) |
-| Production, секреты, backup и recovery | [Production Operations](Production-Operations.md) |
-| Встроенная библиотека, MesLib2 и runtime tools | [Standard Library](Standard-Library-Architecture.md) |
-| Создание аддона | [Addon Development](Addon-Development-Guide.md) |
-| API для Kotlin/Java аддонов | [Public API](Public-API.md) |
-| Импорты и локальные библиотеки | [Packages and Imports](Packages-and-Imports.md) |
-| MesLib2 и создание своих библиотек | [Custom Standard Library](Custom-Standard-Library.md) |
-| SQLite, MySQL/MariaDB и async SQL | [Database Guide](Database-Guide.md) |
-| Кэш и профилирование | [Runtime API](Runtime-API.md) |
-| Жизненный цикл, hot-reload и владение ресурсами | [Script Lifecycle and Resources](Script-Lifecycle-and-Resources.md) |
-| Собственный модуль stdlib | [Custom Standard Library](Custom-Standard-Library.md) |
-| Ошибки и диагностика | [Troubleshooting](Troubleshooting.md) |
-| Коды ошибок | [Error Codes](Error-Codes.md) |
-| Sandbox и ограничения | [Security and Sandbox](Security-and-Sandbox.md) |
+| Installation and first script | [Getting Started](Getting-Started.md) |
+| Complete script DSL | [Script DSL Reference](Script-DSL-Reference.md) |
+| Practical recipes | [Cookbook](Cookbook.md) |
+| Architecture and overview | [KSL Encyclopedia](KSL-Encyclopedia.md) |
+| YAML, TOML, JSON, migrations | [Data Formats](Data-Formats.md) |
+| Performance and scaling | [Performance and Scaling](Performance-and-Scaling.md) |
+| Production operations | [Production Operations](Production-Operations.md) |
+| Built-in library and runtime tools | [Standard Library Architecture](Standard-Library-Architecture.md) |
+| Addon development | [Addon Development](Addon-Development-Guide.md) |
+| Kotlin/Java addon API | [Public API](Public-API.md) |
+| Imports and local libraries | [Packages and Imports](Packages-and-Imports.md) |
+| Custom standard library | [Custom Standard Library](Custom-Standard-Library.md) |
+| SQL and databases | [Database Guide](Database-Guide.md) |
+| Caching and profiling | [Runtime API](Runtime-API.md) |
+| Script lifecycle and hot reload | [Script Lifecycle and Resources](Script-Lifecycle-and-Resources.md) |
+| Errors and diagnostics | [Troubleshooting](Troubleshooting.md) |
+| Error code catalog | [Error Codes](Error-Codes.md) |
+| Sandbox limitations | [Security and Sandbox](Security-and-Sandbox.md) |
+| Build and CI | [Build Diagnostics](Build-Diagnostics.md) |
 
-## Для ИИ-ассистентов
+## For AI assistants
 
-Если ChatGPT, Claude, Gemini, Copilot или другой помощник пишет или проверяет код KSL, начни с [AGENTS.md](../AGENTS.md) и [руководства по работе с ИИ](AI-ASSISTANT-GUIDE.md). Передавай ссылку на конкретный commit/branch или подключай репозиторий целиком, если платформа это поддерживает. Для точных ответов ИИ должен проверять исходники текущей ветки и тесты.
+When an AI assistant writes or reviews KSL code, start with [AGENTS.md](../AGENTS.md) and [AI Assistant Guide](AI-ASSISTANT-GUIDE.md). Provide the exact commit/branch or connect the repository. The assistant must verify APIs against the source and tests in the current branch.
 
-Не отправляй секреты, токены, пароли и приватные данные.
+Never share secrets, tokens, passwords, or private data.
 
-## Для разработчиков
+## For developers
 
-- [Энциклопедия](KSL-Encyclopedia.md) — обзор архитектуры и DSL.
-- [Public API](Public-API.md) — внешние контракты.
-- [Standard Library architecture](Standard-Library-Architecture.md) — пакеты и модульная система.
-- [Addon Development](Addon-Development-Guide.md) — жизненный цикл аддона.
-- [Script Lifecycle and Resources](Script-Lifecycle-and-Resources.md) — владение ресурсами скриптов и безопасный hot-reload.
-- [Troubleshooting](Troubleshooting.md) — диагностика.
+- [KSL Encyclopedia](KSL-Encyclopedia.md) — architecture and DSL.
+- [Public API](Public-API.md) — external contracts.
+- [Standard Library Architecture](Standard-Library-Architecture.md) — packages and modules.
+- [Addon Development](Addon-Development-Guide.md) — addon lifecycle.
+- [Script Lifecycle and Resources](Script-Lifecycle-and-Resources.md) — ownership and cleanup.
+- [Troubleshooting](Troubleshooting.md) — diagnostics.
 
-Перед изменением API изучи реализации и тесты. Не делай внутренний класс публичным только ради удобства одного скрипта. Сохраняй hot-reload и корректное освобождение ресурсов.
+Before changing an API, inspect its implementation and tests. Do not expose an internal class just to simplify one script. Preserve hot reload and resource cleanup.
 
-## Ссылки
+## Project links
 
 - [GitHub repository](https://github.com/wyou25f/kotlinscriptloader)
-- [README](../README.md)
-- [Примеры скриптов](../examples/)
-- [IDE integration](../ide/README.md)
+- [Main README](../README.md)
+- [Examples](../examples/)
+- [IntelliJ IDEA integration](../ide/README.md)
 - [CHANGELOG](../CHANGELOG.md)

@@ -1,200 +1,188 @@
-# KSL — производительность и масштабирование
+# KSL — Performance and Scaling
 
-Руководство о том, как не блокировать Paper, использовать очереди KSL и диагностировать узкие места.
+This guide explains how to keep the Paper main thread responsive, use KSL queues, and diagnose bottlenecks.
 
-> Асинхронный API не гарантирует заданное число запросов в секунду. Пропускная способность зависит от CPU, диска, latency сети, SQL, индексов, размера пула, числа серверов и характера нагрузки. Измеряй на своём стенде.
+> An asynchronous API does not guarantee a fixed number of requests per second. Throughput depends on CPU, storage, network latency, SQL, indexes, pool size, server count, and workload. Measure on your own staging environment.
 
-## 1. Сначала найди узкое место
+## 1. Find the bottleneck first
 
-Собери исходные данные: версия Paper/Java/KSL, результаты /ksl doctor и /ksl runtime, тип и размер БД, latency до MySQL/MariaDB, частота запросов, очереди чтения/записи, heap/GC и thread dump при зависании.
+Collect the Paper/Java/KSL versions, /ksl doctor and /ksl runtime output, database type and size, MySQL/MariaDB latency, query frequency, read/write queue sizes, heap/GC data, and a thread dump when the server stalls.
 
-Не увеличивай все лимиты одновременно. Большие пулы могут усилить конкуренцию за CPU и соединения.
+Do not increase every limit at once. Larger pools can increase contention for CPU and database connections.
 
-## 2. Правило главного потока
+## 2. Keep the main thread responsive
 
-Главный поток Paper отвечает за игровой tick. Не блокируй его SQL, HTTP, Discord, большими файлами, тяжёлым парсингом, большими циклами, Thread.sleep, долгим Future.join() или Future.get().
+Paper's main thread is responsible for game ticks. Do not block it with SQL, HTTP, Discord, large files, expensive parsing, large loops, Thread.sleep, or long Future.join()/get() calls.
 
-```kotlin
+~~~kotlin
 runAsync {
     val result = calculateOrLoadData()
     runSync {
-        // Bukkit state изменяем только на главном потоке
-        player.sendMessage("Готово: $result")
+        // Change Bukkit state on the main thread only.
+        player.sendMessage("Complete: $result")
     }
 }
-```
+~~~
 
-Не обращайся к Player, World, Entity, Inventory и Bukkit объектам из фонового callback, если конкретный Paper API прямо не разрешает это. Передавай в фоновые задачи простые данные: UUID, строки, числа и DTO.
+Do not access Player, World, Entity, Inventory, or other Bukkit objects from a background callback unless the specific Paper API explicitly permits it. Pass simple values such as UUIDs, strings, numbers, and DTOs to background tasks.
 
-## 3. Пулы базы данных
+## 3. Database connection pools
 
-KSL использует HikariCP. Параметр database.pool-size задаёт число соединений (типичный старт — 4; допустимый диапазон описан в Database-Guide.md).
+KSL uses HikariCP. database.pool-size controls the number of connections; start with a conservative value such as 4 and measure the actual workload.
 
-Для MySQL/MariaDB учитывай общий лимит подключений: сложи пулы всех Minecraft-серверов и другие DB-клиенты. Не выставляй pool-size 32 «на всякий случай». Измеряй latency, длительность запросов, очереди, CPU/IO базы и max_connections.
+For MySQL/MariaDB, consider the combined connection limit: add the pools from all Minecraft servers and other database clients. Do not set pool-size to 32 “just in case”. Measure latency, query duration, queue depth, database CPU/I/O, and max_connections.
 
-## 4. Очереди чтения и записи
+## 4. Read and write queues
 
-KSL разделяет пользовательские SQL-операции:
+KSL separates user SQL operations:
 
-- Запись — одна последовательная фоновая очередь, сохраняющая порядок принятых write-задач.
-- Чтение — отдельный пул reader threads, связанный с размером DB pool.
-- Каждая очередь ограничена 10 000 ожидающими задачами.
+- Writes use one sequential background queue that preserves the order of accepted write tasks.
+- Reads use a separate reader pool sized with the database connection pool.
+- Both queues are bounded at 10,000 pending tasks.
 
-Ограничение обеспечивает backpressure: при перегрузке новые задачи отклоняются, вместо бесконечного роста памяти. 10 000 — предел защиты, а не целевой размер рабочей очереди.
+The bound provides backpressure: when a queue is saturated, new tasks are rejected instead of consuming unbounded memory. 10,000 is a safety ceiling, not a target queue size.
 
-Наблюдай за обеими очередями через /ksl doctor. Если размер постоянно растёт, найди частые запросы, медленный SQL, отсутствие индексов или сетевую задержку. Простое увеличение очереди проблему не решает.
+Monitor both queues with /ksl doctor. If a queue grows continuously, look for excessive query frequency, slow SQL, missing indexes, or network latency. Increasing the queue size does not solve the underlying problem.
 
-## 5. Асинхронный SQL API
+## 5. Asynchronous SQL API
 
-Старые вызовы остаются доступными:
+Existing calls remain available:
 
 - dbExecute(sql, ...args) / execute(sql, ...args);
 - dbQuery(sql, ...args) { ResultSet -> ... } / query(sql, ...args) { ... };
 - dbExecuteYaml(path, ...args) / executeYaml(...);
 - dbQueryYaml(path, ...args) { ... } / queryYaml(...).
 
-Future-варианты:
+Future-based variants:
 
 - dbExecuteAsync(sql, ...args) / executeAsync(...);
 - dbQueryAsync(sql, ...args, mapper = { rs -> detachedValue }) / queryAsync(...);
 - dbExecuteYamlAsync(path, ...args) / executeYamlAsync(...);
 - dbQueryYamlAsync(path, ...args, mapper = { ... }) / queryYamlAsync(...).
 
-```kotlin
+~~~kotlin
 queryAsync(
     "SELECT balance FROM coins WHERE uuid = ?",
     player.uniqueId.toString(),
     mapper = { rs -> if (rs.next()) rs.getLong("balance") else 0L }
 ).whenComplete { balance, error ->
     if (error != null) {
-        logWarn("Не удалось загрузить баланс: ${error.message}")
+        logWarn("Could not load balance: ${error.message}")
     } else {
-        runSync { player.sendMessage("Баланс: $balance") }
+        runSync { player.sendMessage("Balance: $balance") }
     }
 }
-```
+~~~
 
-Mapper должен вернуть отделённое от JDBC значение: число, строку, data class или список. Не возвращай ResultSet, Connection или Statement: JDBC ресурсы закрываются после mapper.
+The mapper must return a value detached from JDBC: a number, string, data class, or collection. Do not return ResultSet, Connection, or Statement; JDBC resources are closed after the mapper finishes.
 
-При заполнении очереди Future завершается ошибкой, связанной с RejectedExecutionException. Обрабатывай её через whenComplete/exceptionally. Не делай join() на главном потоке.
+When a queue is full, the future completes exceptionally with an error related to RejectedExecutionException. Handle it with whenComplete/exceptionally. Never call join() on the main thread.
 
-## 6. Prepared statements и индексы
+## 6. Prepared statements and indexes
 
-Передавай пользовательские значения параметрами:
+Pass user-provided values as parameters:
 
-```kotlin
+~~~kotlin
 execute(
     "UPDATE coins SET balance = balance + ? WHERE uuid = ?",
     amount,
     playerId
 )
-```
+~~~
 
-Не собирай SQL интерполяцией из ника, чата или аргументов команды. Параметры защищают значения, но не SQL-идентификаторы: имя таблицы/колонки выбирай из фиксированного whitelist.
+Do not build SQL by interpolating player names, chat messages, or command arguments. Parameters protect values, not SQL identifiers: select table and column names from a fixed allowlist.
 
-Для частых запросов добавляй индексы по WHERE/JOIN/ORDER BY, выбирай только нужные столбцы, ограничивай выборку LIMIT и проверяй план запроса средствами своей СУБД.
+Add indexes for frequent WHERE/JOIN/ORDER BY patterns, select only required columns, limit result sets, and inspect query plans using your database tools.
 
 ## 7. YAML SQL query cache
 
-Запросы из database.queries кэшируются. После изменения файла перечитай конфиг:
+Queries from database.queries are cached. After editing the file, reload the script configuration:
 
-```kotlin
+~~~kotlin
 val count = reloadScriptConfig()
-log("Перечитано запросов: $count")
-```
+log("Reloaded queries: $count")
+~~~
 
-Если YAML изменён программно через editConfig, обнови только query cache:
+If YAML is updated programmatically through editConfig, refresh the query cache:
 
-```kotlin
+~~~kotlin
 editConfig {
     set("database.queries.find-coins", "SELECT balance FROM coins WHERE uuid = ?")
 }
 reloadYamlSqlQueries()
-```
+~~~
 
-Обновление кэша атомарное: выполняющиеся DB-задачи используют уже полученную SQL-строку, новые — актуальную.
+Cache refresh is atomic: running DB tasks keep the SQL string they already received, while new tasks use the latest version.
 
-## 8. Worker pool KSLRT
+## 8. KSLRT worker pool
 
-runAsync и worker решают разные задачи. runAsync отправляет задачу в async scheduler Bukkit и возвращает Bukkit task ID (Int). worker использует ограниченный KSL worker pool, поддерживает приоритеты и возвращает worker task ID (Long). Для CPU-heavy задач и контролируемой очереди предпочитай worker; для простой фоновой операции, совместимой с Bukkit async scheduler, используй runAsync. Ни один вариант не разрешает обращаться к Bukkit world/player/inventory state из фонового потока.
+runAsync and worker serve different purposes. runAsync submits work to the Bukkit async scheduler and returns a Bukkit task ID (Int). worker uses the bounded KSL worker pool, supports priorities, and returns a worker task ID (Long). Prefer worker for CPU-heavy tasks and controlled queueing; use runAsync for simple background work that fits the Bukkit async scheduler. Neither API makes Bukkit world/player/inventory state safe to access asynchronously.
 
-
-Для CPU-heavy и blocking задач без Bukkit state доступен управляемый worker pool:
-
-```kotlin
+~~~kotlin
 val taskId = worker(KSLWorkPriority.NORMAL) {
     val result = calculateSomethingExpensive()
-    runSync { /* применить результат через Bukkit API */ }
+    runSync {
+        // Apply the result through Bukkit API.
+    }
 }
-```
+~~~
 
-Приоритеты: HIGH, NORMAL, LOW. Очередь ограничена, есть лимит задач на скрипт. При перегрузке работа отклоняется, а не выполняется неожиданно на вызывающем потоке. Задачи принадлежат скрипту и отменяются при unload. Worker code должен корректно реагировать на interruption.
+Priorities: HIGH, NORMAL, LOW. The queue is bounded and there is a per-script task limit. Under overload, work is rejected instead of unexpectedly running on the caller's thread. Tasks belong to their script and are cancelled on unload. Worker code must handle interruption correctly.
 
-Настройки config.yml:
+config.yml example:
 
-```yaml
+~~~yaml
 runtime:
   cpu-threads: 2
   queue-capacity: 256
   max-tasks-per-script: 64
-```
+~~~
 
-Число worker threads меняется через /ksl runtime workers <1-64>. Queue capacity и per-script limit читаются при старте.
+The worker count can be changed through /ksl runtime workers <1-64>. Queue capacity and the per-script limit are read at startup.
 
-## 9. Кэширование
+## 9. Caching
 
-KSLCache<K, V> — потокобезопасный bounded LRU cache с optional TTL:
+KSLCache<K, V> is a thread-safe bounded LRU cache with optional TTL:
 
-```kotlin
+~~~kotlin
 val cache = KSLRT.cache<String, Long>(maxSize = 10_000)
 cache[playerId] = balance
 val cached = cache[playerId]
 val stats = cache.stats()
-```
+~~~
 
-Кэш не заменяет источник истины. Продумай TTL, invalidation после записи, поведение нескольких серверов и ограничение размера. Локальный cache одного сервера не синхронизируется автоматически с другими JVM. При конкурентном cache miss loader может выполниться больше одного раза.
+A cache is not the source of truth. Plan TTL, invalidation after writes, multi-server behavior, and maximum size. A local cache is not automatically synchronized with other JVMs. Under concurrent cache misses, the loader may run more than once.
 
-## 10. Измерение
+## 10. Profiling
 
-```kotlin
+~~~kotlin
 val profiler = KSLRT.profiler("economy.load")
 val value = profiler.measure { loadEconomyData() }
 val snapshot = profiler.snapshot()
 log("calls=${snapshot.calls}, avgNs=${snapshot.averageNanos}")
-```
+~~~
 
-Реестр именованных профилировщиков ограничен 1024 именами. Для динамических профилей вызывай KSLRT.removeProfiler(name), когда профиль больше не нужен. Не создавай уникальное имя на каждый вызов.
+The named profiler registry is limited to 1,024 names. Call KSLRT.removeProfiler(name) when a dynamic profiler is no longer needed. Do not create a unique name for every invocation.
 
-## 11. Индекс скриптов и автодополнение
+## 11. Script index and tab completion
 
-KSL keeps an immutable in-memory snapshot of script IDs and reload completion
-targets, not File objects. File instances are created only for explicit reload,
-validation and status operations. Tab completion reuses the compact metadata
-instead of walking the scripts directory and rebuilding folder candidates on every
-keystroke. The snapshot is refreshed by explicit discovery/reload operations and
-invalidated by filesystem watcher events.
+KSL keeps an immutable in-memory snapshot of script IDs and reload-completion targets, rather than retaining File objects. File instances are created only for explicit reload, validation, and status operations. Tab completion reuses compact metadata instead of walking the scripts directory and rebuilding folder candidates on every keystroke. The snapshot is refreshed by discovery/reload operations and invalidated by filesystem watcher events.
 
-The per-script command registry uses compact owner lists rather than allocating
-a separate concurrent hash set for every script. Bukkit still owns the live command
-objects and their callbacks: this bookkeeping optimization reduces duplicate
-registry overhead, but it does not make the memory used by loaded script code or
-registered command handlers disappear.
+The per-script command registry uses compact owner lists rather than allocating a separate concurrent hash set for every script. Bukkit still owns the live command objects and callbacks: this bookkeeping optimization reduces duplicate registry overhead, but it does not remove the memory used by loaded script code or command handlers.
 
-For servers with many scripts, keep auto-reload enabled when live filesystem
-changes should appear immediately in suggestions. Without the watcher, an explicit
-reload/validation scan refreshes the index.
+For servers with many scripts, enable auto-reload when filesystem changes should immediately appear in suggestions. Without the watcher, an explicit reload/validation scan refreshes the index.
 
-## 12. Чек-лист
+## 12. Checklist
 
-- [ ] Нет SQL и сети на главном потоке.
-- [ ] Пользовательские значения идут через prepared statement.
-- [ ] Есть индексы под частые запросы.
-- [ ] Future errors обрабатываются.
-- [ ] Bukkit операции возвращаются в sync.
-- [ ] Worker задачи конечны и корректно отменяются.
-- [ ] Очереди не растут постоянно.
-- [ ] Пулы всех серверов укладываются в лимит DB.
-- [ ] Есть проверенный backup/restore.
-- [ ] Нагрузка измерена на стенде.
+- [ ] No SQL or network calls on the main thread.
+- [ ] User values are passed through prepared statements.
+- [ ] Frequent queries have appropriate indexes.
+- [ ] Future errors are handled.
+- [ ] Bukkit operations are returned to the main thread.
+- [ ] Worker tasks are bounded and cancellable.
+- [ ] Queues do not grow continuously.
+- [ ] All server pools fit within the database connection limit.
+- [ ] Backup and restore have been tested.
+- [ ] Load has been measured on a staging environment.
 
-См. Database-Guide.md, Runtime-API.md, Production-Operations.md и Troubleshooting.md.
+See [Database Guide](Database-Guide.md), [Runtime API](Runtime-API.md), [Production Operations](Production-Operations.md), and [Troubleshooting](Troubleshooting.md).

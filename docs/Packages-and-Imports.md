@@ -1,23 +1,23 @@
-# Пакеты, импорты и локальные библиотеки в KSL
+# KSL Packages, Imports, and Local Libraries
 
-Это руководство объясняет, как организовать собственный Kotlin-код для KotlinScriptLoader (KSL), подключить его к .kts и сделать библиотеку для нескольких скриптов.
+This guide explains how to organize reusable Kotlin code for KotlinScriptLoader (KSL), make it available to .kts scripts, and build libraries shared by multiple scripts.
 
-> Коротко: KSL компилирует .kts как Kotlin Script. Обычные Kotlin-файлы аддона (.kt) компилируются Gradle в классы внутри JAR аддона. KSL добавляет classloader загруженного аддона в classpath компиляции и выполнения скриптов. Поэтому скрипт может импортировать публичные классы и top-level-функции аддона.
+> In short: KSL compiles .kts files as Kotlin Script. Regular Kotlin addon files (.kt) are compiled by Gradle into classes inside the addon JAR. KSL adds the classloader of a loaded addon to the script compilation and execution classpaths. A script can therefore import public addon classes and top-level functions.
 
-## 1. Четыре понятия, которые важно не путать
+## 1. Four concepts that should not be confused
 
-| Понятие | Что означает | Где объявляется |
+| Concept | Meaning | Declared in |
 |---|---|---|
-| package | Пространство имён Kotlin-кода | В начале файла .kt |
-| import | Подключение класса или объявления из пакета | В .kt и .kts |
-| defaultImports | Импорты, которые KSL автоматически добавляет при компиляции каждого скрипта | В onLoad аддона |
-| classpath | Классы и библиотеки, которые компилятор и скрипт могут найти | JAR аддонов и доступные им зависимости |
+| package | Namespace for Kotlin code | At the top of a .kt file |
+| import | Makes a class or declaration from a package available | .kt and .kts |
+| defaultImports | Imports KSL adds automatically when compiling each script | Addon's onLoad |
+| classpath | Classes and libraries visible to compiler and script | Addon JARs and their available dependencies |
 
-**Важно:** addDefaultImports("com.example.tools.*") добавляет импорт, но не загружает библиотеку и не компилирует исходники. Чтобы импорт работал, пакет должен находиться в classpath — например, в JAR загруженного аддона.
+**Important:** addDefaultImports("com.example.tools.*") adds an import; it does not load a library or compile source files. The package must already be on the classpath, for example inside a loaded addon JAR.
 
-## 2. Рекомендуемая структура аддона
+## 2. Recommended addon structure
 
-Для примера возьмём аддон ServerToolkit:
+Example: ServerToolkit.
 
 ~~~text
 ServerToolkit/
@@ -35,7 +35,7 @@ ServerToolkit/
             └── plugin.yml
 ~~~
 
-Структура каталогов обычно повторяет имя пакета, но для Kotlin решающей является строка package внутри файла.
+Directory layout usually mirrors the package name, but the package declaration inside the file is what matters to Kotlin.
 
 PlayerExtensions.kt:
 
@@ -49,12 +49,12 @@ fun Player.sendToolkitMessage(message: String) {
     sendMessage(Component.text("[Toolkit] $message"))
 }
 
-fun Player.toolkitLabel(): String = "Игрок: $name"
+fun Player.toolkitLabel(): String = "Player: $name"
 ~~~
 
-Это обычные Kotlin extension-функции. Специальный KSL DSL для них не нужен.
+These are ordinary Kotlin extension functions. They do not require a special KSL DSL.
 
-Другой файл может использовать их как обычный Kotlin-код:
+Another source file can call them as regular Kotlin code:
 
 ~~~kotlin
 package com.example.servertoolkit.service
@@ -64,14 +64,14 @@ import org.bukkit.entity.Player
 
 class MessageService {
     fun welcome(player: Player) {
-        player.sendToolkitMessage("Добро пожаловать!")
+        player.sendToolkitMessage("Welcome!")
     }
 }
 ~~~
 
-## 3. Настройка Gradle
+## 3. Gradle setup
 
-Пример минимального build.gradle.kts:
+Minimal build.gradle.kts:
 
 ~~~kotlin
 plugins {
@@ -100,9 +100,9 @@ java {
 }
 ~~~
 
-Положи используемый для компиляции KSL JAR в libs/ либо подключи KSL как Gradle project dependency в мультипроекте. Версии Kotlin, Paper и JVM должны соответствовать версии KSL и сервера.
+Place the KSL JAR used for compilation in libs/, or add KSL as a Gradle project dependency in a multi-project build. Kotlin, Paper, and JVM versions must match the KSL/server compatibility requirements.
 
-Не добавляй KSL API и Paper API в итоговый JAR аддона: они уже предоставляются сервером. Для внешних runtime-библиотек выбери поддерживаемый твоей сборкой способ доставки — например, включение зависимостей в JAR через Shadow. Важно, чтобы классы этих библиотек были доступны classloader'у аддона на сервере. Не включай вторую копию API другого плагина, если он предоставляет общие типы и сервисы.
+Do not bundle KSL API or Paper API in the final addon JAR; the server provides them. For external runtime libraries, use a delivery method supported by your build, such as shading dependencies into the JAR. Their classes must be available to the addon classloader on the server. Do not include a second copy of another plugin's API when that plugin provides shared types or services.
 
 ## 4. plugin.yml
 
@@ -115,11 +115,11 @@ depend:
   - KotlinScriptLoader
 ~~~
 
-depend нужен, если аддон не может работать без KSL: Bukkit загрузит KSL раньше него. Если интеграция действительно необязательна, можно выбрать другую модель зависимости, но тогда проверка доступности KSL обязательна.
+Use depend when the addon cannot work without KSL. Bukkit will load KSL first. If the integration is optional, choose an appropriate optional dependency model and always check whether KSL is available.
 
-## 5. Регистрация аддона и default imports
+## 5. Register the addon and default imports
 
-Точка входа:
+Entry point:
 
 ~~~kotlin
 package com.example.servertoolkit
@@ -133,13 +133,13 @@ import ru.privateserver.ksl.KSLAddon
 class ServerToolkitPlugin : JavaPlugin(), KSLAddon {
     override val addonId = "server-toolkit"
     override val addonVersion = "1.0.0"
-    override val addonDescription = "Общие функции для KSL-скриптов"
+    override val addonDescription = "Shared utilities for KSL scripts"
 
     private val messages = MessageService()
 
     override fun onEnable() {
         if (!KSL.isAvailable) {
-            logger.severe("KotlinScriptLoader недоступен")
+            logger.severe("KotlinScriptLoader is unavailable")
             server.pluginManager.disablePlugin(this)
             return
         }
@@ -155,7 +155,7 @@ class ServerToolkitPlugin : JavaPlugin(), KSLAddon {
     }
 
     override fun onUnload() {
-        // Закрой здесь собственные ресурсы, если они есть.
+        // Close your own resources here, if any.
     }
 
     override fun onDisable() {
@@ -164,17 +164,17 @@ class ServerToolkitPlugin : JavaPlugin(), KSLAddon {
 }
 ~~~
 
-Что делают вызовы:
+What these calls do:
 
-- registerService публикует объект, который скрипт может получить через service<T>(key).
-- addDefaultImports добавляет импорты в компиляцию KSL-скриптов. Скриптам не придётся повторять их вручную.
-- KSL связывает регистрации с аддоном. При его выгрузке зарегистрированные через API импорты и сервисы автоматически снимаются.
+- registerService publishes an object that scripts can retrieve through service<T>(key).
+- addDefaultImports adds imports to KSL script compilation so scripts do not need to repeat them manually.
+- KSL associates these registrations with the addon and removes them when the addon is unloaded.
 
-Регистрируй импорты в onLoad(api): так KSL знает владельца регистрации и может корректно очистить её при выгрузке.
+Register imports from onLoad(api), so KSL can track their owner and clean them up.
 
-## 6. Явные import внутри .kts
+## 6. Explicit imports in .kts
 
-После загрузки аддона его classloader доступен скриптовому компилятору и загрузчику классов. Поэтому в .kts можно написать обычные Kotlin-импорты:
+After an addon is loaded, its classloader is available to the script compiler and class loader. A .kts file can use normal Kotlin imports:
 
 ~~~kotlin
 import com.example.servertoolkit.service.MessageService
@@ -182,46 +182,39 @@ import com.example.servertoolkit.player.toolkitLabel
 import com.example.servertoolkit.player.sendToolkitMessage
 
 val messages = service<MessageService>("toolkit.messages")
-    ?: error("ServerToolkit не загружен")
+    ?: error("ServerToolkit is not loaded")
 
 registerCommand("toolkit") { player, _ ->
     player.sendToolkitMessage(player.toolkitLabel())
 }
 ~~~
 
-Если аддон зарегистрировал пакет через addDefaultImports, эти строки можно опустить.
+If the addon registered the packages through addDefaultImports, the import statements can be omitted.
 
-Синтаксис импортов — обычный Kotlin:
+Import syntax is ordinary Kotlin:
 
 ~~~kotlin
-// Один класс
 import com.example.servertoolkit.service.MessageService
-
-// Все доступные объявления конкретного пакета
 import com.example.servertoolkit.player.*
-
-// Отдельная top-level функция
 import com.example.servertoolkit.player.toolkitLabel
-
-// Псевдоним, если имена конфликтуют
 import com.example.servertoolkit.text.format as toolkitFormat
 ~~~
 
-Wildcard импорт не рекурсивный: com.example.servertoolkit.* не означает автоматический импорт из подпакетов player и text. Добавляй каждый нужный пакет отдельно.
+Wildcard imports are not recursive. com.example.servertoolkit.* does not automatically import declarations from player and text subpackages. Add each required package separately.
 
-## 7. Можно ли объявить package прямо в .kts?
+## 7. Can a .kts file declare a package?
 
-Для обычного KSL-скрипта используй его как script-файл, а не как Kotlin source-файл с объявлением пакета. Организуй повторно используемый код в обычных .kt-файлах аддона:
+Treat a regular KSL .kts file as a script, not as a Kotlin source file with a package declaration. Put reusable code into ordinary .kt files in an addon:
 
-- .kt содержит package, классы, объекты и top-level-функции;
-- Gradle компилирует их в классы аддона;
-- .kts импортирует эти объявления через обычный import или получает их через defaultImports.
+- .kt files declare packages, classes, objects, and top-level functions.
+- Gradle compiles them into addon classes.
+- .kts scripts import those declarations through ordinary imports or defaultImports.
 
-KSL не сканирует папку scripts/ и не компилирует произвольные соседние .kt-файлы как отдельные исходники. Просто положить Utils.kt рядом с my-script.kts недостаточно, чтобы его пакет стал доступен.
+KSL does not scan scripts/ and compile arbitrary neighboring .kt files as source automatically. Placing Utils.kt next to my-script.kts does not make its package available.
 
-## 8. Своя библиотека: когда нужен сервис, а когда extension-функции
+## 8. Library or service: which should you use?
 
-Используй extension-функции для небольших удобных операций:
+Use extension functions for small convenience operations:
 
 ~~~kotlin
 package com.example.servertoolkit.text
@@ -229,7 +222,7 @@ package com.example.servertoolkit.text
 fun String.withPrefix(): String = "[Server] $this"
 ~~~
 
-Используй класс-сервис, когда есть состояние, конфигурация, доступ к БД, кэш или жизненный цикл:
+Use a service class when functionality has state, configuration, database access, a cache, or a lifecycle:
 
 ~~~kotlin
 package com.example.servertoolkit.service
@@ -239,57 +232,54 @@ class MessageService {
 }
 ~~~
 
-Сервис регистрируется один раз в onLoad, а скрипты получают его через service<T>(key). Не создавай отдельную копию сервиса в каждом скрипте, если состояние должно быть общим.
+Register a service once in onLoad; scripts retrieve it with service<T>(key). Do not create a separate instance in every script when state should be shared.
 
-### Несколько библиотек и аддонов
+### Multiple libraries and addons
 
-Можно разделить функциональность на несколько аддонов: server-text для форматирования, server-economy для баланса и server-gui для меню. Каждый аддон публикует только свои пакеты и сервисы.
+Split functionality across addons when useful: server-text for formatting, server-economy for balances, and server-gui for menus. Each addon should publish only its own packages and services.
 
-Для зависимости от другого KSL-аддона используй api.onAddonReady("addon-id") { ... } (или onAddonReady напрямую), а не предполагай, что сервис уже зарегистрирован. dependsOn описывает зависимость KSL-аддонов и помогает диагностировать её отсутствие; для отложенной привязки предназначен callback onAddonReady.
+For a dependency on another KSL addon, use api.onAddonReady("addon-id") { ... } rather than assuming the service has already registered. dependsOn describes addon dependencies and helps diagnose missing dependencies; onAddonReady provides deferred binding.
 
-## 9. Что происходит с classpath и выгрузкой
+## 9. Classpath and unloading
 
-При компиляции KSL собирает текущие default imports и classloader'ы зарегистрированных аддонов. Их классы становятся доступны компилятору. При выполнении скрипта используется addon-aware classloader, чтобы те же классы были доступны и в runtime.
+During compilation, KSL collects the current default imports and classloaders of registered addons. Their classes become visible to the compiler. Script execution also uses an addon-aware classloader so the same classes remain available at runtime.
 
-Практические следствия:
+Practical consequences:
 
-1. Аддон должен быть включён до компиляции скрипта, который импортирует его классы.
-2. После установки, обновления или выгрузки аддона перезагрузи затронутые скрипты.
-3. Не оставляй загруженные скрипты, которые продолжают использовать классы уже выгруженного аддона.
-4. Не упаковывай KSL API внутрь аддона: дублирование типов между classloader'ами может привести к несовместимости сервисов.
-5. Уникальные package names и ключи сервисов снижают риск конфликтов.
+1. The addon must be enabled before a script that imports its classes is compiled.
+2. Reload affected scripts after installing, updating, or unloading an addon.
+3. Do not leave scripts loaded if they still reference classes from an unloaded addon.
+4. Do not package KSL API into the addon: duplicated types across classloaders can break service compatibility.
+5. Use unique package names and service keys to reduce conflicts.
 
-## 10. Потоки и безопасность
+## 10. Threading and security
 
-- Bukkit API для игроков, миров, инвентарей и сущностей используй в основном потоке сервера, если документация конкретного API не говорит обратное.
-- Не выполняй блокирующий SQL, сетевые запросы и тяжёлые операции в обработчиках событий на основном потоке.
-- Старайся делать API аддона небольшим и предсказуемым.
-- Не считай KSL sandbox заменой проверке доверия к стороннему JAR-аддону: аддон — полноценный Bukkit-плагин с правами кода плагина.
-- Не публикуй изменяемые коллекции наружу без необходимости; продумывай синхронизацию, если сервис вызывается из нескольких потоков.
+- Use Bukkit world/player/inventory/entity APIs on the main server thread unless the specific API explicitly permits asynchronous access.
+- Do not run blocking SQL, network requests, or heavy work inside main-thread event handlers.
+- Keep addon APIs small and predictable.
+- Do not treat KSL Sandbox as a security boundary for third-party JAR addons. An addon is a full Bukkit plugin with the permissions of plugin code.
+- Avoid exposing mutable collections directly. Design synchronization for services accessed from multiple threads.
 
-## 11. Проверка, если import не работает
+## 11. Troubleshooting imports
 
-1. Убедись, что аддон включён и отображается в /ksl addons.
-2. Проверь точное имя пакета в строке package исходного .kt.
-3. Убедись, что импорт указывает на пакет, в котором действительно лежит функция или класс.
-4. Проверь, что функция или класс имеют public-видимость (это значение по умолчанию в Kotlin), а не private или internal.
-5. Убедись, что нужная зависимость доступна classloader'у аддона на сервере.
-6. Если используешь defaultImports, проверь, что регистрация сделана в onLoad и что пакет написан без опечаток.
-7. После изменения JAR перезапусти сервер или корректно перезагрузи аддон и затем скрипты. Не полагайся на горячую замену классов уже загруженного classloader'а.
+1. Confirm that the addon is enabled and appears in /ksl addons.
+2. Check the exact package declaration in the .kt source file.
+3. Confirm the import points to the package that contains the function or class.
+4. Ensure that the declaration is public (the Kotlin default), not private or internal.
+5. Check that runtime dependencies are available to the addon classloader on the server.
+6. If using defaultImports, confirm registration happens in onLoad and the package name has no typos.
+7. After replacing a JAR, restart the server or properly reload the addon and affected scripts. Do not assume already-loaded classloaders can hot-swap classes.
 
-## 12. Связанные руководства
+## 12. Related guides
 
-- [Разработка аддонов](Addon-Development-Guide.md) — API, lifecycle, сервисы, события и context extensions.
-- [Своя Standard Library](Custom-Standard-Library.md) — проектирование библиотеки расширений.
-- [Публичный API KSL](Public-API.md) — стабильные точки интеграции.
-- [Архитектура Standard Library](Standard-Library-Architecture.md) — встроенные пакеты и соглашения.
+- [Addon Development Guide](Addon-Development-Guide.md) — API, lifecycle, services, events, and context extensions.
+- [Custom Standard Library](Custom-Standard-Library.md) — designing a reusable extension library.
+- [KSL Public API](Public-API.md) — supported integration points.
+- [Standard Library Architecture](Standard-Library-Architecture.md) — built-in packages and conventions.
 
+## Local server libraries: scripts/libs/
 
-## Локальные библиотеки сервера: `scripts/libs/`
-
-KSL компилирует все `.kt`-файлы в общей папке `plugins/KotlinScriptLoader/scripts/libs/` как один Kotlin source set. Вложенные каталоги поддерживаются; каждый файл может объявлять собственный `package` и обычные `import`.
-
-Пример структуры:
+KSL compiles all .kt files in plugins/KotlinScriptLoader/scripts/libs/ as one Kotlin source set. Nested folders are supported; each file can declare its own package and regular imports.
 
 ~~~text
 scripts/
@@ -299,14 +289,14 @@ scripts/
   welcome.kts
 ~~~
 
-`TextTools.kt`:
+TextTools.kt:
 
 ~~~kotlin
 package server.libs.text
 fun String.coloredLabel(): String = "§a$this"
 ~~~
 
-`PlayerTools.kt`:
+PlayerTools.kt:
 
 ~~~kotlin
 package server.libs.player
@@ -315,11 +305,11 @@ import server.libs.text.coloredLabel
 fun Player.notifyServer(text: String) { sendMessage(text.coloredLabel()) }
 ~~~
 
-В `.kts`-скрипте доступны обычные импорты:
+A .kts script can import these functions normally:
 
 ~~~kotlin
 import server.libs.player.notifyServer
-player?.notifyServer("Добро пожаловать!")
+player?.notifyServer("Welcome!")
 ~~~
 
-После изменения `.kt`-файлов выполни `/ksl reload`. Исходники компилируются совместно, поэтому могут ссылаться друг на друга. При ошибке компиляции предыдущая успешно собранная версия остаётся активной.
+Run /ksl reload after changing .kt files. They are compiled together and can reference one another. If compilation fails, the previous successfully compiled version remains active.

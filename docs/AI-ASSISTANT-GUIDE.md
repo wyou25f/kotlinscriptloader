@@ -1,192 +1,164 @@
-# Руководство по работе с ИИ над KotlinScriptLoader
+# AI Assistant Guide for KotlinScriptLoader
 
-Документ помогает передать нейросети достаточно контекста для написания скрипта, аддона, диагностики ошибки или изменения самого KSL.
+This guide explains how to provide an AI assistant with enough context to write a script or addon, diagnose an issue, or modify KSL itself.
 
-**Главное правило: ИИ должен проверять реальную версию репозитория и не придумывать API по названиям.**
+**The assistant must verify the repository version and must not invent APIs based on their names.**
 
-## 1. Как передать контекст проекта
+## 1. Providing project context
 
-### Лучший вариант — подключить репозиторий
+Share https://github.com/wyou25f/kotlinscriptloader and ask the assistant to read:
 
-Передай ссылку: https://github.com/wyou25f/kotlinscriptloader
+- AGENTS.md — rules for coding agents;
+- README.md — project overview;
+- docs/KSL-Encyclopedia.md — architecture and DSL;
+- docs/Public-API.md — addon API;
+- docs/Standard-Library-Architecture.md — standard library;
+- the guide for the subsystem involved in the task.
 
-Попроси ассистента прочитать:
-- AGENTS.md — правила для coding agents;
-- README.md — краткий обзор;
-- docs/KSL-Encyclopedia.md — возможности и DSL;
-- docs/Public-API.md — API аддонов;
-- docs/Standard-Library-Architecture.md — стандартная библиотека;
-- документ нужной подсистемы.
+Documentation helps locate the right part of the project, but signatures and behavior must be verified against source code and tests in the current branch.
 
-Если платформа умеет подключать GitHub как источник знаний, подключи репозиторий целиком. Если доступна загрузка файлов, приложи документы и относящиеся к задаче исходники, тесты и примеры.
+If the assistant cannot open GitHub, attach only the relevant material:
 
-Документация помогает найти нужную часть проекта, но окончательная проверка сигнатур и поведения делается по исходникам текущей ветки и тестам.
-
-### Если ИИ не умеет открывать GitHub
-
-| Задача | Передай |
+| Task | Provide |
 |---|---|
-| Написать .kts | README, раздел DSL энциклопедии, похожий файл из examples/ |
-| Использовать GUI | GUI-раздел энциклопедии и examples/gui.kts |
-| SQL/SQLite | docs/Database-Guide.md, пример и соответствующие исходники |
-| Создать аддон | docs/Addon-Development-Guide.md, docs/Public-API.md, интерфейсы API и пример аддона |
-| Изменить stdlib | документы Standard Library, пакет src/main/.../std и тесты |
-| Исправить баг | минимальный пример, связанные исходники, тесты и полный относящийся лог |
-| Изменить ядро | AGENTS.md, энциклопедия, затрагиваемые исходники/тесты, Gradle build и CI workflow |
+| Write a .kts script | DSL guide and a similar file from examples/ |
+| Use a GUI | GUI section of the encyclopedia and a GUI example |
+| SQL/SQLite | Database Guide, an example, and relevant source files |
+| Create an addon | Addon Development Guide, Public API, API interfaces, and an addon example |
+| Change the standard library | Standard Library docs, src/main/.../std, and tests |
+| Fix a bug | Minimal reproduction, related source, tests, and full relevant log |
+| Change the core | AGENTS.md, affected source/tests, Gradle build, and CI workflow |
 
-Не нужно прикладывать весь проект для маленькой локальной задачи. Для архитектурной работы полезен полный репозиторий.
+## 2. Project profile for a new chat
 
-## 2. Паспорт проекта для нового чата
+Copy this block into a new conversation and provide the current commit:
 
-Скопируй блок в начало нового диалога и укажи актуальный commit:
-
-    Проект: KotlinScriptLoader (KSL)
-    Репозиторий: https://github.com/wyou25f/kotlinscriptloader
-    Назначение: загрузчик Kotlin .kts-скриптов для Paper.
-    Целевая среда проекта: Paper 1.21.1, Java 21.
-    Скрипты используют Kotlin Scripting и BukkitScriptContext как implicit receiver.
-    Каталог скриптов на сервере: plugins/KotlinScriptLoader/scripts/
-    Примеры: examples/ ; документация: docs/
+    Project: KotlinScriptLoader (KSL)
+    Repository: https://github.com/wyou25f/kotlinscriptloader
+    Purpose: Kotlin .kts script loader for Paper.
+    Target environment: Paper 1.21.1, Java 21.
+    Scripts use Kotlin Scripting and BukkitScriptContext as an implicit receiver.
+    Server script directory: plugins/KotlinScriptLoader/scripts/
+    Examples: examples/ ; documentation: docs/
     Public API: ru.privateserver.ksl.api
-    Script DSL: ru.privateserver.ksl.dsl и BukkitScriptContext
+    Script DSL: ru.privateserver.ksl.dsl and BukkitScriptContext
     Standard Library: ru.privateserver.ksl.std.*
-    Не выдумывай методы, свойства, импорты и сигнатуры.
-    Проверь исходники и тесты именно той ветки/версии, с которой работаем.
-    Различай API для .kts, API Kotlin/Java-аддонов и внутренние классы ядра.
-    Учитывай потоки Bukkit и освобождение ресурсов при hot-reload.
-    После изменений укажи файлы, тесты, результат сборки и непроверенные места.
+    Do not invent methods, properties, imports, or signatures.
+    Check source and tests for the exact branch/version.
+    Distinguish the .kts API, Kotlin/Java addon API, and internal core classes.
+    Account for Bukkit threading rules and resource cleanup during hot reload.
+    Report files, tests, build results, and anything not verified.
 
-Этот паспорт не заменяет исходники — он лишь объясняет ИИ, что за проект перед ним.
+This profile explains the project but does not replace the source code.
 
-## 3. Как сформулировать задачу
+## 3. Describe the task precisely
 
-Опиши четыре вещи: желаемый результат, место изменения (скрипт/аддон/ядро), ожидаемое поведение при ошибках и reload, технические ограничения.
+Include the desired result, target layer (script/addon/core), expected behavior on errors and reload, and technical constraints.
 
-Пример для скрипта:
+Example — a script:
 
-    Напиши KSL .kts-скрипт приветствия игрока при входе.
-    Сообщение берётся из YAML, форматирование — MiniMessage.
-    После /ksl reload обработчик не должен дублироваться.
-    Используй только реально существующие DSL/API KSL.
-    Сначала проверь примеры и исходники репозитория.
-    Выдай полный .kts и пример YAML.
+    Write a KSL .kts script that welcomes a player when they join.
+    Read the message from YAML and format it with MiniMessage.
+    After /ksl reload, the event handler must not be duplicated.
+    Use only DSL/API methods that exist in this KSL version.
+    Check repository examples and source first.
+    Provide the complete .kts file and YAML example.
 
-Пример для бага:
+Example — a bug:
 
-    Найди причину ошибки.
+    Find the cause of this error.
     KSL commit: [hash]
-    Paper: [точная версия]
-    Java: [вывод java -version]
-    Команда/действие: [...]
-    Ожидалось: [...]
-    Получилось: [...]
-    Лог: [полный фрагмент]
-    Скрипт/конфиг: [минимальный пример]
-    Проверь реализацию и тесты. Не предлагай несуществующие методы.
+    Paper: [exact version]
+    Java: [java -version output]
+    Command/action: [...]
+    Expected: [...]
+    Actual: [...]
+    Log: [complete relevant excerpt]
+    Script/config: [minimal example]
+    Check implementation and tests. Do not suggest nonexistent methods.
 
-## 4. Какие данные приложить
+## 4. What to attach
 
-### Скрипт .kts
-- полный текст скрипта и YAML, который он читает;
-- сообщение компилятора и код ошибки KSL;
-- список установленных интеграций, если они используются;
-- ожидаемое поведение при reload.
+- **.kts script:** full script, YAML, compiler message, KSL error code, integrations used, and expected reload behavior.
+- **Addon:** plugin.yml, build.gradle.kts, main class, KSLAddon implementation, API interfaces, and loading/linking error.
+- **KSL core:** exact commit, related source/tests, reproduction steps, stack trace, actual test/build results, and CI link.
 
-### Аддон
-- plugin.yml или paper-plugin.yml;
-- build.gradle.kts;
-- главный класс и реализация KSLAddon;
-- используемые API-интерфейсы;
-- ошибка загрузки/линковки и целевая версия KSL.
+## 5. Server diagnostics
 
-### Ядро KSL
-- точный commit hash;
-- связанные исходники и тесты;
-- шаги воспроизведения или минимальный failing test;
-- полный stack trace;
-- результаты ./gradlew test и ./gradlew shadowJar, если запускались;
-- ссылка на GitHub Actions run.
+Useful information includes:
 
-## 5. Диагностический пакет с сервера
+1. /version — server version.
+2. /ksl doctor — KSL diagnostics.
+3. /ksl errors — recent script errors, if available in this version.
+4. The affected script and YAML.
+5. Console excerpt around the error.
+6. For a freeze, the dump from plugins/KotlinScriptLoader/dumps/.
 
-При проблеме обычно полезны:
-1. /version — версия сервера;
-2. /ksl doctor — диагностика KSL;
-3. /ksl errors — последние ошибки скриптов, если команда доступна в этой версии;
-4. проблемный скрипт и его YAML;
-5. фрагмент консоли вокруг ошибки;
-6. при зависании — подходящий dump из plugins/KotlinScriptLoader/dumps/.
+Do not send the entire plugins/ directory unless necessary. Do not attach the database unless the issue concerns its contents or schema.
 
-Не отправляй весь каталог plugins/ без необходимости. Не прикладывай базу данных, если проблема не связана с её содержимым или схемой.
+## 6. How an assistant should verify code
 
-## 6. Как ИИ должен проверять код
+1. Confirm branch and commit.
+2. Find the function/class definition in source.
+3. Check default imports and BukkitScriptContext.
+4. Compare examples and tests.
+5. Verify the target layer: .kts, Kotlin addon, or Java addon.
+6. Check Bukkit threading: world, player, entity, and inventory operations usually belong on the main thread.
+7. Verify listeners, commands, placeholders, GUIs, and tasks are removed during reload/unload.
+8. Run tests/build when an environment is available.
+9. Separate facts, assumptions, and unverified details.
 
-1. Уточнить branch и commit hash.
-2. Найти определение функции/класса в исходниках.
-3. Проверить default imports и BukkitScriptContext.
-4. Сверить примеры и тесты.
-5. Убедиться, что код предназначен для нужного слоя: .kts, Kotlin addon или Java addon.
-6. Проверить потоки Bukkit: работа с миром, игроками, сущностями и инвентарями обычно должна идти на главном потоке.
-7. Проверить, что listener'ы, команды, placeholders, GUI и задачи снимаются при reload/unload.
-8. Запустить тесты/сборку, если есть среда.
-9. Разделить факты, предположения и непроверенные места.
+Do not mix the three API layers:
 
-### Не смешивай три уровня API
+- **Script DSL:** functions/properties available in .kts through the receiver.
+- **Addon Public API:** interfaces/extensions for Kotlin and Java plugins.
+- **Internal implementation:** KSL internals that are not necessarily stable.
 
-- **Script DSL:** функции и свойства, доступные внутри .kts через receiver.
-- **Addon Public API:** интерфейсы/расширения для Kotlin- и Java-плагинов.
-- **Internal implementation:** внутренние классы KSL, не обязательно стабильные.
+A function available in .kts is not necessarily available to addons under the same name, and vice versa.
 
-Функция из .kts не обязательно доступна аддону с тем же именем, и наоборот.
+### Threading and lifecycle
 
-### Потоки и жизненный цикл
+- Do not run Bukkit world/player/entity/inventory operations from an arbitrary async callback.
+- Do not block the main thread with SQL, network calls, long file I/O, or Thread.sleep.
+- Return Bukkit operations to the main thread through a supported scheduler.
+- Do not create repeating tasks that cannot be cancelled.
+- Do not treat Sandbox as isolation for untrusted code; scripts run in the same JVM process.
 
-- Не выполняй Bukkit-операции с миром, игроками, сущностями и инвентарями в произвольном async callback.
-- Не блокируй главный поток SQL, сетью, долгим файловым вводом-выводом или Thread.sleep.
-- Возвращай Bukkit-операции в главный поток через поддерживаемый scheduler.
-- Не создавай бесконечные задачи без отмены.
-- Не считай Sandbox изоляцией недоверенного кода: скрипт работает в том же JVM-процессе.
+## 7. Handover between chats
 
-## 7. Передача работы между чатами
+Provide the next assistant with the repository link and branch/commit, a short change summary, changed files, test/CI results, remaining tasks, and unresolved questions.
 
-Передай следующему ассистенту:
-- ссылку на репозиторий и branch/commit;
-- краткое описание изменений;
-- список изменённых файлов;
-- результаты тестов и CI;
-- оставшиеся задачи и нерешённые вопросы.
+Do not write only “continue from last time”: a new chat may not have access to the previous history.
 
-Не пиши только «продолжи с прошлого раза»: новый чат может не иметь доступа к предыдущей истории.
+## 8. Confidentiality
 
-## 8. Конфиденциальность
+Remove or replace Discord webhook URLs, tokens, database passwords, API keys, private keys, environment secrets, and personal information before sharing logs or files.
 
-Перед отправкой удали или замени Discord webhook URL, токены, пароли БД, API keys, приватные ключи, секреты из переменных окружения и персональные данные.
+Use placeholders such as [REDACTED_TOKEN], [DB_PASSWORD], and [SERVER_IP]. Preserve the structure and value types so the example remains reproducible.
 
-Используй заглушки вроде [REDACTED_TOKEN], [DB_PASSWORD], [SERVER_IP]. Сохраняй структуру и типы значений, чтобы пример оставался воспроизводимым.
+## 9. Final report format
 
-## 9. Формат итогового отчёта
+Ask the assistant to finish with a report like this:
 
-Попроси ИИ завершать работу так:
-
-    Что изменено:
+    Changes:
     - ...
 
-    Файлы:
+    Files:
     - ...
 
-    Проверки:
-    - Тесты написаны: да/нет
-    - ./gradlew test: выполнено/не выполнено; результат
-    - ./gradlew shadowJar: выполнено/не выполнено; результат
-    - GitHub Actions: ссылка и статус
+    Verification:
+    - Tests written: yes/no
+    - ./gradlew test: run/not run; result
+    - ./gradlew shadowJar: run/not run; result
+    - GitHub Actions: link and status
 
-    Совместимость:
+    Compatibility:
     - ...
 
-    Риски и ограничения:
+    Risks and limitations:
     - ...
 
-    Не проверено:
+    Not verified:
     - ...
 
-«Тест написан», «тест запущен» и «тест прошёл» — разные статусы. ИИ не должен утверждать, что сборка успешна, если он её не запускал или не видел успешный CI.
+“Test written”, “test run”, and “test passed” are different statuses. Never claim that a build succeeded unless it was actually run or a successful CI run was observed.

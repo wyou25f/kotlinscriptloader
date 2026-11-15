@@ -1,98 +1,98 @@
-# KSL Script DSL — справочник
+# KSL Script DSL — Reference
 
-Этот документ описывает DSL внутри `.kts`. Он не является справочником Kotlin/Java Addon API: для аддонов смотри [Public API](Public-API.md).
+This document describes the DSL available inside .kts scripts. It is not a reference for the Kotlin/Java Addon API; see [Public API](Public-API.md) for addons.
 
-## 1. Контекст скрипта
+## 1. Script context
 
-Каждый скрипт выполняется с implicit receiver `BukkitScriptContext`. Типичные свойства:
+Each script executes with BukkitScriptContext as its implicit receiver. Common properties and methods include:
 
-- `plugin` — экземпляр JavaPlugin KSL, доступен только доверенным/несандбоксированным скриптам; в sandboxed-скриптах чтение свойства выбрасывает `SecurityException`;
-- `config` — YAML-конфигурация текущего скрипта;
-- `database` — сырой общий HikariDataSource, доступен только доверенным/несандбоксированным скриптам; для sandboxed-скриптов используй методы KSL для SQL.
-- `log(message)`, `logWarn(message)`, `logError(message)` — логирование через KSL;
-- `onlinePlayers()`, `onlineCount`, `maxPlayers`;
-- `findPlayer(nameOrUuid)`;
-- `runSync { }`, `runAsync { }`;
-- `onEvent<T> { }`, `registerCommand(...)`;
-- `registerPlaceholder(...)`;
-- `saveConfig()`, `editConfig { }`.
+- plugin — the KSL JavaPlugin instance. Available only to trusted/non-sandboxed scripts; reading it from a sandboxed script throws SecurityException.
+- config — YAML configuration for the current script.
+- database — the shared raw HikariDataSource. Available only to trusted/non-sandboxed scripts; sandboxed scripts should use KSL SQL methods.
+- log(message), logWarn(message), logError(message) — KSL logging.
+- onlinePlayers(), onlineCount, maxPlayers.
+- findPlayer(nameOrUuid).
+- runSync { }, runAsync { }.
+- onEvent<T> { }, registerCommand(...).
+- registerPlaceholder(...).
+- saveConfig(), editConfig { }.
 
-Набор default imports задаётся метаданными KSL. Не предполагай, что wildcard import рекурсивен: подпакеты могут требовать отдельного импорта. Проверяй [Packages and Imports](Packages-and-Imports.md).
+Default imports are controlled by KSL metadata. Do not assume wildcard imports are recursive: subpackages may require separate imports. See [Packages and Imports](Packages-and-Imports.md).
 
-## 2. События
+## 2. Events
 
-```kotlin
+~~~kotlin
 onEvent<PlayerJoinEvent> {
-    player.sendRichMessage("<green>Привет, ${player.name}!</green>")
+    player.sendRichMessage("<green>Welcome, ${player.name}!</green>")
 }
-```
+~~~
 
-Для событий с отменой используй параметры `priority` и `ignoreCancelled`, если они нужны:
+For cancellable events, configure priority and ignoreCancelled as required:
 
-```kotlin
+~~~kotlin
 onEvent<PlayerInteractEvent>(
     priority = EventPriority.MONITOR,
     ignoreCancelled = true
 ) {
-    // На MONITOR наблюдай за событием; не меняй его состояние.
+    // Observe at MONITOR priority; do not modify the event.
 }
-```
+~~~
 
-Не выполняй тяжёлые SQL, сетевые запросы или длительные вычисления в event callback. Сначала передай данные в фоновую задачу, а Bukkit-изменения верни в главный поток.
+Do not perform expensive SQL, network calls, or long computations in an event callback. Move data to a background task and return Bukkit changes to the main thread.
 
-## 3. Команды
+## 3. Commands
 
-```kotlin
+~~~kotlin
 registerCommand("profile", aliases = listOf("p")) { sender, args ->
     if (!sender.hasPermission("server.profile")) {
-        sender.sendMessage("Недостаточно прав.")
+        sender.sendMessage("You do not have permission.")
         return@registerCommand
     }
 
-    sender.sendMessage("Аргументов: ${args.size}")
+    sender.sendMessage("Arguments: ${args.size}")
 }
-```
+~~~
 
-Имя команды и aliases валидируются при регистрации. Конфликты и некорректные aliases диагностируются KSL. Не регистрируй команды заново в каждом повторяющемся событии.
+Command names and aliases are validated during registration. KSL reports conflicts and invalid aliases. Do not register commands again inside a repeating event.
 
-## 4. Планировщик
+## 4. Scheduler
 
-```kotlin
+~~~kotlin
 runSync {
-    // Bukkit API, требующий главный поток
+    // Bukkit API that requires the main thread
 }
 
 runAsync {
-    // Файловый ввод-вывод, SQL или вычисления,
-    // если используемый API допускает фоновый вызов.
+    // File I/O, SQL, or computation,
+    // when the API supports a background call.
 }
 
 every(ticks = 20L) {
-    // Повторяющаяся задача
+    // Repeating task
 }
-```
+~~~
 
-Периодические задачи, зарегистрированные через KSL-контекст, принадлежат скрипту и снимаются при unload. Не используй `Thread.sleep` для задержек: это блокирует поток. Для задержки используй scheduler API KSL/Bukkit.
+Repeating tasks registered through the KSL context belong to the script and are removed on unload. Do not use Thread.sleep for delays; it blocks a thread. Use KSL/Bukkit scheduler APIs instead.
 
-## 5. Bukkit и потоки
+## 5. Bukkit and threading
 
-| Операция | Поток |
+| Operation | Thread |
 |---|---|
-| Изменение блоков/мира | Главный |
-| Инвентарь игрока | Главный |
-| Телепорт, здоровье, эффекты игрока | Главный |
-| SQL через KSL DB API | Фоновый |
-| Сетевые запросы | Фоновый |
-| CPU-heavy вычисление | Worker/async |
-| Результат фоновой работы, меняющий Bukkit state | Вернуть через `runSync` |
+| Modifying blocks/world state | Main |
+| Player inventory | Main |
+| Teleport, health, player effects | Main |
+| SQL through KSL DB API | Background |
+| Network requests | Background |
+| CPU-heavy computation | Worker/async |
+| Background result that changes Bukkit state | Return through runSync |
 
-Даже чтение Bukkit объектов не следует считать безопасным в async-потоке, если Paper API прямо не разрешает его.
+Do not assume even read access to Bukkit objects is safe on an async thread unless the Paper API explicitly says so.
 
-## 6. YAML-конфигурация текущего скрипта
+## 6. Current script YAML configuration
 
-Файл называется как скрипт: `shop.kts` → `shop.yml`.
+The config file uses the script's base name: shop.kts → shop.yml.
 
-```kotlin
+~~~kotlin
 val prefix = config.getString("messages.prefix", "<gray>[Shop]</gray>") ?: "<gray>[Shop]</gray>"
 
 editConfig {
@@ -101,96 +101,95 @@ editConfig {
 }
 
 saveConfig()
-```
+~~~
 
-`editConfig(save = true) { ... }` синхронизирует изменение и сохранение. При `save = false` изменения остаются в памяти до явного `saveConfig()`.
+editConfig(save = true) synchronizes the modification and save. With save = false, changes remain in memory until saveConfig() is called explicitly.
 
-Миграции и проверка схемы YAML описаны в [Data Formats](Data-Formats.md).
+See [Data Formats](Data-Formats.md) for YAML schema validation and migrations.
 
 ## 7. Feature flags
 
-Флаги хранятся в YAML скрипта под `features`:
+Feature flags are stored in the script YAML under features:
 
-```kotlin
+~~~kotlin
 if (featureEnabled("shop.enabled", default = true)) {
-    // Магазин доступен
+    // The shop is enabled
 }
 
 enableFeature("shop.enabled")
 disableFeature("shop.enabled")
 val stateAfterToggle = toggleFeature("shop.enabled")
-```
+~~~
 
-Имя — dot-separated ключ, например `shop.enabled` или `events.double-xp`. Значение сохраняется через конфигурацию скрипта. Это переключатель поведения, а не механизм безопасности: скрытая/выключенная функция не является защищённой от прямого вызова другим кодом.
+A flag is a dot-separated path such as shop.enabled or events.double-xp. Its value is saved through the script configuration. This controls behavior; it is not a security mechanism. A hidden or disabled feature is not protected from direct calls by other code.
 
-## 8. Сохранение состояния
+## 8. Persisting state
 
-Для постоянных данных используй `persist(...)` и `table(...)`, а не глобальные mutable-переменные, которые исчезнут при reload. Подробности хранения, сериализации и backend смотри в [Database Guide](Database-Guide.md).
+Use persist(...) and table(...) for persistent data instead of global mutable variables that disappear on reload. See [Database Guide](Database-Guide.md) for storage, serialization, and backend details.
 
-## 9. Файлы данных
+## 9. Data files
 
-Контекст предоставляет JSON и TOML операции для файлов в каталоге скриптов. Путь ограничивается областью `scripts/`. Не пытайся обращаться через `../` к конфигу плагина или другим каталогам. Подробности: [Data Formats](Data-Formats.md).
+The context provides JSON and TOML operations for files in the scripts directory. Paths are restricted to scripts/. Do not use ../ to access the plugin config or other directories. See [Data Formats](Data-Formats.md).
 
-## 10. Сообщения и ошибки
+## 10. Messages and errors
 
-```kotlin
-warn("Необязательная настройка отсутствует")
-error("Операция текущего скрипта не может быть завершена")
-fatal("Обязательная часть скрипта не инициализирована")
-```
+~~~kotlin
+warn("An optional setting is missing")
+error("The current script operation cannot be completed")
+fatal("A required part of the script was not initialized")
+~~~
 
-- `warn` пишет предупреждение и продолжает выполнение.
-- `error` прерывает текущую операцию.
-- `fatal` выгружает ресурсы текущего скрипта.
+- warn logs a warning and continues.
+- error interrupts the current operation.
+- fatal unloads the current script and its resources.
 
-Не используй `fatal` для ожидаемой ошибки пользователя, например неверного аргумента команды. Для этого отправь понятное сообщение и вернись из обработчика.
+Do not use fatal for an expected user error such as an invalid command argument. Send a clear message and return from the handler instead.
 
-## 11. PlaceholderAPI и интеграции
+## 11. PlaceholderAPI and integrations
 
-KSL поддерживает мягкие интеграции, если соответствующие плагины установлены. Проверяй результат hook/API на null и не считай сторонний плагин обязательным. Для списка поддерживаемых интеграций и ограничений смотри [KSL Encyclopedia](KSL-Encyclopedia.md) и [Standard Library Guide](Standard-Library-Guide.md).
+KSL provides optional integrations when the corresponding plugins are installed. Check hook/API results for null and do not assume a third-party plugin is required. See [KSL Encyclopedia](KSL-Encyclopedia.md) and [Standard Library Guide](Standard-Library-Guide.md) for supported integrations and limitations.
 
-## 12. Комментарии и отключение кода
+## 12. Comments and disabling code
 
-В Kotlin Script:
+Kotlin Script supports:
 
-```kotlin
-// Однострочный комментарий
+~~~kotlin
+// Single-line comment
 
 /*
-  Многострочный
-  комментарий
+  Multi-line
+  comment
 */
 
 val enabled = true
 if (enabled) {
-    // Эта часть выполнится
+    // This code runs
 }
-```
+~~~
 
-В YAML и TOML комментарии начинаются с `#`:
+YAML and TOML comments start with #:
 
-```yaml
-# Это комментарий
+~~~yaml
+# This is a comment
 shop:
   enabled: true
-```
+~~~
 
-```toml
-# Это комментарий
+~~~toml
+# This is a comment
 [shop]
 enabled = true
-```
+~~~
 
-Символ `; ` не отключает функцию. В Kotlin он может разделять выражения на одной строке, но лучше писать отдельные строки. Для включения/выключения частей логики используй обычный `if` или сохраняемый feature flag. Не удаляй код комментариями на постоянной основе, если флаг лучше выражает настройку.
+A semicolon does not disable a function. In Kotlin it can separate expressions on one line, but separate lines are clearer. Use an if statement or a persistent feature flag to enable/disable logic. Do not permanently comment out large blocks when a configuration option would express the setting better.
 
-## 13. Ресурсы и hot reload
+## 13. Resources and hot reload
 
-События, команды, placeholders, задачи и другие KSL-owned ресурсы должны быть созданы через DSL KSL. Так KSL сможет снять их при reload. Если создаёшь собственные внешние ресурсы напрямую через Bukkit/другой плагин, обеспечь их закрытие/отмену в жизненном цикле, иначе возможны дубли обработчиков и утечки.
+Events, commands, placeholders, tasks, and other KSL-owned resources should be created through the KSL DSL so KSL can remove them on reload. If you create external resources directly through Bukkit or another plugin, close/cancel them as part of your own lifecycle. Otherwise duplicate handlers and leaks may occur.
 
-## 14. Соседние руководства
+## 14. Related guides
 
-- [Жизненный цикл скриптов, hot-reload и владение ресурсами](Script-Lifecycle-and-Resources.md)
-
+- [Script Lifecycle, Hot Reload, and Resource Ownership](Script-Lifecycle-and-Resources.md)
 - [Standard Library](Standard-Library-Architecture.md)
 - [Runtime API](Runtime-API.md)
 - [Database Guide](Database-Guide.md)
