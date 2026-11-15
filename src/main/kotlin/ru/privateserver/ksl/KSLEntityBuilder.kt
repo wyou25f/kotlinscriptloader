@@ -249,7 +249,17 @@ class KSLEntityBuilder(
     }
 
     fun aware(on: Boolean = true) { requireMob().setAware(on) }
-    fun aggressive(on: Boolean = true) { requireMob().setAggressive(on) }
+    fun aggressive(on: Boolean = true) {
+        val mob = requireMob()
+        val setter = mob.javaClass.methods.firstOrNull { method ->
+            method.name == "setAggressive" &&
+                method.parameterTypes.size == 1 &&
+                method.parameterTypes[0] == java.lang.Boolean.TYPE
+        } ?: throw UnsupportedOperationException(
+            "Агрессивное состояние не поддерживается этой версией Paper для ${entity.type}"
+        )
+        setter.invoke(mob, on)
+    }
 
     fun navigation(
         canFloat: Boolean? = null,
@@ -298,7 +308,10 @@ class KSLEntityBuilder(
             "Длительность зелья должна быть -1 (бесконечно) или неотрицательным числом секунд без переполнения"
         }
         require(amplifier in 0..255) { "Уровень эффекта зелья должен быть от 0 до 255" }
-        val ticks = if (seconds == -1) PotionEffect.INFINITE_DURATION else seconds * 20
+        val infiniteDuration = runCatching {
+            PotionEffect::class.java.getField("INFINITE_DURATION").getInt(null)
+        }.getOrDefault(Int.MAX_VALUE)
+        val ticks = if (seconds == -1) infiniteDuration else seconds * 20
         entity.addPotionEffect(PotionEffect(type, ticks, amplifier))
     }
 
