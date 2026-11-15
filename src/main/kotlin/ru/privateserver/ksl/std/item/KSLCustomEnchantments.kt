@@ -2,7 +2,8 @@ package ru.privateserver.ksl.std.item
 
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
-import net.kyori.adventure.text.minimessage.MiniMessage
+import org.bukkit.inventory.EquipmentSlot
+import ru.privateserver.ksl.std.component.toMiniMessageComponent
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
@@ -43,7 +44,8 @@ class KSLCustomEnchantment internal constructor(
     internal val hitHandler: (KSLCustomEnchantHitContext.() -> Unit)?,
     internal val useHandler: (KSLCustomEnchantUseContext.() -> Unit)?,
     internal val breakHandler: (KSLCustomEnchantBreakContext.() -> Unit)?,
-    internal val killHandler: (KSLCustomEnchantKillContext.() -> Unit)?
+    internal val killHandler: (KSLCustomEnchantKillContext.() -> Unit)?,
+    internal val damageTakenHandler: (KSLCustomEnchantDamageTakenContext.() -> Unit)? = null
 ) {
     override fun toString(): String = "KSLCustomEnchantment($namespacedId, maxLevel=$maxLevel)"
 }
@@ -89,6 +91,17 @@ class KSLCustomEnchantKillContext internal constructor(
     val event: EntityDeathEvent
 )
 
+/** Context for armor enchantments reacting to an entity-caused hit on their wearer. */
+class KSLCustomEnchantDamageTakenContext internal constructor(
+    val enchantment: KSLCustomEnchantment,
+    val player: Player,
+    val attacker: Entity,
+    val item: ItemStack,
+    val slot: EquipmentSlot,
+    val level: Int,
+    val event: EntityDamageByEntityEvent
+)
+
 /** Builder used by BukkitScriptContext.customEnchant. */
 class KSLCustomEnchantBuilder internal constructor(val id: String) {
     private var displayName: Component = Component.text(id)
@@ -99,10 +112,11 @@ class KSLCustomEnchantBuilder internal constructor(val id: String) {
     private var useHandler: (KSLCustomEnchantUseContext.() -> Unit)? = null
     private var breakHandler: (KSLCustomEnchantBreakContext.() -> Unit)? = null
     private var killHandler: (KSLCustomEnchantKillContext.() -> Unit)? = null
+    private var damageTakenHandler: (KSLCustomEnchantDamageTakenContext.() -> Unit)? = null
 
     /** Sets the displayed name. MiniMessage tags are supported. */
     fun name(value: String) {
-        displayName = MiniMessage.miniMessage().deserialize(value)
+        displayName = value.toMiniMessageComponent()
     }
 
     fun name(value: Component) {
@@ -144,6 +158,11 @@ class KSLCustomEnchantBuilder internal constructor(val id: String) {
         killHandler = handler
     }
 
+    /** Runs for each equipped armor piece with this enchantment when the wearer takes entity damage. */
+    fun onDamageTaken(handler: KSLCustomEnchantDamageTakenContext.() -> Unit) {
+        damageTakenHandler = handler
+    }
+
     internal fun build(owner: String, plugin: Plugin): KSLCustomEnchantment {
         val normalizedId = id.trim().lowercase(Locale.ROOT)
         require(normalizedId.matches(Regex("[a-z0-9][a-z0-9._-]{0,63}"))) {
@@ -176,8 +195,8 @@ class KSLCustomEnchantBuilder internal constructor(val id: String) {
             hitHandler = hitHandler,
             useHandler = useHandler,
             breakHandler = breakHandler,
-            killHandler = killHandler
-        )
+            killHandler = killHandler,
+            damageTakenHandler = damageTakenHandler        )
     }
 }
 
@@ -268,15 +287,32 @@ internal class KSLCustomEnchantManager(private val plugin: KotlinScriptLoaderPlu
             is Player -> damager
             is Projectile -> damager.shooter as? Player
             else -> null
-        } ?: return
-        val held = attacker.inventory.itemInMainHand
-        dispatch(held) { definition, level ->
-            val handler = definition.hitHandler ?: return@dispatch
-            try {
-                val context = KSLCustomEnchantHitContext(definition, attacker, event.entity, held, level, event)
-                handler.invoke(context)
-            } catch (failure: Throwable) {
-                report(definition, "onHit", failure)
+        }
+        if (attacker != null) {
+            val held = attacker.inventory.itemInMainHand
+            dispatch(held) { definition, level ->
+                val handler = definition.hitHandler ?: return@dispatch
+                try {
+                    val context = KSLCustomEnchantHitContext(definition, attacker, event.entity, held, level, event)
+                    handler.invoke(context)
+                } catch (failure: Throwable) {
+                    report(definition, "onHit", failure)
+                }
+            }
+        }
+
+        val victim = event.entity as? Player ?: return
+        val slots = listOf(EquipmentSlot.FEET, EquipmentSlot.LEGS, EquipmentSlot.CHEST, EquipmentSlot.HEAD)
+        victim.inventory.armorContents.forEachIndexed { index, armorItem ->
+            val item = armorItem ?: return@forEachIndexed
+            val slot = slots.getOrNull(index) ?: return@forEachIndexed
+            dispatch(item) { definition, level ->
+                val handler = definition.damageTakenHandler ?: return@dispatch
+                try {
+                    handler.invoke(KSLCustomEnchantDamageTakenContext(definition, victim, event.damager, item, slot, level, event))
+                } catch (failure: Throwable) {
+                    report(definition, "onDamageTaken", failure)
+                }
             }
         }
     }
