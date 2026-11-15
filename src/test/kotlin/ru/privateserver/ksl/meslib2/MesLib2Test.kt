@@ -111,4 +111,25 @@ class MesLib2Test {
         assertThrows(IllegalArgumentException::class.java) { api.export("economy", "Bad Name", "value", "1.0.0") }
         assertThrows(IllegalArgumentException::class.java) { api.exportIfAbsent("Bad Namespace", "service", "value") }
     }
+
+    @Test
+    fun boundsIdentifierAndVersionLengths() {
+        val api = facade()
+        assertThrows(IllegalArgumentException::class.java) {
+            api.export("a".repeat(129), "service", "value")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            api.export("economy", "n".repeat(129), "value")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            api.export("economy", "service", "value", "v".repeat(129))
+        }
+    }
+
+    @Test
+    fun longOwnerNamesProduceBoundedDefaultNamespaces() {
+        val api = facade(owner = "server/".repeat(40))
+        assertEquals(128, api.namespace.length)
+        assertTrue(api.namespace.matches(Regex("[a-z][a-z0-9._-]*")))
+    }
 }
