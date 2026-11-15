@@ -98,7 +98,7 @@ val economy = ml2.require<EconomyService>("economy", "service", "2.0")
 
 New scripts should prefer the canonical operations: export/get/require/contains/info, along with exportIfAbsent, remove, list, and clear. Removal is restricted to the current owner, and exportIfAbsent atomically prevents accidental replacement. list(namespace) returns sorted entry metadata. Legacy names publish/provide/put/find/lookup/resolve/mustGet/has/describe and their local variants remain available for compatibility.
 
-Namespace and name must match [a][a-z0-9._-]*. A version is an opaque label compared exactly; KSL does not interpret SemVer and does not automatically load external artifacts. Type checks use JVM classes, so prefer shared API types when provider and consumer are loaded by different classloaders.
+Namespace and name must match [a-z][a-z0-9._-]*. A version is an opaque label compared exactly; KSL does not interpret SemVer and does not automatically load external artifacts. Type checks use JVM classes, so prefer shared API types when provider and consumer are loaded by different classloaders.
 
 ## kslrt — Runtime Utilities
 
