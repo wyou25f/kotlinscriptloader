@@ -213,7 +213,11 @@ class KSLEntityBuilder(
         entity.addPotionEffect(PotionEffect(type, ticks, amplifier))
     }
 
-    fun removePotion(type: PotionEffectType): Boolean = entity.removePotionEffect(type)
+    fun removePotion(type: PotionEffectType): Boolean {
+        val existed = entity.activePotionEffects.any { it.type == type }
+        entity.removePotionEffect(type)
+        return existed
+    }
 
     fun clearPotions() {
         entity.activePotionEffects.map { it.type }.forEach { entity.removePotionEffect(it) }
