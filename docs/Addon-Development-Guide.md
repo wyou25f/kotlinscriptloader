@@ -164,7 +164,7 @@ override fun onLoad(api: KSLAPI) {
 }
 ```
 
-`KSLPluginHook` проверяет ID и имя плагина, `registerHookIfEnabled` не создаёт hook, если provider-плагин выключен, а `hookOrNull<T>()` и `requireHookAlias<T>()` дают короткий типизированный доступ. Для встроенных интеграций используй константы `KSLHookIds`, чтобы не дублировать строковые ID. Hook, зарегистрированный внутри `onLoad`, автоматически снимается при выгрузке аддона.
+`KSLPluginHook` проверяет ID и имя плагина, `registerHookIfEnabled` не создаёт hook, если provider-плагин выключен, а `findHook<T>()` и `requireHookAlias<T>()` дают короткий типизированный доступ; стандартный `hookOrNull<T>()` остаётся доступен через `ru.privateserver.ksl.api.*`. Для встроенных интеграций используй константы `KSLHookIds`, чтобы не дублировать строковые ID. Hook, зарегистрированный внутри `onLoad`, автоматически снимается при выгрузке аддона.
 
 ### `registerService(key, instance)`
 
