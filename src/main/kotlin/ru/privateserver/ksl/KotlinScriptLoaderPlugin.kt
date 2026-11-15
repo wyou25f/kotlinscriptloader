@@ -18,6 +18,23 @@ internal fun isTaskOwnedBy(scriptName: String, taskId: Int, tasksByScript: Map<S
 
 class KotlinScriptLoaderPlugin : JavaPlugin() {
 
+    internal lateinit var localeManager: KSLLocaleManager
+        private set
+
+    fun message(key: String, vararg values: Pair<String, Any?>): String =
+        localeManager.message(key, *values)
+
+    fun availableLanguages(): List<String> = localeManager.availableLanguages()
+
+    fun selectLanguage(language: String): Boolean {
+        if (!localeManager.containsLanguage(language)) return false
+        val normalized = language.trim().lowercase(java.util.Locale.ROOT).replace('_', '-')
+        config.set("language", normalized)
+        saveConfig()
+        localeManager.reload(normalized)
+        return true
+    }
+
     lateinit var database: HikariDataSource
         private set
 
@@ -409,6 +426,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         stripColorsFromLog()
         dataFolder.mkdirs()
         saveDefaultConfig()
+        localeManager = KSLLocaleManager(this)
+        localeManager.reload(config.getString("language", "ru"))
         startWatchdogDiagnostics()
         loadConfigTextPlaceholders()
         KSLErrors.reset()
@@ -425,7 +444,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
         getCommand("ksl")?.setExecutor(KSLCommandExecutor(this))
 
-        logger.info("$c9$bold▶ KotlinScriptLoader v${description.version} запускается$r")
+        logger.info(message("lifecycle.starting", "version" to description.version))
 
         val dbOk = initDatabase()
         persistStore = KSLPersistStore(this)
@@ -470,7 +489,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         watchdogMonitor = null
         runCatching { scriptWatcher?.stop() }
         runCatching { compilePool.close() }
-        logger.info("$c9$bold■ KotlinScriptLoader останавливается...$r")
+        logger.info(message("lifecycle.stopping"))
         // A background compile must not race addon/classloader teardown. Shutdown is bounded
         // because a third-party compiler extension may ignore interruption.
         val reloadDeadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(2)
@@ -1211,6 +1230,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     // Re-reads config.yml and everything derived from it.
     private fun refreshConfig() {
         reloadConfig()
+        localeManager.reload(config.getString("language", "ru"))
         loadConfigTextPlaceholders()
         clearTableCaches()
         readSecurityConfig()

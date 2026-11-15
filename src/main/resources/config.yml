@@ -1,3 +1,6 @@
+# Server language: ru, en, or the filename of a custom locale in plugins/KotlinScriptLoader/locale/.
+language: ru
+
 sandbox: false
 
 discord:

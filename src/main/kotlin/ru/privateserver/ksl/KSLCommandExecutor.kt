@@ -8,7 +8,7 @@ import org.bukkit.command.CommandSender
 import org.bukkit.command.TabCompleter
 
 private val KSL_ROOT_COMMANDS = listOf(
-    "help", "reload", "scripts", "debug", "resources", "deps", "runtime", "perf",
+    "help", "reload", "scripts", "debug", "resources", "deps", "runtime", "perf", "language",
     "memory", "cpu", "addons", "services", "libraries", "discord", "sandbox",
     "errors", "error", "watchdog", "doctor", "validate", "dbmigrate"
 )
@@ -26,26 +26,39 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
 
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<String>): Boolean {
         if (!sender.hasPermission("ksl.admin")) {
-            sender.sendMessage("§cНет прав. Требуется: ksl.admin")
+            sender.sendMessage(plugin.message("command.no-permission"))
             return true
         }
 
         when (args.getOrNull(0)?.lowercase()) {
             null, "help" -> sendHelp(sender)
 
+            "language" -> {
+                val requested = args.getOrNull(1)
+                if (requested == null) {
+                    sender.sendMessage(plugin.message("language.current", "language" to plugin.localeManager.activeLanguage))
+                    sender.sendMessage(plugin.message("language.available", "languages" to plugin.availableLanguages().joinToString(", ")))
+                    sender.sendMessage(plugin.message("language.usage"))
+                } else if (plugin.selectLanguage(requested)) {
+                    sender.sendMessage(plugin.message("language.changed", "language" to plugin.localeManager.activeLanguage))
+                } else {
+                    sender.sendMessage(plugin.message("language.invalid", "language" to requested, "available" to plugin.availableLanguages().joinToString(", ")))
+                }
+            }
+
             "reload" -> {
                 val target = args.getOrNull(1)
-                val busy = "§eПерезагрузка уже выполняется, подожди пару секунд."
+                val busy = plugin.message("reload.busy")
                 // Compiling happens on a worker thread, so the server keeps ticking; the swap itself takes a moment on the main thread.
                 when {
                     target == null -> {
-                        sender.sendMessage("§7Перезагружаю все скрипты: компиляция идёт в фоне, сервер не блокируется...")
+                        sender.sendMessage(plugin.message("reload.all.start"))
                         plugin.reloadScriptsAsync { result ->
                             if (result == null) {
                                 sender.sendMessage(busy)
                             } else {
                                 val color = if (result.second == 0) "§a" else "§e"
-                                sender.sendMessage("${color}KSL: ${result.first} загружено, ${result.second} с ошибками.")
+                                sender.sendMessage(plugin.message("reload.all.done", "color" to color, "loaded" to result.first, "failed" to result.second))
                             }
                         }
                     }
@@ -55,7 +68,7 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                                 sender.sendMessage(busy)
                             } else {
                                 val color = if (report.failed == 0) "§a" else "§e"
-                                sender.sendMessage("${color}KSL: перезагружено ${report.reloaded}, выгружено ${report.unloaded}, без изменений ${report.unchanged}, с ошибками ${report.failed}.")
+                                sender.sendMessage(plugin.message("reload.changed.done", "color" to color, "reloaded" to report.reloaded, "unloaded" to report.unloaded, "unchanged" to report.unchanged, "failed" to report.failed))
                             }
                         }
                     }
@@ -65,19 +78,19 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                                 sender.sendMessage(busy)
                             } else {
                                 val color = if (result.second == 0) "§a" else "§e"
-                                sender.sendMessage("${color}KSL: папка '$target': ${result.first} загружено, ${result.second} с ошибками.")
+                                sender.sendMessage(plugin.message("reload.folder.done", "color" to color, "folder" to target, "loaded" to result.first, "failed" to result.second))
                             }
                         }
-                        if (started) sender.sendMessage("§7Перезагружаю папку '$target'...")
-                        else sender.sendMessage("§cВ папке '$target' нет скриптов.")
+                        if (started) sender.sendMessage(plugin.message("reload.folder.start", "folder" to target))
+                        else sender.sendMessage(plugin.message("reload.folder.empty", "folder" to target))
                     }
                     else -> {
-                        sender.sendMessage("§7Перезагружаю '$target.kts'...")
+                        sender.sendMessage(plugin.message("reload.script.start", "script" to target))
                         plugin.reloadScriptAsync(target) { ok ->
                             when (ok) {
                                 null -> sender.sendMessage(busy)
-                                true -> sender.sendMessage("§aKSL: '$target.kts' перезагружен, остальные скрипты не тронуты.")
-                                false -> sender.sendMessage("§cНе удалось перезагрузить '$target.kts': см. консоль. Если он уже работал, продолжает работать прежняя версия.")
+                                true -> sender.sendMessage(plugin.message("reload.script.done", "script" to target))
+                                false -> sender.sendMessage(plugin.message("reload.script.failed", "script" to target))
                             }
                         }
                     }
@@ -87,35 +100,35 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
             "runtime", "perf", "memory", "cpu" -> {
                 if (args.getOrNull(1)?.equals("workers", true) == true) {
                     val requested = args.getOrNull(2)?.toIntOrNull()
-                    if (requested == null || requested !in 1..64) sender.sendMessage("§eИспользование: /ksl runtime workers <1-64>")
-                    else sender.sendMessage("§aKSL: worker pool теперь использует ${plugin.resizeWorkers(requested)} поток(ов). Сохранено в config.yml.")
+                    if (requested == null || requested !in 1..64) sender.sendMessage(plugin.message("runtime.workers.usage"))
+                    else sender.sendMessage(plugin.message("runtime.workers.changed", "count" to plugin.resizeWorkers(requested)))
                 } else {
                     val m = plugin.runtimeSnapshot()
                     val w = plugin.workScheduler.snapshot()
                     fun mib(bytes: Long) = if (bytes < 0L) "не задано" else "%.1f MiB".format(java.util.Locale.ROOT, bytes / 1_048_576.0)
                     fun percent(value: Double?) = value?.let { "%.1f%%".format(java.util.Locale.ROOT, it * 100.0) } ?: "н/д"
-                    sender.sendMessage("§9§lKSL Runtime")
-                    sender.sendMessage("§7Heap: §f${mib(m.heapUsedBytes)} §7/ §f${mib(m.heapMaxBytes)} §8| committed: ${mib(m.heapCommittedBytes)}")
-                    sender.sendMessage("§7Non-heap: §f${mib(m.nonHeapUsedBytes)} §8| §7CPU: §f${m.processors} §8| process: §f${percent(m.processCpuLoad)} §8| system: §f${percent(m.systemCpuLoad)}")
-                    sender.sendMessage("§7JVM threads: §f${m.liveThreads} §8(daemon: ${m.daemonThreads}) §7| GC: §f${m.gcCount} §8(${m.gcTimeMillis}мс)")
-                    sender.sendMessage("§bWorker pool §8— §f${w.workers} поток(ов), active=${w.active}, queued=${w.queued}, tracked=${w.tracked}")
-                    sender.sendMessage("§7Completed: §f${w.completed} §8| §7rejected: §f${w.rejected}")
-                    sender.sendMessage("§7Настройка: §f/ksl runtime workers <1-64>")
-                    sender.sendMessage("§8Размер heap задаётся JVM через -Xms/-Xmx; принудительный GC KSL не вызывает.")
+                    sender.sendMessage(plugin.message("runtime.title"))
+                    sender.sendMessage(plugin.message("runtime.heap", "used" to mib(m.heapUsedBytes), "max" to mib(m.heapMaxBytes), "committed" to mib(m.heapCommittedBytes)))
+                    sender.sendMessage(plugin.message("runtime.nonheap", "nonheap" to mib(m.nonHeapUsedBytes), "processors" to m.processors, "process" to percent(m.processCpuLoad), "system" to percent(m.systemCpuLoad)))
+                    sender.sendMessage(plugin.message("runtime.threads", "threads" to m.liveThreads, "daemon" to m.daemonThreads, "gc" to m.gcCount, "gc-ms" to m.gcTimeMillis))
+                    sender.sendMessage(plugin.message("runtime.pool", "workers" to w.workers, "active" to w.active, "queued" to w.queued, "tracked" to w.tracked))
+                    sender.sendMessage(plugin.message("runtime.tasks", "completed" to w.completed, "rejected" to w.rejected))
+                    sender.sendMessage(plugin.message("runtime.setting"))
+                    sender.sendMessage(plugin.message("runtime.heap-note"))
                 }
             }
 
             "scripts" -> {
                 val infos = plugin.scriptInfos()
                 if (infos.isEmpty()) {
-                    sender.sendMessage("§eKSL: в scripts/ нет скриптов.")
+                    sender.sendMessage(plugin.message("scripts.empty"))
                 } else {
-                    sender.sendMessage("§9§lСкрипты §7(${infos.count { it.loaded }} из ${infos.size} загружено):")
+                    sender.sendMessage(plugin.message("scripts.title", "loaded" to infos.count { it.loaded }, "total" to infos.size))
                     infos.forEach { info ->
                         val mark = if (info.loaded) "§a✔" else "§c✘"
                         val time = if (info.loadMillis >= 0) "${info.loadMillis}мс" else "—"
-                        val errors = if (info.errors > 0) " §c${info.errors} ошибок" else ""
-                        sender.sendMessage("  $mark §f${info.id} §8— §7$time$errors")
+                        val errors = if (info.errors > 0) plugin.message("scripts.error-count", "count" to info.errors) else ""
+                        sender.sendMessage(plugin.message("scripts.entry", "mark" to mark, "name" to info.id, "time" to time, "errors" to errors))
                     }
                 }
             }
@@ -123,24 +136,24 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
             "debug" -> {
                 val target = args.getOrNull(1)?.removeSuffix(".kts")
                 if (target.isNullOrBlank()) {
-                    sender.sendMessage("§eИспользование: /ksl debug <скрипт>")
+                    sender.sendMessage(plugin.message("debug.usage"))
                 } else {
                     val info = plugin.scriptInfos().firstOrNull { it.id.equals(target, ignoreCase = true) }
                     if (info == null) {
-                        sender.sendMessage("§cСкрипт '$target' не найден.")
+                        sender.sendMessage(plugin.message("debug.not-found", "script" to target))
                     } else {
                         val resources = plugin.resourceSnapshot(info.id)
-                        sender.sendMessage("§9§lKSL Debug §7— §f${info.id}")
-                        sender.sendMessage("§7Состояние: ${if (info.loaded) "§aзагружен" else "§cне загружен"} §8| §7загрузка: ${if (info.loadMillis >= 0) "${info.loadMillis}мс" else "—"} §8| §7ошибки: ${info.errors}")
-                        sender.sendMessage("§7Ресурсы: listeners=${resources.listeners}, tasks=${resources.tasks}, commands=${resources.commands}, placeholders=${resources.placeholders + resources.textPlaceholders}, GUI=${if (resources.hasGui) 1 else 0}, entities=${if (resources.hasEntities) "есть" else "нет"}")
+                        sender.sendMessage(plugin.message("debug.title", "script" to info.id))
+                        sender.sendMessage(plugin.message("debug.state", "state" to plugin.message(if (info.loaded) "debug.state-loaded" else "debug.state-unloaded"), "time" to if (info.loadMillis >= 0) "${info.loadMillis}ms" else "—", "errors" to info.errors))
+                        sender.sendMessage(plugin.message("debug.resources", "listeners" to resources.listeners, "tasks" to resources.tasks, "commands" to resources.commands, "placeholders" to (resources.placeholders + resources.textPlaceholders), "gui" to if (resources.hasGui) 1 else 0, "entities" to plugin.message(if (resources.hasEntities) "debug.yes" else "debug.no")))
                         val metrics = plugin.executionSnapshots(info.id)
                         if (metrics.isEmpty()) {
-                            sender.sendMessage("§7Вызовы KSL-managed callbacks ещё не измерялись.")
+                            sender.sendMessage(plugin.message("debug.not-measured"))
                         } else {
-                            sender.sendMessage("§bВыполнение (суммарное / среднее / максимум):")
+                            sender.sendMessage(plugin.message("debug.metrics-title"))
                             metrics.take(12).forEach { metric ->
-                                sender.sendMessage("  §f${metric.operation} §7— ${metric.calls} выз., ${metric.failures} ошибок, ${"%.2f".format(metric.totalNanos / 1_000_000.0)}мс / ${"%.2f".format(metric.averageNanos / 1_000_000.0)}мс / ${"%.2f".format(metric.maxNanos / 1_000_000.0)}мс")
-                                metric.lastFailure?.let { sender.sendMessage("    §cПоследняя ошибка: $it") }
+                                sender.sendMessage(plugin.message("debug.metric", "operation" to metric.operation, "calls" to metric.calls, "failures" to metric.failures, "total" to "%.2f".format(java.util.Locale.ROOT, metric.totalNanos / 1_000_000.0), "average" to "%.2f".format(java.util.Locale.ROOT, metric.averageNanos / 1_000_000.0), "maximum" to "%.2f".format(java.util.Locale.ROOT, metric.maxNanos / 1_000_000.0)))
+                                metric.lastFailure?.let { sender.sendMessage(plugin.message("debug.last-failure", "failure" to it)) }
                             }
                         }
                     }
@@ -152,13 +165,13 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                 val snapshots = if (target.isNullOrBlank()) plugin.resourceSnapshots()
                     else plugin.resourceSnapshots().filter { it.scriptId.equals(target, ignoreCase = true) }
                 if (snapshots.isEmpty()) {
-                    sender.sendMessage("§eKSL: ресурсы скриптов не найдены.")
+                    sender.sendMessage(plugin.message("resources.empty"))
                 } else {
-                    sender.sendMessage("§9§lKSL Resources §7— ${snapshots.size} скрипт(ов)")
+                    sender.sendMessage(plugin.message("resources.title", "count" to snapshots.size))
                     snapshots.forEach { item ->
                         val color = if (item.suspectedLeak) "§c" else if (item.loaded) "§a" else "§7"
-                        sender.sendMessage("$color${item.scriptId} §8— §7listeners=${item.listeners}, tasks=${item.tasks}, commands=${item.commands}, placeholders=${item.placeholders + item.textPlaceholders}, GUI=${if (item.hasGui) 1 else 0}, entities=${if (item.hasEntities) 1 else 0}")
-                        if (item.suspectedLeak) sender.sendMessage("  §cВНИМАНИЕ: у выгруженного скрипта остались отслеживаемые ресурсы.")
+                        sender.sendMessage(plugin.message("resources.entry", "color" to color, "script" to item.scriptId, "listeners" to item.listeners, "tasks" to item.tasks, "commands" to item.commands, "placeholders" to (item.placeholders + item.textPlaceholders), "gui" to if (item.hasGui) 1 else 0, "entities" to if (item.hasEntities) 1 else 0))
+                        if (item.suspectedLeak) sender.sendMessage(plugin.message("resources.leak"))
                     }
                 }
             }
@@ -169,14 +182,14 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                     if (target.isNullOrBlank()) all else all.filter { it.scriptId.equals(target, ignoreCase = true) }
                 }
                 if (dependencies.isEmpty()) {
-                    sender.sendMessage("§eKSL: скрипты или зависимости не найдены.")
+                    sender.sendMessage(plugin.message("deps.empty"))
                 } else {
-                    sender.sendMessage("§9§lKSL Dependencies §7— @requires")
+                    sender.sendMessage(plugin.message("deps.title"))
                     dependencies.forEach { item ->
                         sender.sendMessage("§f${item.scriptId}")
-                        if (item.declared.isEmpty()) sender.sendMessage("  §7зависимостей нет")
+                        if (item.declared.isEmpty()) sender.sendMessage(plugin.message("deps.none"))
                         item.resolved.forEach { sender.sendMessage("  §a→ $it") }
-                        item.missing.forEach { sender.sendMessage("  §c→ $it (не найдено)") }
+                        item.missing.forEach { sender.sendMessage(plugin.message("deps.missing", "dependency" to it)) }
                     }
                 }
             }
@@ -184,9 +197,9 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
             "addons" -> {
                 val addons = plugin.addonManager.registeredAddons()
                 if (addons.isEmpty()) {
-                    sender.sendMessage("§eKSL: нет загруженных аддонов.")
+                    sender.sendMessage(plugin.message("addons.empty"))
                 } else {
-                    sender.sendMessage("§aKSL Аддоны §7(${addons.size}):")
+                    sender.sendMessage(plugin.message("addons.title", "count" to addons.size))
                     addons.forEach { addon ->
                         val desc = if (addon.addonDescription.isNotBlank()) " §8— ${addon.addonDescription}" else ""
                         sender.sendMessage("  §f${addon.addonId} §7v${addon.addonVersion}$desc")
@@ -194,7 +207,7 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                             val deps = addon.dependsOn.joinToString(", ") { dep ->
                                 if (plugin.addonManager.isAddonLoaded(dep)) "§a$dep§7" else "§c$dep (нет)§7"
                             }
-                            sender.sendMessage("    §7зависит от: $deps")
+                            sender.sendMessage(plugin.message("addons.dependency", "dependencies" to deps))
                         }
                     }
                 }
@@ -203,9 +216,9 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
             "services" -> {
                 val keys = plugin.addonManager.getServiceKeys()
                 if (keys.isEmpty()) {
-                    sender.sendMessage("§eKSL: нет зарегистрированных сервисов.")
+                    sender.sendMessage(plugin.message("services.empty"))
                 } else {
-                    sender.sendMessage("§aKSL Сервисы §7(${keys.size}):")
+                    sender.sendMessage(plugin.message("services.title", "count" to keys.size))
                     keys.sorted().forEach { sender.sendMessage("  §f$it") }
                 }
             }
@@ -213,22 +226,22 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
             "discord" -> {
                 val discord = plugin.discord
                 if (discord == null) {
-                    sender.sendMessage("§eKSL Discord: нет настроенных вебхуков в config.yml")
+                    sender.sendMessage(plugin.message("discord.empty"))
                 } else {
                     val channels = discord.channels()
-                    sender.sendMessage("§aKSL Discord §7— каналы (${channels.size}): §f${channels.joinToString(", ")}")
+                    sender.sendMessage(plugin.message("discord.channels", "count" to channels.size, "channels" to channels.joinToString(", ")))
                 }
             }
 
             "libraries" -> {
                 val keys = plugin.libraryRegistry.exportedKeys()
                 if (keys.isEmpty()) {
-                    sender.sendMessage("§eKSL: нет экспортированных библиотек.")
+                    sender.sendMessage(plugin.message("libraries.empty"))
                 } else {
-                    sender.sendMessage("§aKSL Библиотеки §7(${keys.size}):")
+                    sender.sendMessage(plugin.message("libraries.title", "count" to keys.size))
                     keys.sorted().forEach { key ->
                         val owner = plugin.libraryRegistry.ownerOf(key) ?: "?"
-                        sender.sendMessage("  §f$key §7— из '$owner'")
+                        sender.sendMessage(plugin.message("libraries.owner", "library" to key, "owner" to owner))
                     }
                 }
             }
@@ -238,46 +251,46 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                     val categoryArg = args.getOrNull(2)?.takeUnless { it.equals("all", ignoreCase = true) }
                     val category = categoryArg?.singleOrNull()?.let { KSLErrorCategory.byLetter(it) }
                     if (categoryArg != null && category == null) {
-                        sender.sendMessage("§cНеизвестная категория: $categoryArg. Используй букву из /ksl error.")
+                        sender.sendMessage(plugin.message("errors.unknown-category", "category" to categoryArg))
                     } else {
                         val entries = KSLError.entries.filter { category == null || it.category == category }.sortedBy { it.code }
                         val pageSize = 20
                         val pages = ((entries.size + pageSize - 1) / pageSize).coerceAtLeast(1)
                         val page = (args.getOrNull(3)?.toIntOrNull() ?: 1).coerceIn(1, pages)
-                        sender.sendMessage("§aKSL Каталог ошибок §7— ${category?.title ?: "все категории"} §8(${entries.size}, стр. $page/$pages)")
+                        sender.sendMessage(plugin.message("errors.catalog-title", "category" to (category?.title ?: plugin.message("errors.catalog-all")), "count" to entries.size, "page" to page, "pages" to pages))
                         entries.drop((page - 1) * pageSize).take(pageSize).forEach {
                             sender.sendMessage("  §e${it.code} §8— §f${it.title}")
                         }
-                        sender.sendMessage("§7Подробности: §f/ksl error <код> §8| §7Следующая страница: §f/ksl errors list ${category?.letter ?: "all"} ${page + 1}")
+                        sender.sendMessage(plugin.message("errors.catalog-next", "category" to (category?.letter ?: "all"), "page" to (page + 1)))
                     }
                 } else {
                     val total = KSLErrors.totalCount()
                     val last = KSLErrors.lastError()
-                    sender.sendMessage("§aKSL Ошибки §7— всего с последнего старта: §f$total §8| §7причин в каталоге: §f${KSLError.entries.size}")
-                    sender.sendMessage("§7Каталог: §f/ksl errors list [категория] [страница]")
+                    sender.sendMessage(plugin.message("errors.summary", "total" to total, "count" to KSLError.entries.size))
+                    sender.sendMessage(plugin.message("errors.catalog-command"))
                     if (last != null) {
                         val ago = (System.currentTimeMillis() - last.timestamp) / 1000
-                        sender.sendMessage("§7Последняя: §f[${last.scriptName}] ${last.where} §8(${ago}с назад)")
+                        sender.sendMessage(plugin.message("errors.last", "script" to last.scriptName, "where" to last.where, "seconds" to ago))
                         sender.sendMessage("§7${last.message}")
-                        sender.sendMessage("§7Код §e${last.code.code} §8— §7${last.code.title}. Подробнее: §f/ksl error ${last.code.code}")
+                        sender.sendMessage(plugin.message("errors.code", "code" to last.code.code, "title" to last.code.title))
                         KSLReport.compactErrors(KSLErrors.lastDetails, 8).forEach { sender.sendMessage("  §c$it") }
                     } else {
-                        sender.sendMessage("§7Ошибок не зафиксировано.")
+                        sender.sendMessage(plugin.message("errors.none"))
                     }
                 }
             }
             "error" -> {
                 val query = args.getOrNull(1)
                 if (query == null) {
-                    sender.sendMessage("§7Использование: §f/ksl error <код> §7(например /ksl error ${KSLError.SCRIPT_COMPILE.code}). Категории:")
+                    sender.sendMessage(plugin.message("error.usage", "example" to KSLError.SCRIPT_COMPILE.code))
                     KSLErrorCategory.entries.forEach { sender.sendMessage("  §e${it.letter} §8— §7${it.title}") }
                 } else {
                     val error = KSLError.find(query)
                     if (error == null) {
-                        sender.sendMessage("§cКод '$query' не найден. Полный список: docs/Error-Codes.md")
+                        sender.sendMessage(plugin.message("error.not-found", "code" to query))
                     } else {
-                        sender.sendMessage("§e${error.code} §8— §f${error.title} §8(${error.category.title})")
-                        sender.sendMessage("§7Что делать: ${error.hint}")
+                        sender.sendMessage(plugin.message("error.title", "code" to error.code, "title" to error.title, "category" to error.category.title))
+                        sender.sendMessage(plugin.message("error.hint", "hint" to error.hint))
                     }
                 }
             }
@@ -286,23 +299,23 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                 val monitor = plugin.watchdogMonitor
                 val dump = monitor?.latestDump()
                 if (monitor == null) {
-                    sender.sendMessage("§eKSL Watchdog: диагностика отключена. Включи diagnostics.watchdog.enabled в config.yml.")
+                    sender.sendMessage(plugin.message("watchdog.disabled"))
                 } else if (dump == null) {
-                    sender.sendMessage("§aKSL Watchdog §7— активен, зависаний с момента запуска не зафиксировано.")
+                    sender.sendMessage(plugin.message("watchdog.active"))
                 } else {
-                    sender.sendMessage("§eKSL Watchdog §7— последнее зависание: §f${monitor.lastStallDurationMillis()}мс")
-                    sender.sendMessage("§7Дамп: §f${dump.relativeTo(plugin.dataFolder).path}")
-                    sender.sendMessage("§7Сравни блоки SNAPSHOT 1..N; неизменные кадры главного потока помогают найти место ожидания.")
+                    sender.sendMessage(plugin.message("watchdog.stall", "duration" to monitor.lastStallDurationMillis()))
+                    sender.sendMessage(plugin.message("watchdog.dump", "path" to dump.relativeTo(plugin.dataFolder).path))
+                    sender.sendMessage(plugin.message("watchdog.guide"))
                 }
             }
             "validate" -> {
-                sender.sendMessage("§7Проверяю скрипты без загрузки (dry-run), это может занять несколько секунд...")
+                sender.sendMessage(plugin.message("validate.start"))
                 background(sender, { plugin.validateAllScripts() }) { results ->
                     val broken = results.filterValues { it.isNotEmpty() }
                     if (broken.isEmpty()) {
-                        sender.sendMessage("§a✔ Все скрипты (${results.size}) компилируются без ошибок.")
+                        sender.sendMessage(plugin.message("validate.ok", "count" to results.size))
                     } else {
-                        sender.sendMessage("§c${broken.size} из ${results.size} скриптов с проблемами:")
+                        sender.sendMessage(plugin.message("validate.failed", "failed" to broken.size, "total" to results.size))
                         broken.forEach { (scriptName, issues) ->
                             sender.sendMessage("  §f$scriptName§7:")
                             issues.forEach { sender.sendMessage("    §c$it") }
@@ -312,7 +325,7 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
             }
 
             "doctor" -> {
-                sender.sendMessage("§9§l▶ KSL Диагностика §7(проверка компилятора занимает несколько секунд)")
+                sender.sendMessage(plugin.message("doctor.title"))
                 // The first Kotlin compile initialises the whole compiler; on the server thread that froze the tick for 10+ s.
                 background(sender, { plugin.selfTestCompiler() to plugin.sandboxProbe() }) { (compiler, sandboxProbe) ->
                     val lines = plugin.runDiagnostics(compiler, sandboxProbe)
@@ -322,48 +335,48 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                     }
                     val failedCount = lines.count { !it.ok }
                     if (failedCount == 0) {
-                        sender.sendMessage("§a§lВсё в порядке.")
+                        sender.sendMessage(plugin.message("doctor.ok"))
                     } else {
-                        sender.sendMessage("§e§l$failedCount пункт(ов) требуют внимания — см. выше.")
+                        sender.sendMessage(plugin.message("doctor.attention", "count" to failedCount))
                     }
                 }
             }
 
             "dbmigrate" -> {
                 if (!plugin.dialect.isRemote) {
-                    sender.sendMessage("§eKSL: сейчас используется SQLite, переносить некуда. Укажи database.type: mysql или mariadb в config.yml и перезапусти сервер.")
+                    sender.sendMessage(plugin.message("dbmigrate.sqlite"))
                     return true
                 }
                 val confirmed = args.getOrNull(1).equals("confirm", ignoreCase = true)
-                sender.sendMessage("§7Читаю ksl.db...")
+                sender.sendMessage(plugin.message("dbmigrate.read"))
                 background(sender, {
                     val migrator = KSLDbMigrator(plugin)
                     val found = migrator.inspect()
                     if (found != null && confirmed) found to migrator.migrate() else found to null
                 }) { (found, migrated) ->
                     when {
-                        found == null -> sender.sendMessage("§eKSL: файл ksl.db не найден в папке плагина — переносить нечего.")
+                        found == null -> sender.sendMessage(plugin.message("dbmigrate.not-found"))
                         migrated == null -> {
-                            sender.sendMessage("§aВ ksl.db найдено: §fpersist ${found.persist}§a, §ftable ${found.table}§a записей.")
-                            sender.sendMessage("§7Они будут скопированы в ${plugin.dialect.label} (существующие ключи перезапишутся, ksl.db не изменится).")
-                            sender.sendMessage("§7Для запуска: §f/ksl dbmigrate confirm")
+                            sender.sendMessage(plugin.message("dbmigrate.found", "persist" to found.persist, "table" to found.table))
+                            sender.sendMessage(plugin.message("dbmigrate.copy", "database" to plugin.dialect.label))
+                            sender.sendMessage(plugin.message("dbmigrate.confirm"))
                         }
-                        else -> sender.sendMessage("§a✔ Перенесено: §fpersist ${migrated.persist}§a, §ftable ${migrated.table}§a. Файл ksl.db не тронут.")
+                        else -> sender.sendMessage(plugin.message("dbmigrate.done", "persist" to migrated.persist, "table" to migrated.table))
                     }
                 }
             }
 
             "sandbox" -> {
-                sender.sendMessage("§aKSL Sandbox: §f${if (plugin.sandboxEnabled) "§aвключён" else "§eвыключен"}")
+                sender.sendMessage(plugin.message(if (plugin.sandboxEnabled) "sandbox.enabled" else "sandbox.disabled"))
                 if (plugin.sandboxEnabled) {
-                    val level = if (plugin.sandboxStrict) "strict: текстовый фильтр + запрет классов" else "text: только текстовый фильтр"
-                    sender.sendMessage("§7Уровень: §f$level")
-                    if (plugin.sandboxTrusted.isNotEmpty()) sender.sendMessage("§7Доверенные скрипты: §f${plugin.sandboxTrusted.sorted().joinToString(", ")}")
-                    sender.sendMessage("§7Скрипт в sandbox не может загрузить Runtime, ProcessBuilder, рефлексию и ClassLoader; проверить это на сервере: §f/ksl doctor")
-                    sender.sendMessage("§7Sandbox ограничивает опасные возможности JVM, но не права самого KSL: скрипту по-прежнему доступны Bukkit и DSL. Подробнее: docs/Security-and-Sandbox.md")
+                    val level = plugin.message(if (plugin.sandboxStrict) "sandbox.level-strict" else "sandbox.level-text")
+                    sender.sendMessage(plugin.message("sandbox.level", "level" to level))
+                    if (plugin.sandboxTrusted.isNotEmpty()) sender.sendMessage(plugin.message("sandbox.trusted", "scripts" to plugin.sandboxTrusted.sorted().joinToString(", ")))
+                    sender.sendMessage(plugin.message("sandbox.runtime"))
+                    sender.sendMessage(plugin.message("sandbox.description"))
                 }
                 if (plugin.consoleBlocklist.isNotEmpty()) {
-                    sender.sendMessage("§7Заблокированные консольные команды для скриптов: §f${plugin.consoleBlocklist.sorted().joinToString(", ")}")
+                    sender.sendMessage(plugin.message("sandbox.blocklist", "commands" to plugin.consoleBlocklist.sorted().joinToString(", ")))
                 }
             }
 
@@ -373,26 +386,27 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
     }
 
     private fun sendHelp(sender: CommandSender, unknown: String? = null) {
-        if (unknown != null) sender.sendMessage("§cНеизвестная подкоманда '$unknown'.")
-        sender.sendMessage("§9§lKSL §7— команды:")
+        if (unknown != null) sender.sendMessage(plugin.message("help.unknown", "name" to unknown))
+        sender.sendMessage(plugin.message("help.title"))
         listOf(
-            "reload [скрипт|папка/|changed]" to "перезагрузить всё, один скрипт, папку или только изменённые (в фоне)",
-            "runtime" to "память JVM, CPU, потоки, очереди и планировщик",
-            "scripts" to "список скриптов: статус, время загрузки, ошибки",
-            "debug <скрипт>" to "диагностика выполнения, ошибок и ресурсов скрипта",
-            "resources [скрипт]" to "отслеживаемые ресурсы и подозрительные остатки",
-            "deps [скрипт]" to "граф зависимостей @requires",
-            "addons" to "загруженные аддоны",
-            "services" to "зарегистрированные сервисы",
-            "libraries" to "экспортированные библиотеки",
-            "discord" to "настроенные Discord-каналы",
-            "sandbox" to "состояние sandbox",
-            "errors [list [категория] [страница]]" to "последняя ошибка и каталог кодов причин",
-            "watchdog" to "последнее зависание и путь к диагностическому дампу",
-            "error <код>" to "расшифровка кода ошибки, например ${KSLError.SCRIPT_COMPILE.code}",
-            "doctor" to "диагностика (компилятор, БД, хуки)",
-            "validate" to "проверить скрипты без загрузки",
-            "dbmigrate [confirm]" to "перенести ksl.db в MySQL/MariaDB"
+            "reload [script|folder/|changed]" to plugin.message("help.reload"),
+            "runtime" to plugin.message("help.runtime"),
+            "scripts" to plugin.message("help.scripts"),
+            "debug <script>" to plugin.message("help.debug"),
+            "resources [script]" to plugin.message("help.resources"),
+            "deps [script]" to plugin.message("help.deps"),
+            "addons" to plugin.message("help.addons"),
+            "services" to plugin.message("help.services"),
+            "libraries" to plugin.message("help.libraries"),
+            "discord" to plugin.message("help.discord"),
+            "sandbox" to plugin.message("help.sandbox"),
+            "errors [list [category] [page]]" to plugin.message("help.errors"),
+            "watchdog" to plugin.message("help.watchdog"),
+            "error <code>" to plugin.message("help.error", "code" to KSLError.SCRIPT_COMPILE.code),
+            "doctor" to plugin.message("help.doctor"),
+            "validate" to plugin.message("help.validate"),
+            "dbmigrate [confirm]" to plugin.message("help.dbmigrate"),
+            "language [ru|en|custom]" to plugin.message("help.language")
         ).forEach { (name, description) -> sender.sendMessage("  §f/ksl $name §8— §7$description") }
     }
 
@@ -404,7 +418,7 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                 outcome
                     .onSuccess { done(it) }
                     .onFailure {
-                        sender.sendMessage("§cОшибка: ${it::class.simpleName}: ${it.message}")
+                        sender.sendMessage(plugin.message("background.error", "type" to it::class.simpleName, "message" to it.message))
                         plugin.logger.warning("${KSLError.BACKGROUND_COMMAND_FAILED.tag} Фоновая команда /ksl не удалась: ${it::class.simpleName}: ${it.message}")
                     }
             })
@@ -422,6 +436,9 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
         }
         if (args.size == 3 && args[0].lowercase() in KSL_WORKER_COMMANDS && args[1].equals("workers", true)) {
             return KSL_WORKER_COUNTS.filter { it.startsWith(args[2]) }
+        }
+        if (args.size == 2 && args[0].equals("language", ignoreCase = true)) {
+            return plugin.availableLanguages().filter { it.startsWith(args[1], ignoreCase = true) }
         }
         if (args.size == 2 && args[0].equals("reload", ignoreCase = true)) {
             return plugin.scriptReloadTargets().filter { it.startsWith(args[1], ignoreCase = true) }
