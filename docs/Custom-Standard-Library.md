@@ -207,6 +207,13 @@ positional overloads. Versions are opaque labels matched
 exactly; they are not SemVer ranges and MesLib2 does not download external
 artifacts or compile loose source files.
 
+The shared export registry is bounded to prevent unbounded memory growth:
+each script may own up to 512 exports, and the whole plugin may hold up to
+8192 exports. These limits also cover the legacy `export(key, value)` API.
+An export beyond a quota throws `IllegalStateException`; replacing an existing
+key does not consume another slot. Namespace and name identifiers, as well as
+version labels, are limited to 128 characters.
+
 Choose the right delivery model:
 
 - **Addon standard library:** reusable compiled `.kt` classes, extension
