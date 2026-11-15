@@ -1,129 +1,120 @@
-# Жизненный цикл скриптов и владение ресурсами
+# Script Lifecycle and Resource Ownership
 
-Это руководство описывает правила hot-reload: кто владеет задачей или обработчиком, кто обязан его остановить и как не оставить старую логику работать после выгрузки скрипта.
+This guide explains the rules of hot reload: who owns a task or handler, who must stop it, and how to prevent old logic from running after a script is unloaded.
 
-Для полного списка DSL-вызовов смотри [Script DSL Reference](Script-DSL-Reference.md), для addon callbacks — [Addon Development](Addon-Development-Guide.md), для потоков и worker pool — [Performance and Scaling](Performance-and-Scaling.md).
+For the complete DSL reference, see [Script DSL Reference](Script-DSL-Reference.md). For addon callbacks, see [Addon Development](Addon-Development-Guide.md). For threading and the worker pool, see [Performance and Scaling](Performance-and-Scaling.md).
 
-## 1. Главный принцип: ресурс должен иметь владельца
+## 1. Core principle: every resource needs an owner
 
-Каждый listener, scheduler task, динамическая команда, placeholder, подписка или внешний callback должен иметь понятного владельца и определённый момент освобождения.
+Every listener, scheduler task, dynamic command, placeholder, subscription, or external callback must have a clear owner and a defined cleanup point.
 
-В скриптах предпочитай KSL DSL вместо прямой регистрации ресурсов через Bukkit или сторонние API. KSL отслеживает ресурсы, созданные через поддерживаемый контекст, и снимает их при unload/reload соответствующего скрипта.
+In scripts, prefer the KSL DSL over registering resources directly through Bukkit or third-party APIs. KSL tracks resources created through its supported context and removes them when the corresponding script is unloaded or reloaded.
 
-Не считай произвольный объект, созданный внутри скрипта, автоматически управляемым KSL. Сам факт, что объект создан в .kts, не означает, что KSL умеет его закрыть.
+Do not assume that every object created inside a script is automatically managed by KSL. The fact that an object was created in a .kts file does not mean KSL knows how to close it.
 
-## 2. Что KSL отслеживает для скриптов
+## 2. What KSL tracks for scripts
 
-Поддерживаемые контекстные операции включают:
+Supported context operations include:
 
-- onEvent<T> { ... } — обработчики Bukkit events;
-- registerCommand(...), registerCommandAny(...) и aliases cmd(...), cmdAny(...);
+- onEvent<T> { ... } — Bukkit event handlers;
+- registerCommand(...), registerCommandAny(...), and aliases cmd(...), cmdAny(...);
 - registerPlaceholder(...);
 - runSync, runAsync, delay, every, delayAsync, everyAsync;
 - scheduler aliases sync, async, after, repeat;
-- worker, cpu, work и cancelWorker;
-- subscribe(topic) { ... } — подписка на KSL event bus;
-- `runtimeScope.cache/lru(...)` — кэш с временем жизни текущего скрипта;
-- `runtimeScope.profile(...)` — scoped-профилировщик;
-- `own(resource)` и `onUnload { ... }` — управление внешними `AutoCloseable`-ресурсами и cleanup-callbacks.
+- worker, cpu, work, and cancelWorker;
+- subscribe(topic) { ... } — subscription to the KSL event bus;
+- runtimeScope.cache/lru(...) — a cache scoped to the current script's lifetime;
+- runtimeScope.profile(...) — a scoped profiler;
+- own(resource) and onUnload { ... } — ownership of external AutoCloseable resources and cleanup callbacks.
 
-Задачи, зарегистрированные через KSL context, получают владельца-скрипт. При выгрузке скрипта KSL отменяет отслеживаемые Bukkit tasks и worker tasks, удаляет зарегистрированные команды и связанные обработчики/placeholder resources, а подписки, созданные скриптом, снимаются автоматически.
+Tasks registered through the KSL context are owned by the script. When a script is unloaded, KSL cancels its tracked Bukkit tasks and worker tasks, removes registered commands and related handler/placeholder resources, and automatically unsubscribes listeners created by that script.
 
-Используй эти точки входа вместо самостоятельного Bukkit.getScheduler() или ручного добавления глобальных listener'ов, когда эквивалентный KSL DSL доступен.
+Use these entry points instead of calling Bukkit.getScheduler() directly or manually registering global listeners when an equivalent KSL DSL operation is available.
 
-`runtimeScope` создаётся лениво и один на скрипт. На `/ksl reload`, удалении скрипта и shutdown он закрывается автоматически: callbacks вызываются в обратном порядке регистрации, принадлежащие scope кэши очищаются, scoped-профилировщики отбрасываются. `own(resource)` подходит для `AutoCloseable` (HTTP-клиенты, файловые watcher'ы, собственные subscriptions); `onUnload { ... }` — для API, у которого отдельного handle нет. Вернувшийся из `onUnload` handle можно закрыть заранее, чтобы снять callback и освободить захваченные им ссылки.
+runtimeScope is created lazily and once per script. It is closed automatically on /ksl reload, script removal, and shutdown: callbacks run in reverse registration order, owned caches are cleared, and scoped profilers are discarded. own(resource) is suitable for AutoCloseable objects (HTTP clients, file watchers, custom subscriptions); onUnload { ... } is suitable for APIs that do not provide a separate handle. The handle returned by onUnload can be closed early to unregister the callback and release references captured by it.
 
-## 3. Пример: безопасный периодический обработчик
+## 3. Example: a safe repeating handler
 
 ~~~kotlin
 val taskId = every(ticks = 20L) {
-    // Этот callback принадлежит текущему скрипту.
-    // Bukkit API здесь выполняется scheduler'ом на основном потоке.
+    // This callback belongs to the current script.
+    // Bukkit API work here is scheduled on the main thread.
 }
 
 onEvent<PlayerJoinEvent> {
-    player.sendMessage("Добро пожаловать!")
+    player.sendMessage("Welcome!")
 }
 ~~~
 
-Не создавай новый периодический task внутри каждого вызова события: это быстро создаёт дубликаты. Зарегистрируй его один раз при загрузке скрипта.
+Do not create a new repeating task inside every event callback: this quickly creates duplicates. Register it once when the script loads.
 
-Если задача должна быть остановлена раньше reload, используй ID, возвращённый scheduler-вызовом:
+To stop a task before reload, use the ID returned by the scheduler call:
 
 ~~~kotlin
 val taskId = every(ticks = 20L) {
-    // Периодическая работа
+    // Repeating work
 }
 cancelTask(taskId)
 ~~~
 
-Для worker pool worker(...) возвращает Long; для него используй cancelWorker(taskId).
+For the worker pool, worker(...) returns a Long; use cancelWorker(taskId) to cancel it.
 
-## 4. Ошибки и выгрузка
+## 4. Errors and unloading
 
-- warn(message) сообщает о проблеме и продолжает текущую операцию.
-- error(message) прерывает текущую операцию скрипта, но не останавливает сервер.
-- fatal(message) инициирует фатальную ошибку текущего скрипта и его выгрузку с освобождением принадлежащих ему ресурсов.
+- warn(message) reports a problem and continues the current operation.
+- error(message) interrupts the current script operation but does not stop the server.
+- fatal(message) signals a fatal error in the current script and unloads it, releasing its owned resources.
 
-Не используй fatal для обычной ошибки аргумента команды или ожидаемого отсутствия необязательного плагина. В таких случаях сообщи пользователю понятную причину и заверши только обработчик.
+Do not use fatal for an ordinary command argument error or an expected missing optional plugin. In those cases, give the user a clear explanation and end only the handler.
 
-При ошибке и reload не рассчитывай на то, что незавершённая внешняя операция обязательно успеет завершиться. Worker code должен учитывать interruption и не запускать Bukkit-действия после того, как владелец уже выгружен.
+After an error or reload, do not assume that an unfinished external operation will necessarily complete. Worker code must account for interruption and must not perform Bukkit actions after its owner has been unloaded.
 
-## 5. Внешние ресурсы: собственная ответственность
+## 5. External resources: explicit ownership is required
 
-KSL не может автоматически управлять любым ресурсом сторонней библиотеки. Если скрипт или addon самостоятельно создаёт:
+KSL cannot automatically manage every resource created by a third-party library. If a script or addon creates an ExecutorService/thread, network client, third-party subscription/listener, file watcher, timer or callback registered with another plugin, or a connection/client not owned by KSL's HikariCP, the owner must retain its handle and close/cancel the resource during unload.
 
-- ExecutorService или поток;
-- сетевой клиент с собственным lifecycle;
-- стороннюю подписку/event listener;
-- файловый watcher;
-- таймер или callback в другом плагине;
-- соединение/клиент, который не принадлежит HikariCP KSL,
+Do not create unmanaged long-running threads. Prefer KSL-managed scheduler/worker APIs and APIs that provide an explicit close()/cancel() method.
 
-то владелец должен сохранить handle и закрыть/отменить ресурс при выгрузке.
-
-Не создавай бесконечные unmanaged threads. Предпочитай управляемые scheduler/worker API KSL и API, у которых есть явный close()/cancel().
-
-Если внешний ресурс невозможно надёжно освободить при reload, не создавай его на уровне перезагружаемого скрипта: перенеси владение в addon с явным onUnload().
+If an external resource cannot be reliably released during reload, do not create it in a reloadable script. Move ownership to an addon with an explicit onUnload() implementation.
 
 ## 6. Addon lifecycle
 
-Аддон — отдельный Paper plugin, реализующий KSLAddon. Его lifecycle отличается от lifecycle .kts:
+An addon is a separate Paper plugin that implements KSLAddon. Its lifecycle is different from the lifecycle of a .kts script:
 
-1. KSL регистрирует addon и вызывает onLoad(api).
-2. Addon регистрирует services, imports и context extensions.
-3. При остановке addon должен освободить собственные ресурсы в onUnload().
-4. Зарегистрированные addon services/imports/extensions должны сниматься симметрично их регистрации.
+1. KSL registers the addon and calls onLoad(api).
+2. The addon registers services, imports, and context extensions.
+3. When the addon stops, it must release its own resources in onUnload().
+4. Registered addon services/imports/extensions must be removed symmetrically with their registration.
 
-Не путай KSLAddon.onUnload() с выгрузкой одного .kts: addon обычно живёт дольше отдельных скриптов. Для script-specific ресурсов используй KSLContextExtension и callbacks контекста, а не глобальное состояние addon без очистки.
+Do not confuse KSLAddon.onUnload() with unloading one .kts file: an addon usually lives longer than individual scripts. For script-specific resources, use KSLContextExtension and context callbacks rather than global addon state without cleanup.
 
-Подробные сигнатуры и примеры находятся в [Addon Development Guide](Addon-Development-Guide.md) и [Public API](Public-API.md).
+Detailed signatures and examples are available in [Addon Development Guide](Addon-Development-Guide.md) and [Public API](Public-API.md).
 
-## 7. Потоки и hot-reload
+## 7. Threading and hot reload
 
-Hot-reload не делает Bukkit API thread-safe и не превращает асинхронную операцию в синхронную.
+Hot reload does not make the Bukkit API thread-safe and does not turn an asynchronous operation into a synchronous one.
 
-- Bukkit world/entity/player/inventory операции выполняй на основном потоке, если Paper API явно не говорит обратное.
-- SQL, сеть и тяжёлые вычисления не запускай на main thread.
-- Для фоновой работы передавай простые immutable данные (UUID, строки, числа, DTO), а не живые Bukkit объекты.
-- Результат фоновой работы, который меняет Bukkit state, переноси через runSync { ... }.
-- Не вызывай Future.get() или join() на главном потоке для долгой операции.
+- Run Bukkit world/entity/player/inventory operations on the main thread unless the Paper API explicitly says otherwise.
+- Do not run SQL, network calls, or heavy computations on the main thread.
+- For background work, pass simple immutable data (UUIDs, strings, numbers, DTOs), not live Bukkit objects.
+- Move background results that change Bukkit state back through runSync { ... }.
+- Do not call Future.get() or join() on the main thread for a long-running operation.
 
-Смотри [Performance and Scaling](Performance-and-Scaling.md) и [Database Guide](Database-Guide.md).
+See [Performance and Scaling](Performance-and-Scaling.md) and [Database Guide](Database-Guide.md).
 
-## 8. Проверка перед публикацией
+## 8. Pre-release checklist
 
-- [ ] Все KSL-managed listeners/tasks/commands/placeholders создаются через KSL DSL.
-- [ ] Нет повторной регистрации в каждом event callback.
-- [ ] Worker task ID сохраняется, если нужна ручная отмена.
-- [ ] Внешние subscriptions/clients/watchers имеют явный cleanup.
-- [ ] Нет неограниченных executor/thread pools.
-- [ ] Bukkit API не вызывается из произвольного async callback.
-- [ ] После /ksl reload старые callbacks больше не выполняют логику.
-- [ ] Addon освобождает собственные ресурсы в onUnload().
-- [ ] Ошибка одного скрипта не приводит к очистке ресурсов другого скрипта.
+- [ ] All KSL-managed listeners/tasks/commands/placeholders are created through the KSL DSL.
+- [ ] Nothing is registered repeatedly inside every event callback.
+- [ ] Worker task IDs are stored when manual cancellation is required.
+- [ ] External subscriptions/clients/watchers have explicit cleanup.
+- [ ] There are no unbounded executor/thread pools.
+- [ ] Bukkit API is not called from an arbitrary async callback.
+- [ ] After /ksl reload, old callbacks no longer execute logic.
+- [ ] The addon releases its own resources in onUnload().
+- [ ] An error in one script does not clean up resources owned by another script.
 
-## Связанные документы
+## Related documents
 
 - [Script DSL Reference](Script-DSL-Reference.md)
 - [Addon Development Guide](Addon-Development-Guide.md)

@@ -1,440 +1,265 @@
-# KotlinScriptLoader (KSL) — полная документация
+# KotlinScriptLoader (KSL) — Complete Documentation
 
-> Документ — обзор архитектуры и основных возможностей. Подробные специализированные руководства перечислены в [docs/README.md](README.md). API-методы и сигнатуры необходимо сверять с исходниками текущей ветки; changelog и обзор не заменяют source code.
+> This is the architectural overview of KSL. Specialized guides are listed in [docs/README.md](README.md). Always verify API methods and signatures against source code and tests in the current branch.
 
-## Содержание
+## Contents
 
-1. [Что такое KSL](#1-что-такое-ksl)
-2. [Архитектура проекта](#2-архитектура-проекта)
-3. [Установка и сборка](#3-установка-и-сборка)
-4. [Жизненный цикл плагина](#4-жизненный-цикл-плагина)
-5. [Файлы и структура данных](#5-файлы-и-структура-данных)
-6. [Написание скриптов (.kts) — полный DSL](#6-написание-скриптов-kts--полный-dsl)
+1. [What is KSL?](#1-what-is-ksl)
+2. [Architecture](#2-architecture)
+3. [Installation and build](#3-installation-and-build)
+4. [Plugin lifecycle](#4-plugin-lifecycle)
+5. [Files and localization](#5-files-and-localization)
+6. [Writing scripts](#6-writing-scripts)
 7. [GUI DSL](#7-gui-dsl)
-8. [Persist API — состояние между reload и рестартами](#8-persist-api)
-9. [Интеграции](#9-интеграции)
-10. [Sandbox и безопасность](#10-sandbox-и-безопасность)
-11. [Команды и права](#11-команды-и-права)
-12. [Addon API — как расширять KSL](#12-addon-api)
-13. [Внутреннее устройство — для контрибьюторов](#13-внутреннее-устройство)
-14. [Известные технические ловушки](#14-известные-технические-ловушки)
-15. [Диагностика проблем](#15-диагностика-проблем)
-16. [Как контрибьютить](#16-как-контрибьютить)
+8. [Persistence](#8-persistence)
+9. [Integrations and hooks](#9-integrations-and-hooks)
+10. [Sandbox and security](#10-sandbox-and-security)
+11. [Commands and permissions](#11-commands-and-permissions)
+12. [Addon API](#12-addon-api)
+13. [Internals for contributors](#13-internals-for-contributors)
+14. [Technical pitfalls](#14-technical-pitfalls)
+15. [Troubleshooting](#15-troubleshooting)
+16. [Contributing](#16-contributing)
 
----
+## 1. What is KSL?
 
-## 1. Что такое KSL
+**KotlinScriptLoader (KSL)** is a plugin for Paper 1.21.1 (Java 21) that compiles and executes Kotlin Script (.kts) files on the server without rebuilding the plugin or restarting the server. Unlike custom pseudo-languages, KSL uses real Kotlin and the APIs available on the server classpath, including Bukkit/Paper, JDBC, Adventure, and MiniMessage.
 
-**KotlinScriptLoader (KSL)** — плагин для Paper 1.21.1 (Java 21), который компилирует и выполняет `.kts`-файлы (Kotlin Script) прямо на сервере, без пересборки и рестарта. Идея похожа на Skript, но вместо собственного псевдоязыка — настоящий Kotlin с полным доступом к Bukkit/Paper API, JDBC, Adventure/MiniMessage и всему, что есть в classpath сервера.
+KSL provides script hot reload, a DSL for events and commands, scheduling and configuration helpers, SQL access, optional plugin integrations, a GUI DSL, persistent values, an addon API, standard-library modules, runtime tools, and localized server messages.
 
-Кратко, что даёт KSL "из коробки":
+KSL is **not** an isolated JVM sandbox. Scripts run in the server process and may have access to capabilities available to the plugin. Sandbox is a guardrail against selected dangerous patterns, not a security boundary against malicious code.
 
-- **Hot-reload скриптов** — `/ksl reload` компилирует и подгружает всё из `scripts/*.kts` без рестарта сервера.
-- **DSL для типичных задач** — события, команды, шедулер, конфиги, БД, MiniMessage — всё через простые функции внутри скрипта, без ручной возни с `Bukkit.getPluginManager().registerEvent(...)`.
-- **Интеграции**: PlaceholderAPI, LuckPerms, EssentialsX, Vault, SkinsRestorer, Discord-вебхуки.
-- **GUI DSL** — построение инвентарных меню с пагинацией без ручной работы с `InventoryClickEvent`.
-- **Persist API** — переменные, которые переживают `/ksl reload`, а при желании и полный рестарт сервера.
-- **Addon API** — сторонние Bukkit-плагины могут регистрировать в KSL свои сервисы, доступные из любого `.kts`-скрипта.
-- **Sandbox** — опциональная проверка скриптов на опасные Java-паттерны перед компиляцией.
+## 2. Architecture
 
-KSL **не** песочница в смысле "изолированная JVM" — скрипт выполняется в том же процессе, с теми же правами, что и сам плагин. Sandbox (раздел 10) — это защита от случайных опасных вызовов, а не от злонамеренного кода.
-
----
-
-## 2. Архитектура проекта
-
-Всего в проекте три условных слоя:
-
-```
+~~~text
 ┌─────────────────────────────────────────────────────────┐
-│  Слой 1: Ядро плагина                                    │
-│  KotlinScriptLoaderPlugin, ScriptRunner, KSLScript,       │
-│  Migrations, DynamicCommand, KSLCommandExecutor           │
+│ Layer 1: Plugin core                                     │
+│ KotlinScriptLoaderPlugin, ScriptRunner, KSLScript,        │
+│ migrations, commands, lifecycle and configuration        │
 ├─────────────────────────────────────────────────────────┤
-│  Слой 2: DSL для скриптов                                 │
-│  BukkitScriptContext (implicit receiver каждого .kts)      │
-│  + KSLGuiInstance/Holder/Manager, KSLPersistStore          │
+│ Layer 2: Script DSL                                      │
+│ BukkitScriptContext (implicit receiver for each .kts)    │
+│ GUI, persistence, scheduler, database and runtime tools   │
 ├─────────────────────────────────────────────────────────┤
-│  Слой 3: Интеграции и Addon API                            │
-│  KSL*Hook (PAPI/LuckPerms/Essentials/Vault/SkinsRestorer/  │
-│  Discord), KSL / KSLAPI / KSLAddon / KSLContextExtension   │
+│ Layer 3: Integrations and Addon API                      │
+│ hooks, KSL / KSLAPI / KSLAddon / KSLContextExtension      │
 └─────────────────────────────────────────────────────────┘
-```
+~~~
 
-### Карта файлов
+Important source files:
 
-| Файл | Роль |
+| File | Responsibility |
 |---|---|
-| `KotlinScriptLoaderPlugin.kt` | Главный класс (`JavaPlugin`). Жизненный цикл, БД, интеграции, баннер, трекинг ресурсов скриптов, очистка `commandMap`. |
-| `ScriptRunner.kt` | Компилирует и выполняет один `.kts`-файл через `BasicJvmScriptingHost`. Sandbox-проверка, форматирование ошибок. |
-| `KSLScript.kt` | Конфигурация компиляции скриптов: `defaultImports`, JVM target, classloader. Аннотация `@KotlinScript`. |
-| `BukkitScriptContext.kt` | **Implicit receiver** каждого скрипта — весь DSL, который видит `.kts`-файл (события, команды, БД, MiniMessage, GUI, persist, интеграции). |
-| `DynamicCommand.kt` | `org.bukkit.command.Command`, создаётся под каждый `registerCommand(...)` в скрипте. |
-| `KSLCommandExecutor.kt` | Обработчик `/ksl` — `reload`, `addons`, `services`, `discord`, `sandbox`. |
-| `Migrations.kt` | Версионированные миграции SQLite-схемы через `PRAGMA user_version`. |
-| `KSL.kt` | Статический `object` — точка входа для сторонних плагинов-аддонов (`KSL.api`, `KSL.isAvailable`). |
-| `KSLAPI.kt` | Интерфейс, который аддоны используют для регистрации сервисов/импортов/расширений. |
-| `KSLAddon.kt` | Интерфейс, который реализует плагин-аддон. |
-| `KSLAddonManager.kt` | Реализация `KSLAPI`. Хранит зарегистрированные аддоны, сервисы, импорты, расширения контекста. |
-| `KSLContextExtension.kt` | Интерфейс хука на создание/уничтожение контекста каждого скрипта. |
-| `KSLGuiHolder.kt` / `KSLGuiInstance.kt` / `KSLGuiManager.kt` | GUI DSL: холдер инвентаря, сам инстанс меню (слоты, пагинация), единственный на весь плагин `Listener`. |
-| `KSLPersistStore.kt` | Хранилище для `persist()` — in-memory (реживает reload) + опционально SQLite (реживает рестарт). |
-| `KSL*Hook.kt` (Vault/LuckPerms/Essentials/SkinsRestorer) | Тонкие обёртки над API сторонних плагинов. Создаются только если плагин реально установлен. |
-| `KSLDiscordHook.kt` | Отправка сообщений/embed'ов через Discord-вебхуки, `java.net.http.HttpClient`. |
-| `KSLPlaceholderExpansion.kt` | `PlaceholderExpansion` для PlaceholderAPI — резолвит `%ksl_<key>%` через плейсхолдеры, зарегистрированные скриптами. |
+| KotlinScriptLoaderPlugin.kt | Main JavaPlugin class, lifecycle, database, integrations, configuration, and resource cleanup. |
+| ScriptRunner.kt | Compiles and executes a .kts file through BasicJvmScriptingHost; performs Sandbox checks and formats errors. |
+| KSLScript.kt | Script compilation settings: default imports, JVM target, classloader, and @KotlinScript. |
+| BukkitScriptContext.kt | Implicit receiver for every script; exposes the KSL DSL. |
+| DynamicCommand.kt | Bukkit Command implementation for commands registered by scripts. |
+| KSLCommandExecutor.kt | /ksl command handler. |
+| Migrations.kt | Versioned SQLite schema migrations. |
+| KSLLocale.kt | Loads message bundles from locale YAML files and resolves translated messages. |
+| KSL.kt | Static entry point for addon plugins. |
+| KSLAPI.kt | API used by addons to register services, imports, and context extensions. |
+| KSLAddon.kt | Interface implemented by addon plugins. |
+| KSLAddonManager.kt | Stores addon registrations and implements KSLAPI. |
+| KSLContextExtension.kt | Lifecycle hook for each script context. |
+| KSLGuiHolder.kt / KSLGuiInstance.kt / KSLGuiManager.kt | GUI holder, menu instance, and plugin-wide listener. |
+| KSLPersistStore.kt | In-memory and optional SQLite storage for persist(). |
+| hooks/ | Built-in plugin integrations and shared reflection/alias support. |
 
----
+## 3. Installation and build
 
-## 3. Установка и сборка
+Requirements: Java 21 and Paper 1.21.1 or a compatible fork.
 
-### Требования
+Use the repository's build entry point:
 
-- Java 21 (Temurin/Adoptium рекомендуется).
-- Paper 1.21.1 (или совместимый форк — Purpur и т.п.).
-- Gradle с поддержкой Kotlin DSL (`build.gradle.kts`).
+~~~powershell
+./build.ps1 -Task Build
+~~~
 
-### Сборка
+The resulting plugin JAR is placed in build/libs/. Copy it to plugins/. For build tasks, CI artifacts, and diagnostic reports, see [Build Diagnostics](Build-Diagnostics.md).
 
-```bash
-JAVA_HOME=/путь/к/jdk-21 gradle shadowJar
-```
+Dependency notes:
 
-Результат — `build/libs/KotlinScriptLoader-1.0.0.jar`. Копируется в `plugins/`.
+- Exclude the old org.bukkit:bukkit transitive dependency from VaultAPI to avoid a Gradle capability conflict with Paper API.
+- shadowJar relocates only com.zaxxer.hikari. Do not relocate kotlin.* or org.jetbrains.kotlin.* because dynamically compiled scripts require the original Kotlin class names.
+- Use the Gradle wrapper version required by the configured Shadow plugin.
 
-### Зависимости сборки (`build.gradle.kts`)
+## 4. Plugin lifecycle
 
-```kotlin
-plugins {
-    kotlin("jvm") version "2.0.21"
-    id("com.gradleup.shadow") version "9.4.2"
+### onEnable()
+
+The high-level startup sequence is:
+
+1. saveDefaultConfig() creates config.yml if it does not exist.
+2. KSLAddonManager and ScriptRunner are initialized; configuration such as Sandbox settings is read.
+3. The locale manager copies built-in locale resources and loads the configured language.
+4. KSL.init(addonManager) makes the public API available to addons.
+5. The /ksl command executor is registered.
+6. initDatabase() starts the database pool and applies migrations.
+7. KSLPersistStore is created.
+8. KSLGuiManager is created and its plugin-wide listener is registered once.
+9. Optional integrations and their hooks are initialized.
+10. Discord hooks are created when webhook channels are configured.
+11. Script autocomplete information is generated.
+12. Scripts are compiled and loaded.
+13. The startup summary is printed.
+
+### onDisable()
+
+KSL unloads scripts, shuts down addons, closes the database, and shuts down the public API. Cleanup phases should be isolated so a failure in one phase does not prevent the remaining cleanup.
+
+### /ksl reload
+
+Reload refreshes configuration and integrations, unloads previous script instances, updates autocomplete information, and loads scripts again.
+
+unloadAllScripts() is central to hot reload: KSL collects script IDs before clearing ownership maps, cancels tracked Bukkit and worker tasks, unregisters listeners, removes script commands, removes placeholders, notifies addon context extensions, and closes open GUIs owned by the scripts being unloaded.
+
+## 5. Files and localization
+
+The plugin stores configuration and scripts under plugins/KotlinScriptLoader/. Script files use the .kts extension. A script may have a companion YAML configuration file with the same base name. Nested script directories are supported when recursive loading is enabled.
+
+The server language is configured with language in config.yml. KSL ships with locale/ru.yml, locale/en.yml, and locale/template.yml. On first startup, these resources are copied to plugins/KotlinScriptLoader/locale/.
+
+To add a custom translation, copy template.yml to locale/<language-id>.yml and translate the values. Keep message keys and {placeholders} unchanged. Select the language with /ksl language <language-id> or set language in config.yml. Missing custom keys use the built-in English message as a fallback.
+
+The documentation under docs/ is maintained in English; server messages are localized independently.
+
+See [Getting Started](Getting-Started.md), [Data Formats](Data-Formats.md), and [Production Operations](Production-Operations.md).
+
+## 6. Writing scripts
+
+Each .kts script runs with BukkitScriptContext as its implicit receiver. Check [Script DSL Reference](Script-DSL-Reference.md) and the current source for exact signatures.
+
+### Events
+
+~~~kotlin
+onEvent<PlayerJoinEvent> {
+    player.sendRichMessage("<green>Welcome, <white>${player.name}</white>!</green>")
 }
+~~~
 
-dependencies {
-    compileOnly("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
-    compileOnly("me.clip:placeholderapi:2.11.6")
-    compileOnly("net.luckperms:api:5.5")
-    compileOnly("net.essentialsx:EssentialsX:2.21.2")
-    compileOnly("net.skinsrestorer:skinsrestorer-api:15.5.2")
-    compileOnly("com.github.MilkBowl:VaultAPI:1.7") {
-        exclude(group = "org.bukkit", module = "bukkit")
+### Commands
+
+~~~kotlin
+registerCommand("hello", aliases = listOf("hi")) { sender, args ->
+    sender.sendMessage("Hello! Arguments: ${args.size}")
+}
+~~~
+
+Use explicit permission checks for administrative commands. Do not rely only on tab completion to hide a command.
+
+### Scheduling and threading
+
+Use KSL-managed operations such as runSync, runAsync, delay, every, delayAsync, and everyAsync. Bukkit world, player, entity, and inventory operations generally belong on the main thread. Run long SQL/network operations and CPU-heavy calculations in the background, then return Bukkit updates through runSync { ... }.
+
+### Configuration and files
+
+Use config, editConfig { ... }, saveConfig(), and supported YAML/TOML/JSON helpers. Avoid unsynchronized writes from multiple threads. Context file paths are restricted to scripts/; do not use ../ to escape the directory.
+
+### Messaging
+
+KSL supports Adventure/MiniMessage messaging and text placeholders. Prefer its message helpers over manually concatenating formatted text. See [Data Formats](Data-Formats.md) and [Standard Library Guide](Standard-Library-Guide.md).
+
+## 7. GUI DSL
+
+The GUI DSL builds inventory menus through KSL-managed resources. Menus support slots, button callbacks, pagination, and lifecycle cleanup.
+
+~~~kotlin
+gui(title = "<gold>Menu", rows = 3) {
+    button(13, item(Material.DIAMOND, "<aqua>Example")) { player ->
+        player.sendMessage("You clicked the item.")
     }
-    implementation("org.jetbrains.kotlin:kotlin-scripting-jvm-host:2.0.21")
-    implementation("org.jetbrains.kotlin:kotlin-scripting-compiler-embeddable:2.0.21")
-    implementation("com.zaxxer:HikariCP:5.1.0")
-    implementation("org.xerial:sqlite-jdbc:3.46.1.3")
 }
-```
+~~~
 
-Важные нюансы, если трогаешь эту часть:
+Verify the current Script DSL Reference before relying on a method signature.
 
-- **`VaultAPI:1.7` тянет транзитивно древний `org.bukkit:bukkit:1.13.1`**, который конфликтует с Paper API по одной "capability". Исключение `exclude(group = "org.bukkit", module = "bukkit")` обязательно, иначе `Could not resolve all files for configuration ':compileClasspath'`.
-- **`shadowJar` релоцирует только `com.zaxxer.hikari`.** Пакеты `kotlin.*`/`org.jetbrains.kotlin.*` релоцировать нельзя — динамически скомпилированный скрипт линкуется против stdlib по оригинальным именам классов, relocate сломает компиляцию `.kts` в рантайме. `org.sqlite` тоже не релоцирован — избегаем риска перезаписи строкового литерала `driverClassName = "org.sqlite.JDBC"`.
-- **`com.gradleup.shadow:9.4.2`** требует Gradle 9.1+ именно в `gradle-wrapper.properties`, не только в объявлении плагина.
+## 8. Persistence
 
----
+persist() stores state owned by one script. In-memory values survive script reloads while the plugin remains enabled. When SQLite persistence is configured, values can also survive a full server restart.
 
-## 4. Жизненный цикл плагина
+~~~kotlin
+val visits = persist("visits", 0)
+visits.value += 1
+~~~
 
-### `onEnable()`
+Do not store arbitrary Bukkit objects. Use supported scalar values or deliberately serialize structured data. See [Database Guide](Database-Guide.md).
 
-Порядок вызовов важен, вот он:
+## 9. Integrations and hooks
 
-1. `saveDefaultConfig()` — создаёт `config.yml`, если его нет.
-2. Создаётся `KSLAddonManager`, читается `sandbox` из конфига, создаётся `ScriptRunner`.
-3. `KSL.init(addonManager)` — с этого момента `KSL.isAvailable == true`, сторонние аддоны могут регистрироваться.
-4. Регистрируется исполнитель команды `/ksl`.
-5. `initDatabase()` — поднимает HikariCP + SQLite, прогоняет `Migrations.run(...)`.
-6. `persistStore = KSLPersistStore(this)`.
-7. `guiManager = KSLGuiManager(this)`, `guiManager.register()` — **единственная** регистрация GUI-listener'а за весь жизненный цикл плагина.
-8. `setupIntegrations()` — проверяет наличие PlaceholderAPI/LuckPerms/Essentials/Vault/SkinsRestorer, создаёт соответствующие хуки.
-9. `discord = KSLDiscordHook(this).takeIf { it.channels().isNotEmpty() }`.
-10. `generateAutocompleteStub()` — пишет `scripts/.autocomplete.kts`.
-11. `loadAllScripts()` — компилирует и выполняет всё из `scripts/*.kts`.
-12. `printStartupSummary(...)` — цветной баннер в консоль.
+KSL provides optional hooks for supported plugins. Treat a missing integration as an expected condition, not a fatal error.
 
-### `onDisable()`
-
-```
-unloadAllScripts()      (обёрнуто в runCatching)
-addonManager.shutdown() (обёрнуто в runCatching)
-database.close()        (обёрнуто в runCatching)
-KSL.shutdown()
-```
-
-Каждый шаг независим — падение одного не мешает остальным отработать. Это принципиально: раньше падение на одном шаге останавливало весь `onDisable`, что могло мешать штатной остановке сервера.
-
-### `/ksl reload`
-
-```
-reloadConfig()
-sandboxEnabled = обновляется из config.yml
-discord = пересоздаётся (конфиг мог поменяться)
-unloadAllScripts()
-generateAutocompleteStub()
-loadAllScripts()
-```
-
-`unloadAllScripts()` — самая важная функция для понимания hot-reload:
-
-1. Собирает **имена всех загруженных скриптов** (`tasksByScript.keys + listenersByScript.keys + commandsByScript.keys + scriptsWithGuis`) — это делается **до** любых `.clear()`, иначе часть данных потеряется до того, как её использовали.
-2. Отменяет все таски (`Bukkit.getScheduler().cancelTask(id)`).
-3. Снимает все listener'ы (`HandlerList.unregisterAll(listener)`).
-4. Удаляет команды скриптов из `commandMap` (см. раздел 14 — там нетривиально).
-5. Удаляет плейсхолдеры.
-6. Уведомляет аддоны через `KSLContextExtension.onContextDestroyed(scriptName)`.
-7. Закрывает у всех онлайн-игроков открытые GUI, принадлежащие выгружаемым скриптам.
-
-Каждый из этих шагов обёрнут в `runCatching` **по отдельности** — ошибка на любом из них не мешает выполнить остальные.
-
----
-
----
-
-## Приложение: алиасы и упрощения для скриптов
-
-Импортируются автоматически (`ru.privateserver.ksl.dsl.*`), ничего подключать не нужно. Это тонкие обёртки над
-публичным API, старые имена продолжают работать.
-
-| Алиас | Что делает |
-|---|---|
-| `on<Event> { }` | то же, что `onEvent<Event> { }`; опционально `priority`, `ignoreCancelled` |
-| `onPlayerJoin`, `onPlayerQuit`, `onPlayerRespawn`, `onPlayerInteract` | именованные обработчики событий игроков |
-| `onMobDeath`, `onEntityDamage` | события смерти и получения урона сущностями |
-| `command("name") { player, args -> }` | `registerCommand`, только игроки |
-| `commandAny("name") { sender, args -> }` | команда, доступная и консоли |
-| `later(20) { }`, `laterAsync(20) { }` | `delay`, `delayAsync` |
-| `afterAsync(20) { }`, `repeatAsync(20) { }` | `delayAsync`, `everyAsync` |
-| `sync { }`, `async { }` | `runSync`, `runAsync` (возвращают id задачи) |
-| `cancelTask(id)` | отмена любой задачи по id из `delay`/`every`/`sync`/... |
-| `5.sec`, `2.mins`, `20.ticks`, `1.minute`, `2.hours`, `1.day` | единицы времени в серверных тиках (`20.ticks == 20L`) |
-| `mob(...)`, `mobs(...)`, `shopkeeper(...)` | короткие имена для спавна моба, группы мобов и торговца |
-| `Location.effect(...)`, `Entity.effect(...)` | короткие формы запуска эффекта частиц |
-| `sender.msg("<green>текст")` | MiniMessage-сообщение игроку или консоли |
-| `player.actionBar("...")` | MiniMessage в action bar |
-| `item(Material.DIAMOND, "<aqua>Имя", listOf("<gray>строка"), 3)` | предмет с MiniMessage-именем и лором без курсива |
-| `player.giveItem(stack)` | выдаёт предмет, остаток падает под ноги; `true`, если всё поместилось |
-| `online`, `playerNamed("Steve")` | онлайн-игроки, поиск по точному нику |
-| `chance(25.0)` | `true` с вероятностью 25% |
-| `cfg("path", default)` | `config.getOrSetDefault(path, default)` |
-| `log(..)`, `logWarn(..)`, `logError(..)` | запись в консоль с префиксом `[скрипт]` |
-| `gui { button(slot, item) { player -> } }` | `set(slot, item) { player, _ -> }` |
-| `subscribe(topic) { }`, `publish(topic, payload)` | шина событий между скриптами и аддонами |
-
----
-
-## Приложение: частицы и мобы (расширенные возможности)
-
-### `playEffect`
-
-| Вызов внутри блока | Что делает |
-|---|---|
-| `circle(r, step)`, `helix(r, turns, height)`, `lineTo({ loc }, points)` | базовые формы |
-| `sphere(r, points = 60, spinDegreesPerTick = 0.0)` | сфера из равномерных точек, может вращаться |
-| `square(size, pointsPerSide = 10)`, `arc(radius, startDegrees, sweepDegrees, points)` | квадрат и дуга |
-| `cylinder(radius, height, pointsPerRing)`, `cone(radius, height, points)`, `heart(size, points)` | цилиндр, конус и контур сердца |
-| `point()` | одна точка в центре |
-| `custom { tick, center -> listOf(Vector(..)) }` | своя форма прямо в скрипте |
-| `shape("имя", "param" to value)` | форма по имени: встроенная или из аддона |
-| `color(255, 0, 0)` / `color("#ff8800", size)` | цвет для `Particle.DUST` |
-| `data = ...` | данные для других частиц (BlockData, ItemStack, Color) |
-| `stopWhen { условие }` | досрочная остановка; несколько условий складываются через ИЛИ |
-| `onEnd { ... }` | один раз после окончания по времени или `stopWhen` |
-
-`count` ограничен 0..100 на точку. Один эффект может выпустить не более 2048 частиц за тик, а все эффекты KSL вместе — не более 8192 частиц за один тик Paper-сервера; также сохраняется предел 360 точек на форму. Если лимита не хватает, KSL сокращает количество точек или частиц и пишет одно предупреждение для эффекта. У скрипта может быть до 16 активных эффектов одновременно (общий предел KSL — 128).
-
-### `spawnCustomEntity` и пакетный спавн
-
-`spawnCustomEntity(location, template) { ... }` создаёт одну живую сущность. Неизвестный `TYPE` теперь завершается понятной ошибкой вместо незаметного подменивания на ZOMBIE. Не-spawnable и неживые типы отклоняются до попытки спавна. Вызов должен идти в главном потоке Bukkit; из фоновой задачи передавай его через `runSync { ... }`.
-
-Если нужно создать много мобов, не делай большой цикл `repeat(500) { spawnCustomEntity(...) }` при загрузке скрипта. Используй пакетный вариант `mobs(...)` / `spawnCustomEntities(...)`: он создаёт ограниченное число сущностей за тик и возвращает ID задачи. Для мобов на Paper доступны `moveTo(location, speed)`, `follow(livingEntity, speed)`, `stopMoving()`, `lookAt(location)`, `aware(true)`, `aggressive(true)` и настройка дверей/плавания через `navigation(...)`.
-
-```kotlin
-val taskId = spawnCustomEntities(
-    location = player.location,
-    template = "TYPE:ZOMBIE NAME:\"<red>Страж</red>\" HP:40 AI:TRUE",
-    amount = 100,
-    perTick = 2,
-    intervalTicks = 1L
-) {
-    potion(PotionEffectType.SPEED, seconds = 30)
+~~~kotlin
+val vault = hook<KSLVaultHook>("vault")
+if (vault == null) {
+    log("Vault is not installed; economy integration is disabled")
 }
-```
+~~~
 
-### `spawnShopkeeper`
+Depending on installed plugins and the current KSL build, integrations may include PlaceholderAPI, LuckPerms, EssentialsX, Vault, SkinsRestorer, TAB, AuthMe, WorldEdit, WorldGuard, Skript, and Discord webhooks.
 
-`spawnShopkeeper(location, name) { ... }` создаёт настоящего жителя с обычным торговым интерфейсом Minecraft: игрок нажимает ПКМ по жителю и открывает сделки. Для открытия окна из команды или другого события используй `openShopkeeper(player, villager, force = true)`. Это не отдельный инвентарь-симуляция и не копия внутренней реализации Shopkeepers — KSL использует Bukkit/Paper Merchant API.
+## 10. Sandbox and security
 
-Настройки билдера:
+Sandbox performs configurable checks for potentially dangerous source patterns and class references. It is a guardrail, not a secure isolation boundary.
 
-- `profession`, `villagerType`, `level`, `experience`;
-- `aiEnabled`, `aware`, `invulnerable`, `silent`, `collidable`, `canPickupItems`, `glowing`, `gravity`;
-- `trade(cost, result, secondCost = null, maxUses = Int.MAX_VALUE, ...)` — одна или две оплаты и один результат.
+Scripts execute inside the server JVM and may access Bukkit and other server capabilities. Only trusted people should be allowed to write scripts or install addons. Never expose passwords or webhook tokens in scripts, YAML files, or logs.
 
-По умолчанию торговец неподвижен, не подбирает предметы, не сталкивается с игроками и не светится. При необходимости эти флаги можно включить отдельно.
+See [Security and Sandbox](Security-and-Sandbox.md).
 
-По умолчанию сделки не дают опыт, не дорожают от спроса и не учитывают индивидуальные скидки; количество использований практически не ограничено. Уровень жителя — 1..5, опыт — не меньше 1, сделки — до 64. Житель сохраняется при выгрузке чанка; при reload KSL удаляет его, если `removeOnReload = true` (значение по умолчанию).
+## 11. Commands and permissions
 
-Пример:
+The /ksl command provides script management, runtime diagnostics, error lookup, and addon/integration information. Exact subcommands depend on the current build; use /ksl help and server tab completion.
 
-```kotlin
-spawnShopkeeper(player.location, "<gold><bold>Торговец</bold></gold>") {
-    profession = Villager.Profession.LIBRARIAN
-    villagerType = Villager.Type.PLAINS
-    level = 5
-    trade(ItemStack(Material.EMERALD, 8), ItemStack(Material.DIAMOND))
-    trade(ItemStack(Material.GOLD_INGOT, 16), ItemStack(Material.GOLDEN_APPLE))
-}
-```
+The administrative permission is ksl.admin. Protect it with your permissions plugin and do not grant it to untrusted players.
 
-### `spawnCustomEntity`
+Common commands:
 
-Ключи шаблона: `TYPE`, `NAME`, `HP`, `AI`, `BABY` и расширяемые: `SPEED` (множитель), `DAMAGE`, `ARMOR`,
-`KNOCKBACK_RESIST`, `GLOW`, `SILENT`, `INVULNERABLE` (+ ключи из аддонов). Неизвестный ключ даёт предупреждение.
+- /ksl reload — reload scripts.
+- /ksl validate — validate scripts without loading them.
+- /ksl doctor — run diagnostics.
+- /ksl errors — inspect recent errors.
+- /ksl error <code> — explain an error code.
+- /ksl runtime — inspect JVM and worker-pool telemetry.
+- /ksl language — show or change the locale.
 
-Билдер: `equip("HAND:DIAMOND_SWORD HELMET:IRON_HELMET")`, `attribute("attack_damage", 8.0)`, `speed(1.5)`,
-`damage(v)`, `armor(v)`, `potion(PotionEffectType.SPEED, seconds = 30, amplifier = 1)`, `glow()`, `silent()`,
-`invulnerable()`, `drops(item(...), exp = 50, keepDefault = false)`.
+## 12. Addon API
 
-Поведение: `mob.behavior { onTick(20) { }; onDeath { mob, killer -> }; onDamaged { mob, event -> }; onAttack { mob, event -> } }`.
+Third-party Paper plugins can implement KSLAddon and register services, default imports, and context extensions through KSLAPI. Addons should declare KSL as a compileOnly dependency and must not bundle a second copy of KSL API classes.
 
-### Хуки
+See [Addon Development Guide](Addon-Development-Guide.md) and [Public API](Public-API.md).
 
-`hook<KSLVaultHook>("vault")`, `requireHook<T>("id")`, `hasHook("id")`: единый доступ к интеграциям, включая хуки из аддонов.
+## 13. Internals for contributors
 
----
+Before changing the core, inspect the current implementation and tests. Pay particular attention to ScriptRunner, script/context ownership, command registration and removal, database executor and migrations, hook initialization, locale key coverage, standard-library module registration, CI quality gates, and JAR inspection requirements.
 
-## Приложение: MySQL / MariaDB и phpMyAdmin
+Do not make an internal implementation class public solely for convenience. Prefer a supported extension point and add tests for lifecycle and compatibility behavior.
 
-phpMyAdmin сам ничего не хранит, он только показывает и редактирует базу на сервере MySQL/MariaDB. Поэтому KSL подключается
-к серверу напрямую, а phpMyAdmin можно использовать для просмотра таблиц.
+## 14. Technical pitfalls
 
-### Настройка
+- Do not relocate Kotlin runtime packages in the shaded JAR.
+- Do not execute Bukkit world/player/entity/inventory operations from arbitrary worker threads.
+- Do not create unbounded thread pools or repeating tasks without cleanup.
+- Do not treat Sandbox as isolation from malicious code.
+- Do not remove ownership tracking required for safe hot reload.
+- Do not assume an optional plugin or hook is installed.
+- Do not expose database credentials, Discord webhooks, or API tokens in source control.
+- Do not rename locale keys or placeholders when translating YAML files.
 
-1. В phpMyAdmin создай базу (например `ksl`, сопоставление `utf8mb4_general_ci`) и пользователя с правами на неё
-   (`Привилегии → Добавить учётную запись`, «Выдать все привилегии на базу данных»).
-2. В `plugins/KotlinScriptLoader/config.yml`:
+## 15. Troubleshooting
 
-```yaml
-database:
-  type: mariadb        # или mysql
-  host: localhost
-  port: 3306
-  name: ksl
-  user: ksl
-  password: "пароль"
-  ssl-mode: disable    # disable | trust | verify-ca | verify-full
-  pool-size: 4
-```
+Start with the exact error code and the complete surrounding console log. Run /ksl doctor and /ksl validate when available. For a server freeze, inspect both Paper's watchdog dump and KSL's multi-snapshot dump.
 
-3. Перезапусти сервер. В логе должно появиться `База данных: MariaDB ksl@localhost:3306/ksl`, а в базе - таблицы
-   `ksl_scripts`, `ksl_persist`, `ksl_table`, `ksl_meta`.
+See [Troubleshooting](Troubleshooting.md), [Build Diagnostics](Build-Diagnostics.md), and [Error Codes](Error-Codes.md).
 
-Файл `config.yml` содержит пароль открытым текстом, не публикуй его. Если секции `database:` в твоём старом `config.yml` нет,
-добавь её вручную: плагин не дописывает новые ключи сам.
+## 16. Contributing
 
-### Что учесть
+1. Check the current main branch and exact commit.
+2. Read AGENTS.md and the documents for the affected subsystem.
+3. Add or update tests with the implementation.
+4. Preserve script hot reload and resource ownership.
+5. Keep public API changes compatible or document a deliberate API-version change.
+6. Run the strict quality gate and inspect the JAR.
+7. Report exactly which checks ran and which were not run.
 
-- **Скрипты.** `database`, `dbExecute` и `dbQuery` работают с выбранной базой, поэтому SQL в скриптах должен быть переносимым
-  (без `PRAGMA`, `AUTOINCREMENT`, `INSERT OR REPLACE`). Свои таблицы называй с префиксом скрипта.
-- **Один сервер.** `table().increment` атомарен в пределах одного сервера KSL. Если несколько серверов пишут в одну базу,
-  счётчик может потерять обновление.
-- **Данные из SQLite.** Автоматического переноса нет: `ksl.db` остаётся рядом и не удаляется.
-- **Ошибка подключения.** Плагин продолжает работу без БД (persist живёт в памяти), а в логе будет причина и подсказка.
-  Автоматического отката на SQLite нет намеренно, чтобы данные не расходились по двум хранилищам.
-
-### Команда `/ksl dbmigrate`
-
-Копирует данные из старого `ksl.db` в MySQL/MariaDB, когда `database.type` переключён на `mysql` или `mariadb`.
-
-1. `/ksl dbmigrate` — показывает, сколько записей найдено, ничего не меняет.
-2. `/ksl dbmigrate confirm` — переносит `persist` и `table`.
-
-Перенос можно повторять: существующие ключи перезаписываются значениями из `ksl.db`. Сам файл не изменяется и не удаляется.
-Ключи длиннее 190 символов в MySQL не помещаются: перенос остановится и назовёт строку.
-
-### Прочее
-
-- `/ksl doctor` и `/ksl validate` работают в фоне: первый запуск компилятора занимает несколько секунд, сервер при этом не блокируется.
-- `/ksl` без аргументов показывает справку (раньше перезагружал все скрипты); перезагрузка: `/ksl reload [скрипт]`.
-- Discord: `discord.send(channel, text, allowMentions = false)`; по умолчанию `@everyone`, `@here` и роли не пингуют. Слишком длинный текст обрезается по лимитам Discord.
-- Плейсхолдеры: `placeholder("balance") { player -> "100" }` даёт `%ksl_balance%` (нужен PlaceholderAPI). Ключи нечувствительны к регистру.
-
----
-
-## Приложение: папки со скриптами и перезагрузка
-
-Скрипты можно раскладывать по папкам внутри `scripts/`:
-
-```
-scripts/
-  main.kts
-  economy/
-    shop.kts
-    bank.kts
-  pvp/
-    arena.kts
-  _disabled/        <- папки на "_" и "." пропускаются
-```
-
-- **Имя скрипта** = путь внутри `scripts/` без `.kts`: `main`, `economy/shop`, `pvp/arena`. Именно оно в логах, в `persist`-ключах, в `/ksl reload` и в `// @requires:`.
-- `// @requires: bank` найдёт `economy/bank`, если скрипт с таким именем один; иначе пиши полный путь `economy/bank`.
-- Конфиг скрипта лежит рядом: `scripts/economy/shop.yml`.
-- **Перенос скрипта в другую папку меняет его имя**, поэтому его `persist`-данные в базе останутся под старым именем. Если нужно сохранить данные, перенеси их в базе или оставь скрипт на месте.
-
-| Команда | Что делает |
-|---|---|
-| `/ksl reload` | перезагружает все скрипты |
-| `/ksl reload economy/shop` | только этот скрипт |
-| `/ksl reload economy/` | все скрипты папки (и вложенных) в порядке зависимостей |
-| `/ksl reload changed` | только новые и изменённые с прошлой загрузки; удалённые выгружаются |
-| `/ksl validate` | проверить все скрипты без загрузки (в фоне) |
-
-Настройки в `config.yml`:
-
-```yaml
-scripts:
-  recursive: true        # искать в подпапках
-  auto-reload: false     # перезагружать скрипт при сохранении файла (для разработки)
-```
-
-При `auto-reload: true` KSL следит за `scripts/`: после сохранения файла и полусекундной паузы перезагружается только он,
-удалённый файл выгружается, новая папка с файлами подхватывается.
-
-## Приложение: коды ошибок
-
-Каждое сообщение об ошибке имеет код: `[6156a]` = четыре цифры и буква категории. Расшифровка: `/ksl error 6156a`.
-Все коды, категории и подсказки: [Error-Codes.md](Error-Codes.md). Для разработчиков: каталог живёт в `KSLError.kt`;
-новый код добавляй туда с номером, не соседним с существующими.
-
-## Приложение: свои текстовые плейсхолдеры
-
-```kotlin
-// в скрипте
-textPlaceholder("rank") { player -> if (player?.isOp == true) "Админ" else "Игрок" }
-val msg = config.message("welcome", player)      // "Привет, @player@! Ты: @rank@"
-```
-
-```yaml
-# config.yml: постоянные значения для всех скриптов
-text-placeholders:
-  server_name: "Мой сервер"
-```
-
-Имена `player`, `world`, `online`, `maxplayers`, `health`, `ping` встроены и заняты. Регистр не важен. Неизвестный `@токен@`
-остаётся в тексте, а в консоли появляется предупреждение с кодом.
-
-## Приложение: перезагрузка в фоне и безопасность
-
-- `/ksl reload ...` компилирует скрипты **в фоновом потоке**; пока идёт компиляция, сервер работает как обычно. Если новая версия скрипта не
-  скомпилировалась, продолжает работать предыдущая (код `9065a`).
-- `/ksl scripts` показывает статус, время загрузки и число ошибок каждого скрипта.
-- `scripts.compile-threads` (1-8) задаёт, сколько скриптов компилировать одновременно.
-- Sandbox, запрет классов, блокировка консольных команд и лимиты: [Security-and-Sandbox.md](Security-and-Sandbox.md).
-
-## Приложение: как KSL сообщает об ошибках
-
-Ошибки скриптов пишутся жёлтым (WARN), коротко и с кодом (`[6156a]`), повторяющиеся строки сворачиваются. `/ksl errors`
-показывает последнюю ошибку со списком строк, `/ksl error <код>` объясняет код. Тяжёлая работа (компиляция) идёт в фоне,
-поэтому предупреждения Paper «server has not responded» из-за KSL не появляются: [Troubleshooting.md](Troubleshooting.md).
-Настройки `logging.script-errors-as-warnings`, `notifications.admins-in-game`, `scripts.startup-load` описаны в `config.yml`.
-
+Do not claim real-server compatibility based only on successful compilation; test Paper behavior on a staging server when practical.
