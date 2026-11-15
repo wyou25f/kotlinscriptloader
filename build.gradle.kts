@@ -73,6 +73,9 @@ dependencies {
 
     testImplementation("com.destroystokyo.paper:paper-api:1.16.5-R0.1-SNAPSHOT")
     testImplementation("net.kyori:adventure-text-minimessage:4.10.1") { isTransitive = false }
+    // Paper API snapshots mark some server-provided libraries as compile-only; MockBukkit tests need them at runtime.
+    testImplementation("net.kyori:adventure-api:4.10.1")
+    testImplementation("it.unimi.dsi:fastutil:8.5.12")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testImplementation("com.github.seeseemelk:MockBukkit-v1.16:1.5.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
