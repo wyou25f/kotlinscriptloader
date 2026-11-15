@@ -34,7 +34,7 @@ try {
         if ($Yaml -notmatch '(?m)^main:\s*ru\.privateserver\.ksl\.KotlinScriptLoaderPlugin\s*$') {
             $Issues.Add("plugin.yml main entry is missing or unexpected")
         }
-        if ($Yaml -notmatch '(?m)^api-version:\s*[''"]?1\.21') { $Issues.Add("plugin.yml api-version does not appear to target 1.21") }
+        if ($Yaml -notmatch '(?m)^api-version:\s*[''"]?1.16') { $Issues.Add("plugin.yml api-version does not appear to target 1.16") }
     } else { $Issues.Add("plugin.yml missing") }
 
     $Required = @(
