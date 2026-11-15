@@ -48,8 +48,9 @@ module contracts. It also exposes:
 
 Hook implementations and authoring helpers are grouped under
 `ru.privateserver.ksl.hooks.*`. This package provides `KSLPluginHook`,
-`KSLHookIds`, `registerHookIfEnabled()`, `hookOrNull<T>()` and
-`requireHookAlias<T>()`. Existing built-in hook class names in
+`KSLHookIds`, `registerHookIfEnabled()`, `findHook<T>()` and
+`requireHookAlias<T>()`. The public API package continues to provide
+`hookOrNull<T>()` and `hookOrFail<T>()`. Existing built-in hook class names in
 `ru.privateserver.ksl` remain as compatibility facades.
 
 These short operations are Kotlin extension functions, not new abstract
