@@ -82,6 +82,9 @@ class KSLRuntimeScope(val name: String) : AutoCloseable {
     fun profiler(name: String): KSLProfiler = synchronized(lock) {
         check(!closed) { "Runtime scope '${this.name}' is already closed" }
         require(name.isNotBlank()) { "Profiler name must not be blank" }
+        require(name.length <= KSLProfiler.MAX_NAME_LENGTH) {
+            "Profiler name must not exceed ${KSLProfiler.MAX_NAME_LENGTH} characters"
+        }
         profilers[name]?.let { return@synchronized it }
         check(profilers.size < MAX_PROFILERS_PER_SCOPE) {
             "Runtime scope '$name' reached its profiler limit ($MAX_PROFILERS_PER_SCOPE)"
