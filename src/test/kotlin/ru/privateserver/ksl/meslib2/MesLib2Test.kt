@@ -117,10 +117,10 @@ class MesLib2Test {
     fun boundsIdentifierAndVersionLengths() {
         val api = facade()
         assertThrows(IllegalArgumentException::class.java) {
-            api.export("a".repeat(129), "service", "value")
+            api.export("a".repeat(129), "service", "value", "1.0.0")
         }
         assertThrows(IllegalArgumentException::class.java) {
-            api.export("economy", "n".repeat(129), "value")
+            api.export("economy", "n".repeat(129), "value", "1.0.0")
         }
         assertThrows(IllegalArgumentException::class.java) {
             api.export("economy", "service", "value", "v".repeat(129))
