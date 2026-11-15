@@ -34,6 +34,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
       - name: Generate static GitHub data
+        id: generate-data
         env:
           GITHUB_TOKEN: ${{ github.token }}
         shell: bash
@@ -55,11 +56,8 @@ jobs:
             exit 1
           fi
           python - <<'PY'
-          import hashlib
-          import io
           import json
           import os
-          import zipfile
           from pathlib import Path
           from urllib.parse import urlencode
           from urllib.request import Request, urlopen
@@ -80,61 +78,10 @@ jobs:
               with urlopen(request, timeout=30) as response:
                   return json.load(response)
 
-          download_dir = Path("website/downloads")
-          download_dir.mkdir(parents=True, exist_ok=True)
-          branch_slugs = {
-              "main": "main",
-              "compat/mc-1.16.5-1.21": "compat-mc-1.16.5-1.21",
-              "compat/mc-1.18-plus": "compat-mc-1.18-plus",
-          }
-
-          def mirror_jar(branch, run, artifact):
-              request = Request(
-                  f"{api_base}/actions/artifacts/{artifact['id']}/zip",
-                  headers=headers,
-              )
-              with urlopen(request, timeout=120) as response:
-                  archive_bytes = response.read()
-
-              with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
-                  jars = [
-                      item for item in archive.namelist()
-                      if item.lower().endswith(".jar")
-                      and not item.lower().endswith(("-sources.jar", "-javadoc.jar"))
-                  ]
-                  if not jars:
-                      raise RuntimeError(
-                          f"No plugin JAR found in artifact {artifact['name']}"
-                      )
-                  jar_path = sorted(jars, key=lambda value: ("/libs/" not in value, value))[0]
-                  jar_bytes = archive.read(jar_path)
-
-              filename = (
-                  f"KSL-{branch_slugs[branch]}-build-{run['run_number']}-"
-                  f"{Path(jar_path).name}"
-              )
-              destination = download_dir / filename
-              destination.write_bytes(jar_bytes)
-              digest = hashlib.sha256(jar_bytes).hexdigest()
-              checksum_path = destination.with_suffix(destination.suffix + ".sha256")
-              checksum_path.write_text(f"{digest}  {filename}\n", encoding="utf-8")
-
-              return {
-                  "id": artifact["id"],
-                  "name": artifact.get("name"),
-                  "size_in_bytes": artifact.get("size_in_bytes"),
-                  "jar_name": Path(jar_path).name,
-                  "jar_size_in_bytes": len(jar_bytes),
-                  "sha256": digest,
-                  "site_download_url": f"./downloads/{filename}",
-                  "checksum_url": f"./downloads/{filename}.sha256",
-                  "source_expires_at": artifact.get("expires_at"),
-              }
-
           build_specs = {
-              "main": "KSL-build-",
-              "compat/mc-1.16.5-1.21": "KSL-compat-1.16.5-1.21-",
-              "compat/mc-1.18-plus": "KSL-compat-1.18-plus-",
+              "main": ("KSL-build-", "main"),
+              "compat/mc-1.16.5-1.21": ("KSL-compat-1.16.5-1.21-", "compat116"),
+              "compat/mc-1.18-plus": ("KSL-compat-1.18-plus-", "compat118"),
           }
 
           def latest_build(branch, artifact_prefix):
@@ -177,9 +124,14 @@ jobs:
                   "artifact": None,
               }
               if selected_artifact:
-                  result["artifact"] = mirror_jar(
-                      branch, selected_run, selected_artifact
-                  )
+                  result["artifact"] = {
+                      "id": selected_artifact["id"],
+                      "name": selected_artifact.get("name"),
+                      "size_in_bytes": selected_artifact.get("size_in_bytes"),
+                      "created_at": selected_artifact.get("created_at"),
+                      "expires_at": selected_artifact.get("expires_at"),
+                      "expired": selected_artifact.get("expired", False),
+                  }
               return result
 
           data = {
@@ -188,22 +140,113 @@ jobs:
               "release": read("/tmp/ksl-release.json"),
               "commits": read("/tmp/ksl-commits.json"),
               "builds": {
-                  branch: latest_build(branch, prefix)
-                  for branch, prefix in build_specs.items()
+                  branch: latest_build(branch, spec[0])
+                  for branch, spec in build_specs.items()
               },
           }
           assert isinstance(data["branches"], list) and data["branches"], "No repository branches returned"
           assert isinstance(data["commits"], list) and data["commits"], "No main-branch commits returned"
-          for branch, build in data["builds"].items():
-              artifact_name = build["artifact"]["name"] if build and build["artifact"] else "none"
-              jar_name = build["artifact"]["jar_name"] if build and build["artifact"] else "none"
-              print(f"Latest successful build for {branch}: {build['run_number'] if build else 'none'}; artifact={artifact_name}; jar={jar_name}")
           Path("website/data.json").write_text(
               json.dumps(data, ensure_ascii=False, separators=(",", ":")),
               encoding="utf-8",
           )
+
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              for branch, (_, output_key) in build_specs.items():
+                  build = data["builds"].get(branch)
+                  artifact = build.get("artifact") if build else None
+                  if build and artifact:
+                      output.write(f"{output_key}_run_id={build['run_id']}\n")
+                      output.write(f"{output_key}_artifact_name={artifact['name']}\n")
+
+          for branch, build in data["builds"].items():
+              artifact_name = build["artifact"]["name"] if build and build["artifact"] else "none"
+              print(f"Latest successful build for {branch}: {build['run_number'] if build else 'none'}; artifact={artifact_name}")
           print(f"Generated website/data.json: {len(data['branches'])} branches, {len(data['commits'])} commits, release={bool(data['release'])}")
           PY
+      - name: Download latest main build artifact
+        if: steps.generate-data.outputs.main_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.generate-data.outputs.main_artifact_name }}
+          path: /tmp/ksl-artifacts/main
+          run-id: ${{ steps.generate-data.outputs.main_run_id }}
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+
+      - name: Download latest Minecraft 1.16.5–1.21 artifact
+        if: steps.generate-data.outputs.compat116_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.generate-data.outputs.compat116_artifact_name }}
+          path: /tmp/ksl-artifacts/compat116
+          run-id: ${{ steps.generate-data.outputs.compat116_run_id }}
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+
+      - name: Download latest Minecraft 1.18+ artifact
+        if: steps.generate-data.outputs.compat118_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.generate-data.outputs.compat118_artifact_name }}
+          path: /tmp/ksl-artifacts/compat118
+          run-id: ${{ steps.generate-data.outputs.compat118_run_id }}
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+
+      - name: Publish JAR files and SHA-256 checksums
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          data_path = Path("website/data.json")
+          data = json.loads(data_path.read_text(encoding="utf-8"))
+          download_dir = Path("website/downloads")
+          download_dir.mkdir(parents=True, exist_ok=True)
+          specs = {
+              "main": "main",
+              "compat/mc-1.16.5-1.21": "compat116",
+              "compat/mc-1.18-plus": "compat118",
+          }
+
+          for branch, folder in specs.items():
+              build = data["builds"].get(branch)
+              if not build or not build.get("artifact"):
+                  continue
+
+              artifact_dir = Path("/tmp/ksl-artifacts") / folder
+              jars = [
+                  path for path in artifact_dir.rglob("*.jar")
+                  if not path.name.lower().endswith(("-sources.jar", "-javadoc.jar"))
+              ]
+              if not jars:
+                  raise SystemExit(f"No plugin JAR found in downloaded artifact for {branch}")
+
+              jar = sorted(jars, key=lambda path: ("/libs/" not in path.as_posix(), path.name))[0]
+              content = jar.read_bytes()
+              filename = f"KSL-{folder}-build-{build['run_number']}-{jar.name}"
+              destination = download_dir / filename
+              destination.write_bytes(content)
+              digest = hashlib.sha256(content).hexdigest()
+              checksum = destination.with_suffix(destination.suffix + ".sha256")
+              checksum.write_text(f"{digest}  {filename}\n", encoding="utf-8")
+
+              build["artifact"].update({
+                  "jar_name": jar.name,
+                  "jar_size_in_bytes": len(content),
+                  "sha256": digest,
+                  "site_download_url": f"./downloads/{filename}",
+                  "checksum_url": f"./downloads/{filename}.sha256",
+              })
+              print(f"Published {branch}: {filename} ({len(content)} bytes), SHA-256 {digest}")
+
+          data_path.write_text(
+              json.dumps(data, ensure_ascii=False, separators=(",", ":")),
+              encoding="utf-8",
+          )
       - name: Validate website
         shell: bash
         run: |
