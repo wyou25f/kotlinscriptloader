@@ -99,7 +99,7 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
             else -> unit.crash?.let { KSLErrors.log(plugin, id, "компиляция скрипта", it, failureCode) }
                 ?: unit.errors.forEach { plugin.logScriptProblem("[$id] ${failureCode.tag} $it") }
         }
-        if (unit.crash == null) KSLErrors.recordFailure(id, "компиляция", unit.errors, failureCode)
+        if (unit.crash == null) KSLErrors.recordFailure(id, plugin.message("console.script.compile-location"), unit.errors, failureCode)
     }
 
     fun evaluate(unit: CompiledUnit): Boolean {
@@ -124,7 +124,7 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
                         .map { formatDiagnostic(it, unit.file) }
                     plugin.logScriptProblem("[$id] ${KSLError.SCRIPT_EVALUATION_FAILED.tag} ❌ Не удалось выполнить скрипт:")
                     KSLReport.compactErrors(errors).forEach { plugin.logScriptProblem("  $it") }
-                    KSLErrors.recordFailure(id, "выполнение скрипта", errors, KSLError.SCRIPT_EVALUATION_FAILED)
+                    KSLErrors.recordFailure(id, plugin.message("console.script.execution-location"), errors, KSLError.SCRIPT_EVALUATION_FAILED)
                     false
                 }
                 is ResultWithDiagnostics.Success -> {
@@ -133,14 +133,14 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
                         KSLErrors.log(plugin, id, "загрузка скрипта", rv.error, KSLError.SCRIPT_RUNTIME)
                         false
                     } else {
-                        plugin.logger.info("[$id] ✅ загружен")
+                        plugin.logger.info("[$id] ✅ ${plugin.message("console.script.loaded")}")
                         true
                     }
                 }
             }
             val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000
             if (elapsedMs > SLOW_LOAD_THRESHOLD_MS) {
-                plugin.logger.warning("[$id] ${KSLError.SCRIPT_SLOW_LOAD.tag} ⏱ Выполнение top-level кода заняло ${elapsedMs}мс — это дольше обычного, проверь скрипт на тяжёлые операции (сеть, БД синхронно и т.п.)")
+                plugin.logger.warning("[$id] ${KSLError.SCRIPT_SLOW_LOAD.tag} ${plugin.message("console.script.slow-load", "milliseconds" to elapsedMs)}")
             }
             ok
         } catch (ex: Throwable) {

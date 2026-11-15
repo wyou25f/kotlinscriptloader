@@ -78,7 +78,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             val queued = dbQueueSize()
             val readQueued = dbQueryQueueSize()
             if (queued >= dbQueueWarnAt || readQueued >= dbQueueWarnAt) {
-                logger.warning("${KSLError.DB_QUEUE_LARGE.tag} Очереди БД: запись=$queued, чтение=$readQueued — БД не успевает за скриптами")
+                logger.warning("${KSLError.DB_QUEUE_LARGE.tag} ${message("console.database.queue-backlog", "writes" to queued, "reads" to readQueued)}")
             }
         }, 600L, 600L)
     }
@@ -346,12 +346,12 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         val normalized = key.lowercase()
         val ownerLabel = owner ?: "external"
         if (normalized in KSLTextPlaceholders.reserved) {
-            logger.warning("[$ownerLabel] ${KSLError.TEXT_PLACEHOLDER_RESERVED.tag} @$normalized@ встроен в KSL — выбери другое имя")
+            logger.warning("[$ownerLabel] ${KSLError.TEXT_PLACEHOLDER_RESERVED.tag} ${message("console.placeholder.reserved", "placeholder" to "@$normalized@")}")
             return
         }
         val previous = textPlaceholders.ownerOf(normalized)
         if (textPlaceholders.contains(normalized) && previous != owner) {
-            logger.warning("[$ownerLabel] ${KSLError.PLACEHOLDER_CONFLICT.tag} Текстовый плейсхолдер @$normalized@ уже занят (${previous ?: "?"}) — будет перезаписан")
+            logger.warning("[$ownerLabel] ${KSLError.PLACEHOLDER_CONFLICT.tag} ${message("console.placeholder.conflict", "placeholder" to "@$normalized@", "owner" to (previous ?: "?"))}")
         }
         textPlaceholders.put(normalized, resolver, owner)
     }
@@ -470,7 +470,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             printStartupSummary(dbOk, loaded, failed)
             return
         }
-        logger.info("Скрипты загрузятся в фоне сразу после старта сервера (scripts.startup-load: sync загружает их до конца старта).")
+        logger.info(message("console.startup.async-scripts"))
         // The first tick comes after every plugin has enabled, so addon imports and services exist by then,
         // and the compile happens off the main thread instead of holding up the startup.
         Bukkit.getScheduler().runTask(this, Runnable {
@@ -501,43 +501,43 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 break
             }
         }
-        if (reloadCompileInProgress.get()) logger.warning("Компиляция ещё выполнялась при выключении; её результат будет отброшен")
+        if (reloadCompileInProgress.get()) logger.warning(message("console.shutdown.compile-in-progress"))
         runCatching { unloadAllScripts() }
-            .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} Ошибка при выгрузке скриптов: ${it.message}") }
+            .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} ${message("console.shutdown.scripts-failed", "error" to it.message)}") }
         runCatching { if (::workScheduler.isInitialized) workScheduler.close() }
-            .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} Не удалось остановить worker scheduler: ${it.message}") }
+            .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} ${message("console.shutdown.workers-failed", "error" to it.message)}") }
         runCatching { addonManager.shutdown() }
-            .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} Ошибка при выгрузке аддонов: ${it.message}") }
+            .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} ${message("console.shutdown.addons-failed", "error" to it.message)}") }
         runCatching { papiUnregister?.invoke() }
-            .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} Ошибка при снятии PlaceholderAPI expansion: ${it.message}") }
+            .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} ${message("console.shutdown.placeholderapi-failed", "error" to it.message)}") }
         runCatching {
             dbExecutor.shutdown()
             dbQueryExecutor.shutdown()
             if (!dbExecutor.awaitTermination(3, java.util.concurrent.TimeUnit.SECONDS)) {
                 val dropped = dbExecutor.shutdownNow().size
-                if (dropped > 0) logger.warning("${KSLError.DB_WRITES_LOST.tag} DB-очередь не успела завершиться: потеряно записей — $dropped")
+                if (dropped > 0) logger.warning("${KSLError.DB_WRITES_LOST.tag} ${message("console.database.writes-dropped", "count" to dropped)}")
             }
             if (!dbQueryExecutor.awaitTermination(3, java.util.concurrent.TimeUnit.SECONDS)) {
                 val dropped = dbQueryExecutor.shutdownNow().size
-                if (dropped > 0) logger.warning("DB read queue did not finish before shutdown: dropped $dropped queries")
+                if (dropped > 0) logger.warning(message("console.database.reads-dropped", "count" to dropped))
             }
-        }.onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} Не удалось корректно остановить DB-очередь: ${it.message}") }
+        }.onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} ${message("console.database.queue-stop-failed", "error" to it.message)}") }
         runCatching { if (::database.isInitialized) database.close() }
-            .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} Ошибка при закрытии базы данных: ${it.message}") }
+            .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} ${message("console.database.close-failed", "error" to it.message)}") }
         KSL.shutdown()
-        logger.info("$c9$bold■ KotlinScriptLoader остановлен$r")
+        logger.info("$c9$bold■ ${message("console.shutdown.complete")}$r")
     }
 
     private fun printStartupSummary(dbOk: Boolean, loaded: Int, failed: Int) {
-        fun flag(on: Boolean) = if (on) "${cg}✔ найден$r" else "${ce}○ не найден$r"
+        fun flag(on: Boolean) = if (on) "${cg}✔ ${message("console.startup.found")}$r" else "${ce}○ ${message("console.startup.missing")}$r"
         val addonsCount = addonManager.registeredAddons().size
         val servicesCount = addonManager.getServiceKeys().size
 
         logger.info("$c9${bold}╔══════════════════════════════════════╗$r")
         logger.info("$c9${bold}║$r $cb$bold KotlinScriptLoader $cf v${description.version}$r")
         logger.info("$c9${bold}╠══════════════════════════════════════╣$r")
-        logger.info("$c9${bold}║$r ${if (dbOk) cg else cc}База данных     : ${if (dbOk) "${cg}✔ OK$r" else "${cc}✘ ОШИБКА$r"}")
-        logger.info("$c9${bold}║$r ${if (failed == 0) cg else ce}Скрипты         : $cf$loaded ${c7}загружено$r$cf, $failed ${c7}с ошибками$r")
+        logger.info("$c9${bold}║$r ${if (dbOk) cg else cc}${message("console.startup.database", "status" to message(if (dbOk) "console.startup.ok" else "console.startup.failed"))}$r")
+        logger.info("$c9${bold}║$r ${if (failed == 0) cg else ce}${message("console.startup.scripts", "loaded" to loaded, "failed" to failed)}$r")
         logger.info("$c9${bold}║$r ${c7}PlaceholderAPI  : ${flag(papiEnabled)}")
         logger.info("$c9${bold}║$r ${c7}LuckPerms       : ${flag(luckPerms != null)}")
         logger.info("$c9${bold}║$r ${c7}EssentialsX     : ${flag(essentials != null)}")
@@ -548,10 +548,10 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         logger.info("$c9${bold}║$r ${c7}TAB             : ${flag(tab != null)}")
         logger.info("$c9${bold}║$r ${c7}AuthMe          : ${flag(authMe != null)}")
         logger.info("$c9${bold}║$r ${c7}Skript          : ${flag(skript != null)}")
-        logger.info("$c9${bold}║$r ${c7}Discord         : ${if (discord != null) "${cg}✔ ${discord!!.channels().size} канал(ов)$r" else "${ce}○ не настроен$r"}")
-        logger.info("$c9${bold}║$r ${c7}Аддоны          : ${if (addonsCount > 0) "${cg}✔ $addonsCount загружено$r" else "${ce}○ нет$r"}")
-        logger.info("$c9${bold}║$r ${c7}Сервисы         : ${if (servicesCount > 0) "${cg}✔ $servicesCount зарегистрировано$r" else "${ce}○ нет$r"}")
-        logger.info("$c9${bold}║$r ${c7}Sandbox         : ${if (sandboxEnabled) "${cg}✔ включён (${if (sandboxStrict) "strict" else "text"})$r" else "${ce}○ выключен$r"}")
+        logger.info("$c9${bold}║$r ${c7}${message(if (discord != null) "console.startup.discord" else "console.startup.discord-missing", "channels" to (discord?.channels()?.size ?: 0))}$r")
+        logger.info("$c9${bold}║$r ${c7}${message(if (addonsCount > 0) "console.startup.addons" else "console.startup.addons-empty", "count" to addonsCount)}$r")
+        logger.info("$c9${bold}║$r ${c7}${message(if (servicesCount > 0) "console.startup.services" else "console.startup.services-empty", "count" to servicesCount)}$r")
+        logger.info("$c9${bold}║$r ${c7}${message(if (sandboxEnabled) "console.startup.sandbox" else "console.startup.sandbox-disabled", "level" to if (sandboxStrict) "strict" else "text")}$r")
         logger.info("$c9${bold}╚══════════════════════════════════════╝$r")
     }
 
@@ -619,14 +619,14 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             tableCacheEnabled = config.getBoolean("database.cache", !parsed.dialect.isRemote)
             database = HikariDataSource(cfg)
             val applied = database.connection.use { Migrations.run(it, dialect) }
-            logger.info("База данных: ${parsed.describe()}")
-            if (applied > 0) logger.info("Применено миграций БД: $applied")
+            logger.info(message("console.database.initialized", "database" to parsed.describe()))
+            if (applied > 0) logger.info(message("console.database.migrations-applied", "count" to applied))
             true
         } catch (ex: Exception) {
             val rootMessage = generateSequence<Throwable>(ex) { it.cause }.last().message ?: ex.message
-            logger.severe("${KSLError.DB_INIT_FAILED.tag} Не удалось инициализировать базу данных (${settings?.describe() ?: "настройки не разобраны"}): $rootMessage")
+            logger.severe("${KSLError.DB_INIT_FAILED.tag} ${message("console.database.init-failed", "settings" to (settings?.describe() ?: message("console.database.settings-unknown")), "error" to rootMessage)}")
             if (settings?.dialect?.isRemote == true) {
-                logger.severe("Проверь host/port/user/password в config.yml, что база '${settings?.name}' создана (phpMyAdmin → Базы данных) и у пользователя есть на неё права.")
+                logger.severe(message("console.database.check-credentials", "database" to (settings?.name ?: "?")))
             }
             false
         }
@@ -636,7 +636,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private fun <T : KSLHook> integrate(pluginName: String, label: String, create: () -> T): T? {
         if (!Bukkit.getPluginManager().isPluginEnabled(pluginName)) return null
         val hook = runCatching(create)
-            .onFailure { logger.warning("${KSLError.HOOK_INIT_FAILED.tag} $label: инициализация хука не удалась: ${it.message}") }
+            .onFailure { logger.warning("${KSLError.HOOK_INIT_FAILED.tag} ${message("console.integration.hook-init-failed", "plugin" to label, "error" to it.message)}") }
             .getOrNull()
         hook?.let { addonManager.registerHook(it) }
         return hook
@@ -650,7 +650,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 expansion.register()
                 papiUnregister = { expansion.unregister() }
             }
-                .onFailure { logger.warning("${KSLError.PAPI_REGISTER_FAILED.tag} PlaceholderAPI: регистрация expansion не удалась: ${it.message}") }
+                .onFailure { logger.warning("${KSLError.PAPI_REGISTER_FAILED.tag} ${message("console.integration.papi-register-failed", "error" to it.message)}") }
 
         luckPerms   = integrate("LuckPerms", "LuckPerms") { KSLLuckPermsHook() }
         essentials  = integrate("Essentials", "EssentialsX") { KSLEssentialsHook() }
@@ -905,9 +905,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             // Rewriting an identical file on every reload makes the IDE re-index the stub for nothing.
             if (!stub.exists() || stub.readText() != generated) {
                 stub.writeText(generated)
-                logger.info("Сгенерирован .autocomplete.kts для IDE-подсказок")
+                logger.info(message("console.startup.autocomplete-created"))
             }
-        }.onFailure { logger.warning("${KSLError.AUTOCOMPLETE_FAILED.tag} Не удалось сгенерировать .autocomplete.kts: ${it.message}") }
+        }.onFailure { logger.warning("${KSLError.AUTOCOMPLETE_FAILED.tag} ${message("console.startup.autocomplete-failed", "error" to it.message)}") }
     }
 
     var lastLoadStats: Pair<Int, Int> = 0 to 0
@@ -918,9 +918,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private fun startWatcher() {
         if (!config.getBoolean("scripts.auto-reload", false)) return
         scriptWatcher = runCatching { KSLScriptWatcher(this).also { it.start() } }
-            .onFailure { logger.warning("${KSLError.SCRIPT_WATCHER_FAILED.tag} Автоперезагрузка скриптов не запущена: ${it.message}") }
+            .onFailure { logger.warning("${KSLError.SCRIPT_WATCHER_FAILED.tag} ${message("console.startup.watcher-start-failed", "error" to it.message)}") }
             .getOrNull()
-        if (scriptWatcher != null) logger.info("Автоперезагрузка скриптов включена (scripts.auto-reload)")
+        if (scriptWatcher != null) logger.info(message("console.startup.watcher-enabled"))
     }
 
     // Folder-relative id without the extension, e.g. "economy/shop". It is the script's identity in logs,
@@ -992,7 +992,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         if (!unit.ok) {
             scriptRunner.reportFailure(unit)
             if (id in liveScripts) {
-                logger.warning("[$id] ${KSLError.SCRIPT_KEPT_PREVIOUS.tag} Новая версия не скомпилировалась — продолжает работать предыдущая")
+                logger.warning("[$id] ${KSLError.SCRIPT_KEPT_PREVIOUS.tag} ${message("console.script.previous-version-kept")}")
             }
             // Recorded so a broken script is not recompiled until it changes.
             scriptStamps[id] = stampOf(unit.file)
@@ -1055,7 +1055,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                     runCatching { scriptRunner.warmUp() }
                     compiled
                 } catch (ex: Throwable) {
-                    logger.severe("${KSLError.SCRIPT_RUNTIME.tag} Фоновая компиляция не удалась: ${ex::class.simpleName}: ${ex.message}")
+                    logger.severe("${KSLError.SCRIPT_RUNTIME.tag} ${message("console.script.background-compile-failed", "type" to ex::class.simpleName, "error" to ex.message)}")
                     null
                 } finally {
                     reloadCompileInProgress.set(false)
@@ -1078,7 +1078,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                     })
                 } catch (ex: Throwable) {
                     reloadBusy.set(false)
-                    logger.warning("Не удалось передать результат перезагрузки на главный поток: ${ex.message}")
+                    logger.warning(message("console.script.reload-handoff-failed", "error" to ex.message))
                 }
             })
         } catch (ex: Throwable) {
@@ -1125,7 +1125,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         }
         true
     } catch (ex: Exception) {
-        logger.warning("${KSLError.DB_DOCTOR_TABLES.tag} [doctor] Проверка таблиц БД не удалась: ${ex.message}")
+        logger.warning("${KSLError.DB_DOCTOR_TABLES.tag} ${message("console.database.doctor-tables-failed", "error" to ex.message)}")
         false
     }
 

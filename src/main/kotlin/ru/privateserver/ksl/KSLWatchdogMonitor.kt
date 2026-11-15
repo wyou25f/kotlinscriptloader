@@ -57,14 +57,14 @@ internal class KSLWatchdogMonitor(
         executor.scheduleAtFixedRate(
             { runCatching { checkHeartbeat() }.onFailure { error ->
                 runCatching {
-                    plugin.logger.warning("${KSLError.SYSTEM_WATCHDOG_SNAPSHOT_FAILED.tag} Не удалось проверить heartbeat: ${error.message}")
+                    plugin.logger.warning("${KSLError.SYSTEM_WATCHDOG_SNAPSHOT_FAILED.tag} ${plugin.message("console.watchdog.heartbeat-failed", "error" to error.message)}")
                 }
             } },
             pollMillis,
             pollMillis,
             TimeUnit.MILLISECONDS
         )
-        plugin.logger.info("Диагностика Watchdog включена: дамп после ${TimeUnit.NANOSECONDS.toSeconds(thresholdNanos)}с без тиков")
+        plugin.logger.info(plugin.message("console.watchdog.enabled", "seconds" to TimeUnit.NANOSECONDS.toSeconds(thresholdNanos)))
     }
 
     private fun heartbeat() {
@@ -164,7 +164,7 @@ internal class KSLWatchdogMonitor(
                 .onSuccess { captured += it }
                 .onFailure { error ->
                     runCatching {
-                        plugin.logger.warning("${KSLError.SYSTEM_WATCHDOG_SNAPSHOT_FAILED.tag} Снимок ${index + 1}/$snapshotLimit не получен: ${error.message}")
+                        plugin.logger.warning("${KSLError.SYSTEM_WATCHDOG_SNAPSHOT_FAILED.tag} ${plugin.message("console.watchdog.snapshot-failed", "index" to (index + 1), "count" to snapshotLimit, "error" to error.message)}")
                     }
                 }
             if (index < snapshotLimit - 1 && !stopped.get() && lastHeartbeatNanos == observedHeartbeat) {
@@ -203,11 +203,11 @@ internal class KSLWatchdogMonitor(
                     "снимков: ${captured.size}/$snapshotLimit; дамп: ${file.relativeTo(plugin.dataFolder).path}"
             )
             if (captured.any { it.deadlockedIds.isNotEmpty() }) {
-                plugin.logger.severe("${KSLError.SYSTEM_WATCHDOG_DEADLOCK.tag} JVM обнаружила взаимную блокировку; подробности в watchdog-дампе.")
+                plugin.logger.severe("${KSLError.SYSTEM_WATCHDOG_DEADLOCK.tag} ${plugin.message("console.watchdog.deadlock")}")
             }
         } catch (error: Throwable) {
             runCatching {
-                plugin.logger.severe("${KSLError.SYSTEM_WATCHDOG_DUMP_FAILED.tag} Не удалось сохранить дамп: ${error.message}")
+                plugin.logger.severe("${KSLError.SYSTEM_WATCHDOG_DUMP_FAILED.tag} ${plugin.message("console.watchdog.dump-failed", "error" to error.message)}")
             }
         }
     }
@@ -329,7 +329,7 @@ internal class KSLWatchdogMonitor(
         } ?: return
         dumps.sortedByDescending { it.lastModified() }.drop(keep).forEach { file ->
             if (!file.delete()) {
-                runCatching { plugin.logger.warning("${KSLError.SYSTEM_WATCHDOG_ROTATION_FAILED.tag} Не удалось удалить старый дамп: ${file.name}") }
+                runCatching { plugin.logger.warning("${KSLError.SYSTEM_WATCHDOG_ROTATION_FAILED.tag} ${plugin.message("console.watchdog.rotation-failed", "file" to file.name)}") }
             }
         }
     }
