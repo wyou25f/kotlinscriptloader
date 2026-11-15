@@ -1,0 +1,675 @@
+# Книга IV. KSL Cookbook — практические рецепты
+
+**Шаблоны для игровых механик, команд, данных, баз, инвентаря и интеграций**
+
+Cookbook — не замена первым трём книгам. Он показывает типовые решения и объясняет, какие части нужно адаптировать. Перед копированием проверьте импорты и доступность методов в target версии KSL.
+
+## Содержание
+
+1. Приветствие при входе
+2. Команда с permission
+3. Команда с аргументами и валидацией
+4. Сообщение через YAML
+5. Feature flag
+6. Кулдаун игрока
+7. Награда за вход
+8. Статистика через table
+9. Проверка вместимости инвентаря
+10. Выдача предметов с остатками
+11. Повторяющаяся задача
+12. Фоновый расчёт
+13. SQL: создание и вставка
+14. SQL: асинхронный SELECT
+15. SQL-запрос из YAML
+16. JSON-профиль
+17. TOML-настройки
+18. Миграция YAML
+19. Кэширование профиля
+20. Измерение времени
+21. MesLib2: обмен между скриптами
+22. Необязательный hook
+23. Поиск игроков рядом
+24. Валидация никнейма
+25. Предмет как награда
+26. Диагностика скриптов
+27. Cleanup внешнего ресурса
+28. Перенос данных в фоновом потоке
+29. Проверка конфигурации перед регистрацией механики
+30. Правила адаптации рецептов
+
+---
+
+## Рецепт 1. Приветствие при входе
+
+~~~kotlin
+onEvent<PlayerJoinEvent> {
+    player.sendRichMessage(
+        "<green>Добро пожаловать, <white>" + player.name + "</white>!</green>"
+    )
+}
+~~~
+
+KSL регистрирует listener при загрузке и удаляет его при выгрузке скрипта.
+
+---
+
+## Рецепт 2. Команда с permission
+
+~~~kotlin
+registerCommand("announce") { sender, args ->
+    if (!sender.hasPermission("server.announce")) {
+        sender.sendMessage("Недостаточно прав.")
+        return@registerCommand
+    }
+
+    if (args.isEmpty()) {
+        sender.sendMessage("Использование: /announce <текст>")
+        return@registerCommand
+    }
+
+    val message = args.joinToString(" ")
+    runSync {
+        Bukkit.broadcastMessage(message)
+    }
+}
+~~~
+
+Проверка permission обязательна внутри команды. Не рассчитывайте, что скрытие команды из подсказок защищает её.
+
+---
+
+## Рецепт 3. Аргументы и валидация
+
+~~~kotlin
+registerCommand("set-level") { sender, args ->
+    val raw = args.getOrNull(0).orEmpty()
+
+    val validator = kslValidator(
+        notBlank("Укажите уровень."),
+        codePointLength(1, 3, "Слишком длинное значение."),
+        matches(Regex("[0-9]+"), "Нужны только цифры.")
+    )
+
+    when (val result = raw.validateWith(validator)) {
+        is KSLValidationResult.Invalid -> {
+            result.errors.forEach { sender.sendMessage(it.message) }
+        }
+        is KSLValidationResult.Valid -> {
+            val level = result.value.toIntOrNull()
+            if (level == null || level !in 1..100) {
+                sender.sendMessage("Уровень должен быть от 1 до 100.")
+            } else {
+                sender.sendMessage("Уровень установлен: " + level)
+            }
+        }
+    }
+}
+~~~
+
+Валидация формата и бизнес-ограничение — разные проверки. Сначала убедитесь, что строка является целым числом, затем проверьте допустимый диапазон.
+
+---
+
+## Рецепт 4. Сообщение через YAML
+
+shop.yml:
+
+~~~yaml
+messages:
+  prefix: "<gold>[Магазин]</gold>"
+  welcome: "<green>Вы открыли магазин!</green>"
+  disabled: "<red>Магазин временно отключён.</red>"
+shop:
+  enabled: true
+~~~
+
+shop.kts:
+
+~~~kotlin
+val prefix = config.getString("messages.prefix") ?: "[Магазин]"
+val welcome = config.getString("messages.welcome") ?: "Добро пожаловать"
+val enabled = config.getBoolean("shop.enabled", true)
+
+registerCommand("shop") { sender, _ ->
+    if (!enabled) {
+        sender.sendMessage(prefix + " Магазин отключён.")
+        return@registerCommand
+    }
+    sender.sendMessage(prefix + " " + welcome)
+}
+~~~
+
+Файл shop.yml лежит в корне данных KSL рядом с папкой scripts/, а не внутри scripts/.
+
+---
+
+## Рецепт 5. Feature flag
+
+~~~kotlin
+if (featureEnabled("events.double-xp", default = false)) {
+    onEvent<PlayerJoinEvent> {
+        player.sendMessage("Сейчас активен двойной опыт!")
+    }
+}
+~~~
+
+Feature flag управляет включением функции. Он не заменяет permission check и не является системой авторизации.
+
+---
+
+## Рецепт 6. Кулдаун игрока
+
+~~~kotlin
+val lastUse = mutableMapOf<UUID, Long>()
+val cooldownMillis = 10_000L
+
+registerCommand("daily") { sender, _ ->
+    val player = sender as? Player ?: return@registerCommand
+    val now = System.currentTimeMillis()
+    val previous = lastUse[player.uniqueId] ?: 0L
+
+    if (now - previous < cooldownMillis) {
+        val seconds = (cooldownMillis - (now - previous)) / 1000
+        player.sendMessage("Подождите ещё " + seconds + " сек.")
+        return@registerCommand
+    }
+
+    lastUse[player.uniqueId] = now
+    player.sendMessage("Ежедневная награда готова!")
+}
+~~~
+
+Это in-memory cooldown: он сбросится при reload. Для хранения между перезапусками используйте persist/table или БД. В production очищайте старые ключи, если их количество может расти без ограничений.
+
+---
+
+## Рецепт 7. Награда за вход
+
+~~~kotlin
+var coins by persist("welcome-coins", persistent = true) { 0L }
+
+onEvent<PlayerJoinEvent> {
+    coins += 10L
+    player.sendMessage("Начислено 10 монет. Общий счётчик: " + coins)
+}
+~~~
+
+Этот пример хранит одно persistent значение скрипта, а не персональный баланс каждого игрока. Для данных по игрокам используйте отдельный ключ/таблицу или полноценную SQL-схему.
+
+---
+
+## Рецепт 8. Статистика через table
+
+~~~kotlin
+val stats = table("player_stats")
+
+onEvent<PlayerJoinEvent> {
+    val key = player.uniqueId.toString()
+    stats.set(key, "kills", 0)
+    player.sendMessage("Статистика загружена.")
+}
+~~~
+
+Пример показывает создание/инициализацию key/value записи. Для реального счётчика сначала прочитайте текущее значение, затем обновите его. Для конкурентных обновлений с нескольких серверов используйте атомарный SQL UPDATE, а не локальный read-modify-write.
+
+---
+
+## Рецепт 9. Проверка вместимости инвентаря
+
+~~~kotlin
+val reward = ItemStack(Material.DIAMOND, 16)
+
+if (player.canFit(reward)) {
+    player.give(reward)
+} else {
+    player.sendMessage("Освободите место в инвентаре.")
+}
+~~~
+
+canFit учитывает место в частичных похожих стеках. isInventoryFull проверяет только полное отсутствие пустого storage slot — это не одно и то же.
+
+---
+
+## Рецепт 10. Выдать предметы с остатками
+
+~~~kotlin
+val reward = ItemStack(Material.EMERALD, 64)
+val leftovers = player.give(reward)
+
+if (leftovers.isNotEmpty()) {
+    player.sendMessage("Часть предметов не поместилась.")
+}
+~~~
+
+give не выбрасывает остатки на землю. Если именно это нужно:
+
+~~~kotlin
+val droppedCount = player.giveOrDrop(reward)
+player.sendMessage("На землю выброшено предметов: " + droppedCount)
+~~~
+
+Решение о выбрасывании должно быть осознанным: это меняет мир, и предметы могут подобрать другие игроки.
+
+---
+
+## Рецепт 11. Повторяющаяся задача
+
+~~~kotlin
+val taskId = every(ticks = 20L) {
+    // Работа примерно раз в секунду при 20 TPS.
+}
+~~~
+
+Зарегистрируйте repeating task один раз на верхнем уровне скрипта. Не создавайте новую периодическую задачу при каждом event callback.
+
+---
+
+## Рецепт 12. Фоновый расчёт
+
+~~~kotlin
+val playerId = player.uniqueId
+
+worker(KSLWorkPriority.NORMAL) {
+    val result = calculateScore(playerId)
+
+    runSync {
+        val online = Bukkit.getPlayer(playerId)
+        online?.sendMessage("Результат: " + result)
+    }
+}
+~~~
+
+В worker не держите изменяемое состояние Player. Передавайте UUID и другие простые данные, а в главном потоке заново ищите игрока.
+
+---
+
+## Рецепт 13. SQL: создание и вставка
+
+~~~kotlin
+execute("""
+    CREATE TABLE IF NOT EXISTS player_notes (
+        uuid VARCHAR(36) NOT NULL,
+        note VARCHAR(255) NOT NULL,
+        created_at BIGINT NOT NULL,
+        PRIMARY KEY (uuid, created_at)
+    )
+""".trimIndent())
+
+execute(
+    "INSERT INTO player_notes (uuid, note, created_at) VALUES (?, ?, ?)",
+    player.uniqueId.toString(),
+    note,
+    System.currentTimeMillis()
+)
+~~~
+
+Для реального проекта продумайте ключи, индексы и миграции. Не конкатенируйте пользовательский ввод в SQL.
+
+---
+
+## Рецепт 14. SQL: асинхронный SELECT
+
+~~~kotlin
+val playerId = player.uniqueId.toString()
+
+queryAsync(
+    "SELECT COUNT(*) AS total FROM player_notes WHERE uuid = ?",
+    playerId,
+    mapper = { rs ->
+        if (rs.next()) rs.getInt("total") else 0
+    }
+).whenComplete { total, error ->
+    if (error != null) {
+        logWarn("Запрос не выполнен: " + error.message)
+    } else {
+        runSync {
+            Bukkit.getPlayer(UUID.fromString(playerId))
+                ?.sendMessage("Записей: " + total)
+        }
+    }
+}
+~~~
+
+Mapper возвращает обычное значение. JDBC ResultSet закрывается после mapper. Не возвращайте ResultSet наружу и не вызывайте join() на главном потоке.
+
+---
+
+## Рецепт 15. SQL-запрос из YAML
+
+Для notes.kts файл notes.yml лежит рядом с scripts/.
+
+~~~yaml
+database:
+  queries:
+    count-notes: "SELECT COUNT(*) AS total FROM player_notes WHERE uuid = ?"
+~~~
+
+~~~kotlin
+dbQueryYaml("database.queries.count-notes", player.uniqueId.toString()) {
+    val total = if (next()) getInt("total") else 0
+    runSync {
+        player.sendMessage("Записей: " + total)
+    }
+}
+~~~
+
+Здесь SQL и Kotlin-логика разделены. После изменения YAML перезагрузите скрипт.
+
+---
+
+## Рецепт 16. JSON-профиль
+
+~~~kotlin
+val payload = jsonObjectOf(
+    "uuid" to player.uniqueId.toString(),
+    "name" to player.name,
+    "online" to true,
+    "seenAt" to System.currentTimeMillis()
+)
+
+saveJson("profiles/" + player.uniqueId + ".json", payload)
+~~~
+
+Путь должен оставаться внутри разрешённой папки scripts/. JSON не шифрует данные и не поддерживает комментарии.
+
+---
+
+## Рецепт 17. TOML-настройки
+
+~~~toml
+[shop]
+enabled = true
+max-items = 24
+~~~
+
+~~~kotlin
+val settings = loadToml("data/shop.toml")
+val shop = settings?.tomlTable("shop").orEmpty()
+val enabled = shop.tomlBoolean("enabled", true)
+val maxItems = shop.tomlInt("max-items", 24)
+~~~
+
+Используйте typed accessors вместо небезопасного cast Long → Int.
+
+---
+
+## Рецепт 18. YAML миграция
+
+~~~kotlin
+migrateConfig(
+    targetVersion = 2,
+    migrations = mapOf(
+        1 to {
+            if (!contains("shop.enabled")) set("shop.enabled", true)
+        },
+        2 to {
+            if (!contains("shop.max-items")) set("shop.max-items", 24)
+        }
+    )
+)
+~~~
+
+Не переписывайте старые миграционные шаги после выпуска конфигурации пользователям. Добавляйте новый номер миграции.
+
+---
+
+## Рецепт 19. Кэширование профиля
+
+~~~kotlin
+data class ProfileView(
+    val name: String,
+    val level: Int
+)
+
+val profiles = runtimeScope.lru<String, ProfileView>(
+    maxSize = 2000,
+    expireAfterAccess = Duration.ofMinutes(5)
+)
+
+profiles[player.uniqueId.toString()] =
+    ProfileView(player.name, 5)
+~~~
+
+runtimeScope очистит кэш при reload скрипта. Не храните в кэше изменяемый Bukkit Player для доступа из фоновых задач.
+
+---
+
+## Рецепт 20. Измерение времени
+
+~~~kotlin
+val profile = KSLRT.profiler("shop.price")
+
+val price = profile.measure {
+    calculatePrice(player.uniqueId)
+}
+
+val snapshot = profile.snapshot()
+log("calls=" + snapshot.calls + ", maxNs=" + snapshot.maxNanos)
+~~~
+
+Не создавайте уникальное имя на каждую операцию. Профайлеры группируют результаты по имени.
+
+---
+
+## Рецепт 21. MesLib2: обмен между скриптами
+
+Поставщик:
+
+~~~kotlin
+data class EconomyLibrary(
+    val currencyName: String = "coins"
+)
+
+meslib2.exportLocal(
+    "service",
+    EconomyLibrary(),
+    version = "1.0"
+)
+~~~
+
+Потребитель:
+
+~~~kotlin
+// @requires: economy
+val economy = meslib2.require<EconomyLibrary>(
+    "economy",
+    "service",
+    "1.0"
+)
+
+log("Валюта: " + economy.currencyName)
+~~~
+
+Экспорт привязан к script owner. Если поставщик выгружается, его экспорт удаляется.
+
+---
+
+## Рецепт 22. Необязательный hook
+
+~~~kotlin
+val auth = hook<KSLAuthMeHook>("authme")
+
+if (auth == null) {
+    log("AuthMe отсутствует — используем базовый режим")
+} else {
+    val registered = auth.isRegistered(player.name)
+    player.sendMessage("Регистрация: " + registered)
+}
+~~~
+
+Optional integration должна оставаться optional. Не делайте сервер зависимым от плагина, если функция может быть отключена с понятным сообщением.
+
+---
+
+## Рецепт 23. Поиск игроков рядом
+
+~~~kotlin
+val nearby = player.world.playersInRadius(
+    player.location,
+    12.0
+)
+
+nearby.forEach { target ->
+    target.sendMessage("Рядом находится игрок: " + player.name)
+}
+~~~
+
+Операция взаимодействует с live world state и должна выполняться на серверном потоке.
+
+---
+
+## Рецепт 24. Валидация никнейма
+
+~~~kotlin
+registerCommand("profile") { sender, args ->
+    val rawName = args.getOrNull(0).orEmpty()
+
+    val validator = kslValidator(
+        notBlank("Введите имя."),
+        codePointLength(3, 16, "Длина должна быть от 3 до 16 символов."),
+        matches(Regex("[A-Za-z0-9_]+"), "Допустимы буквы, цифры и _.")
+    )
+
+    when (val result = rawName.validateWith(validator)) {
+        is KSLValidationResult.Valid -> {
+            sender.sendMessage("Имя прошло проверку формата.")
+        }
+        is KSLValidationResult.Invalid -> {
+            result.errors.forEach { sender.sendMessage(it.message) }
+        }
+    }
+}
+~~~
+
+Проверка формата не означает, что аккаунт существует или принадлежит пользователю.
+
+---
+
+## Рецепт 25. Предмет как награда
+
+~~~kotlin
+val reward = ItemStack(Material.DIAMOND_SWORD)
+    .withDisplayName("<gold>Клинок исследователя</gold>".toMiniMessageComponent())
+    .withLore(
+        listOf(
+            "Редкая награда".toTextComponent(),
+            "Получена за достижение".toTextComponent()
+        )
+    )
+    .withUnbreakable()
+    .withEnchantment(Enchantment.SHARPNESS, 3)
+
+val leftovers = player.give(reward)
+if (leftovers.isNotEmpty()) {
+    player.sendMessage("Освободите место для полной награды.")
+}
+~~~
+
+ItemStack helpers возвращают clone. Строку, которую нужно форматировать, преобразуйте в Component явно. Для пользовательских текстов обычно безопаснее literal text.
+
+---
+
+## Рецепт 26. Диагностика скриптов
+
+~~~kotlin
+registerCommand("script-check") { sender, _ ->
+    if (!sender.hasPermission("ksl.admin")) {
+        sender.sendMessage("Недостаточно прав.")
+        return@registerCommand
+    }
+
+    val scripts = ksl.scripts()
+    sender.sendMessage("Известных скриптов: " + scripts.size)
+
+    scripts.forEach { info ->
+        sender.sendMessage(
+            info.id + ": loaded=" + info.loaded +
+                ", errors=" + info.errors
+        )
+    }
+}
+~~~
+
+Если доступность API или alias отличается в вашей версии, используйте Public API из книги II.
+
+---
+
+## Рецепт 27. Cleanup внешнего ресурса
+
+~~~kotlin
+val client = own(createHttpClient())
+
+val cleanup = onUnload {
+    thirdPartyEvents.unsubscribe(listener)
+}
+
+// Если cleanup больше не нужен:
+cleanup.close()
+~~~
+
+Не создавайте внешний client без определённого места закрытия. При reload его нельзя оставлять работающим в старом classloader.
+
+---
+
+## Рецепт 28. Перенос данных в фоновом потоке
+
+~~~kotlin
+val playerId = player.uniqueId
+val playerName = player.name
+
+worker(KSLWorkPriority.NORMAL) {
+    val profile = loadProfileFromService(playerId)
+
+    runSync {
+        val online = Bukkit.getPlayer(playerId)
+        online?.sendMessage("Данные загружены для " + playerName)
+    }
+}
+~~~
+
+Передавайте стабильные значения. После фоновой операции заново проверяйте, что игрок онлайн, и только затем меняйте Bukkit state.
+
+---
+
+## Рецепт 29. Проверка конфигурации перед регистрацией механики
+
+~~~kotlin
+val issues = validateConfig {
+    bool("shop.enabled", default = true)
+    int("shop.max-items", default = 24, min = 1, max = 54)
+    string("messages.prefix", default = "[Shop]")
+}
+
+if (issues.isEmpty()) {
+    registerCommand("shop") { sender, _ ->
+        sender.sendMessage("Магазин готов.")
+    }
+} else {
+    issues.forEach { issue ->
+        logWarn("Config " + issue.path + ": " + issue.message)
+    }
+}
+~~~
+
+Валидация до регистрации позволяет не запускать механику с неполной или заведомо неверной конфигурацией.
+
+---
+
+## Глава 30. Правила адаптации рецептов
+
+Перед использованием любого примера:
+
+1. Проверьте имена функций и сигнатуры в целевой версии KSL.
+2. Проверьте imports и наличие optional plugins.
+3. Определите поток выполнения callback.
+4. Добавьте permissions в административные команды.
+5. Проверьте cleanup после /ksl reload.
+6. Не оставляйте секреты в коде.
+7. Обработайте ошибки SQL и внешних интеграций.
+8. Проверьте реальный сервер после автоматической сборки.
+
+### Рецепт — не готовый production-плагин
+
+Пример показывает идею и базовый API. Для production обычно нужны schema migrations, обработка гонок, права, конфигурация, логирование, тестирование и диагностика.
+
+**Конец книги IV.** Четыре книги вместе образуют основную документацию KSL.
