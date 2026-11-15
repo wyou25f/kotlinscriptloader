@@ -47,9 +47,7 @@ val joinBehavior = mixin("join-behavior") {
     }
 
     every(periodTicks = 20L) {
-        onlinePlayers().forEach { online ->
-            online.ab("<gray>Статус сервера")
-        }
+        broadcastRich("<gray>Скрипт активен")
     }
 
     after(delayTicks = 5L) {
