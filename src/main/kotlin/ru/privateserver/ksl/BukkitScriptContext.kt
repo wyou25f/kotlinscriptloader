@@ -958,7 +958,7 @@ open class BukkitScriptContext(
         stay: Int = 70,
         fadeOut: Int = 20
     ) {
-        val times = Title.Times.times(
+        val times = Title.Times.of(
             Duration.ofMillis(fadeIn * 50L),
             Duration.ofMillis(stay * 50L),
             Duration.ofMillis(fadeOut * 50L)
