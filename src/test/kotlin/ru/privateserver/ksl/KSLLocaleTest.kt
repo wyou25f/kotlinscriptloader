@@ -88,9 +88,9 @@ class KSLLocaleTest {
         val russian = loadLocale("ru")
         val template = loadLocale("template")
 
-        assertTrue(requiredMessageKeys.all(english::containsKey), "English locale is missing required keys: \${requiredMessageKeys - english.keys}")
-        assertTrue(requiredMessageKeys.all(russian::containsKey), "Russian locale is missing required keys: \${requiredMessageKeys - russian.keys}")
-        assertTrue(requiredMessageKeys.all(template::containsKey), "Locale template is missing required keys: \${requiredMessageKeys - template.keys}")
+        assertTrue(requiredMessageKeys.all(english::containsKey), "English locale is missing required keys: ${requiredMessageKeys - english.keys}")
+        assertTrue(requiredMessageKeys.all(russian::containsKey), "Russian locale is missing required keys: ${requiredMessageKeys - russian.keys}")
+        assertTrue(requiredMessageKeys.all(template::containsKey), "Locale template is missing required keys: ${requiredMessageKeys - template.keys}")
     }
 
     @Test
