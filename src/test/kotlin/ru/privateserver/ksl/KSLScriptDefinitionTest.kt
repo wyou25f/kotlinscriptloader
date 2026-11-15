@@ -109,6 +109,7 @@ class KSLScriptDefinitionTest {
         assertTrue("ru.privateserver.ksl.dsl.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("ru.privateserver.ksl.nbt.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("ru.privateserver.ksl.api.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
+        assertTrue("ru.privateserver.ksl.compat.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("org.bukkit.entity.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("org.bukkit.Sound" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("org.bukkit.SoundCategory" in KSL_SCRIPT_DEFAULT_IMPORTS)
