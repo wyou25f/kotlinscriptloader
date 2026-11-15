@@ -66,11 +66,11 @@ class DynamicCommand(
 
     override fun execute(sender: CommandSender, commandLabel: String, args: Array<String>): Boolean {
         if (playersOnly && sender !is Player) {
-            sender.sendMessage("Эта команда доступна только игрокам.")
+            sender.sendMessage(plugin.message("script-command.players-only"))
             return true
         }
         if (requiredPermission != null && !sender.hasPermission(requiredPermission)) {
-            sender.sendMessage("§cУ тебя нет прав на эту команду.")
+            sender.sendMessage(plugin.message("script-command.no-permission"))
             return true
         }
         try {
@@ -79,7 +79,7 @@ class DynamicCommand(
             }
         } catch (ex: Throwable) {
             KSLErrors.log(plugin, scriptName, "command '/$commandLabel'", ex, KSLError.COMMAND_EXECUTE_FAILED)
-            sender.sendMessage("§cПроизошла ошибка при выполнении команды. Администратор уже уведомлён в консоли.")
+            sender.sendMessage(plugin.message("script-command.failed"))
         }
         return true
     }
