@@ -145,6 +145,7 @@ val verifyShadowJar by tasks.registering {
                 "ru/privateserver/ksl/api/KSLApiProvider.class",
                 "ru/privateserver/ksl/api/KSLPublicApiKt.class",
                 "ru/privateserver/ksl/std/text/TextExtensionsKt.class",
+                "ru/privateserver/ksl/std/text/TextColorExtensionsKt.class",
                 "ru/privateserver/ksl/std/mixin/KSLMixin.class",
                 "ru/privateserver/ksl/std/mixin/KSLMixinBuilder.class",
                 "ru/privateserver/ksl/std/math/MathExtensionsKt.class",
