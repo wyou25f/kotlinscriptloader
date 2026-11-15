@@ -80,6 +80,10 @@ KSL's user documentation is organized as four large books instead of dozens of s
 [Documentation index](docs/README.md) · [Offline reader files](docs/site/)
 
 
+## Official website
+
+The multi-page KotlinScriptLoader website is in [`website/`](website/). It includes project information, branch compatibility, release downloads, source links, documentation and a live GitHub changelog. The site is deployed through [GitHub Pages workflow](.github/workflows/pages.yml). To publish it the first time, enable **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+
 ## Build and test
 
 The repository uses JDK 21 and PowerShell 7+:
