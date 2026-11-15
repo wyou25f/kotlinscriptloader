@@ -20,20 +20,20 @@ class KSLItemBuilder(material: Material, amount: Int = 1) {
 
     fun name(value: String) {
         val component = MiniMessage.miniMessage().deserialize(value)
-            .decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE)
+            .decoration(TextDecoration.ITALIC, TextDecoration.State.FALSE)
         stack = stack.withDisplayName(component)
     }
 
     fun plainName(value: String) {
         val component = Component.text(value)
-            .decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE)
+            .decoration(TextDecoration.ITALIC, TextDecoration.State.FALSE)
         stack = stack.withDisplayName(component)
     }
 
     fun lore(vararg lines: String) {
         val parsed = lines.map {
             MiniMessage.miniMessage().deserialize(it)
-                .decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE)
+                .decoration(TextDecoration.ITALIC, TextDecoration.State.FALSE)
         }
         stack = stack.withLore(parsed)
     }
@@ -41,7 +41,7 @@ class KSLItemBuilder(material: Material, amount: Int = 1) {
     fun addLore(vararg lines: String) {
         val parsed = lines.map {
             MiniMessage.miniMessage().deserialize(it)
-                .decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE)
+                .decoration(TextDecoration.ITALIC, TextDecoration.State.FALSE)
         }
         stack = stack.withAddedLore(parsed)
     }
