@@ -67,7 +67,12 @@ val online: Collection<Player> get() = Bukkit.getOnlinePlayers()
 
 fun playerNamed(name: String): Player? = Bukkit.getPlayerExact(name)
 
-fun chance(percent: Double): Boolean = ThreadLocalRandom.current().nextDouble() * 100.0 < percent
+fun chance(percent: Double): Boolean {
+    require(percent.isFinite() && percent in 0.0..100.0) {
+        "percent must be finite and between 0 and 100"
+    }
+    return ThreadLocalRandom.current().nextDouble(100.0) < percent
+}
 
 // ---- locations ----
 
