@@ -30,29 +30,12 @@ fun String.toMiniMessageMarkup(): String {
 
 /** Converts supported legacy colors to section-sign formatting for Bukkit String APIs. */
 fun String.colorizeLegacy(): String {
-    // Protect complete hex sequences while translating ordinary one-character codes.
-    val hexPattern = Regex("(?i)(?:[&§]x(?:[&§][0-9a-f]){6}|[&§]#[0-9a-f]{6})")
-    val result = StringBuilder(length + 16)
-    var cursor = 0
-    hexPattern.findAll(this).forEach { match ->
-        val before = substring(cursor, match.range.first)
-        result.append(legacyColor.replace(before) { code ->
-            "§" + code.groupValues[1].lowercase(Locale.ROOT)
-        })
-        val token = match.value
-        if (token.startsWith("&#") || token.startsWith("§#")) {
-            val hex = token.substring(2)
-            result.append("§x").append(hex.map { "§" + it }.joinToString(""))
-        } else {
-            result.append(token.replace('&', '§'))
-        }
-        cursor = match.range.last + 1
+    val expanded = expandedHexColor.replace(this) { match -> match.value.replace('&', '§') }
+    val simple = simpleHexColor.replace(expanded) { match ->
+        val hex = match.groupValues[1]
+        "§x" + hex.map { "§" + it }.joinToString("")
     }
-    val tail = substring(cursor)
-    result.append(legacyColor.replace(tail) { code ->
-        "§" + code.groupValues[1].lowercase(Locale.ROOT)
-    })
-    return result.toString()
+    return legacyColor.replace(simple) { match -> "§" + match.groupValues[1].lowercase(Locale.ROOT) }
 }
 
 /** Short alias for [colorizeLegacy]. */

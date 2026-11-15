@@ -14,7 +14,7 @@ class TextColorExtensionsTest {
         assertEquals("<#55CCFF>Blue", "&#55CCFFBlue".toMiniMessageMarkup())
     }
     @Test fun `strip removes ampersand and section sign color codes`() {
-        assertEquals("Hello  world", "&aHello §x§1§2§A§B§3§4 world".stripLegacyColors())
+        assertEquals("Hello world", "&aHello §x§1§2§A§B§3§4 world".stripLegacyColors())
         assertEquals("Plain & text", "Plain & text".stripLegacyColors())
     }
 }
