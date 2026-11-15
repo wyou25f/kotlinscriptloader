@@ -5,6 +5,7 @@ import org.bukkit.plugin.Plugin
 import org.bukkit.persistence.PersistentDataContainer
 import org.bukkit.persistence.PersistentDataType
 import java.nio.ByteBuffer
+import java.security.MessageDigest
 import java.util.Locale
 import java.util.UUID
 
@@ -24,7 +25,11 @@ internal object KSLPersistentTagKey {
             .replace(Regex("[^a-z0-9._-]"), "_")
             .take(32)
             .ifBlank { "script" }
-        val owner = "$slug-${Integer.toHexString(scriptName.hashCode())}"
+        val fingerprint = MessageDigest.getInstance("SHA-256")
+            .digest(scriptName.toByteArray(Charsets.UTF_8))
+            .take(12)
+            .joinToString("") { byte -> (byte.toInt() and 0xff).toString(16).padStart(2, '0') }
+        val owner = "$slug-$fingerprint"
         return "scriptdata/$owner/$normalized"
     }
 }

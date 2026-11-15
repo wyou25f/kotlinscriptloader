@@ -19,6 +19,18 @@ class KSLRuntimeRegressionGuardsTest {
     }
 
     @Test
+    fun `PDC paths use stable long fingerprints and stay within key bounds`() {
+        val scriptName = "folder/" + "a".repeat(180) + ".kts"
+        val first = KSLPersistentTagKey.path(scriptName, "custom/value")
+        val second = KSLPersistentTagKey.path(scriptName, "custom/value")
+        val other = KSLPersistentTagKey.path(scriptName + "2", "custom/value")
+
+        assertTrue(first == second)
+        assertFalse(first == other)
+        assertTrue(first.length < 256)
+    }
+
+    @Test
     fun `mob death alias excludes players`() {
         val player = fakeProxy(Player::class.java)
         val mob = fakeProxy(LivingEntity::class.java)
