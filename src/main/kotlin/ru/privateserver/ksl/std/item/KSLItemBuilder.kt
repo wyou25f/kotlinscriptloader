@@ -2,19 +2,11 @@ package ru.privateserver.ksl.std.item
 
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.TextDecoration
-import net.kyori.adventure.text.minimessage.MiniMessage
+import ru.privateserver.ksl.std.component.toMiniMessageComponent
 import org.bukkit.Material
 import org.bukkit.enchantments.Enchantment
 import org.bukkit.inventory.ItemFlag
 import org.bukkit.inventory.ItemStack
-
-private fun noItalicIfUnset(component: Component): Component =
-    if (component.decoration(TextDecoration.ITALIC) == TextDecoration.State.NOT_SET) {
-        component.decoration(TextDecoration.ITALIC, TextDecoration.State.FALSE)
-    } else {
-        component
-    }
-
 
 /** Mutable builder for concise custom item definitions in KSL scripts. */
 class KSLItemBuilder(material: Material, amount: Int = 1) {
@@ -27,25 +19,29 @@ class KSLItemBuilder(material: Material, amount: Int = 1) {
     }
 
     fun name(value: String) {
-        val component = noItalicIfUnset(MiniMessage.miniMessage().deserialize(value))
+        val component = value.toMiniMessageComponent()
+            .decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE)
         stack = stack.withDisplayName(component)
     }
 
     fun plainName(value: String) {
-        val component = noItalicIfUnset(Component.text(value))
+        val component = Component.text(value)
+            .decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE)
         stack = stack.withDisplayName(component)
     }
 
     fun lore(vararg lines: String) {
         val parsed = lines.map {
-            noItalicIfUnset(MiniMessage.miniMessage().deserialize(it))
+            it.toMiniMessageComponent()
+                .decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE)
         }
         stack = stack.withLore(parsed)
     }
 
     fun addLore(vararg lines: String) {
         val parsed = lines.map {
-            noItalicIfUnset(MiniMessage.miniMessage().deserialize(it))
+            it.toMiniMessageComponent()
+                .decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE)
         }
         stack = stack.withAddedLore(parsed)
     }
