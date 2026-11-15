@@ -962,67 +962,137 @@ open class BukkitScriptContext(
     /** Custom item NBT (custom_data on Minecraft 1.20.5+), separate from PDC. */
     fun ItemStack.modifyNBT(block: ru.privateserver.ksl.nbt.KSLNBTCompound.() -> Unit) {
         requirePrimaryThread("ItemStack.modifyNBT")
-        NBT.modify(this) { nbt -> ru.privateserver.ksl.nbt.KSLNBTCompound(nbt).block() }
+        internalPlugin.requireNbtApiAvailable("ItemStack.modifyNBT")
+        NBT.modify(this, java.util.function.Consumer { nbt ->
+            ru.privateserver.ksl.nbt.KSLNBTCompound(nbt).block()
+        })
     }
 
     fun ItemStack.readNBT(block: ru.privateserver.ksl.nbt.KSLNBTView.() -> Unit) {
         requirePrimaryThread("ItemStack.readNBT")
-        NBT.get(this) { nbt -> ru.privateserver.ksl.nbt.KSLNBTView(nbt).block() }
+        internalPlugin.requireNbtApiAvailable("ItemStack.readNBT")
+        NBT.get(this, java.util.function.Consumer { nbt ->
+            ru.privateserver.ksl.nbt.KSLNBTView(nbt).block()
+        })
     }
 
     /** Reads vanilla data components such as minecraft:custom_name. */
     fun ItemStack.readComponents(block: ru.privateserver.ksl.nbt.KSLNBTView.() -> Unit) {
         requirePrimaryThread("ItemStack.readComponents")
-        NBT.getComponents(this) { nbt -> ru.privateserver.ksl.nbt.KSLNBTView(nbt).block() }
+        internalPlugin.requireNbtApiAvailable("ItemStack.readComponents")
+        NBT.getComponents(this, java.util.function.Consumer { nbt ->
+            ru.privateserver.ksl.nbt.KSLNBTView(nbt).block()
+        })
     }
 
     /** Modifies vanilla data components; component values must use Minecraft's expected format. */
     fun ItemStack.modifyComponents(block: ru.privateserver.ksl.nbt.KSLNBTCompound.() -> Unit) {
         requirePrimaryThread("ItemStack.modifyComponents")
-        NBT.modifyComponents(this) { nbt -> ru.privateserver.ksl.nbt.KSLNBTCompound(nbt).block() }
+        internalPlugin.requireNbtApiAvailable("ItemStack.modifyComponents")
+        NBT.modifyComponents(this, java.util.function.Consumer { nbt ->
+            ru.privateserver.ksl.nbt.KSLNBTCompound(nbt).block()
+        })
     }
 
     fun Entity.readNBT(block: ru.privateserver.ksl.nbt.KSLNBTView.() -> Unit) {
         requirePrimaryThread("Entity.readNBT")
-        NBT.get(this) { nbt -> ru.privateserver.ksl.nbt.KSLNBTView(nbt).block() }
+        internalPlugin.requireNbtApiAvailable("Entity.readNBT")
+        NBT.get(this, java.util.function.Consumer { nbt ->
+            ru.privateserver.ksl.nbt.KSLNBTView(nbt).block()
+        })
     }
 
     fun Entity.modifyNBT(block: ru.privateserver.ksl.nbt.KSLNBTCompound.() -> Unit) {
         requirePrimaryThread("Entity.modifyNBT")
-        NBT.modify(this) { nbt -> ru.privateserver.ksl.nbt.KSLNBTCompound(nbt).block() }
+        internalPlugin.requireNbtApiAvailable("Entity.modifyNBT")
+        NBT.modify(this, java.util.function.Consumer { nbt ->
+            ru.privateserver.ksl.nbt.KSLNBTCompound(nbt).block()
+        })
     }
 
     fun Entity.readPersistentNBT(block: ru.privateserver.ksl.nbt.KSLNBTView.() -> Unit) {
         requirePrimaryThread("Entity.readPersistentNBT")
-        NBT.getPersistentData(this) { nbt -> ru.privateserver.ksl.nbt.KSLNBTView(nbt).block() }
+        internalPlugin.requireNbtApiAvailable("Entity.readPersistentNBT")
+        NBT.getPersistentData(this, java.util.function.Function { nbt ->
+            ru.privateserver.ksl.nbt.KSLNBTView(nbt).block()
+        })
     }
 
     fun Entity.modifyPersistentNBT(block: ru.privateserver.ksl.nbt.KSLNBTCompound.() -> Unit) {
         requirePrimaryThread("Entity.modifyPersistentNBT")
-        NBT.modifyPersistentData(this) { nbt -> ru.privateserver.ksl.nbt.KSLNBTCompound(nbt).block() }
+        internalPlugin.requireNbtApiAvailable("Entity.modifyPersistentNBT")
+        NBT.modifyPersistentData(this, java.util.function.Consumer { nbt ->
+            ru.privateserver.ksl.nbt.KSLNBTCompound(nbt).block()
+        })
     }
 
     /** Vanilla NBT is available only for block entities (TileState), not ordinary blocks. */
     fun TileState.readNBT(block: ru.privateserver.ksl.nbt.KSLNBTView.() -> Unit) {
         requirePrimaryThread("TileState.readNBT")
-        NBT.get(this) { nbt -> ru.privateserver.ksl.nbt.KSLNBTView(nbt).block() }
+        internalPlugin.requireNbtApiAvailable("TileState.readNBT")
+        check(isPlaced) { "TileState must refer to a placed block entity before reading NBT." }
+        NBT.get(this, java.util.function.Consumer { nbt ->
+            ru.privateserver.ksl.nbt.KSLNBTView(nbt).block()
+        })
     }
 
     fun TileState.modifyNBT(block: ru.privateserver.ksl.nbt.KSLNBTCompound.() -> Unit) {
         requirePrimaryThread("TileState.modifyNBT")
-        NBT.modify(this) { nbt -> ru.privateserver.ksl.nbt.KSLNBTCompound(nbt).block() }
-        update(true)
+        internalPlugin.requireNbtApiAvailable("TileState.modifyNBT")
+        check(isPlaced) { "TileState must refer to a placed block entity before modifying NBT." }
+        NBT.modify(this, java.util.function.Consumer { nbt ->
+            ru.privateserver.ksl.nbt.KSLNBTCompound(nbt).block()
+        })
     }
 
     fun TileState.readPersistentNBT(block: ru.privateserver.ksl.nbt.KSLNBTView.() -> Unit) {
         requirePrimaryThread("TileState.readPersistentNBT")
-        NBT.getPersistentData(this) { nbt -> ru.privateserver.ksl.nbt.KSLNBTView(nbt).block() }
+        internalPlugin.requireNbtApiAvailable("TileState.readPersistentNBT")
+        check(isPlaced) { "TileState must refer to a placed block entity before reading persistent NBT." }
+        NBT.getPersistentData(this, java.util.function.Function { nbt ->
+            ru.privateserver.ksl.nbt.KSLNBTView(nbt).block()
+        })
     }
 
     fun TileState.modifyPersistentNBT(block: ru.privateserver.ksl.nbt.KSLNBTCompound.() -> Unit) {
         requirePrimaryThread("TileState.modifyPersistentNBT")
-        NBT.modifyPersistentData(this) { nbt -> ru.privateserver.ksl.nbt.KSLNBTCompound(nbt).block() }
-        update(true)
+        internalPlugin.requireNbtApiAvailable("TileState.modifyPersistentNBT")
+        check(isPlaced) { "TileState must refer to a placed block entity before modifying persistent NBT." }
+        NBT.modifyPersistentData(this, java.util.function.Consumer { nbt ->
+            ru.privateserver.ksl.nbt.KSLNBTCompound(nbt).block()
+        })
+    }
+
+    /** Reads custom data for this ordinary block from its chunk's persistent data container. */
+    fun org.bukkit.block.Block.readChunkNBT(block: ru.privateserver.ksl.nbt.KSLNBTView.() -> Unit) {
+        requirePrimaryThread("Block.readChunkNBT")
+        internalPlugin.requireNbtApiAvailable("Block.readChunkNBT")
+        NBT.readChunkPDC(this, java.util.function.Consumer { nbt ->
+            ru.privateserver.ksl.nbt.KSLNBTView(nbt).block()
+        })
+    }
+
+    /** Modifies custom data for this block, stored in the containing chunk's persistent data container. */
+    fun org.bukkit.block.Block.modifyChunkNBT(block: ru.privateserver.ksl.nbt.KSLNBTCompound.() -> Unit) {
+        requirePrimaryThread("Block.modifyChunkNBT")
+        internalPlugin.requireNbtApiAvailable("Block.modifyChunkNBT")
+        NBT.modifyChunkPDC(this, java.util.function.Consumer { nbt ->
+            ru.privateserver.ksl.nbt.KSLNBTCompound(nbt).block()
+        })
+    }
+
+    /** Removes one key from this block's chunk-backed custom data. */
+    fun org.bukkit.block.Block.removeChunkNBT(key: String): Boolean {
+        requirePrimaryThread("Block.removeChunkNBT")
+        internalPlugin.requireNbtApiAvailable("Block.removeChunkNBT")
+        var removed = false
+        NBT.modifyChunkPDC(this, java.util.function.Consumer { nbt ->
+            if (nbt.hasTag(key)) {
+                nbt.removeKey(key)
+                removed = true
+            }
+        })
+        return removed
     }
 
     fun ItemStack.setTag(key: String, value: String) {

@@ -14,7 +14,7 @@ repositories {
     maven("https://repo.papermc.io/repository/maven-public/")
     maven("https://repo.extendedclip.com/releases/")
     maven("https://repo.essentialsx.net/releases/")
-    maven("https://repo.codemc.org/repository/maven-public/")
+    maven("https://repo.codemc.io/repository/maven-public/")
     maven("https://jitpack.io")
     maven("https://maven.enginehub.org/repo/")
 }
@@ -98,6 +98,7 @@ tasks.shadowJar {
     mergeServiceFiles()
     relocate("com.zaxxer.hikari", "ru.privateserver.ksl.libs.hikari")
     relocate("de.tr7zw.changeme.nbtapi", "ru.privateserver.ksl.libs.nbtapi")
+    relocate("org.bstats", "ru.privateserver.ksl.libs.bstats")
 }
 
 val verifyShadowJar by tasks.registering {
@@ -113,6 +114,8 @@ val verifyShadowJar by tasks.registering {
             val requiredClasses = listOf(
                 "ru/privateserver/ksl/KSLAddonConfig.class",
                 "ru/privateserver/ksl/libs/nbtapi/NBT.class",
+                "ru/privateserver/ksl/nbt/KSLNBTView.class",
+                "ru/privateserver/ksl/nbt/KSLNBTCompound.class",
                 "ru/privateserver/ksl/KSLTabHook.class",
                 "ru/privateserver/ksl/KSLSkinHook.class",
                 "ru/privateserver/ksl/KSLVaultHook.class",

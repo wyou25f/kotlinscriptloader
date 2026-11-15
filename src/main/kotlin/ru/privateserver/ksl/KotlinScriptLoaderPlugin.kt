@@ -1,6 +1,7 @@
 package ru.privateserver.ksl
 
 import com.zaxxer.hikari.HikariConfig
+import de.tr7zw.changeme.nbtapi.NBT
 import com.zaxxer.hikari.HikariDataSource
 import org.bukkit.Bukkit
 import org.bukkit.OfflinePlayer
@@ -17,6 +18,28 @@ internal fun isTaskOwnedBy(scriptName: String, taskId: Int, tasksByScript: Map<S
     tasksByScript[scriptName]?.contains(taskId) == true
 
 class KotlinScriptLoaderPlugin : JavaPlugin() {
+
+    @Volatile
+    private var nbtApiReady = false
+
+    internal fun requireNbtApiAvailable(operation: String) {
+        check(nbtApiReady) {
+            "[$operation] NBT-API is unavailable on this server. Check the startup warning and server-version compatibility."
+        }
+    }
+
+    private fun initializeNbtApi() {
+        val result = runCatching { NBT.preloadApi() }
+        nbtApiReady = result.getOrDefault(false)
+        if (nbtApiReady) {
+            logger.info("[NBT] Item-NBT-API initialized successfully.")
+        } else {
+            logger.warning(
+                "[NBT] Item-NBT-API could not initialize; NBT DSL calls will be disabled. " +
+                    (result.exceptionOrNull()?.message ?: "The Minecraft server version or reflection mappings may be unsupported.")
+            )
+        }
+    }
 
     internal lateinit var localeManager: KSLLocaleManager
         private set
@@ -425,6 +448,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     override fun onEnable() {
         stripColorsFromLog()
         dataFolder.mkdirs()
+        initializeNbtApi()
         saveDefaultConfig()
         localeManager = KSLLocaleManager(this)
         localeManager.reload(config.getString("language", "ru"))
@@ -848,6 +872,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 appendLine("fun org.bukkit.block.TileState.modifyNBT(block: ru.privateserver.ksl.nbt.KSLNBTCompound.() -> Unit) = Unit")
                 appendLine("fun org.bukkit.block.TileState.readPersistentNBT(block: ru.privateserver.ksl.nbt.KSLNBTView.() -> Unit) = Unit")
                 appendLine("fun org.bukkit.block.TileState.modifyPersistentNBT(block: ru.privateserver.ksl.nbt.KSLNBTCompound.() -> Unit) = Unit")
+                appendLine("fun org.bukkit.block.Block.readChunkNBT(block: ru.privateserver.ksl.nbt.KSLNBTView.() -> Unit) = Unit")
+                appendLine("fun org.bukkit.block.Block.modifyChunkNBT(block: ru.privateserver.ksl.nbt.KSLNBTCompound.() -> Unit) = Unit")
+                appendLine("fun org.bukkit.block.Block.removeChunkNBT(key: String): Boolean = false")
                 appendLine("fun ItemStack.setTag(key: String, value: String) = Unit")
                 appendLine("fun ItemStack.getTag(key: String): String? = null")
                 appendLine("fun ItemStack.hasTag(key: String): Boolean = false")

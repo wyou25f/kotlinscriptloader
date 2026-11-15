@@ -7,7 +7,7 @@ KotlinScriptLoader is a Kotlin scripting plugin for **Paper 1.21.1** and **Java 
 - Kotlin-based `.kts` scripts with a Bukkit/Paper-oriented DSL.
 - Background script compilation and reload workflows designed to keep expensive compiler work off the server's main thread.
 - Managed script lifecycle: KSL tracks and cleans up listeners, tasks, commands, placeholders, GUI sessions, and other owned resources.
-- Built-in APIs for configuration, databases, scheduling, text, inventory, entities, effects, and more.
+- Built-in APIs for configuration, databases, scheduling, text, inventory, entities, effects, and NBT (including vanilla item components).
 - Addon and library extension points, plus optional integrations with other server plugins.
 - Structured error codes, diagnostics, watchdog reports, and runtime tools.
 - Server messages in Russian and English, with support for custom YAML locales.
@@ -73,7 +73,9 @@ KSL's user documentation is organized as four large books instead of dozens of s
 | [Book III — Data and Databases](docs/03-data-and-databases.md) | SQLite, MySQL, MariaDB, phpMyAdmin, SQL, persist/table, YAML, TOML and JSON |
 | [Book IV — Cookbook](docs/04-cookbook.md) | Practical recipes for commands, events, inventory, databases, caching and integrations |
 
-**Offline reading:** download the complete [docs/site folder](docs/site/) and open `index.html` on your PC. The reader includes all four books, search, chapter navigation, code copy buttons and print layout. It does not require a server or an internet connection.
+**Supplemental API reference:** [NBT API](docs/05-nbt-api.md) covers custom item/entity/block data and vanilla item components.
+
+**Offline reading:** download the complete [docs/site folder](docs/site/) and open `index.html` on your PC. The reader includes all four primary books, search, chapter navigation, code copy buttons and print layout. It does not require a server or an internet connection.
 
 [Documentation index](docs/README.md) · [Offline reader files](docs/site/)
 
