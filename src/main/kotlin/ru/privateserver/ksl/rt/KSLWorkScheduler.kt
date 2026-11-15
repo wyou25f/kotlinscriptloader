@@ -95,6 +95,13 @@ class KSLWorkScheduler(
     private val history = ConcurrentLinkedDeque<KSLWorkInfo>()
     private val lifecycleLock = Any()
 
+    /** Weakly-consistent snapshot without ConcurrentHashMap.values.toList() size/iterator races. */
+    private fun recordsSnapshot(): List<Record> {
+        val snapshot = ArrayList<Record>()
+        records.values.forEach { snapshot.add(it) }
+        return snapshot
+    }
+
     private val executor = ThreadPoolExecutor(
         workers.coerceIn(1, 64), workers.coerceIn(1, 64), 0L, TimeUnit.MILLISECONDS,
         PriorityBlockingQueue(),
@@ -351,7 +358,7 @@ class KSLWorkScheduler(
                 record.runner = null
                 record.inFlight = false
                 when {
-                    record.stop -> terminal = finishLocked(record, KSLWorkState.CANCELLED, null)
+                    record.stop || (closed.get() && record.repeating) -> terminal = finishLocked(record, KSLWorkState.CANCELLED, null)
                     error != null -> terminal = finishLocked(record, KSLWorkState.FAILED, error)
                     else -> {
                         completed.incrementAndGet()
@@ -484,7 +491,7 @@ class KSLWorkScheduler(
     }
 
     fun cancelOwner(owner: String): Int {
-        val owned = records.values.filter { it.owner == owner }
+        val owned = recordsSnapshot().filter { it.owner == owner }
         var count = 0
         owned.forEach { if (cancelRecord(it, true)) count++ }
         return count
@@ -510,13 +517,13 @@ class KSLWorkScheduler(
 
     fun taskInfos(owner: String? = null, limit: Int = HISTORY_LIMIT): List<KSLWorkInfo> {
         require(limit in 1..HISTORY_LIMIT) { "limit must be between 1 and $HISTORY_LIMIT" }
-        val active = records.values.filter { owner == null || it.owner == owner }.map { it.info() }
+        val active = recordsSnapshot().filter { owner == null || it.owner == owner }.map { it.info() }
         val recent = history.filter { owner == null || it.owner == owner }.take(limit)
         return (active + recent).distinctBy { it.id }.sortedByDescending { it.id }.take(limit)
     }
 
     fun snapshot(): KSLWorkSnapshot {
-        val current = records.values.toList()
+        val current = recordsSnapshot()
         val byOwner = current.groupBy { it.owner }.mapValues { (_, tasks) ->
             KSLWorkOwnerSnapshot(
                 tasks.size, tasks.count { it.state == KSLWorkState.QUEUED },
