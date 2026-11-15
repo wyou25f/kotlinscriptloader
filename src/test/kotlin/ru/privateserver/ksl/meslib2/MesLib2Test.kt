@@ -2,6 +2,7 @@ package ru.privateserver.ksl.meslib2
 
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import java.util.Locale
 import ru.privateserver.ksl.KSLExportStore
 
 class MesLib2Test {
@@ -133,5 +134,17 @@ class MesLib2Test {
         assertEquals(128, api.namespace.length)
         assertTrue(api.namespace.matches(Regex("[a-z][a-z0-9._-]*")))
         assertNotEquals(api.namespace, other.namespace)
+    }
+
+
+    @Test
+    fun defaultNamespaceIsIndependentOfHostLocale() {
+        val previous = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"))
+            assertEquals("index", facade(owner = "INDEX").namespace)
+        } finally {
+            Locale.setDefault(previous)
+        }
     }
 }
