@@ -139,7 +139,10 @@ fun Player.count(item: ItemStack): Int =
 /** Copies all non-empty storage contents, then clears those storage slots. Armor and offhand are preserved. */
 fun Player.clearStorage(): List<ItemStack> {
     val removed = inventory.storageContents.filterNotNull().filterNot(ItemStack::isEmptyStack).map(ItemStack::clone)
-    inventory.storageContents = arrayOfNulls<ItemStack>(inventory.storageContents.size)
+    // Clear only storage slots; PlayerInventory.clear() may also affect armor/offhand.
+    for (slot in 0 until inventory.storageContents.size) {
+        inventory.setItem(slot, ItemStack(org.bukkit.Material.AIR))
+    }
     return removed
 }
 
