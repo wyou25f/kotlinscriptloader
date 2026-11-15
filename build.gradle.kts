@@ -41,8 +41,6 @@ dependencies {
     compileOnly("com.destroystokyo.paper:paper-api:1.16.5-R0.1-SNAPSHOT")
     // Paper 1.16.5 provides MiniMessage at runtime; declare its API for compilation.
     compileOnly("net.kyori:adventure-text-minimessage:4.10.1") { isTransitive = false }
-    // Paper 1.16.5 does not expose the plain-text serializer in its API classpath.
-    implementation("net.kyori:adventure-text-serializer-plain:4.7.0") { isTransitive = false }
     compileOnly("me.clip:placeholderapi:2.11.6")
     compileOnly("net.luckperms:api:5.5")
     compileOnly("net.essentialsx:EssentialsX:2.21.2") {
