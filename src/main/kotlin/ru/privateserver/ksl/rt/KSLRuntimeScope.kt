@@ -18,6 +18,9 @@ class KSLRuntimeScope(val name: String) : AutoCloseable {
 
     init {
         require(name.isNotBlank()) { "Runtime scope name must not be blank" }
+        require(name.length <= KSLProfiler.MAX_NAME_LENGTH) {
+            "Runtime scope name must not exceed ${KSLProfiler.MAX_NAME_LENGTH} characters"
+        }
     }
 
     val isClosed: Boolean get() = closed
