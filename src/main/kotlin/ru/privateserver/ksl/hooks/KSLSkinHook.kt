@@ -11,9 +11,8 @@ open class KSLSkinHook : KSLHook {
     override val hookId = KSLHookIds.SKINS_RESTORER
     override val pluginName = "SkinsRestorer"
 
-    private val api: SkinsRestorer by lazy(LazyThreadSafetyMode.PUBLICATION) {
-        SkinsRestorerProvider.get()
-    }
+    private val api: SkinsRestorer
+        get() = SkinsRestorerProvider.get()
 
     fun setSkin(player: Player, skinName: String): Boolean = KSLErrors.hookSafe("SkinsRestorer", false) {
         val result = api.skinStorage.findOrCreateSkinData(skinName).orElse(null) ?: return@hookSafe false
