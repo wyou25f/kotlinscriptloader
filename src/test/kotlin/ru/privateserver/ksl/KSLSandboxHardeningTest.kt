@@ -128,7 +128,6 @@ class KSLSandboxHardeningTest {
         assertEquals(listOf("java.lang.Runtime"), denied)
         assertSame(String::class.java, loader.loadClass("java.lang.String"))
     }
-}
 
     @Test
     fun `class denial diagnostics are capped while all denied names stay blocked`() {
