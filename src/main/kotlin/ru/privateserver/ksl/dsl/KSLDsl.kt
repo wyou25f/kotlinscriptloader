@@ -51,7 +51,7 @@ fun Player.title(title: String, subtitle: String = "", fadeInTicks: Int = 10, st
         Title.title(
             miniMessage.deserialize(title),
             miniMessage.deserialize(subtitle),
-            Title.Times.times(Duration.ofMillis(fadeInTicks * 50L), Duration.ofMillis(stayTicks * 50L), Duration.ofMillis(fadeOutTicks * 50L))
+            Title.Times.of(Duration.ofMillis(fadeInTicks * 50L), Duration.ofMillis(stayTicks * 50L), Duration.ofMillis(fadeOutTicks * 50L))
         )
     )
 
