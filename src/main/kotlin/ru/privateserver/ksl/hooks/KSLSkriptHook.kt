@@ -126,8 +126,7 @@ open class KSLSkriptHook : KSLHook {
                 val config = KSLHookReflection.call(script, "getConfig")
                 val file = KSLHookReflection.call(config, "getFile") as? File ?: return@mapNotNullTo null
                 val relative = if (scriptsFolder != null) {
-                    runCatching { file.canonicalFile.relativeTo(scriptsFolder).invariantSeparatorsPath }
-                        .getOrElse { file.name }
+                    KSLSkriptNames.relativeScriptPath(scriptsFolder, file) ?: return@mapNotNullTo null
                 } else file.name
                 relative.takeIf { it.endsWith(".sk", ignoreCase = true) }
             }
