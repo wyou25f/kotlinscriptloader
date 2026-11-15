@@ -38,7 +38,7 @@ val kotlinLibraries = listOf(
 )
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
+    compileOnly("com.destroystokyo.paper:paper-api:1.16.5-R0.1-SNAPSHOT")
     compileOnly("me.clip:placeholderapi:2.11.6")
     compileOnly("net.luckperms:api:5.5")
     compileOnly("net.essentialsx:EssentialsX:2.21.2")
@@ -65,9 +65,9 @@ dependencies {
     // Embedded and relocated: no separate NBTAPI plugin is required.
     implementation("de.tr7zw:item-nbt-api:2.16.1")
 
-    testImplementation("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
+    testImplementation("com.destroystokyo.paper:paper-api:1.16.5-R0.1-SNAPSHOT")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
-    testImplementation("com.github.seeseemelk:MockBukkit-v1.21:3.133.2")
+    testImplementation("com.github.seeseemelk:MockBukkit-v1.16:1.5.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
     // The production artifact relies on Paper libraries; tests need Kotlin and scripting APIs
     // on both the test compilation and execution classpaths.
@@ -82,6 +82,14 @@ java {
 
 kotlin {
     jvmToolchain(21)
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_16)
+}
+
+tasks.withType<org.gradle.api.tasks.compile.JavaCompile>().configureEach {
+    options.release.set(16)
 }
 
 val librariesYaml = kotlinLibraries.joinToString(", ", "[", "]") { "\"$it\"" }
