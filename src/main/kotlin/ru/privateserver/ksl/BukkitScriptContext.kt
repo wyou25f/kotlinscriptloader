@@ -765,15 +765,70 @@ open class BukkitScriptContext(
     fun runAsync(block: () -> Unit): Int =
          scheduleTracked("runAsync", block = block) { Bukkit.getScheduler().runTaskAsynchronously(internalPlugin, it) }
 
+    /** Runs a worker callback and records failures before returning them to the scheduler. */
+    private fun <T> executeWorker(where: String, block: () -> T): T =
+        try {
+            internalPlugin.measureScriptExecution(scriptName, where, block)
+        } catch (ex: Throwable) {
+            KSLErrors.log(internalPlugin, scriptName, where, ex, KSLError.TASK_FAILED)
+            throw ex
+        }
+
     /** Runs work on KSL's bounded priority-aware worker pool. Bukkit world access belongs in runSync(). */
     fun worker(priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL, block: () -> Unit): Long =
         internalPlugin.submitWorker(scriptName, priority) {
-            try {
-                internalPlugin.measureScriptExecution(scriptName, "worker:$priority", block)
-            } catch (ex: Throwable) {
-                KSLErrors.log(internalPlugin, scriptName, "worker:$priority", ex, KSLError.TASK_FAILED)
-            }
+            executeWorker("worker:$priority", block)
         }
+
+    /** Submits work and returns a handle with cancellation, state and completion information. */
+    fun workerHandle(
+        priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL,
+        block: () -> Unit
+    ): ru.privateserver.ksl.rt.KSLWorkHandle =
+        internalPlugin.workScheduler.submitHandle(scriptName, priority) {
+            executeWorker("worker:$priority", block)
+        }
+
+    /** Returns a future for a value computed off-thread. Completion callbacks may run on the worker or registering thread; use runSync() for Bukkit operations. */
+    fun <T> workerFuture(
+        priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL,
+        block: () -> T
+    ): java.util.concurrent.CompletableFuture<T> =
+        internalPlugin.workScheduler.submitFuture(scriptName, priority) {
+            executeWorker("worker-future:$priority", block)
+        }
+
+    /** Runs one delayed worker callback; cancel the returned handle to stop it before execution. */
+    fun workerAfter(
+        delayMillis: Long,
+        priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL,
+        block: () -> Unit
+    ): ru.privateserver.ksl.rt.KSLWorkHandle =
+        internalPlugin.workScheduler.scheduleHandle(
+            scriptName, delayMillis, java.util.concurrent.TimeUnit.MILLISECONDS, priority
+        ) { executeWorker("worker-after:$priority", block) }
+
+    /** Runs repeatedly on a fixed-rate clock. Overlapping ticks are skipped, never queued. */
+    fun workerAtFixedRate(
+        periodMillis: Long,
+        initialDelayMillis: Long = 0L,
+        priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL,
+        block: () -> Unit
+    ): ru.privateserver.ksl.rt.KSLWorkHandle =
+        internalPlugin.workScheduler.scheduleAtFixedRateHandle(
+            scriptName, initialDelayMillis, periodMillis, java.util.concurrent.TimeUnit.MILLISECONDS, priority
+        ) { executeWorker("worker-fixed-rate:$priority", block) }
+
+    /** Runs repeatedly with the delay measured from completion of the previous run. */
+    fun workerWithFixedDelay(
+        delayMillis: Long,
+        initialDelayMillis: Long = 0L,
+        priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL,
+        block: () -> Unit
+    ): ru.privateserver.ksl.rt.KSLWorkHandle =
+        internalPlugin.workScheduler.scheduleWithFixedDelayHandle(
+            scriptName, initialDelayMillis, delayMillis, java.util.concurrent.TimeUnit.MILLISECONDS, priority
+        ) { executeWorker("worker-fixed-delay:$priority", block) }
 
     fun cpu(block: () -> Unit): Long = worker(block = block)
     fun work(block: () -> Unit): Long = worker(block = block)
