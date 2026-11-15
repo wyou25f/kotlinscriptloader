@@ -61,7 +61,7 @@ class ItemExtensionsTest {
         assertEquals(1, named.amount)
         assertEquals(8, changedAmount.amount)
         assertTrue(named.itemMeta?.hasDisplayName() == true)
-        assertEquals(2, named.itemMeta?.lore()?.size)
+        assertEquals(2, named.itemMeta?.kslLore()?.size)
     }
 
 }
