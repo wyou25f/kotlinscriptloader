@@ -22,7 +22,7 @@ KotlinScriptLoader is a Kotlin scripting plugin targeting **Paper 1.18.2 or newe
 
 ## Installation
 
-1. Install Java 21 and Paper 1.21.1.
+1. Install Paper 1.18.2 or newer and a compatible Java runtime (Java 17 or newer).
 2. Place the KSL plugin JAR in the server's `plugins/` directory.
 3. Start the server once. KSL creates its data directory, configuration, locale files, and script directory.
 4. Add `.kts` files to `plugins/KotlinScriptLoader/scripts/`.
@@ -75,7 +75,7 @@ KSL's user documentation is organized as four large books instead of dozens of s
 | [Book III — Data and Databases](docs/03-data-and-databases.md) | SQLite, MySQL, MariaDB, phpMyAdmin, SQL, persist/table, YAML, TOML and JSON |
 | [Book IV — Cookbook](docs/04-cookbook.md) | Practical recipes for commands, events, inventory, databases, caching and integrations |
 
-**Supplemental API reference:** [NBT API](docs/05-nbt-api.md) covers custom item/entity/block data and vanilla item components.
+**Supplemental API references:** [NBT API](docs/05-nbt-api.md) covers custom item/entity/block data and vanilla item components; [STD mixins and rich messages](docs/08-standard-library-mixins-and-messages.md) covers script-level behavior composition and text formatting.
 
 **Offline reading:** download the complete [docs/site folder](docs/site/) and open `index.html` on your PC. The reader includes all four primary books, search, chapter navigation, code copy buttons and print layout. It does not require a server or an internet connection.
 
@@ -84,14 +84,15 @@ KSL's user documentation is organized as four large books instead of dozens of s
 
 ## Build and test
 
-The repository uses JDK 21 and PowerShell 7+:
+The compatibility build uses JDK 21 and PowerShell 7+, while emitting JVM 17 bytecode for the Paper 1.18.2 baseline:
 
 ```powershell
-./build.ps1 -Task Build
-./build.ps1 -Task Test
+./build.ps1 -Task Diagnose
+./build.ps1 -Task Quality
+./build.ps1 -Task Package
 ```
 
-The plugin JAR is written to `build/libs/`. Build logs and diagnostic reports are written to `build-reports/`.
+The branch has its own Gradle configuration, `build.ps1`, and GitHub Actions workflow. The produced plugin bytecode targets JVM 17; the JDK used to build it is JDK 21. The plugin JAR is written to `build/libs/`, with logs and reports in `build-reports/`.
 
 ## Security model
 
