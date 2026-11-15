@@ -31,14 +31,14 @@ open class KSLVaultHook : KSLHook {
     }
 
     fun withdraw(player: OfflinePlayer, amount: Double): Boolean {
-        if (!isValidAmount(amount)) return false
+        if (!isValidVaultAmount(amount)) return false
         return KSLErrors.hookSafe("Vault", false) {
             economy?.withdrawPlayer(player, amount)?.transactionSuccess() ?: false
         }
     }
 
     fun has(player: OfflinePlayer, amount: Double): Boolean {
-        if (!isValidAmount(amount)) return false
+        if (!isValidVaultAmount(amount)) return false
         return KSLErrors.hookSafe("Vault", false) { economy?.has(player, amount) ?: false }
     }
 
