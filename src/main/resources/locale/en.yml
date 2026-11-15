@@ -53,14 +53,12 @@ debug:
   state-unloaded: "§cNot loaded"
   state: "§7State: {state} §8| §7load time: {time} §8| §7errors: {errors}"
   resources: "§7Resources: listeners={listeners}, tasks={tasks}, commands={commands}, placeholders={placeholders}, GUI={gui}, entities={entities}"
-  yes: "yes"
-  no: "no"
   not-measured: "§7KSL-managed callbacks have not been measured yet."
   metrics-title: "§bExecution (total / average / maximum):"
   metric: "  §f{operation} §7— {calls} calls, {failures} errors, {total} ms / {average} ms / {maximum} ms"
   last-failure: "    §cLast failure: {failure}"
-  yes: "yes"
-  no: "no"
+  'yes': "yes"
+  'no': "no"
 
 resources:
   empty: "§eNo tracked resources were found."

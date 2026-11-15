@@ -53,14 +53,12 @@ debug:
   state-unloaded: "§cне загружен"
   state: "§7Состояние: {state} §8| §7загрузка: {time} §8| §7ошибки: {errors}"
   resources: "§7Ресурсы: listeners={listeners}, tasks={tasks}, commands={commands}, placeholders={placeholders}, GUI={gui}, entities={entities}"
-  yes: "да"
-  no: "нет"
   not-measured: "§7Вызовы KSL-managed callbacks ещё не измерялись."
   metrics-title: "§bВыполнение (суммарное / среднее / максимум):"
   metric: "  §f{operation} §7— вызовов: {calls}, ошибок: {failures}, {total}мс / {average}мс / {maximum}мс"
   last-failure: "    §cПоследняя ошибка: {failure}"
-  yes: "есть"
-  no: "нет"
+  'yes': "да"
+  'no': "нет"
 
 resources:
   empty: "§eОтслеживаемые ресурсы не найдены."
