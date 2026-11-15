@@ -120,7 +120,9 @@ fun Player.feed(food: Int = 20, saturation: Float = 5f) {
 /** Heals by [amount] health points, never exceeding the player's current maximum health. */
 fun Player.healBy(amount: Double): Double {
     require(amount.isFinite() && amount >= 0.0) { "amount must be finite and non-negative" }
-    val maximum = getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH)?.value ?: health
+    val maxHealthAttribute = org.bukkit.attribute.Attribute.values().firstOrNull { it.name == "MAX_HEALTH" }
+        ?: org.bukkit.attribute.Attribute.values().firstOrNull { it.name == "GENERIC_MAX_HEALTH" }
+    val maximum = maxHealthAttribute?.let { getAttribute(it)?.value } ?: health
     val before = health
     health = (health + amount).coerceAtMost(maximum)
     return health - before
