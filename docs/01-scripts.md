@@ -2,7 +2,7 @@
 
 **Путь от первого .kts до полноценных игровых систем**
 
-Целевая среда, указанная в README текущего проекта: Paper 1.21.1 и Java 21. Для других версий проверяйте совместимость JAR и Paper API.
+Целевая среда compat-ветки: Paper 1.16.5–1.21.x и Java 16+. Для сборки используется JDK 21, но Kotlin/Java байткод выпускается с целевым уровнем JVM 16.
 
 ## Как читать эту книгу
 
@@ -402,7 +402,51 @@ val taskId = worker(KSLWorkPriority.NORMAL) {
 }
 ~~~
 
-Есть HIGH, NORMAL и LOW приоритеты. Число потоков, очередь и количество задач ограничены. При перегрузке задача может быть отклонена, а не выполнена на вызывающем потоке.
+Приоритеты: LOW, NORMAL, HIGH и CRITICAL. Число потоков, общая очередь и квота задач на скрипт ограничены. При перегрузке задача отклоняется, а не выполняется на вызывающем потоке.
+
+### Управление задачами и результатами
+
+~~~kotlin
+val task = workerHandle(KSLWorkPriority.HIGH) {
+    calculateSomethingExpensive()
+}
+
+task.completion.whenComplete { result, error ->
+    runSync {
+        if (error == null) log("Готово: " + result.state)
+        else warn("Фоновая задача завершилась с ошибкой: " + error.message)
+    }
+}
+
+// Отменить задачу:
+task.cancel()
+~~~
+
+Для вычисления значения используйте workerFuture { ... }, возвращающий CompletableFuture<T>. Callback может выполниться в рабочем потоке либо в потоке, который его зарегистрировал, если future уже завершился. Bukkit-операции внутри callback обязательно переносите через runSync.
+
+### Отложенные и повторяющиеся worker-задачи
+
+~~~kotlin
+val delayed = workerAfter(delayMillis = 1500L) {
+    calculateSomethingExpensive()
+}
+
+val fixedRate = workerAtFixedRate(periodMillis = 5000L, initialDelayMillis = 1000L) {
+    refreshCachedData()
+}
+
+val fixedDelay = workerWithFixedDelay(delayMillis = 5000L) {
+    pollRemoteService()
+}
+
+// Все три задачи отменяются через handle.cancel().
+fixedRate.cancel()
+~~~
+
+workerAtFixedRate придерживается фиксированного интервала и пропускает новый тик, если предыдущее выполнение ещё идёт. workerWithFixedDelay отсчитывает паузу от завершения предыдущего выполнения. Повторяющиеся задачи не накладываются друг на друга.
+
+Планировщик хранит состояние и короткую историю задач, время выполнения, число пропущенных тиков и статистику по скриптам. Задачи автоматически отменяются при выгрузке владельца и остановке планировщика. workerAfter, workerAtFixedRate и workerWithFixedDelay возвращают KSLWorkHandle с cancel(), info() и completion.
+
 
 ### Передача данных
 
