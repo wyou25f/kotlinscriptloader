@@ -146,6 +146,26 @@ interface KSLAPI {
 }
 ```
 
+### Hooks и отдельный пакет `ru.privateserver.ksl.hooks`
+
+Реализации встроенных интеграций находятся в отдельном пакете `ru.privateserver.ksl.hooks`: общий контракт остаётся `ru.privateserver.ksl.KSLHook`, а старые имена встроенных классов в корневом пакете сохранены как совместимые фасады.
+
+Для нового hook можно использовать базовый класс и отдельные aliases:
+
+```kotlin
+import ru.privateserver.ksl.hooks.*
+
+class EconomyHook : KSLPluginHook("economy", "Vault") {
+    fun providerName(): String = "My economy bridge"
+}
+
+override fun onLoad(api: KSLAPI) {
+    api.registerHookIfEnabled("Vault") { EconomyHook() }
+}
+```
+
+`KSLPluginHook` проверяет ID и имя плагина, `registerHookIfEnabled` не создаёт hook, если provider-плагин выключен, а `hookOrNull<T>()` и `requireHookAlias<T>()` дают короткий типизированный доступ. Для встроенных интеграций используй константы `KSLHookIds`, чтобы не дублировать строковые ID. Hook, зарегистрированный внутри `onLoad`, автоматически снимается при выгрузке аддона.
+
 ### `registerService(key, instance)`
 
 Регистрирует произвольный объект под строковым ключом. Скрипты достают его через `service<T>(key)`. Ключ — то, что видит пользователь скрипта, выбирай осмысленное имя (`"coins"`, `"gui"`, `"warps"`).
