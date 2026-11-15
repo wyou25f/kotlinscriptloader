@@ -1,103 +1,178 @@
-# Встроенный русский язык KotlinScriptLoader.
+# Встроенная русская локализация KotlinScriptLoader.
+# При создании своего языка сохраняй ключи и все {плейсхолдеры}.
 command:
+  no-permission: "§cНет прав. Требуется: ksl.admin"
 
-no-permission: "§cНет прав. Требуется: ksl.admin"
-unknown: "§cНеизвестная подкоманда '{name}'."
-language: "показать или изменить язык KSL"
-current: "§aТекущий язык KSL: §f{language}"
-available: "§7Доступные языки: §f{languages}"
-usage: "§7Использование: §f/ksl error <код> §7(например /ksl error {example}). Категории:"
-changed: "§aKSL: worker pool теперь использует {count} поток(ов). Сохранено в config.yml."
-invalid: "§cЯзык '{language}' недоступен. Добавь locale/{language}.yml или выбери один из: {available}"
-reload: "перезагрузить всё, один скрипт, папку или только изменённые (в фоне)"
-busy: "§eПерезагрузка уже выполняется, подожди пару секунд."
-all:
+language:
+  current: "§aТекущий язык KSL: §f{language}"
+  available: "§7Доступные языки: §f{languages}"
+  usage: "§7Использование: §f/ksl language <ru|en|custom>"
+  changed: "§aЯзык KSL изменён на §f{language}§a."
+  invalid: "§cЯзык '{language}' недоступен. Добавь locale/{language}.yml или выбери один из: {available}"
 
-start: "§7Проверяю скрипты без загрузки (dry-run), это может занять несколько секунд..."
-done: "§a✔ Перенесено: §fpersist {persist}§a, §ftable {table}§a. Файл ksl.db не тронут."
-folder:
+reload:
+  busy: "§eПерезагрузка уже выполняется. Подожди немного."
+  all:
+    start: "§7Проверяю и перезагружаю все скрипты в фоновом режиме..."
+    done: "{color}✔ Перезагрузка завершена: загружено скриптов — {loaded}, ошибок — {failed}."
+  changed:
+    done: "{color}✔ Перезагрузка изменённых скриптов: перезагружено — {reloaded}, выгружено — {unloaded}, без изменений — {unchanged}, ошибок — {failed}."
+  folder:
+    start: "§7Перезагружаю скрипты в папке '{folder}'..."
+    empty: "§eВ папке '{folder}' не найдено скриптов."
+    done: "{color}✔ Папка '{folder}': загружено скриптов — {loaded}, ошибок — {failed}."
+  script:
+    start: "§7Перезагружаю скрипт '{script}'..."
+    done: "§a✔ Скрипт '{script}' успешно загружен."
+    failed: "§cНе удалось загрузить скрипт '{script}'. Подробности смотри в консоли или через /ksl errors."
 
-empty: "§eKSL: нет экспортированных библиотек."
-script:
+runtime:
+  title: "§9§lKSL §7— диагностика runtime:"
+  heap: "§7Heap: §f{used} §7/ §f{max} §8| committed: {committed}"
+  nonheap: "§7Non-heap: §f{nonheap} §8| §7CPU: §f{processors} §8| процесс: §f{process} §8| система: §f{system}"
+  threads: "§7Потоки JVM: §f{threads} §8(daemon: {daemon}) §7| GC: §f{gc} §8({gc-ms}мс)"
+  pool: "§bWorker pool §8— §f{workers} поток(ов), active={active}, queued={queued}, tracked={tracked}"
+  tasks: "§7Завершено: §f{completed} §8| §7отклонено: §f{rejected}"
+  setting: "§7Настройка: §f/ksl runtime workers <1-64>"
+  heap-note: "§8Размер heap задаётся JVM через -Xms/-Xmx; KSL не вызывает принудительную сборку мусора."
+  workers:
+    usage: "§eИспользование: §f/ksl runtime workers <1-64>"
+    changed: "§aРазмер worker pool изменён: {count} поток(ов). Сохранено в config.yml."
 
-failed: "§c{failed} из {total} скриптов с проблемами:"
-runtime: "память JVM, CPU, потоки, очереди и планировщик"
-workers:
+scripts:
+  empty: "§eСкрипты не найдены."
+  title: "§9§lKSL §7— загруженные скрипты: {loaded}/{total}"
+  entry: "{mark} §f{name} §8— §7загрузка: {time}, ошибки: {errors}"
 
-title: "§9§lKSL §7— команды:"
-heap: "§7Heap: §f{used} §7/ §f{max} §8| committed: {committed}"
-nonheap: "§7Non-heap: §f{nonheap} §8| §7CPU: §f{processors} §8| process: §f{process} §8| system: §f{system}"
-threads: "§7Потоки JVM: §f{threads} §8(daemon: {daemon}) §7| GC: §f{gc} §8({gc-ms}мс)"
-pool: "§bWorker pool §8— §f{workers} поток(ов), active={active}, queued={queued}, tracked={tracked}"
-tasks: "§7Завершено: §f{completed} §8| §7отклонено: §f{rejected}"
-setting: "§7Настройка: §f/ksl runtime workers <1-64>"
-heap-note: "§8Размер heap задаётся JVM через -Xms/-Xmx; KSL не вызывает принудительную сборку мусора."
-scripts: "список скриптов: статус, время загрузки, ошибки"
-entry: "{color}{script} §8— §7listeners={listeners}, tasks={tasks}, commands={commands}, placeholders={placeholders}, GUI={gui}, entities={entities}"
-error-count: " §c{count} ошибок"
-debug: "диагностика выполнения, ошибок и ресурсов скрипта"
-not-found: "§eKSL: файл ksl.db не найден в папке плагина — переносить нечего."
-state-loaded: "§aзагружен"
-state-unloaded: "§cне загружен"
-state: "§7Состояние: {state} §8| §7загрузка: {time} §8| §7ошибки: {errors}"
-resources: "отслеживаемые ресурсы и подозрительные остатки"
-yes: "есть"
-no: "нет"
-not-measured: "§7Вызовы KSL-managed callbacks ещё не измерялись."
-metrics-title: "§bВыполнение (суммарное / среднее / максимум):"
-metric: "  §f{operation} §7— {calls} выз., {failures} ошибок, {total}мс / {average}мс / {maximum}мс"
-last-failure: "    §cПоследняя ошибка: {failure}"
-leak: "  §cВНИМАНИЕ: у выгруженного скрипта остались отслеживаемые ресурсы."
-deps: "граф зависимостей @requires"
-none: "§7Ошибок не зафиксировано."
-missing: "  §c→ {dependency} (не найдено)"
-addons: "загруженные аддоны"
-dependency: "    §7зависит от: {dependencies}"
-services: "зарегистрированные сервисы"
-discord: "настроенные Discord-каналы"
-channels: "§aKSL Discord §7— каналы ({count}): §f{channels}"
-libraries: "экспортированные библиотеки"
-owner: "  §f{library} §7— из '{owner}'"
-errors: "последняя ошибка и каталог кодов причин"
-unknown-category: "§cНеизвестная категория: {category}. Используй букву из /ksl error."
-catalog-title: "§aKSL Каталог ошибок §7— {category} §8({count}, стр. {page}/{pages})"
-catalog-all: "все категории"
-catalog-next: "§7Подробности: §f/ksl error <код> §8| §7Следующая страница: §f/ksl errors list {category} {page}"
-summary: "§aKSL Ошибки §7— всего с последнего старта: §f{total} §8| §7причин в каталоге: §f{count}"
-catalog-command: "§7Каталог: §f/ksl errors list [категория] [страница]"
-last: "§7Последняя: §f[{script}] {where} §8({seconds}с назад)"
-code: "§7Код §e{code} §8— §7{title}. Подробнее: §f/ksl error {code}"
-error: "расшифровка кода ошибки, например {code}"
-hint: "§7Что делать: {hint}"
-watchdog: "последнее зависание и путь к диагностическому дампу"
-disabled: "§aKSL Sandbox: §f§eвыключен"
-active: "§aKSL Watchdog §7— активен, зависаний с момента запуска не зафиксировано."
-stall: "§eKSL Watchdog §7— последнее зависание: §f{duration}мс"
-dump: "§7Дамп: §f{path}"
-guide: "§7Сравни блоки SNAPSHOT 1..N; неизменные кадры главного потока помогают найти место ожидания."
-validate: "проверить скрипты без загрузки"
-ok: "§a§lВсё в порядке."
-doctor: "диагностика (компилятор, БД, хуки)"
-attention: "§e§l{count} пункт(ов) требуют внимания — см. выше."
-dbmigrate: "перенести ksl.db в MySQL/MariaDB"
-sqlite: "§eKSL: сейчас используется SQLite, переносить некуда. Укажи database.type: mysql или mariadb в config.yml и перезапусти сервер."
-read: "§7Читаю ksl.db..."
-found: "§aВ ksl.db найдено: §fpersist {persist}§a, §ftable {table}§a записей."
-copy: "§7Они будут скопированы в {database} (существующие ключи перезапишутся, ksl.db не изменится)."
-confirm: "§7Для запуска: §f/ksl dbmigrate confirm"
-sandbox: "состояние sandbox"
-enabled: "§aKSL Sandbox: §f§aвключён"
-level-strict: "strict: текстовый фильтр + запрет классов"
-level-text: "text: только текстовый фильтр"
-level: "§7Уровень: §f{level}"
-trusted: "§7Доверенные скрипты: §f{scripts}"
-description: "§7Sandbox ограничивает опасные возможности JVM, но не права самого KSL: скрипту по-прежнему доступны Bukkit и DSL. Подробнее: docs/Security-and-Sandbox.md"
-blocklist: "§7Заблокированные консольные команды для скриптов: §f{commands}"
-background:
+debug:
+  usage: "§eИспользование: §f/ksl debug <script>"
+  not-found: "§cСкрипт '{script}' не найден."
+  title: "§9§lKSL §7— скрипт: §f{script}"
+  state-loaded: "§aзагружен"
+  state-unloaded: "§cне загружен"
+  state: "§7Состояние: {state} §8| §7загрузка: {time} §8| §7ошибки: {errors}"
+  resources: "§7Ресурсы: listeners={listeners}, tasks={tasks}, commands={commands}, placeholders={placeholders}, GUI={gui}, entities={entities}"
+  yes: "да"
+  no: "нет"
+  not-measured: "§7Вызовы KSL-managed callbacks ещё не измерялись."
+  metrics-title: "§bВыполнение (суммарное / среднее / максимум):"
+  metric: "  §f{operation} §7— вызовов: {calls}, ошибок: {failures}, {total}мс / {average}мс / {maximum}мс"
+  last-failure: "    §cПоследняя ошибка: {failure}"
+
+resources:
+  empty: "§eОтслеживаемые ресурсы не найдены."
+  title: "§9§lKSL §7— отслеживаемые ресурсы: {count}"
+  entry: "{color}{script} §8— §7listeners={listeners}, tasks={tasks}, commands={commands}, placeholders={placeholders}, GUI={gui}, entities={entities}"
+  leak: "  §cВНИМАНИЕ: у выгруженного скрипта остались отслеживаемые ресурсы."
+
+deps:
+  empty: "§eЗависимости скриптов не найдены."
+  title: "§9§lKSL §7— граф зависимостей скриптов (@requires):"
+  none: "§7Зависимости не объявлены."
+  missing: "  §c→ {dependency} (не найдено)"
+
+addons:
+  empty: "§eЗагруженных аддонов нет."
+  title: "§9§lKSL §7— загруженные аддоны: {count}"
+  dependency: "    §7Зависит от: {dependencies}"
+
+services:
+  empty: "§eСервисы KSL не зарегистрированы."
+  title: "§9§lKSL §7— зарегистрированные сервисы: {count}"
+
+discord:
+  empty: "§eКаналы Discord не настроены."
+  channels: "§aKSL Discord §7— каналы ({count}): §f{channels}"
+
+libraries:
+  empty: "§eЭкспортированных библиотек нет."
+  title: "§9§lKSL §7— экспортированные библиотеки: {count}"
+  owner: "  §f{library} §7— владелец: '{owner}'"
+
+errors:
+  unknown-category: "§cНеизвестная категория: {category}. Используй одну из букв, показанных командой /ksl error."
+  catalog-title: "§aKSL Каталог ошибок §7— {category} §8({count}, стр. {page}/{pages})"
+  catalog-all: "все категории"
+  catalog-next: "§7Подробности: §f/ksl error <код> §8| §7Следующая страница: §f/ksl errors list {category} {page}"
+  summary: "§aKSL Ошибки §7— всего с запуска: §f{total} §8| §7причин в каталоге: §f{count}"
+  catalog-command: "§7Каталог: §f/ksl errors list [категория] [страница]"
+  last: "§7Последняя: §f[{script}] {where} §8({seconds}с назад)"
+  code: "§7Код §e{code} §8— §7{title}. Подробнее: §f/ksl error {code}"
+  none: "§7Ошибок не зафиксировано."
+
+error:
+  usage: "§7Использование: §f/ksl error <код> §7(например /ksl error {example})."
+  not-found: "§cНеизвестный код ошибки KSL: {code}."
+  title: "§aОшибка KSL §e{code} §8— §f{title} §8({category})"
+  hint: "§7Что делать: {hint}"
+
+watchdog:
+  disabled: "§eKSL Watchdog отключён."
+  active: "§aKSL Watchdog §7— активен, зависаний с момента запуска не зафиксировано."
+  stall: "§eKSL Watchdog §7— последнее зависание: §f{duration}мс"
+  dump: "§7Дамп: §f{path}"
+  guide: "§7Сравни SNAPSHOT 1..N: неизменные кадры главного потока помогают найти место ожидания."
+
+validate:
+  start: "§7Проверяю скрипты без загрузки..."
+  ok: "§a§lПроверка пройдена для {count} скрипт(ов)."
+  failed: "§eУ {failed} из {total} скрипт(ов) найдены проблемы проверки:"
+
+doctor:
+  title: "§9§lKSL §7— диагностика системы:"
+  ok: "§a§lВсе диагностические проверки пройдены."
+  attention: "§e§l{count} пункт(ов) требуют внимания — см. подробности выше."
+
+dbmigrate:
+  sqlite: "§eKSL: уже используется SQLite, переносить нечего. Укажи database.type: mysql или mariadb в config.yml и перезапусти сервер."
+  read: "§7Читаю ksl.db..."
+  not-found: "§eKSL: файл ksl.db не найден в папке плагина — переносить нечего."
+  found: "§aВ ksl.db найдено: §fpersist {persist}§a, §ftable {table}§a записей."
+  copy: "§7Данные будут скопированы в {database}. Существующие ключи перезапишутся, ksl.db останется без изменений."
+  confirm: "§7Для запуска: §f/ksl dbmigrate confirm"
+  done: "§a✔ Перенос завершён: скопировано записей persist — {persist}, table — {table}."
+
+sandbox:
+  disabled: "§aKSL Sandbox: §eвыключен"
+  enabled: "§aKSL Sandbox: §fвключён"
+  level-strict: "strict: текстовый фильтр + запрет классов"
+  level-text: "text: только текстовый фильтр"
+  level: "§7Уровень: §f{level}"
+  trusted: "§7Доверенные скрипты: §f{scripts}"
+  runtime: "§7Sandbox ограничивает отдельные возможности JVM, но не изолирует скрипты от JVM сервера."
+  description: "§7Sandbox не отменяет права KSL: скриптам по-прежнему доступны Bukkit и DSL. Подробнее: docs/Security-and-Sandbox.md"
+  blocklist: "§7Заблокированные консольные команды для скриптов: §f{commands}"
 
 help:
+  unknown: "§cНеизвестная подкоманда '{name}'."
+  title: "§9§lKSL §7— команды:"
+  reload: "перезагрузить все скрипты, один скрипт, папку или только изменённые (в фоне)"
+  runtime: "память JVM, CPU, потоки, очереди и планировщик задач"
+  scripts: "список скриптов, статус загрузки, время загрузки и ошибки"
+  debug: "диагностика выполнения, ошибок и ресурсов скрипта"
+  resources: "отслеживаемые ресурсы и возможные утечки"
+  deps: "граф зависимостей @requires"
+  addons: "загруженные аддоны"
+  services: "зарегистрированные сервисы"
+  libraries: "экспортированные библиотеки"
+  discord: "настроенные каналы Discord"
+  sandbox: "состояние sandbox"
+  errors: "последняя ошибка и каталог кодов причин"
+  watchdog: "последнее зависание сервера и путь к диагностическому дампу"
+  error: "расшифровка кода ошибки, например {code}"
+  doctor: "диагностика (компилятор, БД, хуки)"
+  validate: "проверить скрипты без загрузки"
+  dbmigrate: "перенести ksl.db в MySQL/MariaDB"
+  language: "показать или изменить язык KSL"
+
+script-command:
+  players-only: "§cЭту команду могут использовать только игроки."
+  no-permission: "§cУ тебя нет прав на использование этой команды."
+  failed: "§cПри выполнении команды произошла ошибка. Администратор уже уведомлён в консоли."
+
+background:
+  error: "§cФоновая команда завершилась ошибкой: {type}: {message}"
 
 lifecycle:
-
-starting: "§9§l▶ KotlinScriptLoader v{version} запускается"
-stopping: "§9§l■ KotlinScriptLoader останавливается..."
+  starting: "§9§l▶ KotlinScriptLoader v{version} запускается"
+  stopping: "§9§l■ KotlinScriptLoader останавливается..."
