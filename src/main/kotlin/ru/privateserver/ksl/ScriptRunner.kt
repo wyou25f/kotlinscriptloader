@@ -21,11 +21,16 @@ import kotlin.script.experimental.jvmhost.JvmScriptCompiler
  * Builds the runtime configuration from the same canonical definition IntelliJ
  * discovers. Addon-provided imports remain runtime-only and are appended here.
  */
-internal fun buildScriptCompilationConfig(addonManager: KSLAddonManager, localLibraries: KSLLocalLibraryManager? = null): ScriptCompilationConfiguration =
+internal fun buildScriptCompilationConfig(
+    addonManager: KSLAddonManager,
+    localLibraries: KSLLocalLibraryManager? = null,
+    addonImportsSnapshot: List<String>? = null,
+    addonLoadersSnapshot: List<ClassLoader>? = null
+): ScriptCompilationConfiguration =
     ScriptCompilationConfiguration(KSLScriptCompilationConfiguration) {
-        val addonImports = addonManager.getExtraImports()
+        val addonImports = addonImportsSnapshot ?: addonManager.getExtraImports()
         if (addonImports.isNotEmpty()) defaultImports(*addonImports.toTypedArray())
-        val addonClassLoaders = addonManager.getScriptClassLoaders()
+        val addonClassLoaders = addonLoadersSnapshot ?: addonManager.getScriptClassLoaders()
         val localLibraryLoader = localLibraries?.classLoader
         if (addonClassLoaders.isNotEmpty() || localLibraryLoader != null) {
             jvm {
@@ -44,6 +49,13 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
     private val evaluator = BasicJvmScriptEvaluator()
     private val pluginClassLoader = plugin::class.java.classLoader
     private val localLibraries = KSLLocalLibraryManager(plugin)
+    private val compiledCache = KSLCompiledScriptCache<KSLCompileCacheValue>(
+        plugin.config.getInt("scripts.compile-cache-size", 128).coerceIn(16, 2048)
+    )
+
+    override fun compileCacheStats(): KSLCompileCacheStats = compiledCache.stats()
+    override fun clearCompileCache(): Int = compiledCache.clear()
+    fun invalidateCachedScript(scriptId: String): Int = compiledCache.invalidateScript(scriptId)
 
     companion object {
         private const val SLOW_LOAD_THRESHOLD_MS = 2000
@@ -63,9 +75,38 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
                 return CompiledUnit(file, id, null, textIssues, emptyList(), KSLError.SCRIPT_SANDBOX, null, elapsedMs(), sourceStamp)
             }
             localLibraries.reloadIfChanged()?.let { detail ->
+                compiledCache.clear()
                 if (detail.isNotBlank()) plugin.logger.warning("[libs] $detail")
             }
-            val compilationConfig = buildScriptCompilationConfig(plugin.addonManager, localLibraries)
+            // Snapshot imports and classloaders once so the cache key describes the exact
+            // compilation environment used to build the configuration.
+            val addonImports = plugin.addonManager.getExtraImports()
+            val addonLoaders = plugin.addonManager.getScriptClassLoaders()
+            val compilationConfig = buildScriptCompilationConfig(
+                plugin.addonManager, localLibraries, addonImports, addonLoaders
+            )
+            val localLoader = localLibraries.classLoader
+            val environmentStamp = buildString {
+                append(KSL.API_VERSION).append('|')
+                addonImports.forEach { append(it).append('\u001f') }
+                addonLoaders.forEach {
+                    append(it.javaClass.name).append('@').append(System.identityHashCode(it)).append('|')
+                }
+                localLoader?.let {
+                    append(it.javaClass.name).append('@').append(System.identityHashCode(it))
+                }
+            }
+            val cacheKey = KSLCompileCacheKey(
+                id,
+                KSLSourceFingerprint.of("$sourceStamp|$environmentStamp")
+            )
+            compiledCache.get(cacheKey)?.let { cached ->
+                return CompiledUnit(
+                    file, id, cached.compiled, emptyList(), cached.warnings,
+                    null, null, elapsedMs(), sourceStamp
+                )
+            }
+            compiledCache.invalidateScript(id)
             val compile = {
                 plugin.withCompilePermit { runBlocking { scriptCompiler(sourceText.toScriptSource(file.absolutePath), compilationConfig) } }
             }
@@ -78,7 +119,10 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
                     result.reports.filter { it.severity >= ScriptDiagnostic.Severity.ERROR }.map { formatDiagnostic(it, file) },
                     warnings, KSLError.SCRIPT_COMPILE, null, elapsedMs(), sourceStamp
                 )
-                is ResultWithDiagnostics.Success -> CompiledUnit(file, id, result.value, emptyList(), warnings, null, null, elapsedMs(), sourceStamp)
+                is ResultWithDiagnostics.Success -> {
+                    compiledCache.put(cacheKey, KSLCompileCacheValue(result.value, warnings))
+                    CompiledUnit(file, id, result.value, emptyList(), warnings, null, null, elapsedMs(), sourceStamp)
+                }
             }
         } catch (ex: Throwable) {
             CompiledUnit(file, id, null, listOf("${file.name}: ${ex::class.simpleName}: ${ex.message}"), emptyList(), KSLError.SCRIPT_COMPILER_CRASH, ex, elapsedMs(), sourceStamp)

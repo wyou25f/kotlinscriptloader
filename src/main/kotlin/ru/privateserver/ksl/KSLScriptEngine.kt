@@ -15,6 +15,8 @@ internal interface KSLScriptEngineBackend {
     fun warmUp()
     fun selfTestCompiler(): Pair<Boolean, String>
     fun sandboxProbe(): Pair<Boolean, String>
+    fun compileCacheStats(): KSLCompileCacheStats = KSLCompileCacheStats(0, 0, 0, 0, 0)
+    fun clearCompileCache(): Int = 0
 }
 
 internal data class KSLScriptEngineSnapshot(
@@ -27,7 +29,8 @@ internal data class KSLScriptEngineSnapshot(
     val compileNanos: Long,
     val evaluationNanos: Long,
     val lastScriptId: String?,
-    val lastFailure: String?
+    val lastFailure: String?,
+    val compileCache: KSLCompileCacheStats
 ) {
     val averageCompileNanos: Long get() = if (compilations == 0L) 0L else compileNanos / compilations
     val averageEvaluationNanos: Long get() = if (evaluations == 0L) 0L else evaluationNanos / evaluations
@@ -104,6 +107,7 @@ internal class KSLScriptEngine(private val backend: KSLScriptEngineBackend) {
     fun warmUp() = backend.warmUp()
     fun selfTestCompiler(): Pair<Boolean, String> = backend.selfTestCompiler()
     fun sandboxProbe(): Pair<Boolean, String> = backend.sandboxProbe()
+    fun clearCompileCache(): Int = backend.clearCompileCache()
 
     fun snapshot() = KSLScriptEngineSnapshot(
         compilations.sum(),
@@ -115,7 +119,8 @@ internal class KSLScriptEngine(private val backend: KSLScriptEngineBackend) {
         compileNanos.sum(),
         evaluationNanos.sum(),
         lastScriptId.get(),
-        lastFailure.get()
+        lastFailure.get(),
+        backend.compileCacheStats()
     )
 
     fun resetMetrics() {

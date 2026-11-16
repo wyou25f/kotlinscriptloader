@@ -125,6 +125,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
         }
         plugin.logger.info("§9[KSL] §a✔ $id §7v${addon.addonVersion} §aзагружен")
 
+        plugin.invalidateCompiledScriptCache()
         val callbacks = synchronized(readyLock) {
             loadingAddons.remove(id.lowercase(Locale.ROOT))
             if (addons[id] !== addon) {
@@ -182,6 +183,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
             .onFailure { plugin.logger.warning("§9[KSL] §e$addonId: ${KSLError.ADDON_UNLOAD_FAILED.tag} ошибка выгрузки: ${it.message}") }
 
         val cleanedUp = releaseOwned(registeredId)
+        plugin.invalidateCompiledScriptCache()
         if (cleanedUp > 0) {
             plugin.logger.info("§9[KSL] §7$registeredId: автоматически снято $cleanedUp объект(ов) (сервисы/расширения/импорты/подписки), не отписанных вручную")
         }
@@ -322,6 +324,7 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
             if (pkg !in extraImports) extraImports.add(pkg)
             if (owner != null) importOwners.computeIfAbsent(pkg) { ConcurrentHashMap.newKeySet() }.add(owner)
         }
+        plugin.invalidateCompiledScriptCache()
     }
 
     override fun registerContextExtension(extension: KSLContextExtension) {

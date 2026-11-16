@@ -304,6 +304,13 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     fun runtimeSnapshot(): ru.privateserver.ksl.rt.KSLRuntimeSnapshot =
         ru.privateserver.ksl.rt.KSLRuntimeMonitor.snapshot()
 
+    internal fun compileCacheSnapshot(): KSLCompileCacheStats =
+        if (::scriptEngine.isInitialized) scriptEngine.snapshot().compileCache
+        else KSLCompileCacheStats(0, 0, 0, 0, 0)
+
+    internal fun invalidateCompiledScriptCache(): Int =
+        if (::scriptEngine.isInitialized) scriptEngine.clearCompileCache() else 0
+
     private val scriptDiagnostics = KSLScriptDiagnostics()
     private val scriptRuntimeScopes = ConcurrentHashMap<String, ru.privateserver.ksl.rt.KSLRuntimeScope>()
 
@@ -329,6 +336,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             add("Script Engine 2: compilations=${engine.compilations}, compileFailures=${engine.compilationFailures}, " +
                 "evaluations=${engine.evaluations}, evaluationFailures=${engine.evaluationFailures}, " +
                 "compileMs=${engine.compileNanos / 1_000_000.0}, evaluationMs=${engine.evaluationNanos / 1_000_000.0}")
+            val cache = engine.compileCache
+            add("Compile cache: hits=${cache.hits}, misses=${cache.misses}, hitRate=${"%.1f".format(java.util.Locale.ROOT, cache.hitRate * 100)}%, entries=${cache.size}/${cache.maxSize}, evictions=${cache.evictions}")
             engine.lastFailure?.let { add("Script Engine 2 last failure: $it") }
         }
         runCatching { runtimeSnapshot() }.onSuccess { snapshot ->
