@@ -419,7 +419,7 @@ jobs:
           from pathlib import Path
           for page in Path("website").glob("*.html"):
               source = page.read_text(encoding="utf-8")
-              source = re.sub(r'(assets/(?:app\.js|style\.css)\?v=)[^"&]+', r'\g<1>20261116-6', source)
+              source = re.sub(r'(assets/(?:app\.js|style\.css)\?v=)[^"&]+', r'\g<1>20261116-7', source)
               page.write_text(source, encoding="utf-8")
           PY
           node --check website/assets/app.js
