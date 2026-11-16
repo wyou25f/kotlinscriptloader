@@ -1,0 +1,64 @@
+name: Publish KSL 1.2.1 compatibility release asset
+run-name: "Publish KSL 1.2.1 · Minecraft 1.18+"
+
+on:
+  push:
+    branches: ['compat/mc-1.18-plus']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ksl-1.2.1-release-mc-1.18-plus
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out compatibility source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up PowerShell
+        shell: bash
+        run: command -v pwsh >/dev/null
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build and verify compatibility JAR
+        shell: pwsh
+        run: |
+          ./build.ps1 -Task Package -NoDaemon
+          ./scripts/Inspect-Jar.ps1
+
+      - name: Prepare release asset and SHA-256
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_jar="build/libs/KotlinScriptLoader-1.2.1.jar"
+          release_jar="build/libs/KotlinScriptLoader-1.2.1-mc-1.18-plus.jar"
+          test -s "$source_jar"
+          cp "$source_jar" "$release_jar"
+          cd build/libs
+          sha256sum "$(basename "$release_jar")" > "$(basename "$release_jar").sha256"
+          test -s "$(basename "$release_jar").sha256"
+
+      - name: Attach compatibility JAR to release 1.2.1
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: 1.2.1
+          files: |
+            build/libs/KotlinScriptLoader-1.2.1-mc-1.18-plus.jar
+            build/libs/KotlinScriptLoader-1.2.1-mc-1.18-plus.jar.sha256
+          overwrite_files: true
+          fail_on_unmatched_files: true
+          draft: false
+          prerelease: false
+          make_latest: false
