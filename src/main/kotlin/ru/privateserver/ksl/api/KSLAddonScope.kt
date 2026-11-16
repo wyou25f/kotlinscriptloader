@@ -9,6 +9,14 @@ import org.bukkit.plugin.EventExecutor
 import org.bukkit.plugin.Plugin
 import org.bukkit.scheduler.BukkitTask
 import ru.privateserver.ksl.KSLError
+import ru.privateserver.ksl.KotlinScriptLoaderPlugin
+import ru.privateserver.ksl.kslshu.KSLTaskContext
+import ru.privateserver.ksl.kslshu.KSLTaskHandle
+import ru.privateserver.ksl.kslshu.KSLTaskRepeatMode
+import ru.privateserver.ksl.kslshu.KSLTaskScope
+import ru.privateserver.ksl.rt.KSLWorkPriority
+import java.time.Duration
+import java.util.UUID
 
 /**
  * Explicit owner for resources created by a KSL addon.
@@ -19,7 +27,8 @@ import ru.privateserver.ksl.KSLError
  */
 class KSLAddonScope internal constructor(
     private val owner: Plugin,
-    private val subscribeAction: (String, (Any?) -> Unit) -> AutoCloseable
+    private val subscribeAction: (String, (Any?) -> Unit) -> AutoCloseable,
+    private val taskScope: KSLTaskScope? = null
 ) : AutoCloseable {
 
     private val lock = Any()
@@ -64,6 +73,47 @@ class KSLAddonScope internal constructor(
         } ?: return false
         removed.close()
         return true
+    }
+
+    /**
+     * Schedules delayed work on the official KSL worker engine.
+     * The returned handle is owned by this scope and cancelled when it closes.
+     */
+    fun schedule(
+        delay: Duration = Duration.ZERO,
+        priority: KSLWorkPriority = KSLWorkPriority.NORMAL,
+        action: (KSLTaskContext) -> Unit
+    ): KSLTaskHandle {
+        val scheduler = taskScope ?: error("KSL scheduler is unavailable for this addon scope")
+        return ownTask(scheduler.schedule(delay, priority, action))
+    }
+
+    /** Schedules a full task specification; the addon owner is always enforced by this scope. */
+    fun schedule(spec: KSLTaskSpec): KSLTaskHandle {
+        val scheduler = taskScope ?: error("KSL scheduler is unavailable for this addon scope")
+        return ownTask(scheduler.schedule(spec))
+    }
+
+
+    /** Schedules recurring work; FIXED_DELAY waits after completion, FIXED_RATE follows the target cadence. */
+    fun repeat(
+        interval: Duration,
+        initialDelay: Duration = Duration.ZERO,
+        mode: KSLTaskRepeatMode = KSLTaskRepeatMode.FIXED_DELAY,
+        priority: KSLWorkPriority = KSLWorkPriority.NORMAL,
+        action: (KSLTaskContext) -> Unit
+    ): KSLTaskHandle {
+        val scheduler = taskScope ?: error("KSL scheduler is unavailable for this addon scope")
+        return ownTask(scheduler.repeat(interval, initialDelay, mode, priority, action))
+    }
+
+    /** Adopts an existing task handle and cancels it when this scope closes. */
+    fun ownTask(handle: KSLTaskHandle): KSLTaskHandle {
+        val resource = AutoCloseable { handle.cancel(true) }
+        own(resource)
+        // A completed one-shot task must not remain retained by the scope.
+        handle.completion.whenComplete { _, _ -> runCatching { release(resource) } }
+        return handle
     }
 
     /** Subscribes to a KSL event-bus topic and owns the returned subscription. */
@@ -203,7 +253,44 @@ class KSLAddonScope internal constructor(
     companion object {
         /** Java-friendly factory for addon integrations. */
         @JvmStatic
-        fun create(api: KSLAPI): KSLAddonScope =
-            KSLAddonScope(api.kslPlugin) { topic, handler -> api.subscribe(topic, handler) }
+        fun create(api: KSLAPI, schedulerId: String = "ksl"): KSLAddonScope {
+            val plugin = api.kslPlugin
+            val ksl = plugin as? KotlinScriptLoaderPlugin
+                ?: throw IllegalArgumentException("KSLAddonScope requires the official KotlinScriptLoader plugin")
+            val scheduler = ksl.createTaskScheduler(schedulerId)
+            return createOwnedScope(api, plugin, scheduler, emptyList())
+        }
+
+        /** Registers and owns an addon-specific scheduler factory and engine instance. */
+        @JvmStatic
+        fun create(api: KSLAPI, schedulerId: String, factory: KSLTaskSchedulerFactory): KSLAddonScope {
+            val plugin = api.kslPlugin
+            val ksl = plugin as? KotlinScriptLoaderPlugin
+                ?: throw IllegalArgumentException("KSLAddonScope requires the official KotlinScriptLoader plugin")
+            val registration = ksl.registerSchedulerFactory(schedulerId, factory)
+            try {
+                val scheduler = ksl.createTaskScheduler(schedulerId)
+                return createOwnedScope(api, plugin, scheduler, listOf(registration))
+            } catch (failure: Throwable) {
+                runCatching { registration.close() }
+                throw failure
+            }
+        }
+
+        private fun createOwnedScope(
+            api: KSLAPI,
+            plugin: Plugin,
+            scheduler: KSLTaskScheduler,
+            registrations: List<AutoCloseable>
+        ): KSLAddonScope {
+            val scope = KSLAddonScope(
+                plugin,
+                { topic, handler -> api.subscribe(topic, handler) },
+                KSLTaskScope(scheduler, "addon:${plugin.name.lowercase()}:${UUID.randomUUID()}")
+            )
+            registrations.forEach(scope::own)
+            scope.own(AutoCloseable { scheduler.close() })
+            return scope
+        }
     }
 }

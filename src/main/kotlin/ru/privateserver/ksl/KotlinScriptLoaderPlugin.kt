@@ -13,6 +13,12 @@ import org.bukkit.event.Listener
 import org.bukkit.plugin.java.JavaPlugin
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+import ru.privateserver.ksl.mcp.KSLMcpServer
+import ru.privateserver.ksl.kslshu.KSLTaskScheduler
+import ru.privateserver.ksl.kslshu.KSLTaskSchedulerEnvironment
+import ru.privateserver.ksl.kslshu.KSLTaskSchedulerFactory
+import ru.privateserver.ksl.kslshu.KSLTaskSchedulerRegistry
+import ru.privateserver.ksl.kslshu.KSLTaskScope
 import ru.privateserver.ksl.std.item.KSLCustomEnchantManager
 import ru.privateserver.ksl.compat.KSLCompatibilityTarget
 import ru.privateserver.ksl.compat.KSLServerCompatibility
@@ -246,12 +252,34 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     lateinit var workScheduler: ru.privateserver.ksl.rt.KSLWorkScheduler
         private set
 
+    lateinit var schedulerRegistry: KSLTaskSchedulerRegistry
+        private set
+    lateinit var taskScheduler: KSLTaskScheduler
+        private set
+    internal fun taskScope(owner: String): KSLTaskScope = KSLTaskScope(taskScheduler, owner)
+    fun registerSchedulerFactory(id: String, factory: KSLTaskSchedulerFactory): AutoCloseable {
+        check(::schedulerRegistry.isInitialized)
+        return schedulerRegistry.register(id, factory)
+    }
+    fun createTaskScheduler(id: String): KSLTaskScheduler {
+        check(::schedulerRegistry.isInitialized)
+        return schedulerRegistry.create(id)
+    }
+    fun availableTaskSchedulers(): Set<String> {
+        check(::schedulerRegistry.isInitialized)
+        return schedulerRegistry.available()
+    }
+
     private fun initRuntimeWorkers() {
         val workers = config.getInt("runtime.cpu-threads", (Runtime.getRuntime().availableProcessors() - 1).coerceAtLeast(1)).coerceIn(1, 64)
         val queueCapacity = config.getInt("runtime.queue-capacity", 256).coerceIn(1, 100_000)
         val perScriptLimit = config.getInt("runtime.max-tasks-per-script", 64).coerceIn(1, 10_000)
         if (::workScheduler.isInitialized) workScheduler.resize(workers)
         else workScheduler = ru.privateserver.ksl.rt.KSLWorkScheduler(workers, queueCapacity, perScriptLimit)
+        if (!::schedulerRegistry.isInitialized) {
+            schedulerRegistry = KSLTaskSchedulerRegistry.withOfficial(KSLTaskSchedulerEnvironment(workScheduler))
+            taskScheduler = schedulerRegistry.create("ksl")
+        }
     }
 
     fun submitWorker(scriptId: String, priority: ru.privateserver.ksl.rt.KSLWorkPriority, block: () -> Unit): Long =
@@ -444,6 +472,14 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         compilePool = KSLCompilePool(compileThreads)
     }
 
+    @Volatile private var mcpServer: KSLMcpServer? = null
+    fun mcpStatusText(): String = mcpServer?.statusText() ?: "disabled"
+    private fun startMcpServer() {
+        if (!config.getBoolean("mcp.enabled", false)) return
+        var candidate: KSLMcpServer? = null
+        try { candidate = KSLMcpServer.fromConfig(this); candidate.start(); mcpServer = candidate }
+        catch (error: Exception) { runCatching { candidate?.close() }; logger.warning("[MCP] Endpoint disabled: ${error.message ?: error::class.simpleName}") }
+    }
     private val legacyColors = Regex("§[0-9A-Fa-fK-Ok-oRrXx]")
 
     // The console prints "§9" literally when it comes through the plugin logger, so the codes are stripped there.
@@ -487,6 +523,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         KSLEntityAttributes.registerDefaults(addonManager.entityAttributes)
 
         getCommand("ksl")?.setExecutor(KSLCommandExecutor(this))
+        startMcpServer()
 
         logger.info(message("lifecycle.starting", "version" to description.version))
 
@@ -530,6 +567,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     override fun onDisable() {
         shuttingDown.set(true)
+        runCatching { mcpServer?.close() }
+            .onFailure { logger.warning("[MCP] Failed to stop local endpoint cleanly: ${it::class.simpleName}") }
+        mcpServer = null
         runCatching { watchdogMonitor?.stop() }
         watchdogMonitor = null
         runCatching { scriptWatcher?.stop() }

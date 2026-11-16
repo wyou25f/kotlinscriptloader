@@ -110,3 +110,14 @@ diagnostics:
     snapshot-interval-ms: 750
     # Сколько последних дампов KSL хранить.
     max-dumps: 10
+
+
+# Optional MCP Streamable HTTP management endpoint; disabled and loopback-only by default.
+mcp:
+  enabled: false
+  bind: "127.0.0.1"
+  port: 8765
+  path: "/mcp"
+  token-env: "KSL_MCP_TOKEN"
+  allowed-origins: []
+  allow-script-reload: false
