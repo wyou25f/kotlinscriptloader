@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.3.0 — Script & Addon Authoring Reliability
+## 1.2.2 — Script & Addon Authoring Reliability
 - Added local authoring warnings for blocking sleeps/coroutines, unconditional loops, unmanaged threads and direct Bukkit scheduler tasks.
 - `/ksl validate [script-id]` now combines compiler diagnostics with authoring warnings and writes a bounded full report under `plugins/KotlinScriptLoader/reports/`.
 - Validation never evaluates script code; chat output is capped while the report retains the full diagnostic set (up to 2 MB).
@@ -9,7 +9,7 @@
 - Compile-pool saturation no longer falls back to executing compilation on the submitting thread.
 - Added regression coverage for 50 diagnostics, report truncation, queue saturation, authoring warnings and async reload callback semantics.
 
-# KotlinScriptLoader 1.2.2
+## Additional 1.2.2 development changes
 
 ## Script Registry
 - Расширен снимок реестра скриптов: состояния LOADED, DEGRADED, FAILED и UNLOADED, последняя ошибка, время последней попытки и наличие исходного файла.
