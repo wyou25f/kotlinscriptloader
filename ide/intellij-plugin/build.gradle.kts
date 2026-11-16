@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "ru.privateserver.ksl"
-version = "1.3.0"
+version = "1.2.2"
 
 repositories {
     mavenCentral()
@@ -48,7 +48,7 @@ intellijPlatform {
             sinceBuild = "243"
         }
         changeNotes = """
-            1.3.0: Add blocking-call diagnostics, addon Kotlin preflight, synchronous reload warnings and improved authoring safety checks.
+            1.2.2: Add blocking-call diagnostics, addon Kotlin preflight, synchronous reload warnings and improved authoring safety checks.
         """.trimIndent()
     }
 }
