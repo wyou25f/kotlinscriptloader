@@ -78,3 +78,12 @@ if (false && player != null) {
     }
     mobPreview.behavior { onTick(20) { it.isGlowing = true } }
 }
+
+
+// Custom scheduler engine registration and discovery for addon authors.
+api.availableTaskSchedulers()
+api.registerTaskSchedulerFactory("sample-addon:engine") { environment ->
+    KSLOfficialTaskScheduler(environment.officialWorkers)
+}
+val addonScheduler = api.createTaskScheduler("sample-addon:engine")
+addonScheduler.close()

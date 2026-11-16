@@ -57,6 +57,39 @@ class KSLTaskSchedulerHubTest {
         }
     }
 
+
+    @Test
+    fun `registry creates addon supplied scheduler engines`() {
+        val workers = KSLWorkScheduler(1, 8)
+        var factoryCalls = 0
+        var closed = false
+        try {
+            val registry = KSLTaskSchedulerRegistry.withOfficial(KSLTaskSchedulerEnvironment(workers))
+            registry.register("example-addon:engine") { environment ->
+                factoryCalls++
+                val delegate = KSLOfficialTaskScheduler(environment.officialWorkers)
+                object : KSLTaskScheduler by delegate {
+                    override fun close() {
+                        closed = true
+                        delegate.close()
+                    }
+                }
+            }
+
+            assertTrue("example-addon:engine" in registry.available())
+            val custom = registry.create("example-addon:engine")
+            assertEquals(1, factoryCalls)
+            val latch = CountDownLatch(1)
+            val result = custom.schedule(KSLTaskSpec("addon:example") { latch.countDown() })
+            assertTrue(latch.await(2, TimeUnit.SECONDS))
+            assertEquals(KSLTaskState.SUCCEEDED, result.completion.get(2, TimeUnit.SECONDS).state)
+            custom.close()
+            assertTrue(closed)
+        } finally {
+            workers.close()
+        }
+    }
+
     @Test
     fun `task spec rejects invalid intervals`() {
         assertThrows(IllegalArgumentException::class.java) {

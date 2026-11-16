@@ -245,15 +245,19 @@ class KSLAddonScope internal constructor(
     companion object {
         /** Java-friendly factory for addon integrations. */
         @JvmStatic
-        fun create(api: KSLAPI): KSLAddonScope {
+        fun create(api: KSLAPI, schedulerId: String = "ksl"): KSLAddonScope {
             val plugin = api.kslPlugin
             val ksl = plugin as? KotlinScriptLoaderPlugin
                 ?: throw IllegalArgumentException("KSLAddonScope requires the official KotlinScriptLoader plugin")
-            return KSLAddonScope(
+            val scheduler = ksl.createTaskScheduler(schedulerId)
+            val scope = KSLAddonScope(
                 plugin,
                 { topic, handler -> api.subscribe(topic, handler) },
-                ksl.taskScope("addon:${plugin.name.lowercase()}")
+                KSLTaskScope(scheduler, "addon:${plugin.name.lowercase()}")
             )
+            // Registered first so tasks/listeners close before the scheduler itself.
+            scope.own(AutoCloseable { scheduler.close() })
+            return scope
         }
     }
 }

@@ -1,5 +1,11 @@
 ## Unreleased
 
+- Exposed scheduler-engine registration, discovery and creation through the public addon API.
+- Extended `KSLAddonScope.create` with a scheduler ID; each addon scope can own an independent custom engine and closes its tasks before closing the engine.
+- Added custom scheduler factory coverage and expanded addon/IntelliJ documentation and completion fixtures.
+
+## Unreleased
+
 - Added the `kslshu` scheduler SPI: official KSL adapter, typed task specifications, handles and results, fixed-rate/fixed-delay execution, and an addon-extensible scheduler factory registry.
 - Added the owner-bound `scheduler` API to script context; its tasks are automatically cancelled by the existing script unload lifecycle.
 - Expanded IntelliJ IDEA completion fixtures and JAR verification for the new scheduler API; documented custom scheduler authoring and thread-safety requirements.

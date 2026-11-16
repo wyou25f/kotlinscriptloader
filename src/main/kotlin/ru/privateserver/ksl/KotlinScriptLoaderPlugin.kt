@@ -270,6 +270,12 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         return schedulerRegistry.create(id)
     }
 
+    /** Returns registered scheduler engine identifiers for addon discovery. */
+    fun availableTaskSchedulers(): Set<String> {
+        check(::schedulerRegistry.isInitialized) { "KSL scheduler registry is not initialized yet" }
+        return schedulerRegistry.available()
+    }
+
     private fun initRuntimeWorkers() {
         val workers = config.getInt("runtime.cpu-threads", (Runtime.getRuntime().availableProcessors() - 1).coerceAtLeast(1)).coerceIn(1, 64)
         val queueCapacity = config.getInt("runtime.queue-capacity", 256).coerceIn(1, 100_000)

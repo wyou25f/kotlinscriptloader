@@ -3,6 +3,7 @@
 package ru.privateserver.ksl.api
 
 import ru.privateserver.ksl.BukkitScriptContext as CoreBukkitScriptContext
+import ru.privateserver.ksl.KotlinScriptLoaderPlugin
 import ru.privateserver.ksl.KSL as CoreKSL
 import ru.privateserver.ksl.KSLAddonConfig as CoreKSLAddonConfig
 import ru.privateserver.ksl.KSLAPI as CoreKSLAPI
@@ -274,3 +275,28 @@ fun KSLAPI.onScriptFailed(handler: (KSLScriptEvent) -> Unit): AutoCloseable =
 /** See [onScriptLoaded] for threading and subscription-lifecycle notes. */
 fun KSLAPI.onScriptUnloaded(handler: (KSLScriptEvent) -> Unit): AutoCloseable =
     subscribe(KSLTopics.SCRIPT_UNLOADED) { (it as? KSLScriptEvent)?.let(handler) }
+
+
+/**
+ * Registers an addon-owned scheduler engine. IDs should be namespaced, for example
+ * "example-addon:tick". Factories are invoked when a scope requests that engine.
+ */
+fun KSLAPI.registerTaskSchedulerFactory(id: String, factory: KSLTaskSchedulerFactory) {
+    val plugin = kslPlugin as? KotlinScriptLoaderPlugin
+        ?: throw IllegalStateException("Custom KSL schedulers require the official KotlinScriptLoader plugin")
+    plugin.registerSchedulerFactory(id, factory)
+}
+
+/** Creates an independently owned scheduler instance from a registered engine factory. */
+fun KSLAPI.createTaskScheduler(id: String): KSLTaskScheduler {
+    val plugin = kslPlugin as? KotlinScriptLoaderPlugin
+        ?: throw IllegalStateException("Custom KSL schedulers require the official KotlinScriptLoader plugin")
+    return plugin.createTaskScheduler(id)
+}
+
+/** Returns the currently registered scheduler engine IDs. */
+fun KSLAPI.availableTaskSchedulers(): Set<String> {
+    val plugin = kslPlugin as? KotlinScriptLoaderPlugin
+        ?: throw IllegalStateException("Custom KSL schedulers require the official KotlinScriptLoader plugin")
+    return plugin.availableTaskSchedulers()
+}
