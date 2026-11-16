@@ -260,3 +260,43 @@
 .download-card-plugin .download-version{font-size:32px}
 @media(max-width:950px){.ide-tool-grid{grid-template-columns:1fr 1fr}.ide-workflow-steps{grid-template-columns:1fr 1fr}.ide-tool-card>p{min-height:0}}
 @media(max-width:700px){.ide-intro{grid-template-columns:1fr}.ide-tool-grid,.home-ide-mini-grid,.branch-compat-grid{grid-template-columns:1fr}.ide-tool-card{padding:18px}.ide-workflow-steps{grid-template-columns:1fr}.branch-group-heading,.branch-help{align-items:flex-start;flex-direction:column}.branch-facts{gap:18px}.branch-card{padding:17px}.home-ide-mini-grid{gap:8px}}
+
+
+/* Development page layout polish */
+.ide-intro{grid-template-columns:minmax(0,1.35fr) minmax(260px,.65fr);gap:16px;margin-bottom:20px}
+.ide-intro-copy,.ide-intro-note{min-width:0;padding:25px}
+.ide-intro-copy h2{max-width:650px;font-size:clamp(23px,3vw,30px);line-height:1.2}
+.ide-intro-note{display:flex;flex-direction:column;justify-content:center}
+.ide-note-label{font:9px var(--mono);letter-spacing:.12em;color:var(--cyan);margin-bottom:9px}
+.ide-intro-note b{font-size:15px;line-height:1.4}
+.ide-intro-note p{line-height:1.7}
+.ide-tool-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:stretch}
+.ide-tool-card{padding:24px;min-height:100%;box-shadow:0 14px 36px #0002}
+.ide-tool-top{min-height:60px}
+.ide-tool-top img{width:52px;height:52px}
+.ide-tool-heading{margin:16px 0 10px}
+.ide-tool-heading .eyebrow{font-size:9px;letter-spacing:1.3px}
+.ide-tool-card h2{font-size:25px;margin:5px 0 0}
+.ide-tool-card>p{min-height:0;line-height:1.75;max-width:58ch}
+.ide-tool-card ul{padding-left:19px;margin:18px 0;gap:10px}
+.ide-tool-card li{line-height:1.65}
+.ide-tool-tags{margin-top:auto;padding-top:14px}
+.ide-tool-actions{padding-top:17px;border-top:1px solid var(--line)}
+.ide-tool-actions .btn{min-height:40px;align-items:center;justify-content:center}
+.ide-workflow{padding-top:52px}
+.ide-workflow-steps article{min-width:0}
+.ide-workflow-steps p{line-height:1.7}
+@media(max-width:760px){
+  .ide-intro{grid-template-columns:1fr}
+  .ide-tool-grid{grid-template-columns:1fr}
+  .ide-tool-card{min-height:0}
+  .ide-workflow{padding-top:40px}
+}
+@media(max-width:420px){
+  .ide-intro-copy,.ide-intro-note{padding:19px}
+  .ide-tool-card{padding:19px}
+  .ide-tool-top{align-items:flex-start}
+  .ide-tool-top .pill{max-width:160px;white-space:normal;line-height:1.5}
+  .ide-tool-actions{flex-direction:column;align-items:stretch}
+  .ide-tool-actions .btn{width:100%}
+}

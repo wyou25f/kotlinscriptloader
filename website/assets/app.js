@@ -88,8 +88,81 @@ async function download(){
   }catch(e){$("#download-content").innerHTML='<p>Не удалось загрузить каталог сборок. '+ext(GH+"/actions","Открыть GitHub Actions")+'</p>'}
 }
 async function development(){
-  const body='<div class="ide-intro"><div><span class="eyebrow">KSL DEVELOPER WORKFLOW</span><h2>Выбери полноценную среду или лёгкий редактор</h2><p>Для Kotlin-аддонов лучше использовать IDE с поддержкой Gradle, типов, навигации и отладки. Для небольших правок .kts подойдёт редактор с Kotlin-расширениями.</p></div><div class="ide-intro-note"><b>Наша рекомендация</b><p>IntelliJ IDEA — основной выбор для Kotlin и аддонов. Visual Studio Code — более лёгкая универсальная альтернатива.</p></div></div><div class="ide-tool-grid"><article class="ide-tool-card ide-tool-primary"><div class="ide-tool-top"><img src="./assets/ide-intellij.svg" alt="IntelliJ IDEA logo"><span class="pill">РЕКОМЕНДУЕМ ДЛЯ KOTLIN</span></div><h2>IntelliJ IDEA</h2><p>Основная среда для разработки Kotlin-аддонов: Gradle, навигация по коду, типы, рефакторинг, отладка и интеграция с Kotlin.</p><ul><li>Подходит для полноценных Kotlin/Java-плагинов.</li><li>Можно подключить точный KSL JAR, Paper API и зависимости аддона.</li><li>Поддерживает KSL IntelliJ Plugin с подсказками API, диагностикой и локальной предварительной проверкой.</li></ul><div class="ide-tool-tags"><span>Полная IDE</span><span>Лучший Kotlin workflow</span><span>Нужны ресурсы ПК</span></div><div class="ide-tool-actions"><a class="btn primary" href="https://www.jetbrains.com/idea/download/" target="_blank" rel="noreferrer">Скачать IntelliJ IDEA ↗</a><a class="btn" href="./download.html#ide-plugin">KSL-плагин для IDEA</a></div></article><article class="ide-tool-card ide-tool-light"><div class="ide-tool-top"><img src="./assets/ide-vscode.svg" alt="Visual Studio Code logo"><span class="pill">ЛЁГКАЯ АЛЬТЕРНАТИВА</span></div><h2>Visual Studio Code</h2><p>Универсальный редактор для скриптов, конфигурации и небольших проектов. Kotlin-поддержка зависит от установленных расширений и настройки проекта.</p><ul><li>Быстрый запуск и гибкая настройка.</li><li>Хорош для редактирования .kts, YAML, JSON и документации.</li><li>Не имеет встроенной KSL-интеграции, как наш плагин для IntelliJ IDEA.</li></ul><div class="ide-tool-tags"><span>Редактор с расширениями</span><span>Универсальный</span><span>Умеренные требования</span></div><div class="ide-tool-actions"><a class="btn" href="https://code.visualstudio.com/Download" target="_blank" rel="noreferrer">Скачать VS Code ↗</a></div></article></div><section class="ide-workflow"><div class="home-section-heading"><span class="eyebrow">ADDON DEVELOPMENT</span><h2>Как подготовить IDE для разработки аддона</h2><p>Редактор должен видеть те же API и версии зависимостей, что и сервер.</p></div><div class="ide-workflow-steps"><article><span>01</span><h3>Создай Gradle-проект</h3><p>Используй Kotlin/JVM и Java toolchain, соответствующие целевой версии KSL и сервера.</p></article><article><span>02</span><h3>Подключи зависимости</h3><p>Добавь KSL JAR как compileOnly, Paper API и только те API сторонних плагинов, которые реально используешь.</p></article><article><span>03</span><h3>Синхронизируй classpath</h3><p>Версии API в IDE должны совпадать с версиями на сервере. Иначе подсказки могут не соответствовать runtime.</p></article><article><span>04</span><h3>Проверь перед загрузкой</h3><p>Запусти KSL Preflight в IntelliJ, собери аддон и проверь зависимости. Статическая проверка не заменяет компиляцию и серверные тесты.</p></article></div><div class="actions"><a class="btn primary" href="'+GH+'/tree/main/ide/templates/addon-starter">Открыть Addon Starter Kit ↗</a><a class="btn" href="'+GH+'/blob/main/docs/09-api-reference.md">KSL API Reference ↗</a><a class="btn" href="./download.html#ide-plugin">Скачать KSL IntelliJ Plugin →</a></div></section><div class="notice"><b>Важно:</b> KSL IntelliJ Plugin предназначен для IntelliJ IDEA. Он не устанавливается в VS Code. Полная проверка Kotlin зависит от правильно настроенного проекта и classpath.</div>';
-  shell("DEVELOPER TOOLS",'Среда <span class="gradient">разработки</span>',"Рекомендуемые инструменты для Kotlin-аддонов, серверных .kts-скриптов и конфигурации KSL.",body);
+  const body = `
+    <div class="ide-intro">
+      <div class="ide-intro-copy">
+        <span class="eyebrow">KSL DEVELOPER WORKFLOW</span>
+        <h2>Инструменты для комфортной разработки</h2>
+        <p>Выбирай среду под задачу: полноценная IDE для Kotlin-аддонов или лёгкий редактор для скриптов и конфигурации.</p>
+      </div>
+      <aside class="ide-intro-note">
+        <span class="ide-note-label">НАШ ВЫБОР</span>
+        <b>IntelliJ IDEA + KSL Plugin</b>
+        <p>Самый полный набор для Kotlin: навигация, Gradle, диагностика и предварительная проверка скриптов.</p>
+      </aside>
+    </div>
+
+    <div class="ide-tool-grid">
+      <article class="ide-tool-card ide-tool-primary">
+        <div class="ide-tool-top">
+          <img src="./assets/ide-intellij.svg" alt="Логотип IntelliJ IDEA" width="52" height="52">
+          <span class="pill">РЕКОМЕНДУЕМ</span>
+        </div>
+        <div class="ide-tool-heading"><span class="eyebrow">ПОЛНОЦЕННАЯ IDE</span><h2>IntelliJ IDEA</h2></div>
+        <p>Основная среда для разработки Kotlin-аддонов и Java-плагинов. Даёт инструменты для работы со всем проектом, а не только с отдельным файлом.</p>
+        <ul>
+          <li>Поддержка Kotlin, Java и Gradle.</li>
+          <li>Навигация, рефакторинг, анализ типов и отладка.</li>
+          <li>KSL IntelliJ Plugin: подсказки API, диагностика и локальный Preflight.</li>
+          <li>Можно подключить точные версии KSL, Paper и API зависимостей.</li>
+        </ul>
+        <div class="ide-tool-tags"><span>Kotlin</span><span>Gradle</span><span>KSL Plugin</span></div>
+        <div class="ide-tool-actions">
+          <a class="btn primary" href="https://www.jetbrains.com/idea/download/" target="_blank" rel="noopener noreferrer">Скачать IntelliJ IDEA ↗</a>
+          <a class="btn" href="./download.html#ide-plugin">Плагин KSL</a>
+        </div>
+      </article>
+
+      <article class="ide-tool-card ide-tool-light">
+        <div class="ide-tool-top">
+          <img src="./assets/ide-vscode.svg" alt="Логотип Visual Studio Code" width="52" height="52">
+          <span class="pill">ЛЁГКАЯ АЛЬТЕРНАТИВА</span>
+        </div>
+        <div class="ide-tool-heading"><span class="eyebrow">РЕДАКТОР С РАСШИРЕНИЯМИ</span><h2>Visual Studio Code</h2></div>
+        <p>Универсальный редактор для небольших проектов, KSL-скриптов и конфигурации. Kotlin-возможности зависят от расширений и настроенного classpath.</p>
+        <ul>
+          <li>Удобен для .kts, YAML, JSON и Markdown.</li>
+          <li>Быстрый запуск и гибкая настройка.</li>
+          <li>Поддержка Kotlin предоставляется расширениями.</li>
+          <li>Официальный KSL IntelliJ Plugin здесь не работает.</li>
+        </ul>
+        <div class="ide-tool-tags"><span>Лёгкий редактор</span><span>Расширения</span><span>Конфигурация</span></div>
+        <div class="ide-tool-actions">
+          <a class="btn" href="https://code.visualstudio.com/Download" target="_blank" rel="noopener noreferrer">Скачать VS Code ↗</a>
+        </div>
+      </article>
+    </div>
+
+    <section class="ide-workflow">
+      <div class="home-section-heading">
+        <span class="eyebrow">ADDON DEVELOPMENT</span>
+        <h2>Подготовка проекта: четыре шага</h2>
+        <p>Главное правило — IDE и сервер должны использовать совместимые версии API.</p>
+      </div>
+      <div class="ide-workflow-steps">
+        <article><span>01</span><h3>Создай Gradle-проект</h3><p>Выбери Kotlin/JVM и Java toolchain, подходящие целевой версии KSL и сервера.</p></article>
+        <article><span>02</span><h3>Подключи API</h3><p>Добавь KSL и Paper как compileOnly. Подключай API сторонних плагинов только при необходимости.</p></article>
+        <article><span>03</span><h3>Сверь версии</h3><p>Проверь classpath и версии зависимостей. Иначе подсказки IDE могут отличаться от окружения сервера.</p></article>
+        <article><span>04</span><h3>Проверь аддон</h3><p>Запусти KSL Preflight, собери проект и проверь его на тестовом сервере. Preflight не заменяет компиляцию.</p></article>
+      </div>
+      <div class="actions">
+        <a class="btn primary" href="${GH}/tree/main/ide/templates/addon-starter">Addon Starter Kit ↗</a>
+        <a class="btn" href="${GH}/blob/main/docs/09-api-reference.md">KSL API Reference ↗</a>
+        <a class="btn" href="./download.html#ide-plugin">Скачать KSL Plugin →</a>
+      </div>
+    </section>
+    <div class="notice"><b>Совместимость:</b> KSL IntelliJ Plugin предназначен для IntelliJ IDEA. В VS Code он не устанавливается. Для корректной диагностики Kotlin-проекта настрой Gradle и зависимости.</div>`;
+  shell("DEVELOPER TOOLS",'Среда <span class="gradient">разработки</span>',"Выбери удобный инструмент для Kotlin-аддонов, серверных .kts-скриптов и конфигурации KSL.",body);
 }
 async function docs(){shell("DOCUMENTATION",'Документация <span class="gradient">KSL</span>',"Руководства, API-справочники и практические рецепты проекта.",'<div class="grid">'+[['BOOK I','Разработка скриптов','Kotlin, .kts, события, команды, scheduler, lifecycle, STD и runtime.','01-scripts.md'],['BOOK II','Плагины, аддоны и библиотеки','Gradle, KSLAPI, сервисы, imports, classloader, hooks и modules.','02-addons.md'],['BOOK III','Данные и базы данных','SQL, SQLite, MySQL, MariaDB, YAML, TOML, JSON и миграции.','03-data-and-databases.md'],['BOOK IV','Практические рецепты','Команды, игровые механики, инвентари, БД и интеграции.','04-cookbook.md'],['API','NBT API','Данные предметов, сущностей и блоков.','05-nbt-api.md'],['API','Предметы и зачарования','Item builder и KSL Custom Enchantments.','06-items-and-enchantments.md'],['API','Звук, частицы и мобы','Звуковые последовательности, формы частиц и мобы.','07-sound-particles-and-mobs.md'],['API','STD, сообщения и Mixins','Цветные сообщения, короткие методы и KSL Mixins.','08-standard-library-mixins-and-messages.md'],['DEVELOPER','API Reference и IDE','Публичные контракты, lifecycle аддонов, kslshu и IDE workflow.','09-api-reference.md']].map(x=>'<article class="card"><span class="pill">'+x[0]+'</span><h3>'+x[1]+'</h3><p>'+x[2]+'</p><a class="card-link" href="'+GH+'/blob/main/docs/'+x[3]+'">Открыть →</a></article>').join("")+'</div><div class="actions"><a class="btn primary" href="'+GH+'/tree/main/docs/site">Офлайн-библиотека</a><a class="btn" href="'+GH+'/blob/main/docs/README.md">Индекс документации ↗</a></div>')}
 async function source(){

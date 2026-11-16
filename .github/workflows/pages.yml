@@ -249,7 +249,7 @@ jobs:
                       return {
                           "run_id": run["id"], "run_number": run.get("run_number"),
                           "sha": run.get("head_sha"), "created_at": run.get("created_at"),
-                          "html_url": run.get("html_url"), "version": "1.1.0",
+                          "html_url": run.get("html_url"), "version": "1.2.0",
                           "artifact": {"id": artifact["id"], "name": artifact.get("name"),
                                        "size_in_bytes": artifact.get("size_in_bytes"),
                                        "expired": artifact.get("expired", False)},
@@ -413,7 +413,7 @@ jobs:
           from pathlib import Path
           for page in Path("website").glob("*.html"):
               source = page.read_text(encoding="utf-8")
-              source = re.sub(r'(assets/(?:app\.js|style\.css)\?v=)[^"&]+', r'\g<1>20261116-4', source)
+              source = re.sub(r'(assets/(?:app\.js|style\.css)\?v=)[^"&]+', r'\g<1>20261116-6', source)
               page.write_text(source, encoding="utf-8")
           PY
           node --check website/assets/app.js
