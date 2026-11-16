@@ -25,12 +25,24 @@ class KSLScriptTestKitTest {
     fun suiteHooksRunOnceAroundAllCases() {
         val order = mutableListOf<String>()
         val report = kslTestSuite("lifecycle") {
-            beforeAll { order += "beforeAll" }
-            afterAll { order += "afterAll" }
+            beforeAll {
+                order += "beforeAll"
+                put("suite-ready", true)
+            }
+            afterAll {
+                assertEquals(true, requireValue<Boolean>("suite-ready"))
+                order += "afterAll"
+            }
             beforeEach { order += "beforeEach" }
             afterEach { order += "afterEach" }
-            test("one") { order += "one" }
-            test("two") { order += "two" }
+            test("one") {
+                assertEquals(true, requireValue<Boolean>("suite-ready"))
+                order += "one"
+            }
+            test("two") {
+                assertEquals(true, requireValue<Boolean>("suite-ready"))
+                order += "two"
+            }
         }
         assertTrue(report.successful)
         assertEquals(listOf("beforeAll", "beforeEach", "one", "afterEach", "beforeEach", "two", "afterEach", "afterAll"), order)

@@ -191,8 +191,10 @@ class KSLScriptTestAssertionError(message: String, cause: Throwable? = null) : A
 class KSLScriptTestSkip internal constructor(val reason: String) : RuntimeException(reason)
 
 /** Fresh fixture storage and assertions for a single test case. */
-class KSLScriptTestContext internal constructor() {
-    private val fixtures = HashMap<String, Any?>()
+class KSLScriptTestContext internal constructor(initialFixtures: Map<String, Any?> = emptyMap()) {
+    private val fixtures = HashMap<String, Any?>().apply { putAll(initialFixtures) }
+
+    internal fun fixtureSnapshot(): Map<String, Any?> = HashMap(fixtures)
 
     fun <T : Any> put(key: String, value: T) {
         require(key.isNotBlank()) { "Fixture key must not be blank" }
@@ -297,7 +299,7 @@ object KSLScriptTestRunner {
         } else {
             suite.cases.map { testCase ->
                 val testStarted = System.nanoTime()
-                val context = KSLScriptTestContext()
+                val context = KSLScriptTestContext(suiteContext.fixtureSnapshot())
                 var status = KSLScriptTestStatus.PASSED
                 var message: String? = null
                 var failure: Throwable? = null
