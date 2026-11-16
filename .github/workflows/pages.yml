@@ -344,7 +344,7 @@ jobs:
               json.dumps(data, ensure_ascii=False, separators=(",", ":")),
               encoding="utf-8",
           )
-      - name: Refresh website assets and marketplace checks
+      - name: Refresh website assets
         shell: bash
         run: |
           python - <<'PY'
@@ -356,7 +356,6 @@ jobs:
               page.write_text(source, encoding="utf-8")
           PY
           node --check website/assets/app.js
-          node --check website/assets/marketplace.js
       - name: Validate website
         shell: bash
         run: |
@@ -367,11 +366,8 @@ jobs:
           test -s website/docs.html
           test -s website/source.html
           test -s website/changelog.html
-          test -s website/marketplace.html
           test -s website/assets/style.css
           test -s website/assets/app.js
-          test -s website/assets/marketplace.js
-          test -s website/assets/marketplace-config.js
           test -s website/data.json
           test -s website/history.json
           test -s website/source-tree.json
