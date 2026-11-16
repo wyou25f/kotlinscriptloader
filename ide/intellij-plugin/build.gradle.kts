@@ -16,7 +16,6 @@ dependencies {
     intellijPlatform {
         intellijIdeaCommunity("2024.3.6")
         bundledPlugin("org.jetbrains.kotlin")
-        instrumentationTools()
         pluginVerifier()
     }
 }
