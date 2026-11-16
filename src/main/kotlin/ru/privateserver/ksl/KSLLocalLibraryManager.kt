@@ -17,6 +17,27 @@ import java.util.HexFormat
  * exposed to script compilation and evaluation; failed rebuilds keep the last
  * working classloader so a typo in a library does not break live scripts.
  */
+/**
+ * Discover only regular Kotlin sources physically contained in scripts/libs.
+ * Symlinked roots, directories and files are excluded to prevent source-path escapes.
+ */
+internal fun discoverLocalLibrarySources(sourceFolder: File): List<File> {
+    if (java.nio.file.Files.isSymbolicLink(sourceFolder.toPath()) || !sourceFolder.isDirectory) {
+        return emptyList()
+    }
+    return sourceFolder.walkTopDown()
+        .onEnter { directory ->
+            directory == sourceFolder || KSLScriptPathPolicy.isSafeChild(sourceFolder, directory)
+        }
+        .filter { source ->
+            source.isFile &&
+                source.extension.equals("kt", ignoreCase = true) &&
+                KSLScriptPathPolicy.isSafeChild(sourceFolder, source)
+        }
+        .sortedBy { it.relativeTo(sourceFolder).invariantSeparatorsPath }
+        .toList()
+}
+
 internal fun localLibrarySourceFingerprint(sources: List<File>, sourceFolder: File): List<String> =
     sources.sortedBy { it.relativeTo(sourceFolder).invariantSeparatorsPath }.map { source ->
         val relativePath = source.relativeTo(sourceFolder).invariantSeparatorsPath
@@ -37,10 +58,7 @@ internal class KSLLocalLibraryManager(private val plugin: KotlinScriptLoaderPlug
 
     @Synchronized
     fun reloadIfChanged(): String? {
-        val sources = sourceFolder.walkTopDown()
-            .filter { it.isFile && it.extension.equals("kt", ignoreCase = true) }
-            .sortedBy { it.relativeTo(sourceFolder).invariantSeparatorsPath }
-            .toList()
+        val sources = discoverLocalLibrarySources(sourceFolder)
         val nextStamp = localLibrarySourceFingerprint(sources, sourceFolder)
         if (nextStamp == attemptedStamp) return null
         attemptedStamp = nextStamp

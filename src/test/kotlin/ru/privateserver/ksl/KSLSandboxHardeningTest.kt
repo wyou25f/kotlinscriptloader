@@ -37,6 +37,7 @@ class KSLSandboxHardeningTest {
         val denyList = KSLClassDenyList()
 
         listOf(
+            "java.lang.System",
             "java.lang.Runtime",
             "java.lang.ProcessBuilder",
             "java.lang.reflect.Method",
@@ -110,6 +111,34 @@ class KSLSandboxHardeningTest {
         } finally {
             root.deleteRecursively()
             outside.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `local library discovery rejects symlinked files directories and roots`() {
+        val base = java.nio.file.Files.createTempDirectory("ksl-library-paths").toFile()
+        val root = java.io.File(base, "libs").apply { mkdirs() }
+        val outside = java.io.File(base, "outside").apply { mkdirs() }
+        try {
+            java.io.File(root, "safe.kt").writeText("class Safe")
+            val externalFile = java.io.File(outside, "external.kt").apply { writeText("class External") }
+            val externalDir = java.io.File(outside, "nested").apply { mkdirs() }
+            java.io.File(externalDir, "nested.kt").writeText("class Nested")
+            try {
+                java.nio.file.Files.createSymbolicLink(java.io.File(root, "external.kt").toPath(), externalFile.toPath())
+                java.nio.file.Files.createSymbolicLink(java.io.File(root, "external-dir").toPath(), externalDir.toPath())
+                val discovered = discoverLocalLibrarySources(root)
+                assertEquals(listOf("safe.kt"), discovered.map { it.name })
+                val linkedRoot = java.io.File(base, "linked-libs")
+                java.nio.file.Files.createSymbolicLink(linkedRoot.toPath(), root.toPath())
+                assertTrue(discoverLocalLibrarySources(linkedRoot).isEmpty())
+            } catch (_: UnsupportedOperationException) {
+                assertEquals(listOf("safe.kt"), discoverLocalLibrarySources(root).map { it.name })
+            } catch (_: java.nio.file.FileSystemException) {
+                assertEquals(listOf("safe.kt"), discoverLocalLibrarySources(root).map { it.name })
+            }
+        } finally {
+            base.deleteRecursively()
         }
     }
 

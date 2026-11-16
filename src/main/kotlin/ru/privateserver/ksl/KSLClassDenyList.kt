@@ -7,6 +7,8 @@ class KSLClassDenyList(extra: Collection<String> = emptyList(), allowed: Collect
 
     companion object {
         val defaultNames = listOf(
+            // System.getenv/getenv and system properties can disclose server credentials to sandboxed scripts.
+            "java.lang.System",
             "java.lang.Runtime", "java.lang.ProcessBuilder", "java.lang.Process", "java.lang.ProcessHandle",
             "java.lang.Thread", "java.util.Timer",
             "java.util.concurrent.Executors", "java.util.concurrent.ScheduledExecutorService",
