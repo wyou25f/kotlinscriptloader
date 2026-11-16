@@ -81,5 +81,13 @@ val KSL_SCRIPT_DEFAULT_IMPORTS: List<String> = listOf(
     "ru.privateserver.ksl.meslib2.*",
     "java.util.UUID",
     "java.time.*",
-    "java.util.concurrent.*"
+    "java.time.format.*",
+    "java.time.temporal.*",
+    "java.math.*",
+    "java.text.*",
+    "java.util.*",
+    "java.util.regex.*",
+    "java.util.function.*",
+    "java.util.concurrent.*",
+    "kotlin.math.*"
 )

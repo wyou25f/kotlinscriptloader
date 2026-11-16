@@ -57,6 +57,44 @@ class KSLSandboxHardeningTest {
         assertFalse(denyList.denies("java.util.List"))
     }
 
+
+    @Test
+    fun `strict source preflight rejects denied Java APIs before evaluation`() {
+        val deniedSnippets = listOf(
+            "import java.io.File",
+            "import java.nio.file.Files",
+            "import java.net.URL",
+            "System.getenv(\"TOKEN\")",
+            "Thread.sleep(10)",
+            "Executors.newFixedThreadPool(4)",
+            "import kotlin.io.path.*"
+        )
+
+        deniedSnippets.forEach { snippet ->
+            assertTrue(
+                KSLSandboxRules.scanSource(snippet).isNotEmpty(),
+                "Expected strict sandbox source preflight to reject: $snippet"
+            )
+        }
+    }
+
+    @Test
+    fun `strict source preflight keeps normal Java and Kotlin APIs available`() {
+        val safeSnippet = """
+            val amount = BigDecimal("10.00")
+            val formatted = DecimalFormat("0.00").format(amount)
+            val matcher = Pattern.compile("[a-z]+").matcher("ksl")
+            val instant = Instant.now()
+            val values = listOf(3, 1, 2).sorted()
+            val result = sqrt(81.0)
+        """.trimIndent()
+
+        assertTrue(
+            KSLSandboxRules.scanSource(safeSnippet).isEmpty(),
+            "Ordinary JDK and Kotlin standard-library calls must remain available"
+        )
+    }
+
     @Test
     fun `allows exact class exceptions without allowing sibling classes`() {
         val denyList = KSLClassDenyList(allowed = listOf("java.io.File"))

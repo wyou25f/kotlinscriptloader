@@ -121,6 +121,33 @@ class KSLScriptDefinitionTest {
                 (result as? ResultWithDiagnostics.Failure)?.reports?.joinToString("; ") { it.message })
     }
 
+
+    @Test
+    fun `common Java and Kotlin standard library APIs compile without boilerplate imports`() {
+        val source = """
+            val amount = BigDecimal("12.50").add(BigDecimal("2.00"))
+            val formatted = DecimalFormat("0.00", DecimalFormatSymbols(Locale.US)).format(amount)
+            val matcher = Pattern.compile("[A-Z]+").matcher("KSL")
+            val instant = Instant.parse("2026-11-16T12:00:00Z")
+            val later = instant.plusSeconds(5)
+            val elapsed = ChronoUnit.SECONDS.between(instant, later)
+            val byName = HashMap<String, Int>().apply { put("answer", 42) }
+            val id = UUID.fromString("00000000-0000-0000-0000-000000000001")
+            val rounded = sqrt(81.0).roundToInt()
+            val text = DateTimeFormatter.ISO_INSTANT.format(instant)
+            if (false) println("$formatted $matcher $elapsed $byName $id $rounded $text")
+        """.trimIndent()
+
+        val result = runBlocking {
+            JvmScriptCompiler()(source.toScriptSource("java_kotlin_interop.kts"), KSLScriptCompilationConfiguration)
+        }
+        assertTrue(
+            result is ResultWithDiagnostics.Success,
+            "Common JDK/Kotlin APIs should compile: " +
+                (result as? ResultWithDiagnostics.Failure)?.reports?.joinToString("; ") { it.message }
+        )
+    }
+
     @Test
     fun `script template exposes the canonical runtime definition to IDE tooling`() {
         val definition = KSLScript::class.java.getAnnotation(KotlinScript::class.java)
@@ -140,5 +167,11 @@ class KSLScriptDefinitionTest {
         assertTrue("ru.privateserver.ksl.std.math.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("ru.privateserver.ksl.std.time.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("ru.privateserver.ksl.std.validation.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
+        assertTrue("java.math.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
+        assertTrue("java.text.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
+        assertTrue("java.util.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
+        assertTrue("java.util.regex.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
+        assertTrue("java.time.format.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
+        assertTrue("kotlin.math.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
     }
 }
