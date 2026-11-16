@@ -135,7 +135,7 @@ class KSLScriptDefinitionTest {
             val id = UUID.fromString("00000000-0000-0000-0000-000000000001")
             val rounded = sqrt(81.0).roundToInt()
             val text = DateTimeFormatter.ISO_INSTANT.format(instant)
-            if (false) println("$formatted $matcher $elapsed $byName $id $rounded $text")
+            if (false) println("\$formatted \$matcher \$elapsed \$byName \$id \$rounded \$text")
         """.trimIndent()
 
         val result = runBlocking {
