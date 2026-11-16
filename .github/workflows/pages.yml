@@ -1,6 +1,12 @@
 name: Deploy KSL website to GitHub Pages
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'website/**'
+      - '.github/workflows/pages.yml'
   release:
     types: [published]
   workflow_run:
