@@ -83,3 +83,16 @@ tasks.register("verifyKslIdeSetup") {
         logger.lifecycle("Verified KSL script template, public API and Standard Library in ${jarFile.name}")
     }
 }
+
+
+tasks.register<GradleBuild>("verifyAddonStarter") {
+    group = "verification"
+    description = "Compiles the KSL addon starter against the exact plugin JAR."
+    dir = file("templates/addon-starter")
+    tasks = listOf("compileKotlin")
+    startParameter.projectProperties["kslJar"] = file(kslJarPath.get()).absolutePath
+}
+
+tasks.named("verifyKslIdeSetup") {
+    dependsOn("verifyAddonStarter")
+}
