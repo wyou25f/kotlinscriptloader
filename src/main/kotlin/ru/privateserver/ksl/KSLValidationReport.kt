@@ -61,10 +61,7 @@ internal object KSLValidationReportWriter {
         }
         val limit = maxCharacters.coerceIn(256, MAX_REPORT_CHARS)
         val output = if (report.length <= limit) report else
-            report.take(limit) + "
-
-[REPORT TRUNCATED: output exceeded $limit characters]
-"
+            report.take(limit) + "\n\n[REPORT TRUNCATED: output exceeded $limit characters]\n"
         val file = File(directory, "validation-${timestamp.format(Instant.now())}-${System.nanoTime()}.txt")
         Files.writeString(
             file.toPath(),
