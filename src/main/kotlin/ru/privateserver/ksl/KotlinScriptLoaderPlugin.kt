@@ -1155,6 +1155,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     // Scripts whose code is currently registered (listeners, commands, ...).
     private val liveScripts = ConcurrentHashMap.newKeySet<String>()
     private val loadMillisById = ConcurrentHashMap<String, Long>()
+    private val scriptLastErrorById = ConcurrentHashMap<String, String>()
+    private val scriptLastAttemptAtById = ConcurrentHashMap<String, Long>()
     private val reloadBusy = java.util.concurrent.atomic.AtomicBoolean(false)
     private val reloadCompileInProgress = java.util.concurrent.atomic.AtomicBoolean(false)
     private val shuttingDown = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -1162,9 +1164,23 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private fun stampOf(file: File): String =
         if (!file.isFile) "<missing>" else runCatching { KSLSourceFingerprint.of(file.readBytes()) }.getOrElse { "<unreadable>" }
 
-    fun scriptInfos(): List<KSLScriptInfo> = findScriptFiles().map { file ->
-        val id = scriptId(file)
-        KSLScriptInfo(id, id in liveScripts, loadMillisById[id] ?: -1L, KSLErrors.countFor(id))
+    fun scriptInfos(): List<KSLScriptInfo> {
+        val fileIds = findScriptFiles().mapTo(linkedSetOf(), ::scriptId)
+        // Include a live script whose source was deleted before the next reload.
+        return (fileIds + liveScripts).sorted().map { id ->
+            val info = KSLScriptInfo(id, id in liveScripts, loadMillisById[id] ?: -1L, KSLErrors.countFor(id))
+            val error = scriptLastErrorById[id]
+            info.sourceExists = id in fileIds
+            info.lastError = error
+            info.lastAttemptAtMillis = scriptLastAttemptAtById[id] ?: -1L
+            info.state = when {
+                info.loaded && error != null -> KSLScriptState.DEGRADED
+                info.loaded -> KSLScriptState.LOADED
+                error != null -> KSLScriptState.FAILED
+                else -> KSLScriptState.UNLOADED
+            }
+            info
+        }
     }
 
     fun compileScript(file: File): CompiledUnit = scriptEngine.compile(file)
@@ -1183,6 +1199,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private fun applyUnit(unit: CompiledUnit): Boolean {
         val id = unit.id
         if (!unit.ok) {
+            scriptLastAttemptAtById[id] = System.currentTimeMillis()
+            scriptLastErrorById[id] = unit.errors.firstOrNull() ?: unit.crash?.message ?: "Compilation failed"
             scriptEngine.reportFailure(unit)
             if (id in liveScripts) {
                 logger.warning("[$id] ${KSLError.SCRIPT_KEPT_PREVIOUS.tag} ${message("console.script.previous-version-kept")}")
@@ -1201,7 +1219,13 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             unload = { unloadScript(id) },
             evaluate = { scriptEngine.evaluate(unit) }
         )
-        if (ok) liveScripts.add(id)
+        if (ok) {
+            liveScripts.add(id)
+            scriptLastErrorById.remove(id)
+        } else {
+            scriptLastErrorById[id] = "ошибка при выполнении"
+        }
+        scriptLastAttemptAtById[id] = System.currentTimeMillis()
         val totalMs = unit.compileMillis + (System.nanoTime() - startedAt) / 1_000_000
         loadMillisById[id] = totalMs
         scriptStamps[id] = unit.sourceStamp.ifBlank { stampOf(unit.file) }
@@ -1211,7 +1235,11 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     }
 
     private fun swap(ordered: List<File>, units: Map<String, CompiledUnit>, removed: Collection<String>): ReloadSummary {
-        removed.forEach { unloadScript(it) }
+        removed.forEach {
+            unloadScript(it)
+            scriptLastErrorById.remove(it)
+            scriptLastAttemptAtById.remove(it)
+        }
         var loaded = 0
         var failed = 0
         ordered.forEach { if (applyUnit(units.getValue(scriptId(it)))) loaded++ else failed++ }

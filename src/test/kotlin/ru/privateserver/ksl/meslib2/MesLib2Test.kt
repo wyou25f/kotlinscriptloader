@@ -100,6 +100,24 @@ class MesLib2Test {
     }
 
     @Test
+    fun exportedFunctionsCanBeResolvedByConsumersAndDisappearWithProviderUnload() {
+        val store = KSLExportStore()
+        val provider = facade("economy", store)
+        val consumer = facade("shop", store)
+        provider.export("economy", "tax-calculator", { amount: Double -> amount * 1.1 }, "1.0.0")
+
+        val calculator = consumer.require<(Double) -> Double>("economy", "tax-calculator", "1.0.0")
+        assertEquals(110.0, calculator(100.0), 0.000001)
+        assertEquals("economy", consumer.info("economy", "tax-calculator")?.owner)
+
+        store.clearOwner("economy")
+        assertNull(consumer.get<(Double) -> Double>("economy", "tax-calculator"))
+        assertThrows(IllegalStateException::class.java) {
+            consumer.require<(Double) -> Double>("economy", "tax-calculator", "1.0.0")
+        }
+    }
+
+    @Test
     fun requireFailsForMissingExports() {
         val api = facade()
         assertThrows(IllegalStateException::class.java) { api.require<String>("missing", "entry") }

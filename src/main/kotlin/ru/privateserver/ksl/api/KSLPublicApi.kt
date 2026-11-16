@@ -15,6 +15,7 @@ import ru.privateserver.ksl.KSLAuthMeHook as CoreKSLAuthMeHook
 import ru.privateserver.ksl.KSLSkriptHook as CoreKSLSkriptHook
 import ru.privateserver.ksl.KSLSkriptDiagnostics as CoreKSLSkriptDiagnostics
 import ru.privateserver.ksl.KSLScriptInfo as CoreKSLScriptInfo
+import ru.privateserver.ksl.KSLScriptState as CoreKSLScriptState
 import ru.privateserver.ksl.KSLShapeFactory as CoreKSLShapeFactory
 import ru.privateserver.ksl.KSLSoundSpec as CoreKSLSoundSpec
 import ru.privateserver.ksl.KSLSoundSequence as CoreKSLSoundSequence
@@ -82,6 +83,8 @@ typealias KSLAuthMeHook = CoreKSLAuthMeHook
 typealias KSLSkriptHook = CoreKSLSkriptHook
 typealias KSLSkriptDiagnostics = CoreKSLSkriptDiagnostics
 typealias KSLScriptInfo = CoreKSLScriptInfo
+/** Current script-registry state, including failed reloads that preserve a previous runtime. */
+typealias KSLScriptState = CoreKSLScriptState
 typealias BukkitScriptContext = CoreBukkitScriptContext
 typealias KSLShapeFactory = CoreKSLShapeFactory
 /** Reusable sound definition exposed by the script sound DSL. */

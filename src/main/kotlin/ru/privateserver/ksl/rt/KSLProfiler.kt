@@ -8,7 +8,9 @@ data class KSLProfileSnapshot(
     val calls: Long,
     val failures: Long,
     val totalNanos: Long,
-    val maxNanos: Long
+    val maxNanos: Long,
+    val minNanos: Long = 0L,
+    val lastNanos: Long = 0L
 ) {
     val averageNanos: Long get() = if (calls == 0L) 0L else totalNanos / calls
     val successfulCalls: Long get() = calls - failures
@@ -27,6 +29,8 @@ class KSLProfiler(val name: String) {
     private val failures = LongAdder()
     private val totalNanos = LongAdder()
     private val maxNanos = AtomicLong()
+    private val minNanos = AtomicLong(Long.MAX_VALUE)
+    private val lastNanos = AtomicLong()
 
     init {
         require(name.isNotBlank()) { "Profiler name must not be blank" }
@@ -39,6 +43,8 @@ class KSLProfiler(val name: String) {
         totalNanos.add(elapsedNanos)
         if (failed) failures.increment()
         maxNanos.accumulateAndGet(elapsedNanos) { current, measured -> maxOf(current, measured) }
+        minNanos.accumulateAndGet(elapsedNanos) { current, measured -> minOf(current, measured) }
+        lastNanos.set(elapsedNanos)
     }
 
     /** Records a duration supplied in milliseconds; overflow saturates safely. */
@@ -82,7 +88,9 @@ class KSLProfiler(val name: String) {
         calls.sum(),
         failures.sum(),
         totalNanos.sum(),
-        maxNanos.get()
+        maxNanos.get(),
+        if (calls.sum() == 0L) 0L else minNanos.get(),
+        lastNanos.get()
     )
 
     /** Alias for [snapshot]. */
@@ -93,6 +101,8 @@ class KSLProfiler(val name: String) {
         failures.reset()
         totalNanos.reset()
         maxNanos.set(0L)
+        minNanos.set(Long.MAX_VALUE)
+        lastNanos.set(0L)
     }
 
     /** Alias for [reset]. */

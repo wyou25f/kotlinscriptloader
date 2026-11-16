@@ -133,6 +133,25 @@ class KSLScriptTestKitTest {
     }
 
     @Test
+    fun assertAllCollectsIndependentFailuresAndKeepsPassingAssertionsRunning() {
+        var laterAssertionRan = false
+        val report = kslTestSuite("grouped-assertions") {
+            test("collects failures") {
+                assertAll(
+                    { assertEquals(1, 2) },
+                    { assertContains(listOf("alpha", "beta"), "gamma") },
+                    { laterAssertionRan = true }
+                )
+            }
+        }
+        assertTrue(laterAssertionRan)
+        assertEquals(0, report.passed)
+        assertEquals(1, report.failed)
+        assertTrue(report.cases.single().failure!!.message!!.contains("2 grouped assertion(s) failed"))
+        assertEquals(1, report.cases.single().failure!!.suppressed.size)
+    }
+
+    @Test
     fun duplicateAndBlankNamesAreRejected() {
         assertThrows(IllegalArgumentException::class.java) {
             KSLScriptTestSuiteBuilder("suite").apply {

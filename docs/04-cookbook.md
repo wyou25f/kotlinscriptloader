@@ -535,9 +535,12 @@ registerCommand("script-check") { sender, _ ->
 
     scripts.forEach { info ->
         sender.sendMessage(
-            info.id + ": loaded=" + info.loaded +
-                ", errors=" + info.errors
+            info.id + ": state=" + info.state +
+                ", loaded=" + info.loaded +
+                ", errors=" + info.errors +
+                ", sourceExists=" + info.sourceExists
         )
+        info.lastError?.let { sender.sendMessage("  Last error: " + it) }
     }
 }
 ~~~
@@ -672,5 +675,31 @@ val rewardId = reward.getUuidTag("id")
 ### Рецепт — не готовый production-плагин
 
 Пример показывает идею и базовый API. Для production обычно нужны schema migrations, обработка гонок, права, конфигурация, логирование, тестирование и диагностика.
+
+
+## Рецепт 33. Передача функции между скриптами через MesLib2
+
+Файл-поставщик `scripts/economy/service.kts`:
+
+~~~kotlin
+// @requires: shared/contracts
+val taxCalculator: (Double) -> Double = { amount -> amount * 1.1 }
+meslib2.export("economy", "tax-calculator", taxCalculator, "1.0.0")
+~~~
+
+Файл-потребитель `scripts/shop/checkout.kts`:
+
+~~~kotlin
+// @requires: economy/service
+val taxCalculator = meslib2.require<(Double) -> Double>(
+    "economy",
+    "tax-calculator",
+    "1.0.0"
+)
+
+val total = taxCalculator(100.0)
+~~~
+
+`@requires` задаёт порядок загрузки скриптов, а MesLib2 проверяет тип и точную метку версии экспорта. При выгрузке поставщика его экспорт удаляется; потребитель должен обрабатывать отсутствие сервиса и не сохранять полученную функцию дольше жизненного цикла поставщика.
 
 **Конец книги IV.** Четыре книги вместе образуют основную документацию KSL.

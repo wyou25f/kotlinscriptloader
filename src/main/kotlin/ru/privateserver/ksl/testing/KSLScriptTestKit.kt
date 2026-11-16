@@ -241,6 +241,35 @@ class KSLScriptTestContext internal constructor(initialFixtures: Map<String, Any
 
     fun fail(message: String): Nothing = throw KSLScriptTestAssertionError(message)
 
+    /**
+     * Runs every assertion and reports all failures together instead of stopping at the first one.
+     * Each assertion should be independent; later assertions still run after an earlier failure.
+     */
+    fun assertAll(vararg assertions: () -> Unit) {
+        require(assertions.isNotEmpty()) { "assertAll requires at least one assertion" }
+        val failures = ArrayList<Throwable>()
+        assertions.forEach { assertion ->
+            try {
+                assertion()
+            } catch (error: Throwable) {
+                if (error is KSLScriptTestSkip) throw error
+                failures += error
+            }
+        }
+        if (failures.isNotEmpty()) {
+            val combined = KSLScriptTestAssertionError(
+                "${failures.size} grouped assertion(s) failed",
+                failures.first()
+            )
+            failures.drop(1).forEach(combined::addSuppressed)
+            throw combined
+        }
+    }
+
+    fun assertContains(actual: Collection<*>, expected: Any?, message: String? = null) {
+        if (expected !in actual) fail(message ?: "Expected collection <$actual> to contain <$expected>")
+    }
+
     fun assertTrue(actual: Boolean, message: String? = null) {
         if (!actual) fail(message ?: "Expected condition to be true")
     }
