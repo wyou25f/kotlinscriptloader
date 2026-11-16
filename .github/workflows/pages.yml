@@ -1,8 +1,6 @@
 name: Deploy KSL website to GitHub Pages
 
 on:
-  push:
-    branches: [main]
   release:
     types: [published]
   workflow_run:
@@ -24,7 +22,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: github-pages-${{ github.sha }}
+  group: github-pages-${{ github.event.workflow_run.name || github.event_name }}-${{ github.event.workflow_run.head_sha || github.sha }}
   cancel-in-progress: true
 
 jobs:
