@@ -1,0 +1,20 @@
+<idea-plugin>
+    <id>ru.privateserver.ksl.intellij</id>
+    <name>Kotlin Script Loader</name>
+    <vendor url="https://github.com/wyou25f/kotlinscriptloader">KotlinScriptLoader</vendor>
+    <description><![CDATA[
+        Editor assistance for Kotlin Script Loader server scripts.
+        Adds KSL API, scheduler, event DSL and testing DSL completion to Kotlin .kts files.
+        For full type resolution and navigation, open the server scripts as a Gradle project
+        with the exact KSL and server-plugin dependencies installed on the server.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>org.jetbrains.kotlin</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <completion.contributor
+                language="kotlin"
+                implementationClass="ru.privateserver.ksl.intellij.completion.KslCompletionContributor"/>
+    </extensions>
+</idea-plugin>

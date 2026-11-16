@@ -1,0 +1,49 @@
+name: IntelliJ Plugin
+run-name: "KSL IntelliJ plugin · ${{ github.sha }}"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ide/intellij-plugin/**"
+      - ".github/workflows/ide-plugin.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "ide/intellij-plugin/**"
+      - ".github/workflows/ide-plugin.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ksl-ide-plugin-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-plugin:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build IntelliJ plugin distribution
+        run: ./gradlew --no-daemon -p ide/intellij-plugin buildPlugin
+
+      - name: Upload IntelliJ plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: KSL-IntelliJ-Plugin-${{ github.run_number }}-${{ github.sha }}
+          path: ide/intellij-plugin/build/distributions/*.zip
+          if-no-files-found: error
+          retention-days: 14
