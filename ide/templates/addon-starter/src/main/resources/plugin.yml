@@ -1,0 +1,6 @@
+name: ExampleKslAddon
+version: 1.0.0
+main: example.addon.ExampleAddon
+api-version: '1.21'
+depend:
+  - KotlinScriptLoader

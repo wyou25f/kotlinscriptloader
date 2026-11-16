@@ -102,3 +102,21 @@ custom `@KotlinScript` templates or implicit receivers. IntelliJ IDEA is the
 supported first target for full KSL script-aware completion. In VS Code, the
 public API classes may still resolve when the project classpath is configured,
 but implicit-receiver completion is not guaranteed.
+
+## Addon starter kit
+
+A ready-to-copy project template is available in `templates/addon-starter/`.
+It includes:
+
+- a Kotlin/Paper Gradle project targeting JDK 21;
+- a minimal `KSLAddon` lifecycle implementation;
+- a custom scheduler adapter example with clear ownership and close semantics;
+- a small Player DSL extension registered as a default import;
+- an example `.kts` script.
+
+Copy the folder to a new project, provide your installed KSL JAR with
+`-PkslJar=/path/to/KotlinScriptLoader.jar`, and open the copied project in IDEA.
+The root `verifyKslIdeSetup` task checks that the starter template remains complete.
+The example scheduler delegates to KSL's bounded worker pool for clarity; replace
+its delegate with your own bounded engine when implementing a fully independent
+execution strategy.

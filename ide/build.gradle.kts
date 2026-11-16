@@ -67,6 +67,19 @@ tasks.register("verifyKslIdeSetup") {
                 }
             }
         }
+        val starterFiles = listOf(
+            "templates/addon-starter/settings.gradle.kts",
+            "templates/addon-starter/build.gradle.kts",
+            "templates/addon-starter/src/main/resources/plugin.yml",
+            "templates/addon-starter/src/main/kotlin/example/addon/ExampleAddon.kt",
+            "templates/addon-starter/src/main/kotlin/example/addon/ExampleScheduler.kt",
+            "templates/addon-starter/src/main/kotlin/example/addon/dsl/PlayerDsl.kt",
+            "templates/addon-starter/scripts/example.kts"
+        )
+        starterFiles.forEach { relative ->
+            check(file(relative).isFile) { "KSL addon starter file is missing: $relative" }
+        }
+        logger.lifecycle("Verified KSL addon starter template (${starterFiles.size} files)")
         logger.lifecycle("Verified KSL script template, public API and Standard Library in ${jarFile.name}")
     }
 }
