@@ -860,12 +860,10 @@ queue, or an external scheduler, while preserving task handles, owner cancellati
 diagnostics.
 
 ```kotlin
-api.registerTaskSchedulerFactory("example-addon:tick") { environment ->
+// The overload registers the factory and owns its registration + engine lifecycle.
+val scope = KSLAddonScope.create(api, schedulerId = "example-addon.tick") { environment ->
     MyAddonScheduler(environment.officialWorkers)
 }
-
-// The scope creates one independent engine instance and closes it on unload.
-val scope = KSLAddonScope.create(api, schedulerId = "example-addon:tick")
 scope.schedule { task -> println("custom scheduler task #${task.execution}") }
 scope.repeat(Duration.ofSeconds(5)) { task -> println("tick #${task.execution}") }
 
@@ -883,6 +881,8 @@ A custom implementation must:
 
 The factory registry does not silently replace the official scheduler used by scripts.
 This keeps existing scripts stable while addons can opt into a custom scheduler explicitly.
+Use `api.registerTaskSchedulerFactory(id, factory)` for a manually managed
+registration; it returns an `AutoCloseable` that must be closed on addon unload.
 Use `api.availableTaskSchedulers()` to inspect registered engine IDs and
 `api.createTaskScheduler(id)` when you need manual lifecycle control. Prefer
 `KSLAddonScope.create(api, schedulerId = "...")` for addons: it owns the created

@@ -82,8 +82,11 @@ if (false && player != null) {
 
 // Custom scheduler engine registration and discovery for addon authors.
 api.availableTaskSchedulers()
-api.registerTaskSchedulerFactory("sample-addon:engine") { environment ->
-    KSLOfficialTaskScheduler(environment.officialWorkers)
+if (api != null) {
+    val registration = api.registerTaskSchedulerFactory("sample-addon.engine") { environment ->
+        KSLOfficialTaskScheduler(environment.officialWorkers)
+    }
+    val addonScheduler = api.createTaskScheduler("sample-addon.engine")
+    addonScheduler.close()
+    registration.close()
 }
-val addonScheduler = api.createTaskScheduler("sample-addon:engine")
-addonScheduler.close()

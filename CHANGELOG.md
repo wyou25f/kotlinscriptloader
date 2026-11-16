@@ -1,5 +1,11 @@
 ## Unreleased
 
+- Made custom scheduler factory registrations closeable and identity-safe, preventing addon classloader references from surviving unload or removing a replacement factory.
+- Added an addon-scope factory overload that registers, creates and owns a custom scheduler engine as one lifecycle unit.
+- Corrected scheduler engine ID examples to match the registry's strict identifier format.
+
+## Unreleased
+
 - Exposed scheduler-engine registration, discovery and creation through the public addon API.
 - Extended `KSLAddonScope.create` with a scheduler ID; each addon scope can own an independent custom engine and closes its tasks before closing the engine.
 - Added custom scheduler factory coverage and expanded addon/IntelliJ documentation and completion fixtures.
