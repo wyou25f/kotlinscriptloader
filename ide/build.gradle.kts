@@ -11,7 +11,7 @@ repositories {
 }
 
 val kslJarPath = providers.gradleProperty("kslJar")
-    .orElse("libs/KotlinScriptLoader-1.3.0.jar")
+    .orElse("libs/KotlinScriptLoader-1.2.2.jar")
 val kslScriptsDir = providers.gradleProperty("kslScriptsDir")
     .orElse("../plugins/KotlinScriptLoader/scripts")
 
