@@ -1,0 +1,19 @@
+name = "ksl-marketplace-api"
+main = "src/index.mjs"
+compatibility_date = "2026-11-16"
+
+[vars]
+PUBLIC_ORIGIN = "https://wyou25f.github.io"
+PUBLIC_SITE_URL = "https://wyou25f.github.io/kotlinscriptloader/marketplace.html"
+GITHUB_REDIRECT_URI = "https://REPLACE-WITH-WORKER-NAME.workers.dev/auth/callback"
+ADMIN_GITHUB_LOGINS = "wyou25f"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ksl-marketplace"
+database_id = "REPLACE-WITH-D1-DATABASE-ID"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "ksl-marketplace-files"
