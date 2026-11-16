@@ -1,5 +1,13 @@
 # KotlinScriptLoader 1.2.1
 
+## Compatibility hardening backports
+
+- Compilation now uses a bounded worker queue with back-pressure, avoiding unbounded task retention during large reloads.
+- Script watcher and local-library discovery reject symbolic-link paths that escape the scripts directory.
+- Retired local-library classloaders remain available to active scripts until orderly plugin shutdown.
+- Strict sandbox mode denies java.lang.System in addition to process, reflection, file and network entry points.
+
+
 ## Звуковой движок, частицы и мобы
 
 - Добавлен sound(...) с именованными ключами или Sound, громкостью, pitch-range, категорией, воспроизведением для игрока/мира/радиуса, повтором и отменяемыми звуковыми таймлайнами.
