@@ -13,11 +13,6 @@ import java.security.MessageDigest
 import java.util.HexFormat
 
 /**
- * Compiles scripts/libs/**/*.kt as one Kotlin source set. A successful output is
- * exposed to script compilation and evaluation; failed rebuilds keep the last
- * working classloader so a typo in a library does not break live scripts.
- */
-/**
  * Discover only regular Kotlin sources physically contained in scripts/libs.
  * Symlinked roots, directories and files are excluded to prevent source-path escapes.
  */
@@ -45,6 +40,11 @@ internal fun localLibrarySourceFingerprint(sources: List<File>, sourceFolder: Fi
         "$relativePath:${HexFormat.of().formatHex(digest)}"
     }
 
+/**
+ * Compiles scripts/libs/**/*.kt as one Kotlin source set. A successful output is
+ * exposed to script compilation and evaluation; failed rebuilds keep the last
+ * working classloader so a typo in a library does not break live scripts.
+ */
 internal class KSLLocalLibraryManager(private val plugin: KotlinScriptLoaderPlugin) {
     private val sourceFolder = File(plugin.scriptsFolder, "libs").apply { mkdirs() }
     private val outputRoot = File(plugin.dataFolder, "compiled-libraries").apply { mkdirs() }

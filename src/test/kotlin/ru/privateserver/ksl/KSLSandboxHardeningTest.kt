@@ -152,9 +152,10 @@ class KSLSandboxHardeningTest {
             denied::add
         )
 
+        assertThrows(ClassNotFoundException::class.java) { loader.loadClass("java.lang.System") }
         assertThrows(ClassNotFoundException::class.java) { loader.loadClass("java.lang.Runtime") }
         assertThrows(ClassNotFoundException::class.java) { loader.loadClass("java.lang.Runtime") }
-        assertEquals(listOf("java.lang.Runtime"), denied)
+        assertEquals(listOf("java.lang.System", "java.lang.Runtime"), denied)
         assertSame(String::class.java, loader.loadClass("java.lang.String"))
     }
 

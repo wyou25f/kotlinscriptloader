@@ -2,6 +2,7 @@ package ru.privateserver.ksl
 
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.Callable
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
@@ -26,7 +27,13 @@ internal class KSLCompilePool(threads: Int) : AutoCloseable {
         ThreadFactory { task ->
             Thread(task, "KSL-Compile-${threadNumber.incrementAndGet()}").apply { isDaemon = true }
         },
-        ThreadPoolExecutor.AbortPolicy()
+        ThreadPoolExecutor.RejectedExecutionHandler { task, pool ->
+            if (pool.isShutdown) {
+                throw RejectedExecutionException("KSL compile pool is shutting down")
+            }
+            // Apply back-pressure instead of rejecting work when the bounded queue is full.
+            task.run()
+        }
     )
 
     /**
@@ -37,14 +44,19 @@ internal class KSLCompilePool(threads: Int) : AutoCloseable {
         if (items.isEmpty()) return emptyList()
         val results = ArrayList<R>(items.size)
         val windowSize = parallelism + queueCapacity
-        items.chunked(windowSize).forEach { batch ->
-            val futures = batch.map { item -> executor.submit(Callable { action(item) }) }
+        var offset = 0
+        while (offset < items.size) {
+            val end = minOf(offset + windowSize, items.size)
+            val batch = items.subList(offset, end)
+            val futures = ArrayList<java.util.concurrent.Future<R>>(batch.size)
             try {
+                batch.forEach { item -> futures += executor.submit(Callable { action(item) }) }
                 futures.forEach { results += it.get() }
             } catch (error: Throwable) {
                 futures.forEach { it.cancel(true) }
                 throw error
             }
+            offset = end
         }
         return results
     }
