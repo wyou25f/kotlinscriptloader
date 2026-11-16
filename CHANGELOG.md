@@ -7,6 +7,13 @@
 - Retired local-library classloaders remain available to active scripts until orderly plugin shutdown.
 - Strict sandbox mode denies java.lang.System in addition to process, reflection, file and network entry points.
 
+## Additional 1.2.1 API backports
+
+- Added the bounded compiled-script LRU cache with source/environment fingerprints and `/ksl runtime` cache telemetry; capacity is configurable through `scripts.compile-cache-size`.
+- Added the script testing kit with suite hooks, tagged/parameterized cases, filters and structured reports; its package is available through default imports.
+- Added entity location snapshots, world-aware distance helpers and safe destination-copy teleportation.
+- Added declarative `scriptCommand`, `scriptTasks` and `scriptEvents` DSLs. Compatibility builds use Bukkit `AsyncPlayerChatEvent` for chat callbacks to retain older server support.
+
 
 ## Звуковой движок, частицы и мобы
 
