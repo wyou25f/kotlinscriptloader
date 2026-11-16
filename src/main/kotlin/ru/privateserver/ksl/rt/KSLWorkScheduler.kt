@@ -566,11 +566,15 @@ class KSLWorkScheduler(
         }
     }
 
+    /** Snapshot active records without iterating a weakly-consistent Kotlin view. */
+    private fun activeRecordsSnapshot(): List<Record> =
+        records.values.toArray().mapNotNull { it as? Record }
+
     /** Immediate bounded shutdown. Running user code is interrupted where possible. */
     override fun close() {
         synchronized(lifecycleLock) { closed.set(true) }
         timer.shutdownNow()
-        records.values.toList().forEach { cancelRecord(it, true) }
+        activeRecordsSnapshot().forEach { cancelRecord(it, true) }
         executor.shutdownNow().forEach { queued -> (queued as? WorkTask)?.let { cancelRecord(it.record, false) } }
         try { executor.awaitTermination(2, TimeUnit.SECONDS) }
         catch (_: InterruptedException) { Thread.currentThread().interrupt() }
