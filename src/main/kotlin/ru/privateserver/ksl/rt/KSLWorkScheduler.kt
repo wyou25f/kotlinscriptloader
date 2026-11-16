@@ -355,8 +355,14 @@ class KSLWorkScheduler(
                     error != null -> terminal = finishLocked(record, KSLWorkState.FAILED, error)
                     else -> {
                         completed.incrementAndGet()
-                        if (!record.repeating || closed.get()) {
+                        if (!record.repeating) {
                             terminal = finishLocked(record, KSLWorkState.SUCCEEDED, null)
+                        } else if (closed.get()) {
+                            // A graceful shutdown may become visible before its cancellation
+                            // pass reaches this record. Never report a repeating task as
+                            // successful merely because its active invocation finished in
+                            // that small window.
+                            terminal = finishLocked(record, KSLWorkState.CANCELLED, null)
                         } else {
                             record.state = KSLWorkState.SCHEDULED
                             record.nextRunAt = System.currentTimeMillis() + TimeUnit.NANOSECONDS.toMillis(record.periodNanos)
