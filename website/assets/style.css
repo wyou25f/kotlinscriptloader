@@ -316,3 +316,12 @@
 .download-release-filename{font:9px/1.5 var(--mono);color:#858ba0;text-align:center;overflow-wrap:anywhere}
 @media(max-width:900px){.download-release-card{grid-template-columns:1fr;gap:20px}}
 @media(max-width:650px){.download-release-card{padding:19px}.download-release-info .download-version{font-size:34px}.download-release-picker{padding:15px}}
+
+
+/* Clear compatibility details in the release selector */
+.download-release-target{display:grid;gap:4px;padding:11px 12px;border:1px solid #ffffff18;border-radius:8px;background:#ffffff06}
+.download-release-target strong{font-size:12px;color:#f0efff}
+.download-release-target span{font-size:10px;line-height:1.5;color:#9da5bb}
+.download-release-picker{min-width:0}
+.download-version-select{appearance:auto;line-height:1.4}
+.download-checksum-link{padding:3px 0}
