@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "ru.privateserver.ksl"
-version = "1.0.0"
+version = "1.1.0"
 
 repositories {
     mavenCentral()
@@ -18,6 +18,7 @@ dependencies {
         bundledPlugin("org.jetbrains.kotlin")
         pluginVerifier()
     }
+    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
 }
 
 java {
@@ -26,13 +27,17 @@ java {
     }
 }
 
+tasks.test {
+    useJUnitPlatform()
+}
+
 intellijPlatform {
     pluginConfiguration {
         name = "Kotlin Script Loader"
         version = project.version.toString()
         description = """
             <p>Editor assistance for Kotlin Script Loader server scripts.</p>
-            <p>Provides KSL API and server scripting completions for Kotlin .kts files.</p>
+            <p>Provides KSL API completion and async Bukkit thread-safety diagnostics for Kotlin .kts files.</p>
         """.trimIndent()
         vendor {
             name = "KotlinScriptLoader"
@@ -42,7 +47,7 @@ intellijPlatform {
             sinceBuild = "243"
         }
         changeNotes = """
-            Initial release: KSL API completion and server script templates.
+            1.1.0: Warn about common Bukkit/Paper API calls inside KSL async scheduler blocks.
         """.trimIndent()
     }
 }

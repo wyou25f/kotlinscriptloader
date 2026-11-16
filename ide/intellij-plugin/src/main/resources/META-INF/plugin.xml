@@ -4,9 +4,9 @@
     <vendor url="https://github.com/wyou25f/kotlinscriptloader">KotlinScriptLoader</vendor>
     <description><![CDATA[
         Editor assistance for Kotlin Script Loader server scripts.
-        Adds KSL API, scheduler, event DSL and testing DSL completion to Kotlin .kts files.
+        Adds KSL API, scheduler, event DSL, testing DSL and basic async thread-safety diagnostics.
         For full type resolution and navigation, open the server scripts as a Gradle project
-        with the exact KSL and server-plugin dependencies installed on the server.
+        with the exact KSL and server-plugin dependencies installed.
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
@@ -16,5 +16,8 @@
         <completion.contributor
                 language="kotlin"
                 implementationClass="ru.privateserver.ksl.intellij.completion.KslCompletionContributor"/>
+        <annotator
+                language="kotlin"
+                implementationClass="ru.privateserver.ksl.intellij.inspection.KslAsyncThreadSafetyAnnotator"/>
     </extensions>
 </idea-plugin>
