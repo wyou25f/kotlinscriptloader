@@ -86,26 +86,5 @@ class KSLMcpSecurityTest {
         assertFalse(KSLMcpSecurity.acceptsMcpResponse(null))
     }
 
-    @Test
-    fun `host header is strictly limited to loopback authority and configured port`() {
-        assertTrue(KSLMcpSecurity.validHostHeader("127.0.0.1:8765", 8765))
-        assertTrue(KSLMcpSecurity.validHostHeader("localhost:8765", 8765))
-        assertTrue(KSLMcpSecurity.validHostHeader("[::1]:8765", 8765))
-        assertFalse(KSLMcpSecurity.validHostHeader("127.0.0.1.evil.example:8765", 8765))
-        assertFalse(KSLMcpSecurity.validHostHeader("evil.example:8765", 8765))
-        assertFalse(KSLMcpSecurity.validHostHeader("127.0.0.1:8766", 8765))
-        assertFalse(KSLMcpSecurity.validHostHeader(null, 8765))
-    }
-
-    @Test
-    fun `accept header must allow both streamable response formats`() {
-        assertTrue(KSLMcpSecurity.acceptsMcpResponse("application/json, text/event-stream"))
-        assertTrue(KSLMcpSecurity.acceptsMcpResponse("application/json;q=1.0, text/event-stream;q=0.5"))
-        assertFalse(KSLMcpSecurity.acceptsMcpResponse("application/json"))
-        assertFalse(KSLMcpSecurity.acceptsMcpResponse("application/json;q=0, text/event-stream"))
-        assertFalse(KSLMcpSecurity.acceptsMcpResponse("application/json;q=2, text/event-stream"))
-        assertFalse(KSLMcpSecurity.acceptsMcpResponse("application/json;q=invalid, text/event-stream"))
-        assertFalse(KSLMcpSecurity.acceptsMcpResponse(null))
-    }
 
 }
