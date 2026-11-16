@@ -6,6 +6,7 @@ on:
   workflow_run:
     workflows:
       - Build
+      - 'IntelliJ Plugin'
       - 'KSL Compatibility Build · Minecraft 1.16.5–1.21'
       - 'KSL Compatibility Build · Minecraft 1.18+'
     types: [completed]
@@ -229,6 +230,32 @@ jobs:
                   }
               return result
 
+          def latest_ide_plugin():
+              query = urlencode({"branch": "main", "status": "success", "per_page": 50})
+              runs = api_json(f"actions/runs?{query}").get("workflow_runs", [])
+              runs = [
+                  run for run in runs
+                  if run.get("path") == ".github/workflows/ide-plugin.yml"
+                  and run.get("conclusion") == "success"
+              ]
+              for run in runs:
+                  artifacts = api_json(f"actions/runs/{run['id']}/artifacts?per_page=100").get("artifacts", [])
+                  artifact = next((
+                      item for item in artifacts
+                      if item.get("name", "").startswith("KSL-IntelliJ-Plugin-")
+                      and not item.get("expired", False)
+                  ), None)
+                  if artifact:
+                      return {
+                          "run_id": run["id"], "run_number": run.get("run_number"),
+                          "sha": run.get("head_sha"), "created_at": run.get("created_at"),
+                          "html_url": run.get("html_url"), "version": "1.1.0",
+                          "artifact": {"id": artifact["id"], "name": artifact.get("name"),
+                                       "size_in_bytes": artifact.get("size_in_bytes"),
+                                       "expired": artifact.get("expired", False)},
+                      }
+              return None
+
           data = {
               "repo": read("/tmp/ksl-repo.json"),
               "branches": read("/tmp/ksl-branches.json"),
@@ -238,6 +265,7 @@ jobs:
                   branch: latest_build(branch, spec[0])
                   for branch, spec in build_specs.items()
               },
+              "ide_plugin": latest_ide_plugin(),
           }
           assert isinstance(data["branches"], list) and data["branches"], "No repository branches returned"
           assert isinstance(data["commits"], list) and data["commits"], "No main-branch commits returned"
@@ -253,6 +281,10 @@ jobs:
                   if build and artifact:
                       output.write(f"{output_key}_run_id={build['run_id']}\n")
                       output.write(f"{output_key}_artifact_name={artifact['name']}\n")
+              ide_plugin = data.get("ide_plugin")
+              if ide_plugin and ide_plugin.get("artifact"):
+                  output.write(f"ide_plugin_run_id={ide_plugin['run_id']}\n")
+                  output.write(f"ide_plugin_artifact_name={ide_plugin['artifact']['name']}\n")
 
           for branch, build in data["builds"].items():
               artifact_name = build["artifact"]["name"] if build and build["artifact"] else "none"
@@ -289,7 +321,17 @@ jobs:
           repository: ${{ github.repository }}
           github-token: ${{ github.token }}
 
-      - name: Publish JAR files and SHA-256 checksums
+      - name: Download latest IntelliJ plugin artifact
+        if: steps.generate-data.outputs.ide_plugin_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.generate-data.outputs.ide_plugin_artifact_name }}
+          path: /tmp/ksl-artifacts/ide-plugin
+          run-id: ${{ steps.generate-data.outputs.ide_plugin_run_id }}
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+
+      - name: Publish JAR files and IntelliJ plugin ZIP
         shell: bash
         run: |
           python - <<'PY'
@@ -338,6 +380,27 @@ jobs:
               })
               print(f"Published {branch}: {filename} ({len(content)} bytes), SHA-256 {digest}")
 
+          ide_plugin = data.get("ide_plugin")
+          if ide_plugin and ide_plugin.get("artifact"):
+              plugin_dir = Path("/tmp/ksl-artifacts/ide-plugin")
+              archives = sorted(plugin_dir.rglob("*.zip"))
+              if not archives:
+                  raise SystemExit("No IntelliJ plugin ZIP found in downloaded artifact")
+              archive = archives[0]
+              content = archive.read_bytes()
+              filename = f"KSL-IntelliJ-Plugin-build-{ide_plugin['run_number']}.zip"
+              destination = download_dir / filename
+              destination.write_bytes(content)
+              digest = hashlib.sha256(content).hexdigest()
+              checksum = destination.with_suffix(destination.suffix + ".sha256")
+              checksum.write_text(f"{digest}  {filename}\n", encoding="utf-8")
+              ide_plugin.update({
+                  "size_in_bytes": len(content), "sha256": digest,
+                  "site_download_url": f"./downloads/{filename}",
+                  "checksum_url": f"./downloads/{filename}.sha256",
+              })
+              print(f"Published IntelliJ plugin: {filename} ({len(content)} bytes), SHA-256 {digest}")
+
           data_path.write_text(
               json.dumps(data, ensure_ascii=False, separators=(",", ":")),
               encoding="utf-8",
@@ -350,7 +413,7 @@ jobs:
           from pathlib import Path
           for page in Path("website").glob("*.html"):
               source = page.read_text(encoding="utf-8")
-              source = re.sub(r'(assets/(?:app\.js|style\.css)\?v=)[^"&]+', r'\g<1>20261116-3', source)
+              source = re.sub(r'(assets/(?:app\.js|style\.css)\?v=)[^"&]+', r'\g<1>20261116-4', source)
               page.write_text(source, encoding="utf-8")
           PY
           node --check website/assets/app.js
@@ -361,6 +424,7 @@ jobs:
           test -s website/about.html
           test -s website/branches.html
           test -s website/download.html
+          test -s website/development.html
           test -s website/docs.html
           test -s website/source.html
           test -s website/changelog.html
