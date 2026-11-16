@@ -107,7 +107,7 @@ async function download(){
         '<a class="btn primary download-release-button" id="release-download" href="'+esc(first.browser_download_url)+'">↓ Скачать плагин (.jar)</a>'+
         '<a class="download-checksum-link" id="release-checksum" '+(checksum?'href="'+esc(checksum.browser_download_url)+'"':'hidden')+'>Проверить SHA-256</a>'+
         '<span class="download-release-filename" id="release-filename">'+esc(first.name)+'</span></div></article>';
-    })():
+    })():'<article class="download-release-card"><div><span class="pill">СТАБИЛЬНЫЙ РЕЛИЗ</span><h2>Сборки релиза не найдены</h2><p class="download-muted">Открой официальный список файлов релиза, чтобы выбрать JAR вручную.</p><a class="btn" href="'+GH+'/releases">Все релизы ↗</a></div></article>';
     const buildCard=(key,title,target,id)=>{
       const b=builds[key];
       if(!b)return '<article class="download-card" id="'+id+'"><div class="download-topline"><span class="pill">BUILD</span></div><h3>'+title+'</h3><p>'+target+'</p><p class="download-muted">Успешная сборка пока не найдена.</p><a class="btn" href="'+GH+'/actions">Открыть GitHub Actions ↗</a></article>';
