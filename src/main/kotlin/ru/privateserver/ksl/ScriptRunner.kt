@@ -74,10 +74,11 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
             if (textIssues.isNotEmpty()) {
                 return CompiledUnit(file, id, null, textIssues, emptyList(), KSLError.SCRIPT_SANDBOX, null, elapsedMs(), sourceStamp)
             }
+            val previousLibraryLoader = localLibraries.classLoader
             localLibraries.reloadIfChanged()?.let { detail ->
-                compiledCache.clear()
                 if (detail.isNotBlank()) plugin.logger.warning("[libs] $detail")
             }
+            if (previousLibraryLoader !== localLibraries.classLoader) compiledCache.clear()
             // Snapshot imports and classloaders once so the cache key describes the exact
             // compilation environment used to build the configuration.
             val addonImports = plugin.addonManager.getExtraImports()
