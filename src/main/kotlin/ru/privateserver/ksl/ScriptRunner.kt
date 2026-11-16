@@ -254,6 +254,8 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
         }
     }
 
+    fun close() = localLibraries.close()
+
     private fun textSandboxIssues(source: String, id: String): List<String> {
         if (!plugin.isSandboxed(id)) return emptyList()
         return KSLSandboxRules.scanSource(source, plugin.sandboxPatterns)

@@ -11,6 +11,14 @@ import java.util.concurrent.atomic.AtomicInteger
 class KSLCompilePoolTest {
 
     @Test
+    fun `large reload batches preserve order while being processed in bounded windows`() {
+        KSLCompilePool(2).use { pool ->
+            val values = pool.map((1..20_000).toList()) { it * 3 }
+            assertEquals((1..20_000).map { it * 3 }, values)
+        }
+    }
+
+    @Test
     fun `reuses worker threads across batches and respects configured parallelism`() {
         KSLCompilePool(2).use { pool ->
             val active = AtomicInteger()
