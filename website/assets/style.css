@@ -325,3 +325,31 @@
 .download-release-picker{min-width:0}
 .download-version-select{appearance:auto;line-height:1.4}
 .download-checksum-link{padding:3px 0}
+
+
+/* Download page personality pass */
+.download-page{gap:42px}
+.download-hero{position:relative;isolation:isolate;overflow:hidden;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(220px,.7fr);align-items:center;gap:30px;padding:36px 38px;border:1px solid #514a7c;border-radius:19px;background:radial-gradient(ellipse at 85% 35%,#51458a45,transparent 44%),linear-gradient(125deg,#191d31 0%,#111522 65%,#111522 100%)}
+.download-hero:after{content:"";position:absolute;z-index:-1;width:340px;height:340px;right:-100px;top:-190px;border:1px solid #a99aff22;border-radius:50%;box-shadow:0 0 0 30px #a99aff08,0 0 0 65px #a99aff06}
+.download-hero-copy{min-width:0}
+.download-hero-copy h2{font-size:clamp(27px,4vw,42px);line-height:1.13;letter-spacing:-1.6px;margin:12px 0}
+.download-hero-copy p{max-width:570px;color:#aeb5ca;font-size:13px;line-height:1.8;margin:0}
+.download-hero-actions{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-top:21px}
+.download-hero-actions .btn{padding:12px 17px}
+.download-hero-link{font-size:11px;color:#c6bcff}
+.download-hero-mark{position:relative;display:grid;justify-items:center;align-content:center;gap:5px;min-height:190px;text-align:center}
+.download-hero-logo{display:grid;place-items:center;width:82px;height:82px;border:1px solid #b4a6ff80;border-radius:23px;background:linear-gradient(145deg,#a18cff,#6751cb);box-shadow:0 12px 50px #8068ed55;color:white;font-size:53px;font-weight:800;line-height:1}
+.download-hero-mark>span{margin-top:10px;color:#a99aff;font:9px var(--mono);letter-spacing:2px}
+.download-hero-mark>strong{font:20px var(--mono);color:#f0edff}
+.download-hero-mark>small{font-size:10px;color:#929bb2}
+.download-highlights{display:grid;gap:15px}
+.download-highlights .download-section-heading{display:flex;align-items:end;justify-content:space-between;gap:16px}
+.download-highlights .download-section-heading h2{font-size:24px;letter-spacing:-.7px;margin:5px 0}
+.download-highlight-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.download-highlight{display:flex;gap:12px;min-width:0;padding:17px;border:1px solid var(--line);border-radius:13px;background:linear-gradient(145deg,#171c2c,#101420)}
+.download-highlight-mark{flex:0 0 27px;display:grid;place-items:center;width:27px;height:27px;border:1px solid #65568e;border-radius:8px;color:#c5b9ff;background:#8b72ff14}
+.download-highlight h3{font-size:12px;margin:2px 0 6px}
+.download-highlight p{font-size:10px;line-height:1.7;color:var(--muted);margin:0}
+#stable-download{scroll-margin-top:95px}
+@media(max-width:760px){.download-hero{grid-template-columns:1fr;padding:25px}.download-hero-mark{min-height:150px}.download-highlight-grid{grid-template-columns:1fr}.download-highlights .download-section-heading{align-items:flex-start;flex-direction:column}}
+@media(max-width:420px){.download-hero{padding:20px}.download-hero-copy h2{font-size:29px}.download-hero-actions{gap:12px}}
