@@ -87,6 +87,13 @@ class KSLAddonScope internal constructor(
         return ownTask(scheduler.schedule(delay, priority, action))
     }
 
+    /** Schedules a full task specification; the addon owner is always enforced by this scope. */
+    fun schedule(spec: KSLTaskSpec): KSLTaskHandle {
+        val scheduler = taskScope ?: error("KSL scheduler is unavailable for this addon scope")
+        return ownTask(scheduler.schedule(spec))
+    }
+
+
     /** Schedules recurring work; FIXED_DELAY waits after completion, FIXED_RATE follows the target cadence. */
     fun repeat(
         interval: Duration,

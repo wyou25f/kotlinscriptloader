@@ -76,6 +76,27 @@ class KSLAddonScopeTest {
     }
 
     @Test
+    fun addonScopeOwnsTasksCreatedFromFullSpecifications() {
+        val workers = KSLWorkScheduler(1, 8)
+        val scheduler = KSLTaskScope(KSLOfficialTaskScheduler(workers), "addon:test")
+        val plugin = Proxy.newProxyInstance(
+            Plugin::class.java.classLoader,
+            arrayOf(Plugin::class.java)
+        ) { _, method, _ -> if (method.name == "getLogger") java.util.logging.Logger.getLogger("test") else null } as Plugin
+        val scope = KSLAddonScope(plugin, { _, _ -> AutoCloseable { } }, scheduler)
+        try {
+            val handle = scope.schedule(
+                ru.privateserver.ksl.kslshu.KSLTaskSpec("spoofed-owner", delay = Duration.ofHours(1)) { }
+            )
+            assertEquals("addon:test", handle.owner)
+            scope.close()
+            assertEquals(KSLTaskState.CANCELLED, handle.completion.get(2, TimeUnit.SECONDS).state)
+        } finally {
+            workers.close()
+        }
+    }
+
+    @Test
     fun ownedSchedulerTaskIsCancelledWhenScopeCloses() {
         val workers = KSLWorkScheduler(1, 8)
         val scheduler = KSLTaskScope(KSLOfficialTaskScheduler(workers), "addon:test")

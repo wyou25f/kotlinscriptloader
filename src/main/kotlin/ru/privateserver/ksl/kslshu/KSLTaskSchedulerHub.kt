@@ -145,6 +145,13 @@ class KSLOfficialTaskScheduler(private val workers: KSLWorkScheduler) : KSLTaskS
 class KSLTaskScope internal constructor(
     private val scheduler: KSLTaskScheduler, private val owner: String
 ) {
+    /**
+     * Schedules a complete task specification while enforcing this scope's owner.
+     * A caller cannot use a spec to submit work under another script/addon identity.
+     */
+    fun schedule(spec: KSLTaskSpec): KSLTaskHandle =
+        scheduler.schedule(spec.copy(owner = owner))
+
     fun schedule(
         delay: Duration = Duration.ZERO,
         priority: KSLWorkPriority = KSLWorkPriority.NORMAL,

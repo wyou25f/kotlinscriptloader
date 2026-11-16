@@ -40,6 +40,21 @@ class KSLTaskSchedulerHubTest {
     }
 
     @Test
+    fun `scope overrides task spec owner to prevent owner spoofing`() {
+        val workers = KSLWorkScheduler(1, 8)
+        val scope = KSLTaskScope(KSLOfficialTaskScheduler(workers), "trusted-owner")
+        try {
+            val latch = CountDownLatch(1)
+            val handle = scope.schedule(KSLTaskSpec("untrusted-owner") { latch.countDown() })
+            assertEquals("trusted-owner", handle.owner)
+            assertTrue(latch.await(2, TimeUnit.SECONDS))
+            assertEquals(KSLTaskState.SUCCEEDED, handle.completion.get(2, TimeUnit.SECONDS).state)
+        } finally {
+            workers.close()
+        }
+    }
+
+    @Test
     fun `registry rejects duplicate and malformed identifiers`() {
         val workers = KSLWorkScheduler(1, 8)
         try {

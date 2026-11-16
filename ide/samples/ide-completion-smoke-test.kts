@@ -27,8 +27,12 @@ val repeating = scheduler.repeat(
 ) { task ->
     println("repeat #${task.execution}")
 }
+val detailedTask = scheduler.schedule(
+    KSLTaskSpec(owner = "sample", delay = java.time.Duration.ofSeconds(3)) { }
+)
 scheduled.cancel()
 repeating.cancel()
+detailedTask.cancel()
 
 val player = Bukkit.getOnlinePlayers().firstOrNull()
 player?.tellRich("<green>KSL completion is available")

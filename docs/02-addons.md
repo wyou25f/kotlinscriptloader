@@ -865,6 +865,9 @@ val scope = KSLAddonScope.create(api, schedulerId = "example-addon.tick") { envi
     MyAddonScheduler(environment.officialWorkers)
 }
 scope.schedule { task -> println("custom scheduler task #${task.execution}") }
+scope.schedule(KSLTaskSpec(owner = "ignored-by-scope", delay = Duration.ofSeconds(2)) {
+    println("The scope replaces the supplied owner with its own addon identity")
+})
 scope.repeat(Duration.ofSeconds(5)) { task -> println("tick #${task.execution}") }
 
 // In onUnload:
@@ -878,6 +881,11 @@ A custom implementation must:
 - bound queues and concurrency rather than allowing unbounded task growth;
 - document which thread executes callbacks;
 - implement `close()` and close only resources it owns.
+
+A `KSLTaskScope` can also accept a full `KSLTaskSpec` through `schedule(spec)`.
+The scope always overwrites the spec's owner with its own owner ID, preventing an
+addon or script from accidentally scheduling work under another owner's quota or
+cancellation namespace.
 
 The factory registry does not silently replace the official scheduler used by scripts.
 This keeps existing scripts stable while addons can opt into a custom scheduler explicitly.

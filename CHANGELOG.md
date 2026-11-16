@@ -1,5 +1,10 @@
 ## Unreleased
 
+- Added full `KSLTaskSpec` scheduling through owner-bound task scopes; the scope forcibly applies its own owner ID to prevent task-owner spoofing.
+- Added addon-scope ownership and cancellation tests for specification-based tasks, plus IntelliJ completion examples.
+
+## Unreleased
+
 - Made custom scheduler factory registrations closeable and identity-safe, preventing addon classloader references from surviving unload or removing a replacement factory.
 - Added an addon-scope factory overload that registers, creates and owns a custom scheduler engine as one lifecycle unit.
 - Corrected scheduler engine ID examples to match the registry's strict identifier format.
