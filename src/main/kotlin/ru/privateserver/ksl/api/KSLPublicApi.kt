@@ -41,6 +41,18 @@ import ru.privateserver.ksl.rt.KSLWorkFailure as CoreKSLWorkFailure
 import ru.privateserver.ksl.rt.KSLWorkOwnerSnapshot as CoreKSLWorkOwnerSnapshot
 import ru.privateserver.ksl.rt.KSLRuntimeSnapshot as CoreKSLRuntimeSnapshot
 import ru.privateserver.ksl.rt.KSLRuntimeMonitor
+import ru.privateserver.ksl.kslshu.KSLTaskContext as CoreKSLTaskContext
+import ru.privateserver.ksl.kslshu.KSLTaskHandle as CoreKSLTaskHandle
+import ru.privateserver.ksl.kslshu.KSLTaskRepeatMode as CoreKSLTaskRepeatMode
+import ru.privateserver.ksl.kslshu.KSLTaskResult as CoreKSLTaskResult
+import ru.privateserver.ksl.kslshu.KSLTaskScheduler as CoreKSLTaskScheduler
+import ru.privateserver.ksl.kslshu.KSLTaskSchedulerEnvironment as CoreKSLTaskSchedulerEnvironment
+import ru.privateserver.ksl.kslshu.KSLTaskSchedulerFactory as CoreKSLTaskSchedulerFactory
+import ru.privateserver.ksl.kslshu.KSLTaskSchedulerRegistry as CoreKSLTaskSchedulerRegistry
+import ru.privateserver.ksl.kslshu.KSLTaskScope as CoreKSLTaskScope
+import ru.privateserver.ksl.kslshu.KSLTaskSpec as CoreKSLTaskSpec
+import ru.privateserver.ksl.kslshu.KSLTaskState as CoreKSLTaskState
+import ru.privateserver.ksl.kslshu.KSLOfficialTaskScheduler as CoreKSLOfficialTaskScheduler
 
 /**
  * Stable public entry point for KSL integrations and script libraries.
@@ -105,6 +117,19 @@ typealias KSLWorkSnapshot = CoreKSLWorkSnapshot
 typealias KSLWorkFailure = CoreKSLWorkFailure
 typealias KSLWorkOwnerSnapshot = CoreKSLWorkOwnerSnapshot
 typealias KSLRuntimeSnapshot = CoreKSLRuntimeSnapshot
+/** Typed metadata supplied to a scheduler task invocation. */
+typealias KSLTaskContext = CoreKSLTaskContext
+typealias KSLTaskHandle = CoreKSLTaskHandle
+typealias KSLTaskRepeatMode = CoreKSLTaskRepeatMode
+typealias KSLTaskResult = CoreKSLTaskResult
+typealias KSLTaskScheduler = CoreKSLTaskScheduler
+typealias KSLTaskSchedulerEnvironment = CoreKSLTaskSchedulerEnvironment
+typealias KSLTaskSchedulerFactory = CoreKSLTaskSchedulerFactory
+typealias KSLTaskSchedulerRegistry = CoreKSLTaskSchedulerRegistry
+typealias KSLTaskScope = CoreKSLTaskScope
+typealias KSLTaskSpec = CoreKSLTaskSpec
+typealias KSLTaskState = CoreKSLTaskState
+typealias KSLOfficialTaskScheduler = CoreKSLOfficialTaskScheduler
 
 /** Current read-only JVM, CPU, thread and GC telemetry. */
 val kslRuntimeStats: KSLRuntimeSnapshot

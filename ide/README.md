@@ -53,7 +53,13 @@ if (api != null) {
 ```
 
 The receiver also exposes the KSL context methods and the default-imported
-DSL/Standard Library functions. IntelliJ should offer member completion,
+DSL/Standard Library functions. The owner-scoped `scheduler` receiver provides
+typed `schedule`, `repeat`, `cancel`, `cancelAll` and snapshot methods. The
+public `ru.privateserver.ksl.api` namespace includes the scheduler SPI, task
+specification, task context, handles and registry for addon authors who need a
+custom scheduler implementation.
+
+IntelliJ should offer member completion,
 parameter information and navigation when its Kotlin scripting support has
 successfully discovered the template.
 
@@ -71,7 +77,9 @@ successfully discovered the template.
 
 ## IntelliJ editor smoke checks
 
-Open `samples/ide-completion-smoke-test.kts` after Gradle sync:
+Open `samples/ide-completion-smoke-test.kts` after Gradle sync. It also checks
+completion for `scheduler.schedule`, `scheduler.repeat`, task metadata and
+cancellable handles:
 
 1. Type after `api.`, `player?.`, `world.` and `location?.` to inspect member completion.
 2. Hover over `tellRich`, `entitiesInBox`, `isInside` and public API methods to inspect KDoc.

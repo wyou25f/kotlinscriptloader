@@ -1,5 +1,11 @@
 ## Unreleased
 
+- Added the `kslshu` scheduler SPI: official KSL adapter, typed task specifications, handles and results, fixed-rate/fixed-delay execution, and an addon-extensible scheduler factory registry.
+- Added the owner-bound `scheduler` API to script context; its tasks are automatically cancelled by the existing script unload lifecycle.
+- Expanded IntelliJ IDEA completion fixtures and JAR verification for the new scheduler API; documented custom scheduler authoring and thread-safety requirements.
+
+## Unreleased
+
 - Added an optional loopback-only MCP Streamable HTTP endpoint with environment-backed Bearer authentication, strict Host/Origin checks, bounded request handling, rate limiting and read-only server/script tools. Single-script reload is opt-in and confirmation-gated; MCP is disabled by default.
 
 - Bukkit/Paper Entity STD: added location snapshots, world-aware distance/radius checks, world-name checks and copy-safe entity teleportation.

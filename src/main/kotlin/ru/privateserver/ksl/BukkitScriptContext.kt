@@ -49,6 +49,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.buildJsonObject
 import ru.privateserver.ksl.std.toml.KSLTomlCodec
+import ru.privateserver.ksl.kslshu.KSLTaskScope
 
 open class BukkitScriptContext(
     plugin: KotlinScriptLoaderPlugin,
@@ -75,6 +76,10 @@ open class BukkitScriptContext(
     /** Per-script scope; caches, profilers and owned AutoCloseable resources close on reload. */
     val runtimeScope: ru.privateserver.ksl.rt.KSLRuntimeScope
         get() = internalPlugin.scriptRuntimeScope(scriptName)
+
+    /** Official owner-scoped scheduler. Its tasks are cancelled automatically on script unload. */
+    val scheduler: KSLTaskScope
+        get() = internalPlugin.taskScope(scriptName)
 
     /** Registers an AutoCloseable resource for automatic cleanup when this script unloads. */
     fun <T : AutoCloseable> own(resource: T): T = runtimeScope.own(resource)

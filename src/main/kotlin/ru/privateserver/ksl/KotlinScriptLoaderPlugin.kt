@@ -15,6 +15,11 @@ import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import ru.privateserver.ksl.std.item.KSLCustomEnchantManager
 import ru.privateserver.ksl.mcp.KSLMcpServer
+import ru.privateserver.ksl.kslshu.KSLTaskScheduler
+import ru.privateserver.ksl.kslshu.KSLTaskSchedulerEnvironment
+import ru.privateserver.ksl.kslshu.KSLTaskSchedulerFactory
+import ru.privateserver.ksl.kslshu.KSLTaskSchedulerRegistry
+import ru.privateserver.ksl.kslshu.KSLTaskScope
 
 internal fun isTaskOwnedBy(scriptName: String, taskId: Int, tasksByScript: Map<String, Set<Int>>): Boolean =
     tasksByScript[scriptName]?.contains(taskId) == true
@@ -245,12 +250,36 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     lateinit var workScheduler: ru.privateserver.ksl.rt.KSLWorkScheduler
         private set
 
+    lateinit var schedulerRegistry: KSLTaskSchedulerRegistry
+        private set
+
+    lateinit var taskScheduler: KSLTaskScheduler
+        private set
+
+    internal fun taskScope(owner: String): KSLTaskScope = KSLTaskScope(taskScheduler, owner)
+
+    /** Registers an addon-provided scheduler factory for later creation. */
+    fun registerSchedulerFactory(id: String, factory: KSLTaskSchedulerFactory) {
+        check(::schedulerRegistry.isInitialized) { "KSL scheduler registry is not initialized yet" }
+        schedulerRegistry.register(id, factory)
+    }
+
+    /** Creates an independently managed scheduler registered under [id]. */
+    fun createTaskScheduler(id: String): KSLTaskScheduler {
+        check(::schedulerRegistry.isInitialized) { "KSL scheduler registry is not initialized yet" }
+        return schedulerRegistry.create(id)
+    }
+
     private fun initRuntimeWorkers() {
         val workers = config.getInt("runtime.cpu-threads", (Runtime.getRuntime().availableProcessors() - 1).coerceAtLeast(1)).coerceIn(1, 64)
         val queueCapacity = config.getInt("runtime.queue-capacity", 256).coerceIn(1, 100_000)
         val perScriptLimit = config.getInt("runtime.max-tasks-per-script", 64).coerceIn(1, 10_000)
         if (::workScheduler.isInitialized) workScheduler.resize(workers)
         else workScheduler = ru.privateserver.ksl.rt.KSLWorkScheduler(workers, queueCapacity, perScriptLimit)
+        if (!::schedulerRegistry.isInitialized) {
+            schedulerRegistry = KSLTaskSchedulerRegistry.withOfficial(KSLTaskSchedulerEnvironment(workScheduler))
+            taskScheduler = schedulerRegistry.create("ksl")
+        }
     }
 
     fun submitWorker(scriptId: String, priority: ru.privateserver.ksl.rt.KSLWorkPriority, block: () -> Unit): Long =

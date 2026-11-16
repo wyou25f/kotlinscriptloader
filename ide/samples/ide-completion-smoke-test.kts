@@ -17,6 +17,19 @@ if (api != null) {
 val shortLabel = "KotlinScriptLoader".truncateCodePoints(12)
 val ticks = 5.secondsToTicks()
 
+// Scheduler completion smoke checks: type after scheduler., handle. and task.
+val scheduled = scheduler.schedule(delay = java.time.Duration.ofSeconds(2)) { task ->
+    println("task #${task.execution} owned by ${task.owner}")
+}
+val repeating = scheduler.repeat(
+    interval = java.time.Duration.ofSeconds(10),
+    mode = ru.privateserver.ksl.api.KSLTaskRepeatMode.FIXED_DELAY
+) { task ->
+    println("repeat #${task.execution}")
+}
+scheduled.cancel()
+repeating.cancel()
+
 val player = Bukkit.getOnlinePlayers().firstOrNull()
 player?.tellRich("<green>KSL completion is available")
 val canManage = player?.hasAnyPermission("ksl.admin", "ksl.manage") ?: false

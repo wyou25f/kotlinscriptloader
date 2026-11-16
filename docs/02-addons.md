@@ -821,3 +821,62 @@ CI не заменяет реальный Paper сервер с нужной к�
 - [ ] Поведение проверено на target Paper/KSL версии.
 
 **Конец книги II.** Далее — persistent state, SQL, SQLite, MySQL, MariaDB, phpMyAdmin, YAML, TOML и JSON.
+
+
+---
+
+## KSL Scheduler Hub (kslshu)
+
+KSL exposes an owner-scoped scheduler to every script through `scheduler`:
+
+```kotlin
+val delayed = scheduler.schedule(delay = 2.seconds) { task ->
+    logger.info("Execution #${task.execution} for ${task.owner}")
+}
+
+val repeating = scheduler.repeat(
+    interval = 30.seconds,
+    initialDelay = 5.seconds,
+    mode = KSLTaskRepeatMode.FIXED_DELAY
+) { task ->
+    // This callback runs on a KSL worker thread.
+    // Use runSync { ... } before changing Bukkit world/player state.
+}
+
+delayed.cancel()
+repeating.cancel()
+```
+
+The official implementation delegates to KSL's bounded priority worker engine. Script
+ownership is automatic: tasks created through the context are cancelled when that script
+is unloaded or reloaded.
+
+### Implementing a custom scheduler
+
+Addon authors can implement `KSLTaskScheduler` and register a factory with the plugin's
+scheduler registry. The SPI deliberately separates task description from execution policy:
+a custom engine can choose a dedicated executor, a virtual-thread strategy, a tick-based
+queue, or an external scheduler, while preserving task handles, owner cancellation and
+diagnostics.
+
+```kotlin
+val plugin = api.kslPlugin as KotlinScriptLoaderPlugin
+
+plugin.registerSchedulerFactory("addon.scheduler") { environment ->
+    MyAddonScheduler(environment.officialWorkers)
+}
+
+val customScheduler = plugin.createTaskScheduler("addon.scheduler")
+api.registerService("addon.scheduler", customScheduler)
+```
+
+A custom implementation must:
+- enforce owner-scoped cancellation and release task resources on completion;
+- return a handle whose completion future resolves on success/cancellation and completes
+  exceptionally on failure;
+- bound queues and concurrency rather than allowing unbounded task growth;
+- document which thread executes callbacks;
+- implement `close()` and close only resources it owns.
+
+The factory registry does not silently replace the official scheduler used by scripts.
+This keeps existing scripts stable while addons can opt into a custom scheduler explicitly.
