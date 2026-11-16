@@ -108,3 +108,18 @@ diagnostics:
     snapshot-interval-ms: 750
     # Сколько последних дампов KSL хранить.
     max-dumps: 10
+
+
+# Optional MCP Streamable HTTP management endpoint.
+# Disabled by default. Loopback-only; requires KSL_MCP_TOKEN in the Paper process environment.
+# Scripts and other plugins share the same JVM and may be able to read environment variables.
+mcp:
+  enabled: false
+  bind: "127.0.0.1"
+  port: 8765
+  path: "/mcp"
+  token-env: "KSL_MCP_TOKEN"
+  # Exact origins only. Browser CORS/preflight is not enabled; native local MCP clients are expected.
+  allowed-origins: []
+  # Exposes a state-changing tool that executes one existing .kts script. Keep disabled by default.
+  allow-script-reload: false

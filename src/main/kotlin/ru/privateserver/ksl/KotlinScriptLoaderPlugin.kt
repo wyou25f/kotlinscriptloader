@@ -14,6 +14,7 @@ import org.bukkit.plugin.java.JavaPlugin
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import ru.privateserver.ksl.std.item.KSLCustomEnchantManager
+import ru.privateserver.ksl.mcp.KSLMcpServer
 
 internal fun isTaskOwnedBy(scriptName: String, taskId: Int, tasksByScript: Map<String, Set<Int>>): Boolean =
     tasksByScript[scriptName]?.contains(taskId) == true
@@ -446,6 +447,24 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         compilePool = KSLCompilePool(compileThreads)
     }
 
+    @Volatile
+    private var mcpServer: KSLMcpServer? = null
+
+    fun mcpStatusText(): String = mcpServer?.statusText() ?: "disabled"
+
+    private fun startMcpServer() {
+        if (!config.getBoolean("mcp.enabled", false)) return
+        var candidate: KSLMcpServer? = null
+        try {
+            candidate = KSLMcpServer.fromConfig(this)
+            candidate.start()
+            mcpServer = candidate
+        } catch (error: Exception) {
+            runCatching { candidate?.close() }
+            logger.warning("[MCP] Endpoint disabled: ${error.message ?: error::class.simpleName}")
+        }
+    }
+
     private val legacyColors = Regex("§[0-9A-Fa-fK-Ok-oRrXx]")
 
     // The console prints "§9" literally when it comes through the plugin logger, so the codes are stripped there.
@@ -478,6 +497,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         KSLEntityAttributes.registerDefaults(addonManager.entityAttributes)
 
         getCommand("ksl")?.setExecutor(KSLCommandExecutor(this))
+        startMcpServer()
 
         logger.info(message("lifecycle.starting", "version" to description.version))
 
@@ -521,6 +541,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     override fun onDisable() {
         shuttingDown.set(true)
+        runCatching { mcpServer?.close() }
+            .onFailure { logger.warning("[MCP] Failed to stop local endpoint cleanly: ${it::class.simpleName}") }
+        mcpServer = null
         runCatching { watchdogMonitor?.stop() }
         watchdogMonitor = null
         runCatching { scriptWatcher?.stop() }

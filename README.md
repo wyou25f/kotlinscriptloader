@@ -10,6 +10,7 @@ KotlinScriptLoader is a Kotlin scripting plugin for **Paper 1.21.1** and **Java 
 - Built-in APIs for configuration, databases, scheduling, text, inventory, reusable sound timelines, particle shapes, custom mob builders, and NBT (including vanilla item components).
 - Addon and library extension points, plus optional integrations with other server plugins.
 - Structured error codes, diagnostics, watchdog reports, and runtime tools.
+- Optional, disabled-by-default local MCP endpoint for server/script inspection.
 - Server messages in Russian and English, with support for custom YAML locales.
 
 ## Requirements
@@ -53,6 +54,7 @@ Save the file and run `/ksl reload`. Continue with [Book I — Script Developmen
 | `/ksl error <code>` | Explain an error code |
 | `/ksl language` | Show or change the server message language |
 | `/ksl runtime` | Inspect runtime resources and worker settings |
+| `/ksl mcp` | Show the optional local MCP endpoint status |
 
 Most administrative commands require the `ksl.admin` permission.
 
@@ -98,6 +100,8 @@ The plugin JAR is written to `build/libs/`. Build logs and diagnostic reports ar
 ## Security model
 
 KSL scripts execute inside the Minecraft server process. The sandbox can block selected JVM capabilities and catch dangerous mistakes, but it is **not** process isolation and is not a complete security boundary. Only trusted people should be allowed to write to the `scripts/` directory or use `ksl.admin`.
+
+The optional MCP endpoint is disabled by default and binds only to loopback. It uses a bearer token from the Paper process environment; however, unrestricted code running inside the same JVM—including other server plugins—may also be able to read that environment. Do not treat the token as isolation from untrusted scripts or plugins. See [Book I — MCP setup and security notes](docs/01-scripts.md#ksl-mcp-server).
 
 Bukkit/Paper APIs are not automatically thread-safe. Follow the API's thread requirements; most world, player, entity, and inventory changes must run on the server's main thread.
 

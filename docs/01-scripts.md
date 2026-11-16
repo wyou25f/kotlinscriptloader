@@ -1161,3 +1161,60 @@ scriptEvents {
 ~~~
 
 Доступны `onJoin`, `onQuit`, `onBlockBreak`, `onBlockPlace`, `onInteract`, `onDeath` и `onChat`. Для cancellable-событий можно указать `ignoreCancelled` и `priority`. Все слушатели принадлежат скрипту и снимаются при его выгрузке.
+
+
+## KSL MCP Server
+
+KSL can optionally expose a local [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) endpoint so a compatible desktop MCP client can inspect the Paper server and KSL scripts.
+
+### Enable
+
+The endpoint is **disabled by default**. Set a strong token in the environment of the process that starts Paper, then enable MCP in `plugins/KotlinScriptLoader/config.yml`:
+
+PowerShell:
+```powershell
+$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$bytes = New-Object byte[] 32
+$rng.GetBytes($bytes)
+$env:KSL_MCP_TOKEN = -join ($bytes | ForEach-Object { $_.ToString("x2") })
+$rng.Dispose()
+java -jar paper.jar
+```
+
+Linux:
+```bash
+export KSL_MCP_TOKEN="$(openssl rand -hex 32)"
+java -jar paper.jar
+```
+
+Then set:
+```yaml
+mcp:
+  enabled: true
+  bind: "127.0.0.1"
+  port: 8765
+  path: "/mcp"
+  token-env: "KSL_MCP_TOKEN"
+  allowed-origins: []
+  allow-script-reload: false
+```
+
+Restart Paper after changing the environment variable or MCP settings. Check the endpoint state with `/ksl mcp`. The endpoint URL is `http://127.0.0.1:8765/mcp`.
+
+### Available tools
+
+- `ksl_server_status` — read-only server version, player count and KSL script totals. It does not expose player names, secrets, console output or file paths.
+- `ksl_list_scripts` — up to 50 safe relative script IDs with load state and basic counters. It does not return script source.
+- `ksl_reload_script` — optional state-changing tool. It is not advertised unless `allow-script-reload: true`; every call also requires `confirm: true` and a safe relative script ID. Reloading executes the selected script inside the Paper JVM.
+
+### Security boundaries
+
+- The listener accepts only literal loopback addresses (`127.0.0.1` or `::1`), rejects non-loopback clients, validates the `Host` and optional exact `Origin` headers, and requires a constant-time checked Bearer token.
+- Request bodies are limited to 64 KiB, requests are rate-limited, and the worker pool and queue are bounded. Responses do not include stack traces or absolute file paths.
+- The endpoint is disabled by default. Do not expose it on a public interface or forward the port to the internet. It is intended for a local native MCP client; browser CORS/preflight is not enabled.
+- The token is read from the Paper process environment and is not written to KSL config or logs. **This is not a security boundary against code already running inside the same JVM.** KSL scripts and other server plugins may be able to read environment variables or inspect process state. Do not run untrusted scripts or plugins on a server where MCP is enabled.
+- KSL's script sandbox is not operating-system process isolation. A bearer token does not make untrusted in-process code safe.
+- Keep `allow-script-reload: false` unless the local MCP client and every script it may reload are trusted. Script reload can execute arbitrary behavior permitted to that script within the Paper process.
+- KSL uses a local bearer token, not a full OAuth 2.1 authorization server. For remote administration, use a separately secured private tunnel and keep the KSL listener bound to loopback.
+
+The implementation follows the stateless Streamable HTTP transport in MCP protocol version `2026-07-28`: each POST carries protocol/client metadata, and the server validates the `MCP-Protocol-Version`, `Mcp-Method` and (for tool calls) `Mcp-Name` headers.

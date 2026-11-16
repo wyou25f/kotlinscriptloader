@@ -9,7 +9,7 @@ import org.bukkit.command.TabCompleter
 
 private val KSL_ROOT_COMMANDS = listOf(
     "help", "reload", "scripts", "debug", "resources", "deps", "runtime", "perf", "language",
-    "memory", "cpu", "addons", "services", "libraries", "discord", "sandbox",
+    "memory", "cpu", "mcp", "addons", "services", "libraries", "discord", "sandbox",
     "errors", "error", "watchdog", "doctor", "validate", "dbmigrate"
 )
 private val KSL_WORKER_COMMANDS = setOf("runtime", "perf", "memory", "cpu")
@@ -116,6 +116,11 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                     sender.sendMessage(plugin.message("runtime.setting"))
                     sender.sendMessage(plugin.message("runtime.heap-note"))
                 }
+            }
+
+            "mcp" -> {
+                sender.sendMessage("§7MCP endpoint: §f${plugin.mcpStatusText()}")
+                sender.sendMessage("§8Локальный endpoint не открывает доступ извне; подробности: config.yml и docs/01-scripts.md")
             }
 
             "scripts" -> {
@@ -395,6 +400,7 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
         listOf(
             "reload [script|folder/|changed]" to plugin.message("help.reload"),
             "runtime" to plugin.message("help.runtime"),
+            "mcp" to "Статус локального MCP endpoint",
             "scripts" to plugin.message("help.scripts"),
             "debug <script>" to plugin.message("help.debug"),
             "resources [script]" to plugin.message("help.resources"),
