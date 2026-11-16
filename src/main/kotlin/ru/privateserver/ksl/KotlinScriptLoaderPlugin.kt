@@ -609,6 +609,14 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} ${message("console.shutdown.scripts-failed", "error" to it.message)}") }
         runCatching { if (::workScheduler.isInitialized) workScheduler.close() }
             .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} ${message("console.shutdown.workers-failed", "error" to it.message)}") }
+        if (::scriptEngine.isInitialized) {
+            if (!reloadCompileInProgress.get()) {
+                runCatching { scriptEngine.close() }
+                    .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} Не удалось закрыть script engine: ${it.message}") }
+            } else {
+                logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} Локальные classloader'ы оставлены открытыми: компиляция ещё выполняется.")
+            }
+        }
         runCatching { addonManager.shutdown() }
             .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} ${message("console.shutdown.addons-failed", "error" to it.message)}") }
         runCatching { papiUnregister?.invoke() }

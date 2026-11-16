@@ -33,6 +33,26 @@ internal fun discoverLocalLibrarySources(sourceFolder: File): List<File> {
         .toList()
 }
 
+/**
+ * Keeps retired library classloaders available while previously evaluated scripts can still
+ * resolve classes lazily. They are closed together during orderly plugin shutdown.
+ */
+internal class KSLRetiredClassLoaders : AutoCloseable {
+    private val loaders = LinkedHashSet<URLClassLoader>()
+
+    @Synchronized
+    fun retain(loader: URLClassLoader?) {
+        if (loader != null) loaders += loader
+    }
+
+    @Synchronized
+    override fun close() {
+        val closing = loaders.toList()
+        loaders.clear()
+        closing.forEach { loader -> runCatching { loader.close() } }
+    }
+}
+
 internal fun localLibrarySourceFingerprint(sources: List<File>, sourceFolder: File): List<String> =
     sources.sortedBy { it.relativeTo(sourceFolder).invariantSeparatorsPath }.map { source ->
         val relativePath = source.relativeTo(sourceFolder).invariantSeparatorsPath
@@ -46,6 +66,9 @@ internal fun localLibrarySourceFingerprint(sources: List<File>, sourceFolder: Fi
  * working classloader so a typo in a library does not break live scripts.
  */
 internal class KSLLocalLibraryManager(private val plugin: KotlinScriptLoaderPlugin) {
+    // Existing scripts may lazily load library classes after a reload. Retired loaders stay
+    // open until plugin shutdown, after all script-owned callbacks and tasks are unloaded.
+    private val retiredLoaders = KSLRetiredClassLoaders()
     private val sourceFolder = File(plugin.scriptsFolder, "libs").apply { mkdirs() }
     private val outputRoot = File(plugin.dataFolder, "compiled-libraries").apply { mkdirs() }
 
@@ -63,7 +86,7 @@ internal class KSLLocalLibraryManager(private val plugin: KotlinScriptLoaderPlug
         if (nextStamp == attemptedStamp) return null
         attemptedStamp = nextStamp
         if (sources.isEmpty()) {
-            activeLoader?.close()
+            activeLoader?.let(retiredLoaders::retain)
             activeLoader = null
             return null
         }
@@ -99,8 +122,17 @@ internal class KSLLocalLibraryManager(private val plugin: KotlinScriptLoaderPlug
         val nextLoader = URLClassLoader(arrayOf(output.toURI().toURL()), plugin::class.java.classLoader)
         val previous = activeLoader
         activeLoader = nextLoader
-        runCatching { previous?.close() }
+        previous?.let(retiredLoaders::retain)
         return "Скомпилировано локальных Kotlin-библиотек: ${sources.size} файл(ов)"
+    }
+
+    @Synchronized
+    fun close() {
+        val current = activeLoader
+        activeLoader = null
+        runCatching { current?.close() }
+        retiredLoaders.close()
+        runCatching { outputRoot.deleteRecursively() }
     }
 
     private fun compilerClasspath(): String {

@@ -57,6 +57,11 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
     override fun clearCompileCache(): Int = compiledCache.clear()
     fun invalidateCachedScript(scriptId: String): Int = compiledCache.invalidateScript(scriptId)
 
+    override fun close() {
+        compiledCache.clear()
+        localLibraries.close()
+    }
+
     companion object {
         private const val SLOW_LOAD_THRESHOLD_MS = 2000
     }
