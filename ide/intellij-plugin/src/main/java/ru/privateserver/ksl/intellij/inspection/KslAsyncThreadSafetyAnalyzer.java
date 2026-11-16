@@ -130,7 +130,7 @@ public final class KslAsyncThreadSafetyAnalyzer {
                 blank(result, i);
                 if (escaped) {
                     escaped = false;
-                } else if (c == '\\\\') {
+                } else if (c == '\\') {
                     escaped = true;
                 } else if ((string && c == '"') || (character && c == '\'')) {
                     string = false;
