@@ -1,6 +1,7 @@
 package ru.privateserver.ksl.dsl
 
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertDoesNotThrow
 import org.junit.jupiter.api.Test
 
 class KSLAdvancedDslTest {
@@ -27,6 +28,16 @@ class KSLAdvancedDslTest {
                 tabComplete { _, _ -> emptyList() }
                 tabCompleteAny { _, _ -> emptyList() }
             }
+        }
+    }
+
+    @Test
+    fun commandDslAcceptsUniqueValidAliases() {
+        assertDoesNotThrow {
+            KSLCommandDslBuilder("balance").apply {
+                aliases("bal", "money", "bal")
+                player { _, _ -> }
+            }.validate()
         }
     }
 }

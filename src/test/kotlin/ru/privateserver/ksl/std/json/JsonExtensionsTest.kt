@@ -1,11 +1,13 @@
 package ru.privateserver.ksl.std.json
 
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class JsonExtensionsTest {
@@ -85,5 +87,37 @@ class JsonExtensionsTest {
         assertThrows(IllegalArgumentException::class.java) { Float.POSITIVE_INFINITY.toJsonElement() }
         assertThrows(IllegalArgumentException::class.java) { mapOf(1 to "bad").toJsonElement() }
         assertThrows(IllegalArgumentException::class.java) { Any().toJsonElement() }
+    }
+
+    @Test
+    fun parserAndFormatterSupportCompactAndPrettyJson() {
+        val parsed = parseJson("""{"name":"KSL","enabled":true}""")
+        assertEquals("""{"name":"KSL","enabled":true}""", parsed.toJsonString())
+        assertTrue(parsed.toJsonString(pretty = true).contains("\n"))
+        assertEquals(JsonNull, parseJsonOrNull("null"))
+        assertNull(parseJsonOrNull("{broken"))
+        assertThrows(IllegalArgumentException::class.java) { parseJson("") }
+    }
+
+    @Test
+    fun nestedPathsResolveObjectKeysAndArrayIndices() {
+        val value = parseJson("""{"profile":{"roles":[{"name":"admin"}]}}""")
+        assertEquals("admin", value.stringAtPath("profile.roles.0.name"))
+        assertEquals("admin", value.requireAtPath("profile.roles.0.name").stringOrNull())
+        assertNull(value.atPath("profile.roles.4.name"))
+        assertNull(value.atPath("profile.roles.not-an-index.name"))
+        assertThrows(IllegalArgumentException::class.java) { value.requireAtPath("missing.path") }
+    }
+
+    @Test
+    fun deepMergeRecursivelyOverridesObjectsAndReplacesArrays() {
+        val base = parseJson("""{"profile":{"name":"R","rank":"member"},"items":[1,2],"enabled":true}""") as JsonObject
+        val override = parseJson("""{"profile":{"rank":"admin"},"items":[3],"new":"value"}""") as JsonObject
+        val merged = base.deepMerge(override)
+        assertEquals("R", merged.objectValue("profile")?.string("name"))
+        assertEquals("admin", merged.objectValue("profile")?.string("rank"))
+        assertEquals("[3]", merged.arrayValue("items").toString())
+        assertEquals("value", merged.string("new"))
+        assertEquals(true, merged.bool("enabled"))
     }
 }

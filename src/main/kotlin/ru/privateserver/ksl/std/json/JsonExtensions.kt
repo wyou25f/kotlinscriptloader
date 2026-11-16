@@ -5,6 +5,7 @@ package ru.privateserver.ksl.std.json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -102,3 +103,62 @@ fun JsonArray.intAt(index: Int): Int? = getOrNull(index)?.intOrNull()
 fun JsonArray.longAt(index: Int): Long? = getOrNull(index)?.longOrNull()
 fun JsonArray.doubleAt(index: Int): Double? = getOrNull(index)?.doubleOrNull()?.takeIf { it.isFinite() }
 fun JsonArray.boolAt(index: Int): Boolean? = getOrNull(index)?.booleanOrNull()
+
+
+/** Parses JSON and wraps syntax errors with a concise, script-friendly message. */
+fun parseJson(source: String): JsonElement {
+    require(source.isNotBlank()) { "JSON source must not be blank" }
+    return try {
+        Json.parseToJsonElement(source)
+    } catch (ex: Exception) {
+        throw IllegalArgumentException("Invalid JSON: ${ex.message ?: ex::class.simpleName}", ex)
+    }
+}
+
+/** Parses JSON without throwing; malformed input returns null. JSON literal null returns JsonNull. */
+fun parseJsonOrNull(source: String): JsonElement? =
+    runCatching { parseJson(source) }.getOrNull()
+
+/** Serializes a JSON value as compact or human-readable JSON. */
+fun JsonElement.toJsonString(pretty: Boolean = false): String =
+    Json { prettyPrint = pretty; explicitNulls = true }
+        .encodeToString(JsonElement.serializer(), this)
+
+/**
+ * Resolves a dot-separated path through objects and arrays.
+ * Numeric path segments address array indices: "profile.roles.0.name".
+ */
+fun JsonElement.atPath(path: String): JsonElement? {
+    if (path.isBlank()) return null
+    return path.split('.').fold(this as JsonElement?) { current, segment ->
+        when (val value = current) {
+            is JsonObject -> value[segment]
+            is JsonArray -> segment.toIntOrNull()?.let(value::getOrNull)
+            else -> null
+        }
+    }
+}
+
+/** Resolves a path or throws an error that identifies the missing JSON field. */
+fun JsonElement.requireAtPath(path: String): JsonElement =
+    atPath(path) ?: throw IllegalArgumentException("Required JSON path '$path' was not found")
+
+/** Deep-merges objects; nested objects merge recursively while arrays and scalar values are replaced. */
+fun JsonObject.deepMerge(override: JsonObject): JsonObject = buildJsonObject {
+    this@deepMerge.forEach { (key, value) ->
+        val replacement = override[key]
+        put(
+            key,
+            if (value is JsonObject && replacement is JsonObject) value.deepMerge(replacement)
+            else replacement ?: value
+        )
+    }
+    override.forEach { (key, value) -> if (!containsKey(key)) put(key, value) }
+}
+
+/** Typed accessors for a nested path. They do not coerce strings, numbers or booleans. */
+fun JsonElement.stringAtPath(path: String): String? = atPath(path)?.stringOrNull()
+fun JsonElement.intAtPath(path: String): Int? = atPath(path)?.intOrNull()
+fun JsonElement.longAtPath(path: String): Long? = atPath(path)?.longOrNull()
+fun JsonElement.doubleAtPath(path: String): Double? = atPath(path)?.doubleOrNull()?.takeIf { it.isFinite() }
+fun JsonElement.booleanAtPath(path: String): Boolean? = atPath(path)?.booleanOrNull()

@@ -1101,3 +1101,49 @@ val taskIds = scriptTasks {
 ~~~
 
 `scriptTasks` возвращает ID созданных задач. Синхронные callbacks выполняются на основном потоке Bukkit; async callbacks — в фоне и не должны напрямую обращаться к состоянию мира или игроков.
+
+
+## JSON utilities 2.2
+
+В стандартной JSON-библиотеке доступны:
+- `parseJson(text)` — разбор с понятной ошибкой; `parseJsonOrNull(text)` — безопасный вариант.
+- `element.toJsonString(pretty = true)` — компактная или форматированная сериализация.
+- `element.atPath("profile.roles.0.name")` и `requireAtPath(...)` — доступ к вложенным объектам и индексам массивов.
+- `object.deepMerge(override)` — рекурсивное объединение объектов; массивы и примитивы заменяются значением из override.
+- `stringAtPath`, `intAtPath`, `longAtPath`, `doubleAtPath`, `booleanAtPath` — типизированное чтение вложенных значений без неявного преобразования типов.
+
+Пример:
+
+~~~kotlin
+val defaults = parseJson("""{"profile":{"rank":"member","active":true}}""") as JsonObject
+val overrides = parseJson("""{"profile":{"rank":"admin"}}""") as JsonObject
+val config = defaults.deepMerge(overrides)
+
+println(config.stringAtPath("profile.rank")) // admin
+println(config.toJsonString(pretty = true))
+~~~
+
+## Event DSL 2.2
+
+Сгруппируйте обработчики событий в одном блоке:
+
+~~~kotlin
+scriptEvents {
+    onJoin {
+        player.sendMessage("Добро пожаловать!")
+    }
+
+    onBlockBreak(ignoreCancelled = true) {
+        if (block.type.name == "DIAMOND_ORE") {
+            player.sendMessage("Алмазная руда!")
+        }
+    }
+
+    onChat {
+        // AsyncChatEvent выполняется на async-потоке Paper.
+        // Для изменений мира или инвентаря используй runSync { ... }.
+    }
+}
+~~~
+
+Доступны `onJoin`, `onQuit`, `onBlockBreak`, `onBlockPlace`, `onInteract`, `onDeath` и `onChat`. Для cancellable-событий можно указать `ignoreCancelled` и `priority`. Все слушатели принадлежат скрипту и снимаются при его выгрузке.

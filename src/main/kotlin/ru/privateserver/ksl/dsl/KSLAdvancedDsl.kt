@@ -1,6 +1,14 @@
 package ru.privateserver.ksl.dsl
 
 import org.bukkit.command.CommandSender
+import org.bukkit.event.EventPriority
+import org.bukkit.event.block.BlockBreakEvent
+import org.bukkit.event.block.BlockPlaceEvent
+import org.bukkit.event.player.PlayerDeathEvent
+import org.bukkit.event.player.PlayerInteractEvent
+import org.bukkit.event.player.PlayerJoinEvent
+import org.bukkit.event.player.PlayerQuitEvent
+import io.papermc.paper.event.player.AsyncChatEvent
 import org.bukkit.entity.Player
 import ru.privateserver.ksl.BukkitScriptContext
 
@@ -78,3 +86,55 @@ class KSLTaskDslBuilder internal constructor(private val context: BukkitScriptCo
 /** Register related delayed and repeating work in one DSL block. */
 fun BukkitScriptContext.scriptTasks(block: KSLTaskDslBuilder.() -> Unit): List<Int> =
     KSLTaskDslBuilder(this).apply(block).taskIds()
+
+
+/**
+ * Declarative Bukkit/Paper event registrations.
+ * Async chat callbacks run on Paper's async chat thread; schedule world/player mutations with runSync { }.
+ */
+class KSLEventDslBuilder internal constructor(private val context: BukkitScriptContext) {
+    fun onJoin(priority: EventPriority = EventPriority.NORMAL, action: PlayerJoinEvent.() -> Unit) {
+        context.onEvent<PlayerJoinEvent>(priority = priority, action = action)
+    }
+
+    fun onQuit(priority: EventPriority = EventPriority.NORMAL, action: PlayerQuitEvent.() -> Unit) {
+        context.onEvent<PlayerQuitEvent>(priority = priority, action = action)
+    }
+
+    fun onBlockBreak(
+        priority: EventPriority = EventPriority.NORMAL,
+        ignoreCancelled: Boolean = false,
+        action: BlockBreakEvent.() -> Unit
+    ) {
+        context.onEvent(priority = priority, ignoreCancelled = ignoreCancelled, action = action)
+    }
+
+    fun onBlockPlace(
+        priority: EventPriority = EventPriority.NORMAL,
+        ignoreCancelled: Boolean = false,
+        action: BlockPlaceEvent.() -> Unit
+    ) {
+        context.onEvent(priority = priority, ignoreCancelled = ignoreCancelled, action = action)
+    }
+
+    fun onInteract(
+        priority: EventPriority = EventPriority.NORMAL,
+        ignoreCancelled: Boolean = false,
+        action: PlayerInteractEvent.() -> Unit
+    ) {
+        context.onEvent(priority = priority, ignoreCancelled = ignoreCancelled, action = action)
+    }
+
+    fun onDeath(priority: EventPriority = EventPriority.NORMAL, action: PlayerDeathEvent.() -> Unit) {
+        context.onEvent<PlayerDeathEvent>(priority = priority, action = action)
+    }
+
+    fun onChat(priority: EventPriority = EventPriority.NORMAL, action: AsyncChatEvent.() -> Unit) {
+        context.onEvent<AsyncChatEvent>(priority = priority, action = action)
+    }
+}
+
+/** Groups event listeners under a readable, declarative DSL. */
+fun BukkitScriptContext.scriptEvents(block: KSLEventDslBuilder.() -> Unit) {
+    KSLEventDslBuilder(this).apply(block)
+}
