@@ -74,6 +74,24 @@ val rounded = distance.roundToInt()
 
 Предпочитай публичные API интеграций и KSL hooks, а не reflection и поиск внутренних классов по имени.
 
+## Включение strict sandbox
+
+По умолчанию верхнеуровневый параметр `sandbox` в `plugins/KotlinScriptLoader/config.yml` выключен. Поэтому source preflight и classloader deny-list не применяются к обычным скриптам, пока sandbox явно не включён.
+
+Для включения строгого режима в конфигурации KSL:
+
+```yaml
+sandbox: true
+
+security:
+  sandbox-level: strict
+  sandbox-trusted: []
+```
+
+Это включает sandbox для всех скриптов, кроме ID, явно внесённых в `security.sandbox-trusted`. Перед включением проверь существующие скрипты: обращения к файлам, сети, reflection и raw threads могут перестать работать. Режим `security.sandbox-level: text` оставляет только source-фильтр и не включает classloader deny-list; для строгих ограничений оставляй `strict`.
+
+После изменения конфигурации проверь сервер через `/ksl doctor`. Не добавляй опасные классы в `security.class-deny-allowed` для обхода отказов.
+
 ## Что ограничивает strict sandbox
 
 Strict sandbox оставляет нормальную работу с безопасными значениями и стандартными библиотеками, но блокирует опасные возможности, в том числе:
