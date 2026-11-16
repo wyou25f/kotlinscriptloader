@@ -111,6 +111,24 @@ class KSLTaskSchedulerHubTest {
     }
 
     @Test
+    fun `task scopes receive isolated owners and cannot cancel each others work`() {
+        val workers = KSLWorkScheduler(1, 8)
+        val scheduler = KSLOfficialTaskScheduler(workers)
+        val first = KSLTaskScope(scheduler, "addon:one")
+        val second = KSLTaskScope(scheduler, "addon:two")
+        try {
+            val firstTask = first.schedule(Duration.ofHours(1)) { }
+            val secondTask = second.schedule(Duration.ofHours(1)) { }
+            assertNotEquals(firstTask.owner, secondTask.owner)
+            assertTrue(first.cancelAll() >= 1)
+            assertFalse(secondTask.completion.isDone)
+            assertTrue(second.cancel(secondTask.id))
+        } finally {
+            workers.close()
+        }
+    }
+
+    @Test
     fun `task spec rejects invalid intervals`() {
         assertThrows(IllegalArgumentException::class.java) {
             KSLTaskSpec("test", interval = Duration.ZERO) { }

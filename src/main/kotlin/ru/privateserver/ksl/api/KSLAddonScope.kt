@@ -16,6 +16,7 @@ import ru.privateserver.ksl.kslshu.KSLTaskRepeatMode
 import ru.privateserver.ksl.kslshu.KSLTaskScope
 import ru.privateserver.ksl.rt.KSLWorkPriority
 import java.time.Duration
+import java.util.UUID
 
 /**
  * Explicit owner for resources created by a KSL addon.
@@ -285,7 +286,7 @@ class KSLAddonScope internal constructor(
             val scope = KSLAddonScope(
                 plugin,
                 { topic, handler -> api.subscribe(topic, handler) },
-                KSLTaskScope(scheduler, "addon:${plugin.name.lowercase()}")
+                KSLTaskScope(scheduler, "addon:${plugin.name.lowercase()}:${UUID.randomUUID()}")
             )
             registrations.forEach(scope::own)
             scope.own(AutoCloseable { scheduler.close() })
