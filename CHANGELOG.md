@@ -1,5 +1,9 @@
 ## Unreleased
 
+- Script Engine 2.1: added successful compile/evaluation counters, success rates and average operation timings.
+- Script Testing Framework 2.1: added tagged and parameterized tests, name/tag filtering, filtered counts and collection/numeric assertions.
+- Added declarative `scriptCommand` and grouped `scriptTasks` DSLs; command registration remains script-owned and scheduled callbacks follow Bukkit thread rules.
+
 - Expanded Script Testing Framework with suite-level lifecycle hooks, clearer assertion helpers, stack-trace diagnostics, and text/JSON reports.
 
 # KotlinScriptLoader 1.2.1

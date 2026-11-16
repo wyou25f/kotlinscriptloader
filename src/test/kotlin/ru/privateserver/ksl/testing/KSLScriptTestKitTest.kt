@@ -151,4 +151,43 @@ class KSLScriptTestKitTest {
         repeat(KSLScriptTestSuiteBuilder.MAX_TESTS_PER_SUITE) { builder.test("case-$it") {} }
         assertThrows(IllegalStateException::class.java) { builder.test("overflow") {} }
     }
+    @Test
+    fun parameterizedCasesExpandAndCanBeFilteredByTags() {
+        val report = kslTestSuite("parameterized", KSLScriptTestFilter(includeTags = setOf("math"), excludeTags = setOf("slow"))) {
+            testEach("double", listOf(1, 2, 3), tags = setOf("math")) { value ->
+                assertEquals(value + value, value * 2)
+            }
+            test("unrelated", tags = setOf("io")) { fail("must be filtered") }
+            test("slow math", tags = setOf("math", "slow")) { fail("must be filtered") }
+        }
+        assertEquals(3, report.passed)
+        assertEquals(0, report.failed)
+        assertEquals(2, report.filtered)
+        assertTrue(report.successful)
+        assertTrue(report.debugReport().contains("2 filtered"))
+        assertTrue(report.toJson().contains("\\"filtered\\":2"))
+    }
+
+    @Test
+    fun nameFilterAndAdditionalAssertionsWork() {
+        val report = kslTestSuite("assertions", KSLScriptTestFilter(nameContains = "collections")) {
+            test("collections") {
+                assertEmpty(emptyList<String>())
+                assertNotEmpty(listOf(1))
+                assertGreaterThan(4, 2)
+                assertLessThan(2, 4)
+                assertApproxEquals(1.0, 1.0001, 0.001)
+            }
+            test("not selected") { fail("must not run") }
+        }
+        assertEquals(1, report.passed)
+        assertEquals(1, report.filtered)
+    }
+
+    @Test
+    fun invalidTagsAreRejected() {
+        assertThrows(IllegalArgumentException::class.java) {
+            KSLScriptTestSuiteBuilder("bad-tags").test("case", tags = setOf(" ")) {}
+        }
+    }
 }

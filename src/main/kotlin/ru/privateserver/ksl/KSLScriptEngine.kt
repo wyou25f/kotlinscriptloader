@@ -20,13 +20,20 @@ internal interface KSLScriptEngineBackend {
 internal data class KSLScriptEngineSnapshot(
     val compilations: Long,
     val compilationFailures: Long,
+    val compileSuccesses: Long,
     val evaluations: Long,
     val evaluationFailures: Long,
+    val evaluationSuccesses: Long,
     val compileNanos: Long,
     val evaluationNanos: Long,
     val lastScriptId: String?,
     val lastFailure: String?
-)
+) {
+    val averageCompileNanos: Long get() = if (compilations == 0L) 0L else compileNanos / compilations
+    val averageEvaluationNanos: Long get() = if (evaluations == 0L) 0L else evaluationNanos / evaluations
+    val compileSuccessRate: Double get() = if (compilations == 0L) 1.0 else compileSuccesses.toDouble() / compilations
+    val evaluationSuccessRate: Double get() = if (evaluations == 0L) 1.0 else evaluationSuccesses.toDouble() / evaluations
+}
 
 /**
  * Script Engine 2 facade.
@@ -39,8 +46,10 @@ internal data class KSLScriptEngineSnapshot(
 internal class KSLScriptEngine(private val backend: KSLScriptEngineBackend) {
     private val compilations = LongAdder()
     private val compilationFailures = LongAdder()
+    private val compileSuccesses = LongAdder()
     private val evaluations = LongAdder()
     private val evaluationFailures = LongAdder()
+    private val evaluationSuccesses = LongAdder()
     private val compileNanos = LongAdder()
     private val evaluationNanos = LongAdder()
     private val lastScriptId = AtomicReference<String?>(null)
@@ -55,6 +64,8 @@ internal class KSLScriptEngine(private val backend: KSLScriptEngineBackend) {
             if (!unit.ok) {
                 compilationFailures.increment()
                 rememberFailure(unit.errors.firstOrNull() ?: unit.failure?.name ?: "Compilation failed")
+            } else {
+                compileSuccesses.increment()
             }
             return unit
         } catch (error: Throwable) {
@@ -76,6 +87,8 @@ internal class KSLScriptEngine(private val backend: KSLScriptEngineBackend) {
             if (!succeeded) {
                 evaluationFailures.increment()
                 rememberFailure("Evaluation failed for '${unit.id}'")
+            } else {
+                evaluationSuccesses.increment()
             }
             return succeeded
         } catch (error: Throwable) {
@@ -95,8 +108,10 @@ internal class KSLScriptEngine(private val backend: KSLScriptEngineBackend) {
     fun snapshot() = KSLScriptEngineSnapshot(
         compilations.sum(),
         compilationFailures.sum(),
+        compileSuccesses.sum(),
         evaluations.sum(),
         evaluationFailures.sum(),
+        evaluationSuccesses.sum(),
         compileNanos.sum(),
         evaluationNanos.sum(),
         lastScriptId.get(),
@@ -106,8 +121,10 @@ internal class KSLScriptEngine(private val backend: KSLScriptEngineBackend) {
     fun resetMetrics() {
         compilations.reset()
         compilationFailures.reset()
+        compileSuccesses.reset()
         evaluations.reset()
         evaluationFailures.reset()
+        evaluationSuccesses.reset()
         compileNanos.reset()
         evaluationNanos.reset()
         lastScriptId.set(null)

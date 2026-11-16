@@ -1038,3 +1038,66 @@ println(report.toJson())
 Отчёт не может гарантировать номер строки исходного .kts: он показывает только те stack frames, которые реально предоставляет JVM. Runner остаётся последовательным и не изолирует тесты от сервера; не запускайте долгие операции и не меняйте production-мир.
 
 Test runner полезен для проверки чистой логики и небольших сценариев скрипта. Он не является песочницей: тестовый код имеет те же права, что и запущенный скрипт.
+
+
+## Script Engine 2.1
+
+Engine 2.1 дополняет агрегированные метрики успешности:
+- `compileSuccesses` и `evaluationSuccesses` — число успешных операций;
+- `compileSuccessRate` и `evaluationSuccessRate` — доля успешных операций от 0.0 до 1.0;
+- `averageCompileNanos` и `averageEvaluationNanos` — среднее время операции;
+- `resetMetrics()` сбрасывает счётчики и временные метрики.
+
+Это метрики фасада движка, а не профилировщик отдельных Kotlin-инструкций. Компиляцию и выполнение по-прежнему обеспечивает Kotlin scripting host.
+
+## Script Testing Framework 2.1
+
+Тесты поддерживают теги, параметризованные кейсы и фильтрацию:
+
+~~~kotlin
+val report = kslTestSuite(
+    "math",
+    KSLScriptTestFilter(includeTags = setOf("unit"), excludeTags = setOf("slow"))
+) {
+    testEach("addition", listOf(1, 2, 3), tags = setOf("unit")) { value ->
+        assertEquals(value + value, value * 2)
+    }
+
+    test("database integration", tags = setOf("integration", "slow")) {
+        // Будет исключён указанным фильтром.
+    }
+}
+~~~
+
+`testEach` создаёт независимые кейсы с индексными именами. `includeTags` требует наличия всех перечисленных тегов, `excludeTags` исключает кейс при совпадении хотя бы одного тега, а `nameContains` фильтрует имена без учёта регистра. Число исключённых кейсов доступно через `report.filtered` и отражается в текстовом/JSON отчёте.
+
+Добавлены проверки `assertEmpty`, `assertNotEmpty`, `assertGreaterThan`, `assertLessThan`, `assertApproxEquals`.
+
+## Дополнительные Script DSL
+
+### Команды
+
+~~~kotlin
+scriptCommand("balance") {
+    aliases("money", "bal")
+    permission("economy.balance")
+    tabComplete { _, args -> if (args.size == 1) listOf("top", "help") else emptyList() }
+    player { player, args ->
+        player.sendMessage("Баланс: ${args.firstOrNull() ?: "self"}")
+    }
+}
+~~~
+
+Для консоли и command blocks используйте `any { sender, args -> ... }` и при необходимости `tabCompleteAny { sender, args -> ... }`. Нужно объявить ровно один тип исполнителя. Команда принадлежит скрипту и снимается при его выгрузке.
+
+### Группы задач
+
+~~~kotlin
+val taskIds = scriptTasks {
+    after(20) { broadcast("Прошла секунда") }
+    repeat(ticks = 20, initialDelay = 0) { /* sync callback */ }
+    afterAsync(100) { /* фоновая операция; Bukkit world/player API не трогать */ }
+}
+~~~
+
+`scriptTasks` возвращает ID созданных задач. Синхронные callbacks выполняются на основном потоке Bukkit; async callbacks — в фоне и не должны напрямую обращаться к состоянию мира или игроков.

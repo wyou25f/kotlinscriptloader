@@ -39,6 +39,7 @@ class KSLScriptEngineTest {
         assertFalse(unit.ok)
         assertEquals(1L, snapshot.compilations)
         assertEquals(1L, snapshot.compilationFailures)
+        assertEquals(0L, snapshot.compileSuccesses)
         assertEquals("fixture", snapshot.lastScriptId)
         assertTrue(snapshot.compileNanos >= 0L)
         assertTrue(snapshot.lastFailure!!.contains("compile failed"))
@@ -55,6 +56,9 @@ class KSLScriptEngineTest {
         val snapshot = engine.snapshot()
         assertEquals(2L, snapshot.evaluations)
         assertEquals(1L, snapshot.evaluationFailures)
+        assertEquals(1L, snapshot.evaluationSuccesses)
+        assertEquals(0.5, snapshot.evaluationSuccessRate)
+        assertTrue(snapshot.averageEvaluationNanos >= 0L)
         assertEquals("fixture", snapshot.lastScriptId)
         assertTrue(snapshot.evaluationNanos >= 0L)
     }
@@ -86,7 +90,21 @@ class KSLScriptEngineTest {
         val snapshot = engine.snapshot()
         assertEquals(0L, snapshot.compilations)
         assertEquals(0L, snapshot.compilationFailures)
+        assertEquals(0L, snapshot.compileSuccesses)
+        assertEquals(0L, snapshot.evaluationSuccesses)
         assertNull(snapshot.lastScriptId)
         assertNull(snapshot.lastFailure)
+    }
+    @Test
+    fun successfulCompilationContributesToSuccessRateAndAverage() {
+        val backend = FakeBackend().apply {
+            compileResult = CompiledUnit(File("ok.kts"), "ok", Any(), emptyList(), emptyList(), null, null, 1L)
+        }
+        val engine = KSLScriptEngine(backend)
+        engine.compile(File("ok.kts"))
+        val snapshot = engine.snapshot()
+        assertEquals(1L, snapshot.compileSuccesses)
+        assertEquals(1.0, snapshot.compileSuccessRate)
+        assertTrue(snapshot.averageCompileNanos >= 0L)
     }
 }
