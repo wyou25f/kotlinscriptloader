@@ -37,7 +37,7 @@ internal fun buildScriptCompilationConfig(addonManager: KSLAddonManager, localLi
         }
     }
 
-class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
+internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLScriptEngineBackend {
 
     private val host = BasicJvmScriptingHost()
     private val scriptCompiler = JvmScriptCompiler()
@@ -49,7 +49,7 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
         private const val SLOW_LOAD_THRESHOLD_MS = 2000
     }
 
-    fun compile(file: File): CompiledUnit {
+    override fun compile(file: File): CompiledUnit {
         val id = plugin.scriptId(file)
         val startedAt = System.nanoTime()
         fun elapsedMs() = (System.nanoTime() - startedAt) / 1_000_000
@@ -84,7 +84,7 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
             CompiledUnit(file, id, null, listOf("${file.name}: ${ex::class.simpleName}: ${ex.message}"), emptyList(), KSLError.SCRIPT_COMPILER_CRASH, ex, elapsedMs(), sourceStamp)
         }
     }
-    fun reportFailure(unit: CompiledUnit) {
+    override fun reportFailure(unit: CompiledUnit) {
         val id = unit.id
         val failureCode = unit.failure ?: KSLError.SCRIPT_COMPILE
         unit.warnings.forEach { plugin.logger.warning("[$id] ${KSLError.SCRIPT_COMPILE_WARNING.tag} ⚠ $it") }
@@ -103,7 +103,7 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
         if (unit.crash == null) KSLErrors.recordFailure(id, plugin.message("console.script.compile-location"), unit.errors, failureCode)
     }
 
-    fun evaluate(unit: CompiledUnit): Boolean {
+    override fun evaluate(unit: CompiledUnit): Boolean {
         val compiled = unit.compiled ?: return false
         val id = unit.id
         return try {
@@ -169,11 +169,11 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
 
     private val warmedUp = java.util.concurrent.atomic.AtomicBoolean(false)
 
-    fun warmUp() {
+    override fun warmUp() {
         if (warmedUp.compareAndSet(false, true)) selfTestCompiler()
     }
 
-    fun selfTestCompiler(): Pair<Boolean, String> {
+    override fun selfTestCompiler(): Pair<Boolean, String> {
         return try {
             val context = BukkitScriptContext(plugin, "__selftest__")
             val compilationConfig = buildScriptCompilationConfig(plugin.addonManager, localLibraries)
@@ -202,7 +202,7 @@ class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) {
         }
     }
 
-    fun sandboxProbe(): Pair<Boolean, String> {
+    override fun sandboxProbe(): Pair<Boolean, String> {
         if (!plugin.isSandboxed("__sandbox_probe__")) {
             return true to "Sandbox выключена или probe script доверенный; проверка ограничений пропущена"
         }

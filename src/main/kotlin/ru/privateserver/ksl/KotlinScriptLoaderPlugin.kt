@@ -239,7 +239,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     var discord: KSLDiscordHook? = null
         private set
 
-    private lateinit var scriptRunner: ScriptRunner
+    private lateinit var scriptEngine: KSLScriptEngine
 
     lateinit var workScheduler: ru.privateserver.ksl.rt.KSLWorkScheduler
         private set
@@ -288,6 +288,13 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     /** Read-only, bounded context collected by the watchdog diagnostics thread. */
     fun watchdogDiagnostics(): List<String> = buildList {
         add("=== KSL RUNTIME CONTEXT ===")
+        if (::scriptEngine.isInitialized) {
+            val engine = scriptEngine.snapshot()
+            add("Script Engine 2: compilations=${engine.compilations}, compileFailures=${engine.compilationFailures}, " +
+                "evaluations=${engine.evaluations}, evaluationFailures=${engine.evaluationFailures}, " +
+                "compileMs=${engine.compileNanos / 1_000_000.0}, evaluationMs=${engine.evaluationNanos / 1_000_000.0}")
+            engine.lastFailure?.let { add("Script Engine 2 last failure: $it") }
+        }
         runCatching { runtimeSnapshot() }.onSuccess { snapshot ->
             add("JVM: heapUsed=${snapshot.heapUsedBytes} bytes, heapMax=${snapshot.heapMaxBytes} bytes, " +
                 "nonHeapUsed=${snapshot.nonHeapUsedBytes} bytes, processors=${snapshot.processors}, " +
@@ -464,7 +471,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         readSecurityConfig()
         initRuntimeWorkers()
         initCompileThreads()
-        scriptRunner   = ScriptRunner(this)
+        scriptEngine   = KSLScriptEngine(ScriptRunner(this))
 
         KSL.init(addonManager)
         KSLEffectShapes.registerDefaults(addonManager.effectShapes)
@@ -1085,14 +1092,14 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         KSLScriptInfo(id, id in liveScripts, loadMillisById[id] ?: -1L, KSLErrors.countFor(id))
     }
 
-    fun compileScript(file: File): CompiledUnit = scriptRunner.compile(file)
+    fun compileScript(file: File): CompiledUnit = scriptEngine.compile(file)
 
     data class ReloadSummary(val loaded: Int, val failed: Int, val removed: Int)
 
     // Compile phase: no Bukkit API, so it runs on any thread. Several files compile side by side with scripts.compile-threads > 1.
     private fun compileBatch(files: List<File>): Map<String, CompiledUnit> {
-        if (compileThreads <= 1 || files.size <= 1) return files.associate { scriptId(it) to scriptRunner.compile(it) }
-        val units = compilePool.map(files) { file -> scriptRunner.compile(file) }
+        if (compileThreads <= 1 || files.size <= 1) return files.associate { scriptId(it) to scriptEngine.compile(it) }
+        val units = compilePool.map(files) { file -> scriptEngine.compile(file) }
         return files.indices.associate { scriptId(files[it]) to units[it] }
     }
 
@@ -1101,7 +1108,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private fun applyUnit(unit: CompiledUnit): Boolean {
         val id = unit.id
         if (!unit.ok) {
-            scriptRunner.reportFailure(unit)
+            scriptEngine.reportFailure(unit)
             if (id in liveScripts) {
                 logger.warning("[$id] ${KSLError.SCRIPT_KEPT_PREVIOUS.tag} ${message("console.script.previous-version-kept")}")
             }
@@ -1117,7 +1124,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         // resources, run the same cleanup again so no partial listeners/tasks/commands survive.
         val ok = replaceScriptRuntime(
             unload = { unloadScript(id) },
-            evaluate = { scriptRunner.evaluate(unit) }
+            evaluate = { scriptEngine.evaluate(unit) }
         )
         if (ok) liveScripts.add(id)
         val totalMs = unit.compileMillis + (System.nanoTime() - startedAt) / 1_000_000
@@ -1163,7 +1170,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                     ordered = KSLScriptOrder.sort(files, { scriptId(it) }, logger)
                     val compiled = compileBatch(ordered)
                     // Initialise the scripting runtime before releasing the shutdown barrier.
-                    runCatching { scriptRunner.warmUp() }
+                    runCatching { scriptEngine.warmUp() }
                     compiled
                 } catch (ex: Throwable) {
                     logger.severe("${KSLError.SCRIPT_RUNTIME.tag} ${message("console.script.background-compile-failed", "type" to ex::class.simpleName, "error" to ex.message)}")
@@ -1206,9 +1213,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     }
 
     // Public so command handlers can run the compiler check off the main thread.
-    fun selfTestCompiler(): Pair<Boolean, String> = scriptRunner.selfTestCompiler()
+    fun selfTestCompiler(): Pair<Boolean, String> = scriptEngine.selfTestCompiler()
 
-    fun sandboxProbe(): Pair<Boolean, String> = scriptRunner.sandboxProbe()
+    fun sandboxProbe(): Pair<Boolean, String> = scriptEngine.sandboxProbe()
 
     fun validateAllScripts(): Map<String, List<String>> {
         val validator = ScriptValidator(this)
@@ -1479,7 +1486,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     data class DiagnosticLine(val label: String, val ok: Boolean, val detail: String)
 
     // The compiler self-test takes seconds on first use; callers on the main thread pass a result computed elsewhere.
-    fun runDiagnostics(compiler: Pair<Boolean, String> = scriptRunner.selfTestCompiler(), sandbox: Pair<Boolean, String>? = null): List<DiagnosticLine> {
+    fun runDiagnostics(compiler: Pair<Boolean, String> = scriptEngine.selfTestCompiler(), sandbox: Pair<Boolean, String>? = null): List<DiagnosticLine> {
         val lines = mutableListOf<DiagnosticLine>()
 
         val dbOk = runCatching {

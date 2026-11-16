@@ -974,3 +974,39 @@ PDC — это штатное хранилище пользовательски�
 | Sandbox | Набор ограничений, но не изоляция JVM |
 
 **Конец книги I.** Далее — книга о создании полноценных аддонов и библиотек на Kotlin и Java.
+
+
+## Script Testing Framework
+
+KSL включает последовательный test runner для проверок логики, используемой в скриптах. Он не подменяет сервер Bukkit/Paper и не создаёт отдельный JVM-процесс: тесты выполняются в том же контексте, где был вызван набор. Не запускай в них долгие операции и не меняй состояние production-мира.
+
+Пример тестового .kts-файла:
+
+~~~kotlin
+val report = kslTestSuite("economy") {
+    beforeEach {
+        put("balance", 100)
+    }
+
+    test("starting balance is correct") {
+        assertEquals(100, requireValue<Int>("balance"))
+    }
+
+    test("balance is not negative") {
+        assertTrue(requireValue<Int>("balance") >= 0)
+    }
+}
+
+println(report)
+~~~
+
+Внутри набора доступны:
+
+- beforeEach и afterEach — подготовка и очистка каждого теста; cleanup hooks запускаются в обратном порядке.
+- test("name") — независимый тест. Выполнение последовательное, чтобы не запускать Bukkit API параллельно.
+- put(key, value), value(key) и requireValue<T>(key) — per-test fixtures.
+- assertTrue, assertFalse, assertEquals, assertNotEquals, assertNull, assertNotNull и assertFails.
+- skip("reason") — пометить тест как пропущенный.
+- Итоговый отчёт содержит статус, длительность и ошибку каждого теста.
+
+Test runner полезен для проверки чистой логики и небольших сценариев скрипта. Он не является песочницей: тестовый код имеет те же права, что и запущенный скрипт.

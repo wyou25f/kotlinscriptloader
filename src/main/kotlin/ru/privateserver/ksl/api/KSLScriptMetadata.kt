@@ -76,6 +76,7 @@ val KSL_SCRIPT_DEFAULT_IMPORTS: List<String> = listOf(
     "ru.privateserver.ksl.std.*",
     "kotlinx.serialization.json.*",
     "ru.privateserver.ksl.rt.*",
+    "ru.privateserver.ksl.testing.*",
     "ru.privateserver.ksl.meslib2.*",
     "java.util.UUID",
     "java.time.*",
