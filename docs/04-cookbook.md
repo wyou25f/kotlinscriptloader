@@ -682,7 +682,6 @@ val rewardId = reward.getUuidTag("id")
 Файл-поставщик `scripts/economy/service.kts`:
 
 ~~~kotlin
-// @requires: shared/contracts
 val taxCalculator: (Double) -> Double = { amount -> amount * 1.1 }
 meslib2.export("economy", "tax-calculator", taxCalculator, "1.0.0")
 ~~~

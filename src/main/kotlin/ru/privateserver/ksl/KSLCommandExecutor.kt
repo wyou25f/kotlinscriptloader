@@ -132,10 +132,17 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                 } else {
                     sender.sendMessage(plugin.message("scripts.title", "loaded" to infos.count { it.loaded }, "total" to infos.size))
                     infos.forEach { info ->
-                        val mark = if (info.loaded) "§a✔" else "§c✘"
+                        val mark = when (info.state) {
+                            KSLScriptState.LOADED -> "§a✔"
+                            KSLScriptState.DEGRADED -> "§e⚠"
+                            KSLScriptState.FAILED -> "§c✘"
+                            KSLScriptState.UNLOADED -> "§7○"
+                        }
                         val time = if (info.loadMillis >= 0) "${info.loadMillis}мс" else "—"
                         val errors = if (info.errors > 0) plugin.message("scripts.error-count", "count" to info.errors) else ""
-                        sender.sendMessage(plugin.message("scripts.entry", "mark" to mark, "name" to info.id, "time" to time, "errors" to errors))
+                        val name = info.id + if (info.sourceExists) "" else " §e[исходник удалён]"
+                        sender.sendMessage(plugin.message("scripts.entry", "mark" to mark, "name" to name, "time" to time, "errors" to errors))
+                        info.lastError?.let { sender.sendMessage("§c  ↳ ${it.take(160)}") }
                     }
                 }
             }
