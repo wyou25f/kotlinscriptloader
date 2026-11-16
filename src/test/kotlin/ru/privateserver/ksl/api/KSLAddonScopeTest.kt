@@ -20,7 +20,7 @@ class KSLAddonScopeTest {
             Plugin::class.java.classLoader,
             arrayOf(Plugin::class.java)
         ) { _, _, _ -> null } as Plugin
-        return KSLAddonScope(plugin) { _, _ -> AutoCloseable { } }
+        return KSLAddonScope(plugin, subscribeAction = { _, _ -> AutoCloseable { } })
     }
 
     @Test
