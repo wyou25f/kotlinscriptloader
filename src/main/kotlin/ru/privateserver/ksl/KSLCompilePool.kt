@@ -3,6 +3,7 @@ package ru.privateserver.ksl
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.Callable
 import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.RejectedExecutionHandler
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
@@ -27,7 +28,7 @@ internal class KSLCompilePool(threads: Int) : AutoCloseable {
         ThreadFactory { task ->
             Thread(task, "KSL-Compile-${threadNumber.incrementAndGet()}").apply { isDaemon = true }
         },
-        ThreadPoolExecutor.RejectedExecutionHandler { task, pool ->
+        RejectedExecutionHandler { task: Runnable, pool: ThreadPoolExecutor ->
             if (pool.isShutdown) {
                 throw RejectedExecutionException("KSL compile pool is shutting down")
             }
