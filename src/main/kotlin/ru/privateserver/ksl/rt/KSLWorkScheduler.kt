@@ -567,8 +567,7 @@ class KSLWorkScheduler(
     }
 
     /** Snapshot active records without iterating a weakly-consistent Kotlin view. */
-    private fun activeRecordsSnapshot(): List<Record> =
-        records.values.toArray().mapNotNull { it as? Record }
+    private fun activeRecordsSnapshot(): List<Record> = records.values.stream().toList()
 
     /** Immediate bounded shutdown. Running user code is interrupted where possible. */
     override fun close() {
