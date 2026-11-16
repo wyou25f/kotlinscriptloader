@@ -17,6 +17,7 @@
 - [Предметы и зачарования](06-items-and-enchantments.md) — item-builder, короткие алиасы и KSL Custom Enchantments.
 - [Звук, частицы и мобы](07-sound-particles-and-mobs.md) — звуковые последовательности, повтор, формы частиц, конструктор мобов и поведение сущностей.
 - [STD, сообщения и миксины](08-standard-library-mixins-and-messages.md) — цветные сообщения, короткие методы, KSL Mixins, обновление движка и защитные зачарования.
+- [API Reference и Developer Guide](09-api-reference.md) — публичные контракты, lifecycle аддонов, сервисы, hooks, kslshu и IDE workflow.
 
 ## Офлайн-сайт
 
