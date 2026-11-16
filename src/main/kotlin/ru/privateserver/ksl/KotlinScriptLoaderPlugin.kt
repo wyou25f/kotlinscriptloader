@@ -546,6 +546,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         if (reloadCompileInProgress.get()) logger.warning(message("console.shutdown.compile-in-progress"))
         runCatching { unloadAllScripts() }
             .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} ${message("console.shutdown.scripts-failed", "error" to it.message)}") }
+        runCatching { scriptRunner.close() }
+            .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} Не удалось закрыть локальные библиотеки: ${it.message}") }
         runCatching { if (::workScheduler.isInitialized) workScheduler.close() }
             .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} ${message("console.shutdown.workers-failed", "error" to it.message)}") }
         runCatching { addonManager.shutdown() }

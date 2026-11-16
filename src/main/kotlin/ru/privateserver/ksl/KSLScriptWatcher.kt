@@ -71,10 +71,15 @@ class KSLScriptWatcher(private val plugin: KotlinScriptLoaderPlugin) {
 
     private fun isIgnored(dir: File): Boolean = dir.name.startsWith(".") || dir.name.startsWith("_")
 
+    private fun isSafeDirectory(dir: File): Boolean =
+        dir == plugin.scriptsFolder ||
+            (!isIgnored(dir) && KSLScriptPathPolicy.isSafeChild(plugin.scriptsFolder, dir))
+
     private fun registerTree(watchService: WatchService, root: File) {
+        if (!isSafeDirectory(root)) return
         root.walkTopDown()
-            .onEnter { it == plugin.scriptsFolder || !isIgnored(it) }
-            .filter { it.isDirectory }
+            .onEnter { isSafeDirectory(it) }
+            .filter { it.isDirectory && isSafeDirectory(it) }
             .forEach { dir ->
                 val key = dir.toPath().register(watchService, ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE)
                 watched[key] = dir.toPath()
@@ -94,10 +99,12 @@ class KSLScriptWatcher(private val plugin: KotlinScriptLoaderPlugin) {
                         }
                         val child = dir.resolve(event.context() as Path).toFile()
                         when {
-                            event.kind() == ENTRY_CREATE && child.isDirectory && !isIgnored(child) -> {
-                                // A folder copied in with files already inside: watch it and queue what it contains.
+                            event.kind() == ENTRY_CREATE && child.isDirectory && isSafeDirectory(child) -> {
+                                // A folder copied in with files already inside: watch it and queue only safe descendants.
                                 registerTree(watchService, child)
-                                child.walkTopDown().filter { it.isFile }.forEach { record(it) }
+                                child.walkTopDown()
+                                    .filter { it.isFile && KSLScriptPathPolicy.isSafeChild(plugin.scriptsFolder, it) }
+                                    .forEach { record(it) }
                             }
                             event.kind() == ENTRY_DELETE && !child.name.endsWith(".kts") -> recordDeletedDirectory(child)
                             else -> record(child)
@@ -123,7 +130,8 @@ class KSLScriptWatcher(private val plugin: KotlinScriptLoaderPlugin) {
     }
 
     private fun record(file: File) {
-        if (stopped.get() || file.extension != "kts" || file.name.startsWith(".")) return
+        if (stopped.get() || file.extension != "kts" || file.name.startsWith(".") ||
+            !KSLScriptPathPolicy.isSafeChild(plugin.scriptsFolder, file)) return
         plugin.invalidateScriptIndex()
         val id = plugin.scriptId(file)
         knownScripts.add(id)
@@ -133,7 +141,7 @@ class KSLScriptWatcher(private val plugin: KotlinScriptLoaderPlugin) {
     // Deleting a directory produces one event for the directory, not one event per child file.
     // Use ids remembered before deletion so scripts from the removed subtree are unloaded too.
     private fun recordDeletedDirectory(directory: File) {
-        if (stopped.get()) return
+        if (stopped.get() || !KSLScriptPathPolicy.isSafeChild(plugin.scriptsFolder, directory)) return
         plugin.invalidateScriptIndex()
         val relative = runCatching {
             plugin.scriptsFolder.toPath().relativize(directory.toPath()).toString()
