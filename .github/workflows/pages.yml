@@ -188,7 +188,7 @@ jobs:
 
           def latest_build(branch, artifact_prefix):
               query = urlencode({"branch": branch, "per_page": 50})
-              runs = api_json(f"actions/runs?{query}").get("workflow_runs", [])
+              runs = api_json(f"actions/workflows/build.yml/runs?{query}").get("workflow_runs", [])
               runs = [
                   run for run in runs
                   if run.get("path") == ".github/workflows/build.yml"
@@ -238,7 +238,7 @@ jobs:
 
           def latest_ide_plugin():
               query = urlencode({"branch": "main", "per_page": 50})
-              runs = api_json(f"actions/runs?{query}").get("workflow_runs", [])
+              runs = api_json(f"actions/workflows/ide-plugin.yml/runs?{query}").get("workflow_runs", [])
               runs = [
                   run for run in runs
                   if run.get("path") == ".github/workflows/ide-plugin.yml"
