@@ -42,7 +42,14 @@ try {
         "ru/privateserver/ksl/api/KSLPublicApiKt.class",
         "ru/privateserver/ksl/rt/KSLCache.class",
         "ru/privateserver/ksl/rt/KSLProfiler.class",
-        "ru/privateserver/ksl/rt/KSLRuntimeScope.class"
+        "ru/privateserver/ksl/rt/KSLRuntimeScope.class",
+        "ru/privateserver/ksl/kslshu/KSLTaskScheduler.class",
+        "ru/privateserver/ksl/kslshu/KSLTaskSchedulerRegistry.class",
+        "ru/privateserver/ksl/kslshu/KSLTaskScope.class",
+        "ru/privateserver/ksl/api/KSLAddonScope.class",
+        "ru/privateserver/ksl/mcp/KSLMcpServer.class",
+        "ru/privateserver/ksl/mcp/KSLMcpProtocol.class",
+        "ru/privateserver/ksl/mcp/KSLMcpSecurity.class"
     )
     foreach ($Entry in $Required) {
         if ($Archive.GetEntry($Entry)) { Write-Host "[OK] $Entry" -ForegroundColor Green }

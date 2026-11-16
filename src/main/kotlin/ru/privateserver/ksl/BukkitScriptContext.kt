@@ -52,6 +52,7 @@ import ru.privateserver.ksl.std.toml.KSLTomlCodec
 import ru.privateserver.ksl.compat.KSLMinecraftVersion
 import ru.privateserver.ksl.compat.KSLServerCapability
 import ru.privateserver.ksl.compat.KSLServerCompatibility
+import ru.privateserver.ksl.kslshu.KSLTaskScope
 
 open class BukkitScriptContext(
     plugin: KotlinScriptLoaderPlugin,
@@ -78,6 +79,8 @@ open class BukkitScriptContext(
     /** Per-script scope; caches, profilers and owned AutoCloseable resources close on reload. */
     val runtimeScope: ru.privateserver.ksl.rt.KSLRuntimeScope
         get() = internalPlugin.scriptRuntimeScope(scriptName)
+    /** Owner-bound scheduler; tasks are cancelled when this script unloads. */
+    val scheduler: KSLTaskScope get() = internalPlugin.taskScope(scriptName)
 
     /** Registers an AutoCloseable resource for automatic cleanup when this script unloads. */
     fun <T : AutoCloseable> own(resource: T): T = runtimeScope.own(resource)

@@ -1,3 +1,9 @@
+## MCP and Scheduler SPI compatibility backport
+
+- Added the optional loopback-only MCP Streamable HTTP endpoint with Bearer token authentication, strict Host/Origin validation, bounded requests, rate limiting and opt-in script reload.
+- Added the `kslshu` scheduler SPI, official bounded-worker adapter, owner-bound script scheduler and addon-owned scheduler scopes.
+- Added protocol, security, scheduler and addon lifecycle tests; extended JAR verification for the new classes. MCP remains disabled by default.
+
 # KotlinScriptLoader 1.2.1
 
 ## Compatibility hardening backports

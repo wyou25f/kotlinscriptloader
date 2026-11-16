@@ -9,7 +9,7 @@ import org.bukkit.command.TabCompleter
 
 private val KSL_ROOT_COMMANDS = listOf(
     "help", "reload", "scripts", "debug", "resources", "deps", "runtime", "perf", "language",
-    "memory", "cpu", "addons", "services", "libraries", "discord", "sandbox",
+    "memory", "cpu", "mcp", "addons", "services", "libraries", "discord", "sandbox",
     "errors", "error", "watchdog", "doctor", "validate", "dbmigrate"
 )
 private val KSL_WORKER_COMMANDS = setOf("runtime", "perf", "memory", "cpu")
@@ -195,6 +195,7 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                 }
             }
 
+            "mcp" -> { sender.sendMessage("§7MCP endpoint: §f${plugin.mcpStatusText()}") }
             "addons" -> {
                 val addons = plugin.addonManager.registeredAddons()
                 if (addons.isEmpty()) {
@@ -400,6 +401,7 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
             "debug <script>" to plugin.message("help.debug"),
             "resources [script]" to plugin.message("help.resources"),
             "deps [script]" to plugin.message("help.deps"),
+            "mcp" to "Статус локального MCP endpoint",
             "addons" to plugin.message("help.addons"),
             "services" to plugin.message("help.services"),
             "libraries" to plugin.message("help.libraries"),
