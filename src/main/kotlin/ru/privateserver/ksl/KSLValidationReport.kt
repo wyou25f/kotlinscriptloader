@@ -15,7 +15,7 @@ data class KSLScriptValidationResult(
     val errors: List<String>,
     val warnings: List<String>,
     val compileMillis: Long,
-    val failureCode: Int? = null
+    val failureCode: String? = null
 ) {
     val valid: Boolean get() = errors.isEmpty() && failureCode == null
 }

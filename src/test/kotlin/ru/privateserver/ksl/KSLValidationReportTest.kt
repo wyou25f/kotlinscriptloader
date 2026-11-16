@@ -25,13 +25,13 @@ class KSLValidationReportTest {
         val directory = Files.createTempDirectory("ksl-validation-report").toFile()
         try {
             val errors = (1..50).map { "line $it: unresolved reference" }
-            val result = KSLScriptValidationResult("broken", "broken.kts", errors, emptyList(), 42, 6156)
+            val result = KSLScriptValidationResult("broken", "broken.kts", errors, emptyList(), 42, "6156a")
             val file = KSLValidationReportWriter.write(directory, listOf(result))
             val content = file.readText()
             assertFalse(result.valid)
             assertTrue(content.contains("Errors: 50"))
             assertTrue(content.contains("50. line 50: unresolved reference"))
-            assertTrue(content.contains("Failure code: 6156"))
+            assertTrue(content.contains("Failure code: 6156a"))
         } finally {
             directory.deleteRecursively()
         }
