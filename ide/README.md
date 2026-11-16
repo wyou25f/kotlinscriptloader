@@ -79,7 +79,7 @@ successfully discovered the template.
 
 Open `samples/ide-completion-smoke-test.kts` after Gradle sync. It also checks
 completion for `scheduler.schedule`, `scheduler.repeat`, task metadata and
-cancellable handles:
+cancellable handles and addon-scope task ownership:
 
 1. Type after `api.`, `player?.`, `world.` and `location?.` to inspect member completion.
 2. Hover over `tellRich`, `entitiesInBox`, `isInside` and public API methods to inspect KDoc.

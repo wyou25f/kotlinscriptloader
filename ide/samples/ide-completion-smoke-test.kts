@@ -30,6 +30,13 @@ val repeating = scheduler.repeat(
 scheduled.cancel()
 repeating.cancel()
 
+// Addon authoring: scope owns listeners, subscriptions and scheduler handles.
+val addonScope = KSLAddonScope.create(ksl)
+val addonTask = addonScope.schedule(delay = java.time.Duration.ofSeconds(1)) { task ->
+    println("addon task #${task.execution}")
+}
+addonTask.cancel()
+
 val player = Bukkit.getOnlinePlayers().firstOrNull()
 player?.tellRich("<green>KSL completion is available")
 val canManage = player?.hasAnyPermission("ksl.admin", "ksl.manage") ?: false

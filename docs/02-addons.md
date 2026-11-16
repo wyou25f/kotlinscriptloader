@@ -880,3 +880,41 @@ A custom implementation must:
 
 The factory registry does not silently replace the official scheduler used by scripts.
 This keeps existing scripts stable while addons can opt into a custom scheduler explicitly.
+
+
+## Scheduler внутри KSLAddonScope
+
+Для аддонов используйте `KSLAddonScope`, а не разрозненные Bukkit scheduler-вызовы.
+Scope управляет задачами так же, как listeners и event-bus subscriptions:
+
+```kotlin
+class ExampleAddon : JavaPlugin(), KSLAddon {
+    private lateinit var scope: KSLAddonScope
+
+    override fun onLoad(api: KSLAPI) {
+        scope = KSLAddonScope.create(api)
+
+        scope.schedule(delay = 2.seconds) { task ->
+            api.publish("example.ready", task.execution)
+        }
+
+        scope.repeat(
+            interval = 30.seconds,
+            initialDelay = 5.seconds,
+            mode = KSLTaskRepeatMode.FIXED_DELAY
+        ) { task ->
+            // Worker thread: marshal Bukkit world/player changes to the main thread.
+        }
+    }
+
+    override fun onUnload() {
+        if (::scope.isInitialized) scope.close()
+    }
+}
+```
+
+Задачи автоматически отменяются при закрытии scope. Завершившиеся одноразовые
+задачи автоматически удаляются из списка ресурсов, чтобы scope не накапливал
+завершённые handles. Повторяющиеся задачи остаются под управлением scope до
+отмены или закрытия. Callback выполняется на потоке выбранного scheduler engine;
+не считайте его Bukkit main thread.

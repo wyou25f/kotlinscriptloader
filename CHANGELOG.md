@@ -1,5 +1,11 @@
 ## Unreleased
 
+- Extended `KSLAddonScope` with official scheduler integration: addons can schedule delayed and recurring work through `scope.schedule` and `scope.repeat`; task handles are cancelled automatically when the scope closes.
+- Completed one-shot task handles are automatically released from the scope to avoid retaining finished task resources.
+- Expanded addon developer documentation and IntelliJ completion smoke fixture for scheduler-aware addon authoring.
+
+## Unreleased
+
 - Added the `kslshu` scheduler SPI: official KSL adapter, typed task specifications, handles and results, fixed-rate/fixed-delay execution, and an addon-extensible scheduler factory registry.
 - Added the owner-bound `scheduler` API to script context; its tasks are automatically cancelled by the existing script unload lifecycle.
 - Expanded IntelliJ IDEA completion fixtures and JAR verification for the new scheduler API; documented custom scheduler authoring and thread-safety requirements.
