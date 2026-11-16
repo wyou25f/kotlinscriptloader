@@ -38,7 +38,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Build IntelliJ plugin distribution
-        run: ./gradlew --no-daemon -p ide/intellij-plugin buildPlugin
+        run: bash ./gradlew --no-daemon -p ide/intellij-plugin buildPlugin
 
       - name: Upload IntelliJ plugin
         uses: actions/upload-artifact@v4
