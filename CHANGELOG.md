@@ -1,3 +1,7 @@
+## Unreleased
+
+- Expanded Script Testing Framework with suite-level lifecycle hooks, clearer assertion helpers, stack-trace diagnostics, and text/JSON reports.
+
 # KotlinScriptLoader 1.2.1
 
 ## Звуковой движок, частицы и мобы

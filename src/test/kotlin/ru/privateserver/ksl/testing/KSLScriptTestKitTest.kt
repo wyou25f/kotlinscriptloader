@@ -22,6 +22,35 @@ class KSLScriptTestKitTest {
     }
 
     @Test
+    fun suiteHooksRunOnceAroundAllCases() {
+        val order = mutableListOf<String>()
+        val report = kslTestSuite("lifecycle") {
+            beforeAll { order += "beforeAll" }
+            afterAll { order += "afterAll" }
+            beforeEach { order += "beforeEach" }
+            afterEach { order += "afterEach" }
+            test("one") { order += "one" }
+            test("two") { order += "two" }
+        }
+        assertTrue(report.successful)
+        assertEquals(listOf("beforeAll", "beforeEach", "one", "afterEach", "beforeEach", "two", "afterEach", "afterAll"), order)
+    }
+
+    @Test
+    fun suiteTeardownRunsAfterSetupFailureAndIsReported() {
+        val order = mutableListOf<String>()
+        val report = kslTestSuite("setup-failure") {
+            beforeAll { error("setup broke") }
+            afterAll { order += "afterAll" }
+            test("not executed") { fail("must not run") }
+        }
+        assertEquals(listOf("afterAll"), order)
+        assertFalse(report.successful)
+        assertEquals(KSLScriptTestStatus.FAILED, report.cases.single().status)
+        assertTrue(report.suiteFailure!!.message!!.contains("setup broke"))
+    }
+
+    @Test
     fun teardownRunsInReverseOrderAfterFailure() {
         val order = mutableListOf<Int>()
         val report = kslTestSuite("cleanup") {
@@ -45,16 +74,50 @@ class KSLScriptTestKitTest {
     }
 
     @Test
-    fun assertFailsReturnsExpectedException() {
+    fun assertFailsAndReifiedAssertThrowsReturnExpectedException() {
         val report = kslTestSuite("assertions") {
-            test("exception assertion") {
-                val error = assertFails(IllegalArgumentException::class.java) {
+            test("exception assertions") {
+                val first = assertFails(IllegalArgumentException::class.java) {
                     throw IllegalArgumentException("bad input")
                 }
-                assertEquals("bad input", error.message)
+                val second = assertThrows<IllegalStateException> {
+                    throw IllegalStateException("bad state")
+                }
+                assertEquals("bad input", first.message)
+                assertEquals("bad state", second.message)
             }
         }
         assertEquals(1, report.passed)
+    }
+
+    @Test
+    fun stringAndIdentityAssertionsAreAvailable() {
+        val report = kslTestSuite("assertion-helpers") {
+            test("helpers") {
+                val token = Any()
+                assertSame(token, token)
+                assertNotSame(token, Any())
+                assertContains("KSL diagnostics", "diagnostics")
+                assertStartsWith("KSL", "K")
+                assertEndsWith("KSL", "L")
+            }
+        }
+        assertTrue(report.successful)
+    }
+
+    @Test
+    fun debugAndJsonReportsContainFailureContext() {
+        val report = kslTestSuite("reports") {
+            test("bad value") { assertEquals(10, 5) }
+        }
+        val debug = report.debugReport()
+        assertTrue(debug.contains("Suite: reports"))
+        assertTrue(debug.contains("Expected <10>, actual <5>"))
+        assertTrue(debug.contains("KSLScriptTestAssertionError"))
+        val json = report.toJson()
+        assertTrue(json.contains("\"suite\":\"reports\""))
+        assertTrue(json.contains("\"status\":\"FAILED\""))
+        assertTrue(json.contains("Expected <10>, actual <5>"))
     }
 
     @Test

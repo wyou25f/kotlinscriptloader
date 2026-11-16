@@ -1002,11 +1002,39 @@ println(report)
 
 Внутри набора доступны:
 
-- beforeEach и afterEach — подготовка и очистка каждого теста; cleanup hooks запускаются в обратном порядке.
+- beforeAll и afterAll — подготовка и очистка всего набора один раз; afterAll запускается даже при ошибке beforeAll, а несколько cleanup hooks выполняются в обратном порядке.
+- beforeEach и afterEach — подготовка и очистка каждого теста; afterEach выполняется даже после ошибки теста.
 - test("name") — независимый тест. Выполнение последовательное, чтобы не запускать Bukkit API параллельно.
-- put(key, value), value(key) и requireValue<T>(key) — per-test fixtures.
-- assertTrue, assertFalse, assertEquals, assertNotEquals, assertNull, assertNotNull и assertFails.
+- put(key, value), value(key) и requireValue<T>(key) — per-test fixtures; у beforeAll/afterAll отдельный контекст набора.
+- Проверки: assertTrue, assertFalse, assertEquals, assertNotEquals, assertSame, assertNotSame, assertNull, assertNotNull, assertContains, assertStartsWith, assertEndsWith, assertFails и reified assertThrows<T>.
 - skip("reason") — пометить тест как пропущенный.
-- Итоговый отчёт содержит статус, длительность и ошибку каждого теста.
+- report.debugReport() — подробный текстовый отчёт с типом исключения, сообщением и stack trace (до 24 кадров).
+- report.toJson() — JSON-отчёт со сводкой, длительностью, причинами и stack trace для CI и внешних логов.
+- У результата есть suiteFailure для ошибок beforeAll/afterAll; successful учитывает и ошибки жизненного цикла набора.
+
+Пример:
+
+~~~kotlin
+val report = kslTestSuite("economy") {
+    beforeAll { put("started", true) }
+    beforeEach { put("balance", 100) }
+
+    test("balance is valid") {
+        assertTrue(requireValue<Int>("balance") >= 0)
+        assertContains("balance:100", "100")
+        assertThrows<IllegalArgumentException> {
+            throw IllegalArgumentException("invalid amount")
+        }
+    }
+
+    afterEach { remove("balance") }
+    afterAll { remove("started") }
+}
+
+println(report.debugReport())
+println(report.toJson())
+~~~
+
+Отчёт не может гарантировать номер строки исходного .kts: он показывает только те stack frames, которые реально предоставляет JVM. Runner остаётся последовательным и не изолирует тесты от сервера; не запускайте долгие операции и не меняйте production-мир.
 
 Test runner полезен для проверки чистой логики и небольших сценариев скрипта. Он не является песочницей: тестовый код имеет те же права, что и запущенный скрипт.
