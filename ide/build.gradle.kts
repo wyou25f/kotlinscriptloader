@@ -11,7 +11,7 @@ repositories {
 }
 
 val kslJarPath = providers.gradleProperty("kslJar")
-    .orElse("libs/KotlinScriptLoader-1.2.2.jar")
+    .orElse("libs/KotlinScriptLoader-1.3.0.jar")
 val kslScriptsDir = providers.gradleProperty("kslScriptsDir")
     .orElse("../plugins/KotlinScriptLoader/scripts")
 
@@ -39,7 +39,7 @@ tasks.register("verifyKslIdeSetup") {
     doLast {
         val jarFile = file(kslJarPath.get())
         check(jarFile.isFile) {
-            "KSL plugin JAR not found: ${jarFile.absolutePath}. Set -PkslJar=/path/to/KotlinScriptLoader-1.2.2.jar"
+            "KSL plugin JAR not found: ${jarFile.absolutePath}. Set -PkslJar=/path/to/KotlinScriptLoader-1.3.0.jar"
         }
         ZipFile(jarFile).use { jar ->
             listOf(
