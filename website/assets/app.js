@@ -86,27 +86,28 @@ async function download(){
       const rank=n=>n.includes("-mc-1.16.5-1.21")?1:n.includes("-mc-1.18-plus")?2:0;
       return rank(a.name)-rank(b.name);
     }):[];
+    const releaseTarget=a=>{
+      if(a.name.includes("-mc-1.16.5-1.21"))return {label:"Paper 1.16.5–1.21.x",detail:"Java 16+ · широкая совместимая сборка"};
+      if(a.name.includes("-mc-1.18-plus"))return {label:"Paper 1.18.2 и новее",detail:"Java 17+ · совместимая сборка для новых серверов"};
+      return {label:"Paper 1.21.1",detail:"Java 21 · основная ветка KSL"};
+    };
     const stable=release&&releaseAssets.length?(()=>{
-      const options=releaseAssets.map((a,i)=>{
-        let label="Основная сборка · Paper 1.21.1";
-        if(a.name.includes("-mc-1.16.5-1.21"))label="Minecraft 1.16.5–1.21 · Compat";
-        else if(a.name.includes("-mc-1.18-plus"))label="Minecraft 1.18+ · Compat";
-        return '<option value="'+i+'">'+esc(label)+'</option>';
-      }).join("");
-      const first=releaseAssets[0];
+      const options=releaseAssets.map((a,i)=>'<option value="'+i+'">'+esc(releaseTarget(a).label)+'</option>').join("");
+      const first=releaseAssets[0],target=releaseTarget(first);
       const checksum=(release.assets||[]).find(a=>a.name===first.name+".sha256");
       return '<article class="download-release-card">'+
-        '<div class="download-release-info"><div class="download-topline"><span class="pill">STABLE RELEASE</span><span class="download-kind">Официальный релиз</span></div>'+
+        '<div class="download-release-info"><div class="download-topline"><span class="pill">СТАБИЛЬНЫЙ РЕЛИЗ</span><span class="download-kind">Официальная версия</span></div>'+
         '<div class="download-version">'+esc(release.tag_name)+'</div><h2>KotlinScriptLoader</h2>'+
-        '<p class="download-muted">Опубликован '+dt(release.published_at)+' · выбери сборку под версию своего сервера.</p>'+
-        '<div class="download-release-meta"><span id="release-size">'+formatSize(first.size)+'</span><span>'+releaseAssets.length+' варианта сборки</span><span>GitHub Releases</span></div>'+
-        '<a class="card-link" href="'+esc(release.html_url)+'" target="_blank" rel="noreferrer">Описание релиза и изменения ↗</a></div>'+
-        '<div class="download-release-picker"><label for="release-variant">Версия Minecraft</label>'+
+        '<p class="download-muted">Выбери сборку по версии Paper и установленной Java. Ссылка и контрольная сумма обновятся автоматически.</p>'+
+        '<div class="download-release-meta"><span id="release-size">'+formatSize(first.size)+'</span><span>'+releaseAssets.length+' сборки</span><span>GitHub Releases</span></div>'+
+        '<a class="card-link" href="'+esc(release.html_url)+'" target="_blank" rel="noreferrer">Что нового в '+esc(release.tag_name)+' →</a></div>'+
+        '<div class="download-release-picker"><label for="release-variant">Версия Minecraft / Paper</label>'+
         '<select class="download-version-select" id="release-variant">'+options+'</select>'+
-        '<a class="btn primary download-release-button" id="release-download" href="'+esc(first.browser_download_url)+'">↓ Скачать JAR</a>'+
-        '<a class="download-checksum-link" id="release-checksum" '+(checksum?'href="'+esc(checksum.browser_download_url)+'"':'hidden')+'>SHA-256 · Проверка файла</a>'+
+        '<div class="download-release-target" id="release-target"><strong>'+esc(target.label)+'</strong><span>'+esc(target.detail)+'</span></div>'+
+        '<a class="btn primary download-release-button" id="release-download" href="'+esc(first.browser_download_url)+'">↓ Скачать плагин (.jar)</a>'+
+        '<a class="download-checksum-link" id="release-checksum" '+(checksum?'href="'+esc(checksum.browser_download_url)+'"':'hidden')+'>Проверить SHA-256</a>'+
         '<span class="download-release-filename" id="release-filename">'+esc(first.name)+'</span></div></article>';
-    })():'<article class="download-release-card"><div><span class="pill">STABLE RELEASE</span><h2>Релиз пока недоступен</h2><p class="download-muted">Проверь страницу Releases или используй последнюю успешную CI-сборку.</p><a class="btn" href="'+GH+'/releases">Все релизы ↗</a></div></article>';
+    })():
     const buildCard=(key,title,target,id)=>{
       const b=builds[key];
       if(!b)return '<article class="download-card" id="'+id+'"><div class="download-topline"><span class="pill">BUILD</span></div><h3>'+title+'</h3><p>'+target+'</p><p class="download-muted">Успешная сборка пока не найдена.</p><a class="btn" href="'+GH+'/actions">Открыть GitHub Actions ↗</a></article>';
@@ -134,6 +135,8 @@ async function download(){
       $("#release-download").href=asset.browser_download_url;
       $("#release-size").textContent=formatSize(asset.size);
       $("#release-filename").textContent=asset.name;
+      const target=releaseTarget(asset);
+      $("#release-target").innerHTML='<strong>'+esc(target.label)+'</strong><span>'+esc(target.detail)+'</span>';
       const checksumLink=$("#release-checksum");
       if(checksum){checksumLink.href=checksum.browser_download_url;checksumLink.hidden=false}
       else{checksumLink.removeAttribute("href");checksumLink.hidden=true}
