@@ -202,7 +202,7 @@
 .ide-tool-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 .ide-tool-card{display:flex;flex-direction:column;min-width:0;padding:21px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(145deg,#171c2c,#101420)}
 .ide-tool-primary{border-color:#65568e;background:radial-gradient(ellipse at 10% 0%,#51458a55,transparent 68%),linear-gradient(145deg,#1b1d32,#101420)}
-.ide-tool-light{background:linear-gradient(145deg,#17221e,#101720)}
+.ide-tool-light{border-color:#3c6688;background:radial-gradient(ellipse at 90% 0%,#24628a40,transparent 68%),linear-gradient(145deg,#172334,#101420)}
 .ide-tool-top{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:56px}
 .ide-tool-top img{width:48px;height:48px;object-fit:contain}
 .ide-tool-top .pill{font-size:9px;text-align:center}
