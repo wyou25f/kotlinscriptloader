@@ -24,9 +24,10 @@ class ExampleAddon : JavaPlugin(), KSLAddon {
     }
 
     override fun onLoad(api: KSLAPI) {
-        // This starter uses the official KSL scheduler.
-        // Replace "ksl" with your registered engine ID to opt into a custom engine.
-        scope = KSLAddonScope.create(api)
+        // This starter registers and owns its own scheduler engine instance.
+        scope = KSLAddonScope.create(api, schedulerId = "example-addon.metrics") { environment ->
+            ExampleScheduler(environment)
+        }
 
         api.addDefaultImports("example.addon.dsl.*")
         api.registerService("example-addon.greetings", ExampleGreetingService())
