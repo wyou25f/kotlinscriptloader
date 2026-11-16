@@ -60,6 +60,31 @@ class KSLPublicApiTest {
     }
 
     @Test
+    fun `single script reload exposes a non blocking public callback contract`() {
+        var requestedId: String? = null
+        var completion: ((Boolean?) -> Unit)? = null
+        val fake = Proxy.newProxyInstance(
+            KSLAPI::class.java.classLoader,
+            arrayOf(KSLAPI::class.java)
+        ) { _, method, args ->
+            when (method.name) {
+                "reloadScriptAsync" -> {
+                    requestedId = args!![0] as String
+                    completion = args[1] as (Boolean?) -> Unit
+                    null
+                }
+                else -> error("Unexpected KSLAPI call: ${method.name}")
+            }
+        } as KSLAPI
+
+        var result: Boolean? = null
+        fake.reloadScriptAsync("events/join") { result = it }
+        assertEquals("events/join", requestedId)
+        completion?.invoke(true)
+        assertEquals(true, result)
+    }
+
+    @Test
     fun `public api aliases and helper names remain available`() {
         val installed = api()
         assertEquals(KSL_API_VERSION, ru.privateserver.ksl.KSL.API_VERSION)

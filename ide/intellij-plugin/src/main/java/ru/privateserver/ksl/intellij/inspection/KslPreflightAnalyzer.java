@@ -18,7 +18,7 @@ public final class KslPreflightAnalyzer {
         "unregisterStandardLibraryModule", "standardLibraryModules", "registerContextExtension",
         "unregisterContextExtension", "registeredAddons", "isAddonLoaded", "onAddonReady",
         "subscribe", "publish", "reloadScripts", "registerHook", "unregisterHook", "getHook",
-        "hooks", "isPluginEnabled", "scripts", "reloadScript", "reloadScriptsAsync", "isSandboxed",
+        "hooks", "isPluginEnabled", "scripts", "reloadScript", "reloadScriptAsync", "reloadScriptsAsync", "isSandboxed",
         "isConsoleCommandBlocked", "registerPlaceholder", "unregisterPlaceholder",
         "registerTextPlaceholder", "unregisterTextPlaceholder", "registerEffectShape",
         "registerEntityAttribute", "onlinePlayers", "findOnlinePlayer", "isPlayerOnline",
@@ -29,6 +29,12 @@ public final class KslPreflightAnalyzer {
         "script", "reload", "reloadAll", "reloadAllAsync", "hasService", "pluginAvailable",
         "hookOrNull", "hookOrFail", "addonOrNull", "addonOrFail", "scriptOrNull", "scriptOrFail"
     );
+
+    private static final Pattern THREAD_SLEEP = Pattern.compile("\\bThread\\s*\\.\\s*sleep\\s*\\(");
+    private static final Pattern RUN_BLOCKING = Pattern.compile("\\brunBlocking\\s*\\{");
+    private static final Pattern INFINITE_LOOP = Pattern.compile("\\bwhile\\s*\\(\\s*true\\s*\\)\\s*\\{");
+    private static final Pattern RAW_THREAD = Pattern.compile("\\bThread\\s*(?:\\(|\\{)|\\bExecutors\\s*\\.\\s*new(?:SingleThreadExecutor|FixedThreadPool|CachedThreadPool|ScheduledThreadPool)");
+    private static final Pattern SYNC_RELOAD = Pattern.compile("\\b(?:KSL\\s*\\.\\s*api|api)\\s*\\.\\s*reloadScript\\s*\\(");
 
     private KslPreflightAnalyzer() {}
 
@@ -61,6 +67,16 @@ public final class KslPreflightAnalyzer {
         }
 
         String code = maskCommentsAndStrings(source);
+        addMatches(result, THREAD_SLEEP, code, "blocking-call",
+            "Thread.sleep blocks the current thread and can stall script loading or synchronous callbacks. Use KSL scheduling/worker APIs.", false);
+        addMatches(result, RUN_BLOCKING, code, "blocking-call",
+            "runBlocking blocks the current thread. Move suspending work to a worker and hand Bukkit operations back to the server thread.", false);
+        addMatches(result, INFINITE_LOOP, code, "unbounded-loop",
+            "An unconditional while(true) loop can prevent the current callback from returning. Prefer a repeating KSL task.", false);
+        addMatches(result, RAW_THREAD, code, "unmanaged-thread",
+            "A manually created thread/executor is not owned by the script lifecycle. Prefer KSL workers or register explicit cleanup.", false);
+        addMatches(result, SYNC_RELOAD, code, "blocking-reload",
+            "KSLAPI.reloadScript blocks until compilation and swap finish. Use reloadScriptAsync from addon callbacks.", false);
         boolean explicitApiContext = code.contains("KSL.api")
             || Pattern.compile("\\b(?:val|var)\\s+api\\s*:\\s*(?:ru\\.privateserver\\.ksl\\.api\\.)?KSLAPI\\b")
                 .matcher(code).find();
@@ -91,6 +107,21 @@ public final class KslPreflightAnalyzer {
             }
         }
         return List.copyOf(result);
+    }
+
+    public static boolean isKslAddonSource(String source, String buildConfiguration) {
+        String code = source == null ? "" : source;
+        String config = buildConfiguration == null ? "" : buildConfiguration.toLowerCase(Locale.ROOT);
+        return code.contains("KSLAddon") || code.contains("KSL.api") || config.contains("kotlinscriptloader");
+    }
+
+    private static void addMatches(
+        List<Diagnostic> target, Pattern pattern, String source, String code, String message, boolean error
+    ) {
+        Matcher matcher = pattern.matcher(source);
+        while (matcher.find()) {
+            target.add(new Diagnostic(code, matcher.start(), matcher.end(), message, error));
+        }
     }
 
     private static int parseMinor(String version) {

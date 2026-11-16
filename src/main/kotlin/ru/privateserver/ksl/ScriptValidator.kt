@@ -16,11 +16,16 @@ class ScriptValidator(private val plugin: KotlinScriptLoaderPlugin) {
                 unit.failure == KSLError.SCRIPT_SANDBOX -> unit.errors.map { "🚫 $it" }
                 else -> unit.errors
             }
+            val authoringWarnings = runCatching {
+                KSLAuthoringAnalyzer.analyze(file.readText(Charsets.UTF_8)).map {
+                    "KSL preflight ${it.line}:${it.column} [${it.code}] ${it.message}"
+                }
+            }.getOrDefault(emptyList())
             KSLScriptValidationResult(
                 scriptId = id,
                 fileName = file.name,
                 errors = errors,
-                warnings = unit.warnings,
+                warnings = unit.warnings + authoringWarnings,
                 compileMillis = unit.compileMillis,
                 failureCode = unit.failure?.code
             )

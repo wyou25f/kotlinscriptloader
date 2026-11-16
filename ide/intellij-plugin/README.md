@@ -2,7 +2,8 @@
 
 The IntelliJ Platform plugin for Kotlin Script Loader. Version **1.2.0** adds a
 local static preflight pass, dependency diagnostics, API typo checks, version
-warnings and quick fixes. It does not add a runtime dependency to the server.
+warnings, blocking-call warnings and addon-source checks. It does not add a
+runtime dependency to the server.
 
 ## Build and install
 
@@ -31,10 +32,13 @@ through **Settings → Plugins → ⚙ → Install Plugin from Disk**.
   calls inside KSL `runAsync { }`, `afterAsync { }` and `repeatAsync { }`
   blocks. The quick fix wraps a standalone statement in `runSync { ... }` (declaration lines are excluded to preserve variable scope);
   review the resulting code and keep only Bukkit API work on the server thread.
+- **Authoring safety:** warns about `Thread.sleep`, `runBlocking`, unconditional loops,
+  manually created threads/executors and synchronous `KSLAPI.reloadScript` calls.
+- **Addon projects:** local preflight also analyzes Kotlin `.kt` files that reference
+  KSL, in addition to server `.kts` scripts.
 - **Preflight:** right-click a Kotlin `.kts` file and choose
-  **KSL: Validate Current Script**. The action runs the same local static
-  checks without compiling or executing the script and without connecting to
-  a server.
+  **KSL: Validate Current Script**. The action runs local static checks without
+  compiling or executing the script and without connecting to a server.
 
 ## Limits and project setup
 

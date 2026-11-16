@@ -15,8 +15,12 @@ import java.nio.charset.StandardCharsets;
 public final class KslPreflightAnnotator implements Annotator {
     @Override
     public void annotate(@NotNull PsiElement element, @NotNull AnnotationHolder holder) {
-        if (!(element instanceof PsiFile file) || !file.getName().endsWith(".kts")) return;
+        if (!(element instanceof PsiFile file)) return;
         String configuration = readBuildConfiguration(file.getProject());
+        boolean scriptFile = file.getName().endsWith(".kts");
+        boolean addonSource = file.getName().endsWith(".kt")
+            && KslPreflightAnalyzer.isKslAddonSource(file.getText(), configuration);
+        if (!scriptFile && !addonSource) return;
         for (KslPreflightAnalyzer.Diagnostic diagnostic :
             KslPreflightAnalyzer.analyze(file.getText(), configuration)) {
             var builder = holder.newAnnotation(

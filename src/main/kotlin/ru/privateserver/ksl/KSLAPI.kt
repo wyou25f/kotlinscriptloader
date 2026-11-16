@@ -63,6 +63,9 @@ interface KSLAPI {
     // Blocks the caller until the script is recompiled and swapped; main thread only. A script that fails to compile keeps running.
     fun reloadScript(scriptId: String): Boolean
 
+    // Compiles one script in the background and swaps on the main thread; null means another reload is busy.
+    fun reloadScriptAsync(scriptId: String, done: (Boolean?) -> Unit)
+
     // Compiles in the background and swaps on the main thread; done gets null when another reload is already running.
     fun reloadScriptsAsync(done: (Pair<Int, Int>?) -> Unit)
 

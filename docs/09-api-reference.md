@@ -13,7 +13,7 @@
 | Добавить импорты | **addDefaultImports**, **addImports** |
 | Связать аддоны событиями | **subscribe**, **publish**, **KSLTopics** |
 | Интегрироваться с другим плагином | **KSLHook**, **hook<T>()**, **requireHook<T>()** |
-| Читать состояние скриптов | **scripts**, **reloadScript**, **reloadScriptsAsync** |
+| Читать состояние скриптов | **scripts**, **reloadScript**, **reloadScriptAsync**, **reloadScriptsAsync** |
 | Управлять ресурсами аддона | **KSLAddonScope** |
 | Реализовать собственный scheduler | **KSLTaskScheduler**, **KSLTaskSchedulerFactory**, **KSLTaskSpec** |
 
@@ -79,12 +79,15 @@ api.publish("example.cache.refresh", "manual")
 ~~~kotlin
 val loadedScripts = api.scripts().filter { it.loaded }
 val success = api.reloadScript("events/join")
+api.reloadScriptAsync("events/join") { result ->
+    // true: загружен; false: ошибка; null: другой reload уже выполняется
+}
 api.reloadScriptsAsync { result ->
     // null: запрос не принят, потому что reload уже выполняется
 }
 ~~~
 
-**reloadScript** и **reloadScripts** выполняются с главного потока сервера. **reloadScriptsAsync** компилирует в фоне и применяет результат на главном потоке. Если другой reload уже выполняется, callback получает null.
+**reloadScript** и **reloadScripts** выполняются с главного потока сервера и могут задержать тик при больших скриптах. Для addon callbacks предпочитай **reloadScriptAsync** и **reloadScriptsAsync**: компиляция выполняется в фоне, а применение результата — на главном потоке. Для одиночной перезагрузки callback получает true/false, а null означает, что запрос не принят.
 
 ## Жизненный цикл KSLAddon
 
@@ -184,7 +187,7 @@ try {
 - **/ksl doctor** — проверка окружения и конфигурации.
 - **/ksl errors** — последние ошибки скриптов.
 - **/ksl runtime** — состояние runtime и worker pool.
-- **/ksl validate** — проверка скриптов без загрузки.
+- **/ksl validate [script-id]** — проверка скриптов без выполнения кода; полный отчёт сохраняется в reports/.
 - **/ksl reload <script-id>** — точечная перезагрузка.
 
 Метрики KSL относятся к операциям и callbacks, которые KSL действительно оборачивает. Это не универсальный profiler произвольных Kotlin-выражений, Bukkit tasks и сторонних executors.

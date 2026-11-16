@@ -48,7 +48,7 @@ Save the file and run `/ksl reload`. Continue with [Book I — Script Developmen
 | `/ksl reload` | Reload all scripts |
 | `/ksl reload <script-id>` | Reload one script |
 | `/ksl reload changed` | Reload changed scripts |
-| `/ksl validate` | Validate scripts without loading them |
+| `/ksl validate [script-id]` | Compile-check scripts without executing them; writes the full report under `reports/` |
 | `/ksl doctor` | Run system diagnostics |
 | `/ksl errors` | Show recent errors |
 | `/ksl error <code>` | Explain an error code |

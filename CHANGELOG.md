@@ -1,3 +1,14 @@
+# Changelog
+
+## Unreleased — Script & Addon Authoring Reliability
+- Added local authoring warnings for blocking sleeps/coroutines, unconditional loops, unmanaged threads and direct Bukkit scheduler tasks.
+- `/ksl validate [script-id]` now combines compiler diagnostics with authoring warnings and writes a bounded full report under `plugins/KotlinScriptLoader/reports/`.
+- Validation never evaluates script code; chat output is capped while the report retains the full diagnostic set (up to 2 MB).
+- Added `KSLAPI.reloadScriptAsync` for background compilation of one script; KSL API contract is now version 11.
+- IntelliJ preflight now analyzes KSL addon Kotlin sources as well as .kts files and flags common blocking patterns.
+- Compile-pool saturation no longer falls back to executing compilation on the submitting thread.
+- Added regression coverage for 50 diagnostics, report truncation, queue saturation, authoring warnings and async reload callback semantics.
+
 # KotlinScriptLoader 1.2.2
 
 ## Script Registry

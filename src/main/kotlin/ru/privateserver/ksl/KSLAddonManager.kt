@@ -385,6 +385,9 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
 
     override fun reloadScript(scriptId: String): Boolean = plugin.reloadScript(scriptId)
 
+    override fun reloadScriptAsync(scriptId: String, done: (Boolean?) -> Unit) =
+        plugin.reloadScriptAsync(scriptId, done)
+
     override fun reloadScriptsAsync(done: (Pair<Int, Int>?) -> Unit) = plugin.reloadScriptsAsync(done)
 
     override fun isSandboxed(scriptId: String): Boolean = plugin.isSandboxed(scriptId)

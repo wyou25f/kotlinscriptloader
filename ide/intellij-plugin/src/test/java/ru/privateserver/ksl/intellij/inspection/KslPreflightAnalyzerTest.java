@@ -57,6 +57,28 @@ class KslPreflightAnalyzerTest {
     }
 
     @Test
+    void warnsAboutBlockingCallsAndSynchronousAddonReload() {
+        var diagnostics = KslPreflightAnalyzer.analyze(
+            "Thread.sleep(50)\nrunBlocking { refresh() }\napi.reloadScript(\"events/join\")", "");
+        assertTrue(diagnostics.stream().anyMatch(d -> d.code().equals("blocking-call")));
+        assertTrue(diagnostics.stream().anyMatch(d -> d.code().equals("blocking-reload")));
+    }
+
+    @Test
+    void ignoresBlockingPatternsInsideCommentsAndStrings() {
+        var diagnostics = KslPreflightAnalyzer.analyze(
+            "// Thread.sleep(50)\nval text = \"runBlocking { }\"",
+            "");
+        assertTrue(diagnostics.isEmpty());
+    }
+
+    @Test
+    void recognizesAddonKotlinFilesForLocalPreflight() {
+        assertTrue(KslPreflightAnalyzer.isKslAddonSource(
+            "class ExampleAddon : JavaPlugin(), KSLAddon", "dependencies { compileOnly(files(\"KotlinScriptLoader.jar\")) }"));
+    }
+
+    @Test
     void ignoresApiLikeTextInsideStringsAndComments() {
         var diagnostics = KslPreflightAnalyzer.analyze(
             """
