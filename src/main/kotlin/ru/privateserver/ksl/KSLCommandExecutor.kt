@@ -327,17 +327,29 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                 }
             }
             "validate" -> {
+                val target = args.getOrNull(1)
                 sender.sendMessage(plugin.message("validate.start"))
-                background(sender, { plugin.validateAllScripts() }) { results ->
-                    val broken = results.filterValues { it.isNotEmpty() }
-                    if (broken.isEmpty()) {
-                        sender.sendMessage(plugin.message("validate.ok", "count" to results.size))
+                background(sender, { plugin.validateScripts(target) }) { results ->
+                    if (results.isEmpty()) {
+                        sender.sendMessage(plugin.message("validate.empty", "target" to (target ?: "scripts/")))
                     } else {
-                        sender.sendMessage(plugin.message("validate.failed", "failed" to broken.size, "total" to results.size))
-                        broken.forEach { (scriptName, issues) ->
-                            sender.sendMessage("  §f$scriptName§7:")
-                            issues.forEach { sender.sendMessage("    §c$it") }
+                        val broken = results.filterNot { it.valid }
+                        val errors = results.sumOf { it.errors.size }
+                        val warnings = results.sumOf { it.warnings.size }
+                        val report = runCatching { plugin.writeValidationReport(results) }.getOrNull()
+                        if (broken.isEmpty()) {
+                            sender.sendMessage(plugin.message("validate.ok", "count" to results.size, "warnings" to warnings))
+                        } else {
+                            sender.sendMessage(plugin.message("validate.failed", "failed" to broken.size, "total" to results.size, "errors" to errors))
+                            broken.take(5).forEach { item ->
+                                sender.sendMessage("  §f${item.scriptId}§7 — §c${item.errors.size} ошибок")
+                                item.errors.take(3).forEach { sender.sendMessage("    §c${it.take(180)}") }
+                                if (item.errors.size > 3) sender.sendMessage("    §7… ещё ${item.errors.size - 3}, полный список в отчёте")
+                            }
+                            if (broken.size > 5) sender.sendMessage("  §7… ещё ${broken.size - 5} проблемных файлов")
                         }
+                        if (warnings > 0) sender.sendMessage(plugin.message("validate.warnings", "count" to warnings))
+                        report?.let { sender.sendMessage(plugin.message("validate.report", "path" to it.relativeTo(plugin.dataFolder).path)) }
                     }
                 }
             }
@@ -423,7 +435,7 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
             "watchdog" to plugin.message("help.watchdog"),
             "error <code>" to plugin.message("help.error", "code" to KSLError.SCRIPT_COMPILE.code),
             "doctor" to plugin.message("help.doctor"),
-            "validate" to plugin.message("help.validate"),
+            "validate [script]" to plugin.message("help.validate"),
             "dbmigrate [confirm]" to plugin.message("help.dbmigrate"),
             "language [ru|en|custom]" to plugin.message("help.language")
         ).forEach { (name, description) -> sender.sendMessage("  §f/ksl $name §8— §7$description") }
@@ -461,6 +473,9 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
         }
         if (args.size == 2 && args[0].equals("reload", ignoreCase = true)) {
             return plugin.scriptReloadTargets().filter { it.startsWith(args[1], ignoreCase = true) }
+        }
+        if (args.size == 2 && args[0].equals("validate", ignoreCase = true)) {
+            return plugin.scriptIds().filter { it.startsWith(args[1].removeSuffix(".kts"), ignoreCase = true) }
         }
         if (args.size == 2 && args[0].lowercase() in KSL_SCRIPT_COMMANDS) {
             return plugin.scriptIds().filter { it.startsWith(args[1].removeSuffix(".kts"), ignoreCase = true) }

@@ -1320,10 +1320,20 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     fun sandboxProbe(): Pair<Boolean, String> = scriptEngine.sandboxProbe()
 
-    fun validateAllScripts(): Map<String, List<String>> {
+    fun validateScripts(target: String? = null): List<KSLScriptValidationResult> {
+        val files = if (target.isNullOrBlank()) findScriptFiles()
+            else listOfNotNull(resolveScriptFile(target))
         val validator = ScriptValidator(this)
-        return findScriptFiles().associate { scriptId(it) to validator.validate(it) }
+        // Validation is deliberately sequential on the background command worker. It shares
+        // the compiler semaphore with reloads and avoids a burst of compiler/classloader work.
+        return files.map { validator.validateDetailed(it) }
     }
+
+    fun validateAllScripts(): Map<String, List<String>> =
+        validateScripts().associate { it.scriptId to it.errors }
+
+    fun writeValidationReport(results: List<KSLScriptValidationResult>): File =
+        KSLValidationReportWriter.write(File(dataFolder, "reports"), results)
 
     fun verifyTrackedCommands(): List<String> {
         val broken = mutableListOf<String>()

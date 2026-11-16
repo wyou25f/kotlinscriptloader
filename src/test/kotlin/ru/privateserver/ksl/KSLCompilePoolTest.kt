@@ -18,6 +18,59 @@ class KSLCompilePoolTest {
         }
     }
 
+
+    @Test
+    fun `queue saturation never executes compile work on the submitting thread`() {
+        KSLCompilePool(1).use { pool ->
+            val firstTaskStarted = CountDownLatch(1)
+            val releaseFirstTask = CountDownLatch(1)
+            val callerRanCompile = java.util.concurrent.atomic.AtomicBoolean(false)
+            val firstFailure = java.util.concurrent.atomic.AtomicReference<Throwable?>(null)
+            val secondFailure = java.util.concurrent.atomic.AtomicReference<Throwable?>(null)
+
+            val firstBatch = Thread({
+                runCatching {
+                    pool.map((1..5).toList()) { value ->
+                        if (value == 1) {
+                            firstTaskStarted.countDown()
+                            check(releaseFirstTask.await(3, TimeUnit.SECONDS))
+                        }
+                        value
+                    }
+                }.onFailure(firstFailure::set)
+            }, "validation-batch")
+            firstBatch.start()
+            assertTrue(firstTaskStarted.await(2, TimeUnit.SECONDS))
+
+            val secondBatch = Thread({
+                runCatching {
+                    pool.map((6..10).toList()) { value ->
+                        if (!Thread.currentThread().name.startsWith("KSL-Compile-")) {
+                            callerRanCompile.set(true)
+                        }
+                        value
+                    }
+                }.onFailure(secondFailure::set)
+            }, "server-command-thread")
+            secondBatch.start()
+
+            // The first worker is blocked and the bounded queue is full. The second submitter
+            // must wait for capacity, not run the compilation itself.
+            secondBatch.join(100)
+            assertTrue(secondBatch.isAlive, "the saturated submitter should be back-pressured")
+            assertTrue(!callerRanCompile.get(), "compile work must never run on the submitting thread")
+
+            releaseFirstTask.countDown()
+            firstBatch.join(3_000)
+            secondBatch.join(3_000)
+            assertTrue(!firstBatch.isAlive)
+            assertTrue(!secondBatch.isAlive)
+            assertEquals(null, firstFailure.get())
+            assertEquals(null, secondFailure.get())
+            assertTrue(!callerRanCompile.get())
+        }
+    }
+
     @Test
     fun `reuses worker threads across batches and respects configured parallelism`() {
         KSLCompilePool(2).use { pool ->
