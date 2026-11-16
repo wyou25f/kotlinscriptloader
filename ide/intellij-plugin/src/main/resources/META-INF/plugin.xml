@@ -1,23 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <idea-plugin>
     <id>ru.privateserver.ksl.intellij</id>
     <name>Kotlin Script Loader</name>
     <vendor url="https://github.com/wyou25f/kotlinscriptloader">KotlinScriptLoader</vendor>
     <description><![CDATA[
         Editor assistance for Kotlin Script Loader server scripts.
-        Adds KSL API, scheduler, event DSL, testing DSL and basic async thread-safety diagnostics.
-        For full type resolution and navigation, open the server scripts as a Gradle project
-        with the exact KSL and server-plugin dependencies installed.
+        Adds KSL API completion, async thread-safety diagnostics, dependency checks,
+        deprecated API warnings, quick fixes and a local static preflight action.
+        Preflight does not compile, execute scripts or connect to a server.
     ]]></description>
-
     <depends>com.intellij.modules.platform</depends>
     <depends>org.jetbrains.kotlin</depends>
-
     <extensions defaultExtensionNs="com.intellij">
-        <completion.contributor
-                language="kotlin"
+        <completion.contributor language="kotlin"
                 implementationClass="ru.privateserver.ksl.intellij.completion.KslCompletionContributor"/>
-        <annotator
-                language="kotlin"
+        <annotator language="kotlin"
                 implementationClass="ru.privateserver.ksl.intellij.inspection.KslAsyncThreadSafetyAnnotator"/>
+        <annotator language="kotlin"
+                implementationClass="ru.privateserver.ksl.intellij.inspection.KslPreflightAnnotator"/>
     </extensions>
+    <actions>
+        <action id="KSL.Preflight" class="ru.privateserver.ksl.intellij.action.KslPreflightAction"
+                text="KSL: Validate Current Script" description="Run local static preflight checks for this KSL script">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
+    </actions>
 </idea-plugin>

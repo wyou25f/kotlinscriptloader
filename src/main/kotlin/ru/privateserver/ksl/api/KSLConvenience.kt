@@ -94,3 +94,20 @@ fun KSLAPI.scheduleAsyncRepeating(
  * Every resource registered through the scope is released in reverse order.
  */
 fun KSLAPI.addonScope(): KSLAddonScope = KSLAddonScope.create(this)
+
+
+/** Read-only snapshot of JVM memory, processor and thread metrics. */
+fun KSLAPI.runtimeStats(): ru.privateserver.ksl.rt.KSLRuntimeSnapshot =
+    ru.privateserver.ksl.rt.KSLRuntimeMonitor.snapshot()
+
+/** Alias for [runtimeStats] for concise addon code. */
+fun KSLAPI.runtime(): ru.privateserver.ksl.rt.KSLRuntimeSnapshot = runtimeStats()
+
+/** Number of processors visible to this JVM; this does not reserve CPU cores. */
+fun KSLAPI.availableProcessors(): Int = runtimeStats().processors
+
+/** Current JVM heap usage in bytes; heap sizing remains controlled by Java launch flags. */
+fun KSLAPI.heapUsedBytes(): Long = runtimeStats().heapUsedBytes
+
+/** Maximum JVM heap size in bytes, or a negative value when the JVM reports it as undefined. */
+fun KSLAPI.heapMaxBytes(): Long = runtimeStats().heapMaxBytes

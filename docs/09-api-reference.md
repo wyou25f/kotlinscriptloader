@@ -206,3 +206,22 @@ try {
 - Компилируй против JAR той ветки KSL, которую поддерживаешь.
 - Предпочитай публичные aliases из ru.privateserver.ksl.api; внутренние пакеты не являются стабильным контрактом.
 - Успешная сборка не заменяет тестирование на реальном Paper-сервере.
+
+
+## Runtime telemetry
+
+KSL exposes read-only JVM telemetry to addon authors. These helpers report the
+resources visible to the running Java process; they do not reserve CPU cores,
+resize the heap, or allocate memory on behalf of the JVM.
+
+```kotlin
+val stats = api.runtimeStats() // alias: api.runtime()
+logger.info("Heap: ${stats.heapUsedBytes} / ${stats.heapMaxBytes} bytes")
+logger.info("Visible processors: ${api.availableProcessors()}")
+logger.info("Current heap usage: ${api.heapUsedBytes()} bytes")
+```
+
+The heap limit is configured with Java launch options (for example `-Xms`
+and `-Xmx`) and may also be constrained by the container or hosting panel.
+KSL's worker scheduler is bounded and configured by the server runtime; addon
+code should use its task scopes rather than create unbounded thread pools.

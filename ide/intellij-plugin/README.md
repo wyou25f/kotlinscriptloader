@@ -1,60 +1,51 @@
 # KSL IntelliJ IDEA plugin
 
-This is the IntelliJ Platform plugin for Kotlin Script Loader. It adds curated
-completion entries for the documented KSL public API, addon lifecycle, event
-bus, scheduler SPI, testing DSL and common server-side helpers in Kotlin
-`.kts` files.
+The IntelliJ Platform plugin for Kotlin Script Loader. Version **1.2.0** adds a
+local static preflight pass, dependency diagnostics, API typo checks, version
+warnings and quick fixes. It does not add a runtime dependency to the server.
 
-## Build
+## Build and install
 
 Requirements: JDK 21 and Gradle.
 
-```shell
+\`\`\`shell
 ./gradlew -p ide/intellij-plugin test buildPlugin
-```
+\`\`\`
 
-The ZIP is written under `ide/intellij-plugin/build/distributions/`. Install it
+The ZIP is written under \`ide/intellij-plugin/build/distributions/\`. Install it
 through **Settings → Plugins → ⚙ → Install Plugin from Disk**.
 
-## Diagnostics in 1.1.0
+## Diagnostics
 
-The plugin warns when common Bukkit/Paper player or world API calls are found
-inside KSL's `runAsync { }`, `afterAsync { }` or `repeatAsync { }` blocks.
-Examples include player lookup/messaging, teleportation, inventory access,
-block lookup and block mutation.
+- **Missing dependencies:** checks imports for Paper/Spigot API, PlaceholderAPI
+  and LuckPerms against root \`build.gradle(.kts)\` and
+  \`gradle/libs.versions.toml\`. A quick action opens the Gradle build file so
+  the developer can add the correct artifact and version.
+- **Unknown KSL API calls:** checks calls through the explicit \`KSL.api\`
+  receiver (or a variable explicitly typed as \`KSLAPI\`) against the public API
+  catalog. This is deliberately conservative and is not full Kotlin resolution.
+- **Deprecated and version-sensitive APIs:** flags known deprecated
+  \`PlayerChatEvent\` usage and legacy Material constants when a modern
+  Paper/Spigot target is declared.
+- **Async thread-safety:** warns about common Bukkit/Paper player and world
+  calls inside KSL \`runAsync { }\`, \`afterAsync { }\` and \`repeatAsync { }\`
+  blocks. The quick fix wraps the current source line in \`runSync { ... }\`;
+  review the resulting code and keep only Bukkit API work on the server thread.
+- **Preflight:** right-click a Kotlin \`.kts\` file and choose
+  **KSL: Validate Current Script**. The action runs the same local static
+  checks without compiling or executing the script and without connecting to
+  a server.
 
-These are conservative source-level warnings, not a complete Kotlin data-flow
-or Bukkit API thread-safety analysis. They intentionally do not execute scripts
-or connect to a live server. Move server API work to the main thread, for
-example by using the KSL `runSync { ... }` facility where it is available.
-Keep database, file and expensive pure computations off the server thread.
+## Limits and project setup
 
-## Recommended server-admin setup
+These checks are source-level heuristics, not a complete Kotlin type checker,
+Gradle dependency resolver, Paper compatibility database or security sandbox.
+They inspect only the current script and the root Gradle build files. A
+dependency declared transitively or through a custom convention plugin may be
+reported as missing. The plugin does not download artifacts, scan the server,
+execute scripts, or connect to a live Minecraft server.
 
-The curated completion and source-level diagnostics work in Kotlin script files.
-For real Kotlin type checking, member completion, KDoc and navigation:
-
-1. Open the `ide/` Gradle companion project in IntelliJ IDEA.
-2. Point `-PkslJar` at the exact KSL JAR installed on the server.
-3. Point `-PkslScriptsDir` at the server's
-   `plugins/KotlinScriptLoader/scripts` directory.
-4. Add compile-only dependencies for the server API and every optional plugin
-   whose classes are used by scripts.
-5. Install this plugin and the IntelliJ Kotlin plugin.
-
-The plugin does not connect to a live server, execute scripts, or infer classes
-from plugins that are absent from the IDE classpath. It also does not replace
-the Kotlin plugin's semantic analysis. Full type-aware completion and navigation
-come from the configured Kotlin project model.
-
-## Scope
-
-- Kotlin `.kts` completion for documented KSL API entry points.
-- Completion labels that identify the API area and explain each suggestion.
-- Basic warnings for common Bukkit/Paper calls inside KSL async scheduler blocks.
-- No runtime dependency added to the KSL server plugin.
-- No script execution, filesystem scanning, server connection, or remote code loading.
-
-The async checker is intentionally limited and will evolve alongside tests and
-the documented KSL API. It should not be treated as a substitute for reviewing
-Paper's threading requirements.
+For full Kotlin type checking, member completion, KDoc and navigation, open
+your addon as a Gradle project and declare the exact KSL JAR, Paper API and
+optional plugin APIs used by the addon. The plugin's diagnostics complement
+the Kotlin plugin; they do not replace a correctly configured classpath.

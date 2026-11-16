@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "ru.privateserver.ksl"
-version = "1.1.0"
+version = "1.2.0"
 
 repositories {
     mavenCentral()
@@ -37,8 +37,8 @@ intellijPlatform {
         name = "Kotlin Script Loader"
         version = project.version.toString()
         description = """
-            <p>Editor assistance for Kotlin Script Loader server scripts.</p>
-            <p>Provides KSL API completion and async Bukkit thread-safety diagnostics for Kotlin .kts files.</p>
+            <p>Editor assistance for Kotlin Script Loader server scripts and addons.</p>
+            <p>Provides KSL API completion, dependency and API diagnostics, quick fixes, and local static preflight checks for Kotlin .kts files.</p>
         """.trimIndent()
         vendor {
             name = "KotlinScriptLoader"
@@ -48,7 +48,7 @@ intellijPlatform {
             sinceBuild = "243"
         }
         changeNotes = """
-            1.1.0: Warn about common Bukkit/Paper API calls inside KSL async scheduler blocks.
+            1.2.0: Add Gradle dependency diagnostics, KSL API typo checks, deprecated/version compatibility warnings, quick fixes and local script preflight.
         """.trimIndent()
     }
 }
