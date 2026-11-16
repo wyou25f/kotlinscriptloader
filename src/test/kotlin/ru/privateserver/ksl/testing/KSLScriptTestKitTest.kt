@@ -165,7 +165,7 @@ class KSLScriptTestKitTest {
         assertEquals(2, report.filtered)
         assertTrue(report.successful)
         assertTrue(report.debugReport().contains("2 filtered"))
-        assertTrue(report.toJson().contains("\\"filtered\\":2"))
+        assertTrue(report.toJson().contains("\"filtered\":2"))
     }
 
     @Test
