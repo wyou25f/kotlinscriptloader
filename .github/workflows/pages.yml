@@ -187,7 +187,7 @@ jobs:
           }
 
           def latest_build(branch, artifact_prefix):
-              query = urlencode({"branch": branch, "status": "success", "per_page": 50})
+              query = urlencode({"branch": branch, "per_page": 50})
               runs = api_json(f"actions/runs?{query}").get("workflow_runs", [])
               runs = [
                   run for run in runs
@@ -237,7 +237,7 @@ jobs:
               return result
 
           def latest_ide_plugin():
-              query = urlencode({"branch": "main", "status": "success", "per_page": 50})
+              query = urlencode({"branch": "main", "per_page": 50})
               runs = api_json(f"actions/runs?{query}").get("workflow_runs", [])
               runs = [
                   run for run in runs
@@ -419,7 +419,7 @@ jobs:
           from pathlib import Path
           for page in Path("website").glob("*.html"):
               source = page.read_text(encoding="utf-8")
-              source = re.sub(r'(assets/(?:app\.js|style\.css)\?v=)[^"&]+', r'\g<1>20261116-7', source)
+              source = re.sub(r'(assets/(?:app\.js|style\.css)\?v=)[^"&]+', r'\g<1>20261116-8', source)
               page.write_text(source, encoding="utf-8")
           PY
           node --check website/assets/app.js
