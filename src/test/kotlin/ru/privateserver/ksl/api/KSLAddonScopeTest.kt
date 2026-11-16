@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.lang.reflect.Proxy
 import ru.privateserver.ksl.kslshu.KSLTaskScope
+import ru.privateserver.ksl.kslshu.KSLTaskState
 import ru.privateserver.ksl.kslshu.KSLOfficialTaskScheduler
 import ru.privateserver.ksl.rt.KSLWorkScheduler
 import java.time.Duration
