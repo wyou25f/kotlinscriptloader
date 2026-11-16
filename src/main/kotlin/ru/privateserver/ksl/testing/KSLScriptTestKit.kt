@@ -141,11 +141,11 @@ data class KSLScriptTestRunResult(
             }
             error.suppressed.forEach { suppressed ->
                 out.appendLine("${indent}Suppressed:")
-                out.appendFailure(suppressed, "$indent  ")
+                appendFailure(out, suppressed, "$indent  ")
             }
             error.cause?.takeIf { it !== error }?.let {
                 out.appendLine("${indent}Caused by:")
-                out.appendFailure(it, "$indent  ")
+                appendFailure(out, it, "$indent  ")
             }
         }
 
@@ -285,12 +285,13 @@ object KSLScriptTestRunner {
             suiteFailure = error
         }
 
-        val results = if (suiteFailure != null) {
+        val setupFailure = suiteFailure
+        val results = if (setupFailure != null) {
             suite.cases.map { testCase ->
                 KSLScriptTestCaseResult(
                     testCase.name, KSLScriptTestStatus.FAILED, 0L,
-                    "Suite setup failed: ${suiteFailure.message ?: suiteFailure::class.simpleName}",
-                    suiteFailure
+                    "Suite setup failed: ${setupFailure.message ?: setupFailure::class.simpleName}",
+                    setupFailure
                 )
             }
         } else {
