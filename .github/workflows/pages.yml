@@ -50,7 +50,7 @@ jobs:
           curl --fail --silent --show-error "${headers[@]}" "${api}" -o /tmp/ksl-repo.json
           curl --fail --silent --show-error "${headers[@]}" "${api}/branches?per_page=100" -o /tmp/ksl-branches.json
           curl --fail --silent --show-error "${headers[@]}" "${api}/commits?sha=main&per_page=20" -o /tmp/ksl-commits.json
-          release_status=$(curl --silent --show-error "${headers[@]}" "${api}/releases/latest" -o /tmp/ksl-release-response.json -w '%{http_code}')
+          release_status=$(curl --silent --show-error "${headers[@]}" "${api}/releases/tags/1.2.1" -o /tmp/ksl-release-response.json -w '%{http_code}')
           if [[ "${release_status}" == "200" ]]; then
             cp /tmp/ksl-release-response.json /tmp/ksl-release.json
           elif [[ "${release_status}" == "404" ]]; then
