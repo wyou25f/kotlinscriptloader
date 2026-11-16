@@ -8,30 +8,30 @@ warnings and quick fixes. It does not add a runtime dependency to the server.
 
 Requirements: JDK 21 and Gradle.
 
-\`\`\`shell
+```shell
 ./gradlew -p ide/intellij-plugin test buildPlugin
-\`\`\`
+```
 
-The ZIP is written under \`ide/intellij-plugin/build/distributions/\`. Install it
+The ZIP is written under `ide/intellij-plugin/build/distributions/`. Install it
 through **Settings → Plugins → ⚙ → Install Plugin from Disk**.
 
 ## Diagnostics
 
 - **Missing dependencies:** checks imports for Paper/Spigot API, PlaceholderAPI
-  and LuckPerms against root \`build.gradle(.kts)\` and
-  \`gradle/libs.versions.toml\`. A quick action opens the Gradle build file so
+  and LuckPerms against root `build.gradle(.kts)` and
+  `gradle/libs.versions.toml`. A quick action opens the Gradle build file so
   the developer can add the correct artifact and version.
-- **Unknown KSL API calls:** checks calls through the explicit \`KSL.api\`
-  receiver (or a variable explicitly typed as \`KSLAPI\`) against the public API
+- **Unknown KSL API calls:** checks calls through the explicit `KSL.api`
+  receiver (or a variable explicitly typed as `KSLAPI`) against the public API
   catalog. This is deliberately conservative and is not full Kotlin resolution.
 - **Deprecated and version-sensitive APIs:** flags known deprecated
-  \`PlayerChatEvent\` usage and legacy Material constants when a modern
+  `PlayerChatEvent` usage and legacy Material constants when a modern
   Paper/Spigot target is declared.
 - **Async thread-safety:** warns about common Bukkit/Paper player and world
-  calls inside KSL \`runAsync { }\`, \`afterAsync { }\` and \`repeatAsync { }\`
-  blocks. The quick fix wraps the current source line in \`runSync { ... }\`;
+  calls inside KSL `runAsync { }`, `afterAsync { }` and `repeatAsync { }`
+  blocks. The quick fix wraps the current source line in `runSync { ... }`;
   review the resulting code and keep only Bukkit API work on the server thread.
-- **Preflight:** right-click a Kotlin \`.kts\` file and choose
+- **Preflight:** right-click a Kotlin `.kts` file and choose
   **KSL: Validate Current Script**. The action runs the same local static
   checks without compiling or executing the script and without connecting to
   a server.

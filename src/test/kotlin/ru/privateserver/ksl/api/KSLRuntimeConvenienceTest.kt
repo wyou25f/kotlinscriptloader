@@ -6,11 +6,11 @@ import java.lang.reflect.Proxy
 
 class KSLRuntimeConvenienceTest {
     @Test
-    fun \`runtime helpers expose read only JVM telemetry\`() {
+    fun runtimeHelpersExposeReadOnlyJvmTelemetry() {
         val api = Proxy.newProxyInstance(
             KSLAPI::class.java.classLoader,
             arrayOf(KSLAPI::class.java)
-        ) { _, method, _ -> error("Unexpected KSLAPI call: \${method.name}") } as KSLAPI
+        ) { _, _, _ -> error("Unexpected KSLAPI call") } as KSLAPI
 
         val snapshot = api.runtimeStats()
         assertTrue(snapshot.processors >= 1)
