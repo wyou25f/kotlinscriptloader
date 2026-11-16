@@ -9,6 +9,11 @@ import org.bukkit.plugin.EventExecutor
 import org.bukkit.plugin.Plugin
 import org.bukkit.scheduler.BukkitTask
 import ru.privateserver.ksl.KSLError
+import ru.privateserver.ksl.KSLAPI
+import ru.privateserver.ksl.KSLAddon
+import ru.privateserver.ksl.kslshu.KSLTaskScheduler
+import ru.privateserver.ksl.kslshu.KSLTaskSchedulerFactory
+import ru.privateserver.ksl.kslshu.KSLTaskSpec
 import ru.privateserver.ksl.KotlinScriptLoaderPlugin
 import ru.privateserver.ksl.kslshu.KSLTaskContext
 import ru.privateserver.ksl.kslshu.KSLTaskHandle
