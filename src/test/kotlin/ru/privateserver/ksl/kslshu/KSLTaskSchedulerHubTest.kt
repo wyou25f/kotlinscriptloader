@@ -65,7 +65,7 @@ class KSLTaskSchedulerHubTest {
         var closed = false
         try {
             val registry = KSLTaskSchedulerRegistry.withOfficial(KSLTaskSchedulerEnvironment(workers))
-            registry.register("example-addon:engine") { environment ->
+            val registration = registry.register("example-addon.engine") { environment ->
                 factoryCalls++
                 val delegate = KSLOfficialTaskScheduler(environment.officialWorkers)
                 object : KSLTaskScheduler by delegate {
@@ -76,8 +76,8 @@ class KSLTaskSchedulerHubTest {
                 }
             }
 
-            assertTrue("example-addon:engine" in registry.available())
-            val custom = registry.create("example-addon:engine")
+            assertTrue("example-addon.engine" in registry.available())
+            val custom = registry.create("example-addon.engine")
             assertEquals(1, factoryCalls)
             val latch = CountDownLatch(1)
             val result = custom.schedule(KSLTaskSpec("addon:example") { latch.countDown() })
@@ -85,6 +85,11 @@ class KSLTaskSchedulerHubTest {
             assertEquals(KSLTaskState.SUCCEEDED, result.completion.get(2, TimeUnit.SECONDS).state)
             custom.close()
             assertTrue(closed)
+            registration.close()
+            assertFalse("example-addon.engine" in registry.available())
+            assertThrows(IllegalArgumentException::class.java) {
+                registry.create("example-addon.engine")
+            }
         } finally {
             workers.close()
         }

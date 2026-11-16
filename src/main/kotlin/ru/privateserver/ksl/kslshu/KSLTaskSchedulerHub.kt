@@ -63,10 +63,17 @@ class KSLTaskSchedulerRegistry(private val environment: KSLTaskSchedulerEnvironm
     private val factories = linkedMapOf<String, KSLTaskSchedulerFactory>()
 
     @Synchronized
-    fun register(id: String, factory: KSLTaskSchedulerFactory) {
+    fun register(id: String, factory: KSLTaskSchedulerFactory): AutoCloseable {
         val key = normalize(id)
-        require(key !in factories) { "A KSL scheduler factory named '$key' is already registered" }
-        factories[key] = factory
+        synchronized(this) {
+            require(key !in factories) { "A KSL scheduler factory named '$key' is already registered" }
+            factories[key] = factory
+        }
+        return AutoCloseable {
+            synchronized(this) {
+                if (factories[key] === factory) factories.remove(key)
+            }
+        }
     }
 
     @Synchronized

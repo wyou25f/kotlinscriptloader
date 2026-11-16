@@ -250,12 +250,37 @@ class KSLAddonScope internal constructor(
             val ksl = plugin as? KotlinScriptLoaderPlugin
                 ?: throw IllegalArgumentException("KSLAddonScope requires the official KotlinScriptLoader plugin")
             val scheduler = ksl.createTaskScheduler(schedulerId)
+            return createOwnedScope(api, plugin, scheduler, emptyList())
+        }
+
+        /** Registers and owns an addon-specific scheduler factory and engine instance. */
+        @JvmStatic
+        fun create(api: KSLAPI, schedulerId: String, factory: KSLTaskSchedulerFactory): KSLAddonScope {
+            val plugin = api.kslPlugin
+            val ksl = plugin as? KotlinScriptLoaderPlugin
+                ?: throw IllegalArgumentException("KSLAddonScope requires the official KotlinScriptLoader plugin")
+            val registration = ksl.registerSchedulerFactory(schedulerId, factory)
+            try {
+                val scheduler = ksl.createTaskScheduler(schedulerId)
+                return createOwnedScope(api, plugin, scheduler, listOf(registration))
+            } catch (failure: Throwable) {
+                runCatching { registration.close() }
+                throw failure
+            }
+        }
+
+        private fun createOwnedScope(
+            api: KSLAPI,
+            plugin: Plugin,
+            scheduler: KSLTaskScheduler,
+            registrations: List<AutoCloseable>
+        ): KSLAddonScope {
             val scope = KSLAddonScope(
                 plugin,
                 { topic, handler -> api.subscribe(topic, handler) },
                 KSLTaskScope(scheduler, "addon:${plugin.name.lowercase()}")
             )
-            // Registered first so tasks/listeners close before the scheduler itself.
+            registrations.forEach(scope::own)
             scope.own(AutoCloseable { scheduler.close() })
             return scope
         }

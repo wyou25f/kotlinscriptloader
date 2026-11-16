@@ -281,10 +281,10 @@ fun KSLAPI.onScriptUnloaded(handler: (KSLScriptEvent) -> Unit): AutoCloseable =
  * Registers an addon-owned scheduler engine. IDs should be namespaced, for example
  * "example-addon:tick". Factories are invoked when a scope requests that engine.
  */
-fun KSLAPI.registerTaskSchedulerFactory(id: String, factory: KSLTaskSchedulerFactory) {
+fun KSLAPI.registerTaskSchedulerFactory(id: String, factory: KSLTaskSchedulerFactory): AutoCloseable {
     val plugin = kslPlugin as? KotlinScriptLoaderPlugin
         ?: throw IllegalStateException("Custom KSL schedulers require the official KotlinScriptLoader plugin")
-    plugin.registerSchedulerFactory(id, factory)
+    return plugin.registerSchedulerFactory(id, factory)
 }
 
 /** Creates an independently owned scheduler instance from a registered engine factory. */
