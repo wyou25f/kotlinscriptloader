@@ -151,6 +151,7 @@ val verifyShadowJar by tasks.registering {
                 "ru/privateserver/ksl/std/math/MathExtensionsKt.class",
                 "ru/privateserver/ksl/std/time/TimeExtensionsKt.class",
                 "ru/privateserver/ksl/std/player/PlayerExtensionsKt.class",
+                "ru/privateserver/ksl/std/entity/EntityExtensionsKt.class",
                 "ru/privateserver/ksl/std/inventory/InventoryExtensionsKt.class",
                 "ru/privateserver/ksl/std/item/ItemExtensionsKt.class",
                 "ru/privateserver/ksl/std/item/KSLCustomEnchantmentsKt.class",

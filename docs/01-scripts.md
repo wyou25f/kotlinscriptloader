@@ -652,6 +652,20 @@ val position = target.blockPosition()
 
 World, Entity, Player, Inventory и Block — живые Bukkit объекты. Вызывайте такие операции на серверном потоке.
 
+### Entity
+
+```kotlin
+val savedLocation = entity.locationSnapshot()
+val closeEnough = entity.isWithin(player.location, 8.0)
+val distanceSquared = entity.distanceSquaredTo(player.location)
+val inSurvival = entity.isInWorld("survival")
+
+// Teleports using a copy of the destination Location.
+val moved = entity.teleportTo(targetLocation)
+```
+
+`distanceSquaredTo` требует один и тот же объект World и возвращает квадрат расстояния. `isWithin` возвращает false для разных миров. Радиус должен быть конечным и неотрицательным. `locationSnapshot` не раскрывает изменяемый Location сущности, а `teleportTo` не изменяет переданный Location. Телепортация и чтение живых Entity должны выполняться на серверном потоке.
+
 ### JSON
 
 ~~~kotlin
