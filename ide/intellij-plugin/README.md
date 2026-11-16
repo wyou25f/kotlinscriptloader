@@ -29,7 +29,7 @@ through **Settings → Plugins → ⚙ → Install Plugin from Disk**.
   Paper/Spigot target is declared.
 - **Async thread-safety:** warns about common Bukkit/Paper player and world
   calls inside KSL `runAsync { }`, `afterAsync { }` and `repeatAsync { }`
-  blocks. The quick fix wraps the current source line in `runSync { ... }`;
+  blocks. The quick fix wraps a standalone statement in `runSync { ... }` (declaration lines are excluded to preserve variable scope);
   review the resulting code and keep only Bukkit API work on the server thread.
 - **Preflight:** right-click a Kotlin `.kts` file and choose
   **KSL: Validate Current Script**. The action runs the same local static

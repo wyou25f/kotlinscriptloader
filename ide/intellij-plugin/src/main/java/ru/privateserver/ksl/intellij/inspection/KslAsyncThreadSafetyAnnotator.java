@@ -21,9 +21,11 @@ public final class KslAsyncThreadSafetyAnnotator implements Annotator {
                     diagnostic.method() + " is called inside " + diagnostic.asyncFunction()
                         + " { }. Bukkit/Paper world and player operations should run on the server thread.")
                 .range(new TextRange(diagnostic.startOffset(), diagnostic.endOffset()))
-                .tooltip("Move Bukkit/Paper API work into runSync { ... } after the asynchronous calculation.")
-                .withFix(new KslRunSyncIntentionAction(diagnostic.startOffset()))
-                .create();
+                .tooltip("Move Bukkit/Paper API work into runSync { ... } after the asynchronous calculation.");
+            if (KslRunSyncIntentionAction.canWrapLine(source, diagnostic.startOffset())) {
+                builder.withFix(new KslRunSyncIntentionAction(diagnostic.startOffset()));
+            }
+            builder.create();
         }
     }
 }
