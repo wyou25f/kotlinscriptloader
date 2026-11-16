@@ -949,9 +949,12 @@ watchdog:
   guide: "§7Compare SNAPSHOT 1..N; unchanged main-thread frames can reveal where the server is waiting."
 
 validate:
-  start: "§7Validating scripts without loading them..."
-  ok: "§a§lValidation passed for {count} script(s)."
-  failed: "§e{failed} of {total} script(s) have validation problems:"
+  start: "§7Validating scripts without executing code..."
+  empty: "§eNo scripts found to validate: {target}"
+  ok: "§a§lValidation passed: {count} script(s), warnings: {warnings}."
+  failed: "§eProblems in {failed} of {total} script(s), {errors} error(s) total."
+  warnings: "§eCompiler warnings: {count}."
+  report: "§7Full report: §f{path}"
 
 doctor:
   title: "§9§lKSL §7— system diagnostics:"
