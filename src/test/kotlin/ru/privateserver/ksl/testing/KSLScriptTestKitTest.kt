@@ -8,11 +8,12 @@ class KSLScriptTestKitTest {
     fun suiteRunsCasesSequentiallyAndReportsResults() {
         val report = kslTestSuite("sample") {
             beforeEach { put("value", 42) }
-            test("fixture is available") {
+            test("fixture is available and mutable") {
                 assertEquals(42, requireValue<Int>("value"))
+                put("value", 99)
             }
             test("second case starts with a fresh fixture") {
-                assertNull(value<Int>("value"))
+                assertEquals(42, requireValue<Int>("value"))
             }
         }
         assertEquals(2, report.passed)

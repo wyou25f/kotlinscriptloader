@@ -35,7 +35,7 @@ class KSLScriptTestSuiteBuilder(val name: String) {
     fun test(name: String, block: KSLScriptTestContext.() -> Unit) {
         require(name.isNotBlank()) { "Test name must not be blank" }
         require(name.length <= MAX_NAME_LENGTH) { "Test name is too long" }
-        require(testCases.size < MAX_TESTS_PER_SUITE) {
+        check(testCases.size < MAX_TESTS_PER_SUITE) {
             "Test suite '$name' reached its limit ($MAX_TESTS_PER_SUITE)"
         }
         require(names.add(name)) { "Duplicate test name '$name' in suite '$this.name'" }
