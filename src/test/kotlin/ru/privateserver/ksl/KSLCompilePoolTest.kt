@@ -1,11 +1,15 @@
 package ru.privateserver.ksl
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 class KSLCompilePoolTest {
@@ -68,6 +72,37 @@ class KSLCompilePoolTest {
             assertEquals(null, firstFailure.get())
             assertEquals(null, secondFailure.get())
             assertTrue(!callerRanCompile.get())
+        }
+    }
+
+    @Test
+    fun `server thread fails fast when the compile queue is saturated`() {
+        KSLCompilePool(1).use { pool ->
+            val firstTaskStarted = CountDownLatch(1)
+            val releaseFirstTask = CountDownLatch(1)
+            val callerRanCompile = AtomicBoolean(false)
+            val firstBatch = Thread({
+                pool.map((1..5).toList()) { value ->
+                    if (value == 1) {
+                        firstTaskStarted.countDown()
+                        check(releaseFirstTask.await(3, TimeUnit.SECONDS))
+                    }
+                    value
+                }
+            }, "background-compile-batch")
+            firstBatch.start()
+            assertTrue(firstTaskStarted.await(2, TimeUnit.SECONDS))
+
+            assertThrows(RejectedExecutionException::class.java) {
+                pool.map((6..10).toList(), waitWhenSaturated = false) { value ->
+                    callerRanCompile.set(true)
+                    value
+                }
+            }
+            assertFalse(callerRanCompile.get(), "saturated server-thread submission must not run compilation inline")
+            releaseFirstTask.countDown()
+            firstBatch.join(3_000)
+            assertFalse(firstBatch.isAlive)
         }
     }
 

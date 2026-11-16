@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — Script & Addon Authoring Reliability
+## 1.3.0 — Script & Addon Authoring Reliability
 - Added local authoring warnings for blocking sleeps/coroutines, unconditional loops, unmanaged threads and direct Bukkit scheduler tasks.
 - `/ksl validate [script-id]` now combines compiler diagnostics with authoring warnings and writes a bounded full report under `plugins/KotlinScriptLoader/reports/`.
 - Validation never evaluates script code; chat output is capped while the report retains the full diagnostic set (up to 2 MB).

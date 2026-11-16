@@ -1190,7 +1190,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     // Compile phase: no Bukkit API, so it runs on any thread. Several files compile side by side with scripts.compile-threads > 1.
     private fun compileBatch(files: List<File>): Map<String, CompiledUnit> {
         if (compileThreads <= 1 || files.size <= 1) return files.associate { scriptId(it) to scriptEngine.compile(it) }
-        val units = compilePool.map(files) { file -> scriptEngine.compile(file) }
+        val units = compilePool.map(files, waitWhenSaturated = !Bukkit.isPrimaryThread()) { file ->
+            scriptEngine.compile(file)
+        }
         return files.indices.associate { scriptId(files[it]) to units[it] }
     }
 

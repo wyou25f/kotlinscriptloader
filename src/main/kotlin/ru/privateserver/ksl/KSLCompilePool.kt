@@ -34,10 +34,14 @@ internal class KSLCompilePool(threads: Int) : AutoCloseable {
     )
 
     /**
-     * Submit only a bounded window at a time. If another batch occupies the queue,
-     * wait for capacity instead of executing compilation on the caller.
+     * Submit only a bounded window at a time. Background submitters wait for capacity;
+     * a server-thread submitter fails fast rather than waiting behind another compile.
      */
-    fun <T, R> map(items: List<T>, action: (T) -> R): List<R> {
+    fun <T, R> map(
+        items: List<T>,
+        waitWhenSaturated: Boolean = true,
+        action: (T) -> R
+    ): List<R> {
         if (items.isEmpty()) return emptyList()
         val results = ArrayList<R>(items.size)
         val windowSize = parallelism + queueCapacity
@@ -47,7 +51,7 @@ internal class KSLCompilePool(threads: Int) : AutoCloseable {
             val batch = items.subList(offset, end)
             val futures = ArrayList<Future<R>>(batch.size)
             try {
-                batch.forEach { item -> futures += submitBackpressured { action(item) } }
+                batch.forEach { item -> futures += submitBackpressured(waitWhenSaturated) { action(item) } }
                 futures.forEach { results += it.get() }
             } catch (error: Throwable) {
                 futures.forEach { it.cancel(true) }
@@ -58,13 +62,19 @@ internal class KSLCompilePool(threads: Int) : AutoCloseable {
         return results
     }
 
-    private fun <R> submitBackpressured(action: () -> R): Future<R> {
+    private fun <R> submitBackpressured(waitWhenSaturated: Boolean, action: () -> R): Future<R> {
         val task = FutureTask(Callable { action() })
         try {
             executor.execute(task)
             return task
         } catch (rejected: RejectedExecutionException) {
             if (executor.isShutdown) throw rejected
+            if (!waitWhenSaturated) {
+                throw RejectedExecutionException(
+                    "KSL compile queue is full; refusing to block the server thread",
+                    rejected
+                )
+            }
         }
 
         try {

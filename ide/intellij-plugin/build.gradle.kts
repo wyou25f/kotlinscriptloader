@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "ru.privateserver.ksl"
-version = "1.2.0"
+version = "1.3.0"
 
 repositories {
     mavenCentral()
@@ -38,7 +38,7 @@ intellijPlatform {
         version = project.version.toString()
         description = """
             <p>Editor assistance for Kotlin Script Loader server scripts and addons.</p>
-            <p>Provides KSL API completion, dependency and API diagnostics, quick fixes, and local static preflight checks for Kotlin .kts files.</p>
+            <p>Provides KSL API completion, dependency and API diagnostics, quick fixes, and local static preflight checks for KSL .kts scripts and addon Kotlin sources.</p>
         """.trimIndent()
         vendor {
             name = "KotlinScriptLoader"
@@ -48,7 +48,7 @@ intellijPlatform {
             sinceBuild = "243"
         }
         changeNotes = """
-            1.2.0: Add Gradle dependency diagnostics, KSL API typo checks, deprecated/version compatibility warnings, quick fixes and local script preflight.
+            1.3.0: Add blocking-call diagnostics, addon Kotlin preflight, synchronous reload warnings and improved authoring safety checks.
         """.trimIndent()
     }
 }
