@@ -1,6 +1,6 @@
 # KSL IntelliJ IDEA plugin
 
-The IntelliJ Platform plugin for Kotlin Script Loader. Version **1.3.0** adds a
+The IntelliJ Platform plugin for Kotlin Script Loader. Version **1.2.2** adds a
 local static preflight pass, dependency diagnostics, API typo checks, version
 warnings, blocking-call warnings and addon-source checks. It does not add a
 runtime dependency to the server.
