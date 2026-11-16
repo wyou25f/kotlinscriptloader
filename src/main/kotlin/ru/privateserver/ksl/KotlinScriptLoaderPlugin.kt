@@ -270,6 +270,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     fun runtimeSnapshot(): ru.privateserver.ksl.rt.KSLRuntimeSnapshot =
         ru.privateserver.ksl.rt.KSLRuntimeMonitor.snapshot()
 
+    fun compileCacheSummary(): String = if (::scriptRunner.isInitialized) scriptRunner.compileCacheSummary() else "not initialized"
+
     private val scriptDiagnostics = KSLScriptDiagnostics()
     private val scriptRuntimeScopes = ConcurrentHashMap<String, ru.privateserver.ksl.rt.KSLRuntimeScope>()
 
@@ -299,6 +301,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 "loadAverage=${snapshot.systemLoadAverage}, gcCount=${snapshot.gcCount}, gcTimeMs=${snapshot.gcTimeMillis}")
         }.onFailure { add("JVM snapshot unavailable: ${it::class.simpleName}: ${it.message}") }
 
+        if (::scriptRunner.isInitialized) add("KSL compile cache: ${scriptRunner.compileCacheSummary()}")
         add("DB queues: write=${runCatching { dbQueueSize() }.getOrDefault(-1)}, " +
             "read=${runCatching { dbQueryQueueSize() }.getOrDefault(-1)}")
         if (::workScheduler.isInitialized) {

@@ -113,6 +113,7 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                     sender.sendMessage(plugin.message("runtime.threads", "threads" to m.liveThreads, "daemon" to m.daemonThreads, "gc" to m.gcCount, "gc-ms" to m.gcTimeMillis))
                     sender.sendMessage(plugin.message("runtime.pool", "workers" to w.workers, "active" to w.active, "queued" to w.queued, "tracked" to w.tracked))
                     sender.sendMessage(plugin.message("runtime.tasks", "completed" to w.completed, "rejected" to w.rejected))
+                    sender.sendMessage("§7Compile cache: ${plugin.compileCacheSummary()}")
                     sender.sendMessage(plugin.message("runtime.setting"))
                     sender.sendMessage(plugin.message("runtime.heap-note"))
                 }
