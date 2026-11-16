@@ -1,0 +1,90 @@
+name: Publish KotlinScriptLoader release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ksl-release-1.2.1
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check whether release tag already exists
+        id: tag
+        shell: bash
+        run: |
+          set +e
+          git ls-remote --exit-code --tags origin "refs/tags/1.2.1" >/dev/null 2>&1
+          result=$?
+          set -e
+          if [ "$result" -eq 0 ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          elif [ "$result" -eq 2 ]; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Unable to verify whether tag 1.2.1 exists (git ls-remote exit $result)." >&2
+            exit "$result"
+          fi
+
+      - name: Set up Java 21
+        if: steps.tag.outputs.exists == 'false'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up PowerShell
+        if: steps.tag.outputs.exists == 'false'
+        shell: bash
+        run: |
+          command -v pwsh >/dev/null || {
+            echo "PowerShell Core is required for the strict release build."
+            exit 1
+          }
+
+      - name: Set up Gradle
+        if: steps.tag.outputs.exists == 'false'
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run strict release build
+        if: steps.tag.outputs.exists == 'false'
+        shell: pwsh
+        run: ./build.ps1 -Task Release -NoDaemon -Detailed
+
+      - name: Generate SHA-256 checksum
+        if: steps.tag.outputs.exists == 'false'
+        shell: bash
+        run: |
+          test -s build/libs/KotlinScriptLoader-1.2.1.jar
+          cd build/libs
+          sha256sum KotlinScriptLoader-1.2.1.jar | tee KotlinScriptLoader-1.2.1.jar.sha256
+
+      - name: Publish GitHub release
+        if: steps.tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: 1.2.1
+          target_commitish: main
+          name: KotlinScriptLoader 1.2.1
+          body_path: RELEASE_NOTES_1.2.1.md
+          files: |
+            build/libs/KotlinScriptLoader-1.2.1.jar
+            build/libs/KotlinScriptLoader-1.2.1.jar.sha256
+          draft: false
+          prerelease: false
+          make_latest: true
+
+      - name: Report existing release
+        if: steps.tag.outputs.exists == 'true'
+        run: echo "Release 1.2.1 already exists; refusing to overwrite it."

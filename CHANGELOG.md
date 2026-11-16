@@ -1,27 +1,27 @@
-## Unreleased
+## Scheduler API and addon ownership
 
 - Added full `KSLTaskSpec` scheduling through owner-bound task scopes; the scope forcibly applies its own owner ID to prevent task-owner spoofing.
 - Added addon-scope ownership and cancellation tests for specification-based tasks, plus IntelliJ completion examples.
 
-## Unreleased
+## Scheduler lifecycle and factory safety
 
 - Made custom scheduler factory registrations closeable and identity-safe, preventing addon classloader references from surviving unload or removing a replacement factory.
 - Added an addon-scope factory overload that registers, creates and owns a custom scheduler engine as one lifecycle unit.
 - Corrected scheduler engine ID examples to match the registry's strict identifier format.
 
-## Unreleased
+## Public addon scheduler API
 
 - Exposed scheduler-engine registration, discovery and creation through the public addon API.
 - Extended `KSLAddonScope.create` with a scheduler ID; each addon scope can own an independent custom engine and closes its tasks before closing the engine.
 - Added custom scheduler factory coverage and expanded addon/IntelliJ documentation and completion fixtures.
 
-## Unreleased
+## Scheduler SPI
 
 - Added the `kslshu` scheduler SPI: official KSL adapter, typed task specifications, handles and results, fixed-rate/fixed-delay execution, and an addon-extensible scheduler factory registry.
 - Added the owner-bound `scheduler` API to script context; its tasks are automatically cancelled by the existing script unload lifecycle.
 - Expanded IntelliJ IDEA completion fixtures and JAR verification for the new scheduler API; documented custom scheduler authoring and thread-safety requirements.
 
-## Unreleased
+## MCP, runtime metrics and testing
 
 - Added an optional loopback-only MCP Streamable HTTP endpoint with environment-backed Bearer authentication, strict Host/Origin checks, bounded request handling, rate limiting and read-only server/script tools. Single-script reload is opt-in and confirmation-gated; MCP is disabled by default.
 
@@ -34,6 +34,14 @@
 - Expanded Script Testing Framework with suite-level lifecycle hooks, clearer assertion helpers, stack-trace diagnostics, and text/JSON reports.
 
 # KotlinScriptLoader 1.2.1
+
+## Performance, compilation and security
+
+- Added a bounded LRU cache for successful script compilations, keyed by source and compilation environment; exposed hit/miss/hit-rate and eviction telemetry.
+- Bounded the compilation worker queue and applied back-pressure instead of retaining unbounded reload work or rejecting submissions during queue saturation.
+- Hardened local-library discovery and script watching against symbolic-link traversal outside scripts/.
+- Kept retired local-library classloaders alive while existing scripts may still resolve classes; close them during orderly shutdown.
+- Denied java.lang.System to strict sandboxed scripts and extended regression coverage.
 
 ## Звуковой движок, частицы и мобы
 
@@ -61,8 +69,6 @@
 - Задачи `onTick` прекращаются для умерших или невалидных сущностей; повторяющиеся ошибки обработчика не оставляют бесконечный поток исключений.
 
 ---
-
-# Unreleased
 
 ## GUI, PersistentDataContainer и совместимость
 
