@@ -16,7 +16,7 @@ public final class KslAsyncThreadSafetyAnnotator implements Annotator {
         String source = file.getText();
         for (KslAsyncThreadSafetyAnalyzer.Diagnostic diagnostic :
             KslAsyncThreadSafetyAnalyzer.analyze(source)) {
-            holder.newAnnotation(
+            var builder = holder.newAnnotation(
                     HighlightSeverity.WARNING,
                     diagnostic.method() + " is called inside " + diagnostic.asyncFunction()
                         + " { }. Bukkit/Paper world and player operations should run on the server thread.")
