@@ -381,14 +381,18 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     private val scriptDiagnostics = KSLScriptDiagnostics()
     private val scriptRuntimeScopes = ConcurrentHashMap<String, ru.privateserver.ksl.rt.KSLRuntimeScope>()
+    private val generationManager = KSLGenerationManager<CompiledUnit>()
 
-    /** Script-owned runtime resources are closed automatically on reload/unload. */
+    /** Script-owned runtime resources belong to the generation currently being evaluated. */
     fun scriptRuntimeScope(scriptId: String): ru.privateserver.ksl.rt.KSLRuntimeScope {
         require(scriptId.isNotBlank()) { "scriptId must not be blank" }
+        generationManager.currentScope(scriptId)?.let { return it }
         return scriptRuntimeScopes.computeIfAbsent(scriptId) {
             ru.privateserver.ksl.rt.KSLRT.scope("script:$it")
         }
     }
+
+    internal fun generationSnapshots(): List<KSLGenerationSnapshot> = generationManager.snapshots()
 
     /** Closes a runtime generation that belongs to a diagnostic or short-lived context. */
     internal fun closeScriptRuntimeScope(scriptId: String) {
@@ -424,6 +428,14 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
         add("DB queues: write=${runCatching { dbQueueSize() }.getOrDefault(-1)}, " +
             "read=${runCatching { dbQueryQueueSize() }.getOrDefault(-1)}")
+        val generations = generationManager.snapshots()
+        val activeGenerations = generations.count { it.active }
+        add("Script generations: active=$activeGenerations, initializing=${generations.size - activeGenerations}")
+        generations.take(100).forEach { generation ->
+            add("Generation ${generation.scriptId}#${generation.generation}: ${generation.state}, " +
+                "resources=${generation.ownedResources}, stamp=${generation.sourceStamp.take(12)}")
+            generation.failure?.let { add("Generation failure: $it") }
+        }
         if (::workScheduler.isInitialized) {
             runCatching { workScheduler.snapshot() }.onSuccess { workers ->
                 add("KSL workers: count=${workers.workers}, active=${workers.active}, queued=${workers.queued}, " +
@@ -700,6 +712,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         if (reloadCompileInProgress.get()) logger.warning(message("console.shutdown.compile-in-progress"))
         runCatching { unloadAllScripts() }
             .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} ${message("console.shutdown.scripts-failed", "error" to it.message)}") }
+        runCatching { generationManager.closeAll() }
+            .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} Не удалось закрыть generations: ${it.message}") }
         runCatching { if (::workScheduler.isInitialized) workScheduler.close() }
             .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} ${message("console.shutdown.workers-failed", "error" to it.message)}") }
         if (::scriptEngine.isInitialized) {
@@ -1312,32 +1326,85 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             if (id in liveScripts) {
                 logger.warning("[$id] ${KSLError.SCRIPT_KEPT_PREVIOUS.tag} ${message("console.script.previous-version-kept")}")
             }
-            // Recorded so a broken script is not recompiled until it changes.
+            // A compile failure never creates a generation and never replaces the active version.
             scriptStamps[id] = unit.sourceStamp.ifBlank { stampOf(unit.file) }
             addonManager.publish("ksl.script.failed", KSLScriptEvent(id, unit.compileMillis, unit.errors.firstOrNull() ?: unit.crash?.message))
             val code = unit.failure ?: KSLError.SCRIPT_COMPILE
             notifyAdmins("§c✘ §f$id§7: ${unit.errors.firstOrNull() ?: unit.crash?.message ?: "ошибка"} §8[${code.code}] §7(подробнее: /ksl errors)")
             return false
         }
+
         val startedAt = System.nanoTime()
-        // Always discard the previous runtime first. If evaluation fails after registering some
-        // resources, run the same cleanup again so no partial listeners/tasks/commands survive.
-        val ok = replaceScriptRuntime(
-            unload = { unloadScript(id) },
-            evaluate = { scriptEngine.evaluate(unit) }
-        )
+        val previous = generationManager.activeGeneration(id)
+        val candidate = generationManager.begin(id, unit.sourceStamp, unit)
+
+        // External Bukkit registrations still use the existing owner registry. Retire the
+        // previous generation before evaluation, then recover its compiled artifact if the
+        // candidate fails during initialization.
+        unloadScript(id)
+        val ok = try {
+            generationManager.withCandidate(candidate) { scriptEngine.evaluate(unit) }
+        } catch (error: Throwable) {
+            logger.log(java.util.logging.Level.SEVERE, "[$id] Ошибка инициализации поколения ${candidate.number}", error)
+            false
+        }
+
+        var restored = false
         if (ok) {
+            generationManager.activate(candidate)
             liveScripts.add(id)
             scriptLastErrorById.remove(id)
         } else {
-            scriptLastErrorById[id] = "ошибка при выполнении"
+            val failure = scriptEngine.snapshot().lastFailure ?: "generation initialization failed"
+            // Remove every partial registration before attempting to restore the previous artifact.
+            unloadScript(id)
+            generationManager.fail(candidate, IllegalStateException(failure))
+
+            if (previous != null) {
+                val recovery = generationManager.begin(id, previous.sourceStamp, previous.artifact)
+                restored = try {
+                    generationManager.withCandidate(recovery) {
+                        scriptEngine.evaluate(previous.artifact)
+                    }
+                } catch (error: Throwable) {
+                    logger.log(java.util.logging.Level.SEVERE, "[$id] Не удалось восстановить поколение ${previous.number}", error)
+                    false
+                }
+
+                if (restored) {
+                    generationManager.activate(recovery)
+                    liveScripts.add(id)
+                    logger.warning(
+                        "[$id] Новое поколение не запустилось; восстановлено предыдущее содержимое " +
+                            "в поколении ${recovery.number}."
+                    )
+                } else {
+                    unloadScript(id)
+                    generationManager.fail(recovery, IllegalStateException("previous generation recovery failed"))
+                }
+            }
+            scriptLastErrorById[id] = if (restored) {
+                "Новая версия не запустилась; восстановлена предыдущая версия (generation ${previous?.number}). Причина: $failure"
+            } else {
+                "Ошибка выполнения нового поколения: $failure" +
+                    if (previous != null) "; восстановить предыдущую версию не удалось" else ""
+            }
         }
+
         scriptLastAttemptAtById[id] = System.currentTimeMillis()
         val totalMs = unit.compileMillis + (System.nanoTime() - startedAt) / 1_000_000
         loadMillisById[id] = totalMs
         scriptStamps[id] = unit.sourceStamp.ifBlank { stampOf(unit.file) }
-        addonManager.publish(if (ok) "ksl.script.loaded" else "ksl.script.failed", KSLScriptEvent(id, totalMs, if (ok) null else "ошибка выполнения"))
-        if (!ok) notifyAdmins("§c✘ §f$id§7: ошибка при выполнении, подробности в консоли §8[${KSLError.SCRIPT_RUNTIME.code}] §7(/ksl errors)")
+
+        val eventError = if (ok) null else scriptLastErrorById[id]
+        addonManager.publish(
+            if (ok) "ksl.script.loaded" else "ksl.script.failed",
+            KSLScriptEvent(id, totalMs, eventError)
+        )
+        if (!ok) {
+            val suffix = if (restored) "Предыдущая версия восстановлена." else "Рабочей версии нет."
+            notifyAdmins("§c✘ §f$id§7: ошибка выполнения. $suffix Подробности: /ksl errors")
+        }
         return ok
     }
 
@@ -1485,7 +1552,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         }
     }
 
-    private fun unloadScript(scriptName: String) {
+    private fun unloadScript(scriptName: String, closeGeneration: Boolean = true) {
         if (::customEnchantManager.isInitialized) runCatching { customEnchantManager.unregisterOwner(scriptName) }
         if (::workScheduler.isInitialized) runCatching { workScheduler.cancelOwner(scriptName) }
         if (::effectManager.isInitialized) runCatching { effectManager.cleanupForScript(scriptName) }
@@ -1494,6 +1561,10 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         limitWarned.remove("$scriptName|T")
         loadMillisById.remove(scriptName)
         scriptDiagnostics.clearScript(scriptName)
+        if (closeGeneration) {
+            runCatching { generationManager.retireActive(scriptName) }
+                .onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось закрыть generation scope: ${it.message}") }
+        }
         runCatching { closeScriptRuntimeScope(scriptName) }
             .onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось закрыть runtime-ресурсы: ${it.message}") }
         if (::persistStore.isInitialized) runCatching { persistStore.clearScript(scriptName) }
@@ -1706,7 +1777,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     private fun knownScriptNames(): Set<String> =
         (tasksByScript.keys + listenersByScript.keys + commandsByScript.keys + placeholdersByScript.keys +
-            scriptsWithGuis + libraryRegistry.scriptNames() + entityManager.scriptNames() + scriptRuntimeScopes.keys + scriptDiagnostics.scriptIds() + loadMillisById.keys + scriptStamps.keys + liveScripts).toSet()
+            scriptsWithGuis + libraryRegistry.scriptNames() + entityManager.scriptNames() + scriptRuntimeScopes.keys + generationManager.scriptIds() + scriptDiagnostics.scriptIds() + loadMillisById.keys + scriptStamps.keys + liveScripts).toSet()
 
     data class DiagnosticLine(val label: String, val ok: Boolean, val detail: String)
 
