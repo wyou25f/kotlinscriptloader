@@ -5,6 +5,9 @@ import ru.privateserver.ksl.KSL
 import ru.privateserver.ksl.KSLAPI
 import ru.privateserver.ksl.KSLAddon
 import ru.privateserver.ksl.api.KSLAddonScope
+import ru.privateserver.ksl.api.KSLLogLevel
+import ru.privateserver.ksl.api.KSLLogger
+import ru.privateserver.ksl.api.KSLLoggerConfig
 import java.time.Duration
 
 class ExampleAddon : JavaPlugin(), KSLAddon {
@@ -13,6 +16,7 @@ class ExampleAddon : JavaPlugin(), KSLAddon {
     override val addonDescription = "Example KSL addon starter"
 
     private var scope: KSLAddonScope? = null
+    private var addonLog: KSLLogger? = null
 
     override fun onEnable() {
         if (!KSL.isAvailable) {
@@ -24,6 +28,17 @@ class ExampleAddon : JavaPlugin(), KSLAddon {
     }
 
     override fun onLoad(api: KSLAPI) {
+        val log = api.createLogger(
+            ownerId = addonId,
+            name = "lifecycle",
+            config = KSLLoggerConfig().apply {
+                level = KSLLogLevel.DEBUG
+                prefix = "EXAMPLE"
+            }
+        )
+        addonLog = log
+        log.info("Addon loaded", "version" to addonVersion)
+
         // This starter registers and owns its own scheduler engine instance.
         scope = KSLAddonScope.create(api, schedulerId = "example-addon.metrics") { environment ->
             ExampleScheduler(environment)
@@ -37,13 +52,15 @@ class ExampleAddon : JavaPlugin(), KSLAddon {
             initialDelay = Duration.ofSeconds(10)
         ) { task ->
             // Worker thread: keep Bukkit world/player access out of this callback.
-            logger.fine("Example addon heartbeat #${task.execution}")
+            log.child("scheduler").debug("Heartbeat", "execution" to task.execution)
         }
     }
 
     override fun onUnload() {
+        addonLog?.info("Addon unloading")
         scope?.close()
         scope = null
+        addonLog = null
     }
 
     override fun onDisable() {

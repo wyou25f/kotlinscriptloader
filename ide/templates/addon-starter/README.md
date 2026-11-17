@@ -24,7 +24,8 @@
 - ExampleAddon.kt — регистрация KSLAddon, service и lifecycle.
 - ExampleScheduler.kt — пример адаптера scheduler SPI.
 - dsl/PlayerDsl.kt — собственные Kotlin extension-функции для KTS.
-- scripts/example.kts — пример использования addon DSL.
+- scripts/example.kts — пример использования addon DSL и scriptLogger.
+- ExampleAddon.kt — пример api.createLogger, уровней и дочерней категории.
 
 ## Рекомендуемый подход
 
@@ -34,6 +35,9 @@
 - Не вызывайте Bukkit world/player/inventory API из worker threads.
 - Добавляйте addon DSL в KTS через api.addDefaultImports("example.addon.dsl.*").
 - Держите зависимости аддона в Gradle и проверьте, что они доступны на сервере.
+- Для логов используйте api.createLogger(addonId, name, config) или api.logger(...) из Kotlin DSL.
+- Администратор задаёт минимум logging.default-level и точечные logging.owner-levels в KSL config.yml; logger не может понизить серверный минимум.
+
 
 ## Сборка
 

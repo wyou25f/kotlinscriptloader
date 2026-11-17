@@ -34,6 +34,10 @@ through **Settings → Plugins → ⚙ → Install Plugin from Disk**.
   review the resulting code and keep only Bukkit API work on the server thread.
 - **Authoring safety:** warns about `Thread.sleep`, `runBlocking`, unconditional loops,
   manually created threads/executors and synchronous `KSLAPI.reloadScript` calls.
+- **Structured logging:** completion suggests `scriptLogger`, `KSLLoggerConfig`,
+  `KSLLogLevel`, logger methods, child categories and addon logger APIs.
+- **Unstructured output:** bare `print/println` in KSL `.kts` scripts gets a local warning
+  and a quick fix to replace the call with `scriptLogger().info(...)`.
 - **Addon projects:** local preflight also analyzes Kotlin `.kt` files that reference
   KSL, in addition to server `.kts` scripts.
 - **Preflight:** right-click a Kotlin `.kts` file and choose
