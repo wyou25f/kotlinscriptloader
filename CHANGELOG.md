@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — Generation Runtime and Quality
+
+- Added per-script generation identities and isolated runtime scopes for each initialized version.
+- A failed runtime initialization now cleans partial registrations and attempts to re-evaluate the last successfully compiled artifact in a fresh generation.
+- Script registry reports the recovered script as DEGRADED when the latest update failed but the previous version was restored.
+- `/ksl runtime` and watchdog diagnostics now include active generation state and generation-owned runtime-scope resource counts.
+- Added focused generation lifecycle tests and JAR-content verification for the generation runtime classes.
+- Recovery re-runs the previous script code; it does not roll back arbitrary world changes, outbound requests or committed database writes.
+
 ## 1.2.1 maintenance update — stability and early warnings
 
 - Added trend-aware DB queue pressure monitoring with an early growth signal, high-watermark fallback and one warning per pressure episode.
