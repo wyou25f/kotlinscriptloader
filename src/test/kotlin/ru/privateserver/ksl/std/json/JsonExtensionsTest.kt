@@ -100,6 +100,67 @@ class JsonExtensionsTest {
     }
 
     @Test
+    fun compatibleParserAcceptsJsonCommentsTrailingCommasAndBom() {
+        val source = "\uFEFF" + """
+            {
+              // values from older hand-edited config files
+              "name": "KSL",
+              "items": [1, 2,],
+            }
+        """.trimIndent()
+
+        val parsed = parseJsonCompatible(source) as JsonObject
+        assertEquals("KSL", parsed.string("name"))
+        assertEquals(2, parsed.arrayValue("items")?.size)
+        assertThrows(IllegalArgumentException::class.java) {
+            parseJson("""{"name":"KSL", // comment
+                "items":[1,2,]}""")
+        }
+        assertEquals(null, parseJsonCompatibleOrNull("{broken"))
+    }
+
+    @Test
+    fun conversionPreservesLargeNumbersAndSupportsTomlTemporalValues() {
+        val tree = parseJson(
+            """{"large":9223372036854775808,"precise":0.123456789012345678901,"date":"2026-11-17"}"""
+        )
+        val values = tree.toKotlinValue() as Map<*, *>
+
+        assertTrue(values["large"] is java.math.BigInteger)
+        assertEquals(java.math.BigDecimal("0.123456789012345678901"), values["precise"])
+        assertEquals(tree, values.toJsonElement())
+        assertEquals(JsonPrimitive("2026-11-17"), java.time.LocalDate.parse("2026-11-17").toJsonElement())
+    }
+
+    @Test
+    fun conversionRejectsCyclesAndEnforcesDepthNodeAndSequenceLimits() {
+        val cycle = mutableListOf<Any?>()
+        cycle += cycle
+
+        assertThrows(IllegalArgumentException::class.java) { cycle.toJsonElement() }
+        assertThrows(IllegalArgumentException::class.java) {
+            listOf(listOf("deep")).toJsonElement(KSLJsonLimits(maxDepth = 1))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            listOf("one", "two").toJsonElement(KSLJsonLimits(maxNodes = 2))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            sequenceOf(1, 2, 3).toJsonElement(KSLJsonLimits(maxCollectionItems = 2))
+        }
+    }
+
+    @Test
+    fun jsonPointerResolvesKeysWithDotsSlashesAndTildes() {
+        val tree = parseJson(
+            """{"a.b":{"x/y":"value"},"tilde~key":[{"ok":true}]}"""
+        )
+
+        assertEquals("value", tree.atJsonPointer("/a.b/x~1y")?.stringOrNull())
+        assertEquals(true, tree.atJsonPointer("/tilde~0key/0/ok")?.booleanOrNull())
+        assertNull(tree.atJsonPointer("not/a/pointer"))
+    }
+
+    @Test
     fun nestedPathsResolveObjectKeysAndArrayIndices() {
         val value = parseJson("""{"profile":{"roles":[{"name":"admin"}]}}""")
         assertEquals("admin", value.stringAtPath("profile.roles.0.name"))
