@@ -656,6 +656,26 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         })
     }
 
+    private fun stopDatabaseExecutor(
+        name: String,
+        executor: java.util.concurrent.ExecutorService,
+        onDropped: (Int) -> Unit
+    ) {
+        val result = KSLExecutorShutdown.shutdown(executor, 3L, java.util.concurrent.TimeUnit.SECONDS)
+        if (result.droppedTasks > 0) onDropped(result.droppedTasks)
+        if (!result.terminated || result.interrupted) {
+            val reason = if (result.interrupted) {
+                "shutdown wait was interrupted; forced cancellation was requested"
+            } else {
+                "executor did not terminate within 3 seconds; forced cancellation was requested"
+            }
+            logger.warning(
+                "${KSLError.SYSTEM_SHUTDOWN.tag} " +
+                    "${message("console.database.queue-stop-failed", "error" to "$name: $reason")}"
+            )
+        }
+    }
+
     override fun onDisable() {
         shuttingDown.set(true)
         runCatching { mcpServer?.close() }
@@ -695,17 +715,20 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         runCatching { papiUnregister?.invoke() }
             .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} ${message("console.shutdown.placeholderapi-failed", "error" to it.message)}") }
         runCatching {
-            dbExecutor.shutdown()
-            dbQueryExecutor.shutdown()
-            if (!dbExecutor.awaitTermination(3, java.util.concurrent.TimeUnit.SECONDS)) {
-                val dropped = dbExecutor.shutdownNow().size
-                if (dropped > 0) logger.warning("${KSLError.DB_WRITES_LOST.tag} ${message("console.database.writes-dropped", "count" to dropped)}")
+            stopDatabaseExecutor("writer", dbExecutor) { dropped ->
+                logger.warning("${KSLError.DB_WRITES_LOST.tag} ${message("console.database.writes-dropped", "count" to dropped)}")
             }
-            if (!dbQueryExecutor.awaitTermination(3, java.util.concurrent.TimeUnit.SECONDS)) {
-                val dropped = dbQueryExecutor.shutdownNow().size
-                if (dropped > 0) logger.warning(message("console.database.reads-dropped", "count" to dropped))
+        }.onFailure {
+            logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} ${message("console.database.queue-stop-failed", "error" to "writer: ${it.message}")}")
+        }
+        // Stop the reader pool independently: an interrupted writer wait must not skip this cleanup.
+        runCatching {
+            stopDatabaseExecutor("reader", dbQueryExecutor) { dropped ->
+                logger.warning(message("console.database.reads-dropped", "count" to dropped))
             }
-        }.onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} ${message("console.database.queue-stop-failed", "error" to it.message)}") }
+        }.onFailure {
+            logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} ${message("console.database.queue-stop-failed", "error" to "reader: ${it.message}")}")
+        }
         runCatching { if (::database.isInitialized) database.close() }
             .onFailure { logger.warning("${KSLError.SYSTEM_SHUTDOWN.tag} ${message("console.database.close-failed", "error" to it.message)}") }
         if (::customEnchantManager.isInitialized) runCatching { customEnchantManager.close() }
