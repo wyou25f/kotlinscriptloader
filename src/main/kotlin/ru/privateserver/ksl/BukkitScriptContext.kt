@@ -1592,7 +1592,7 @@ open class BukkitScriptContext(
         val frozen = this.clone()
         val spec = KSLEffectSpec(particle, { frozen }, internalPlugin.addonManager.effectShapes)
         spec.builder()
-        return internalPlugin.effectManager.play(scriptName, spec)
+        return internalPlugin.effectManager.play(scriptName, spec, contextRuntimeScope)
     }
 
     fun Entity.playEffect(particle: Particle, follow: Boolean = false, builder: KSLEffectSpec.() -> Unit): Int {
@@ -1607,7 +1607,7 @@ open class BukkitScriptContext(
         val spec = KSLEffectSpec(particle, supplier, internalPlugin.addonManager.effectShapes)
         if (follow) spec.stopCondition = { !entity.isValid }
         spec.builder()
-        return internalPlugin.effectManager.play(scriptName, spec)
+        return internalPlugin.effectManager.play(scriptName, spec, contextRuntimeScope)
     }
 
     fun Location.effect(particle: Particle, builder: KSLEffectSpec.() -> Unit): Int =
@@ -1832,6 +1832,6 @@ open class BukkitScriptContext(
         spawnShopkeeper(location, name, removeOnReload, builder)
 
     fun LivingEntity.behavior(builder: KSLEntityBehaviorBuilder.() -> Unit) {
-        KSLEntityBehaviorBuilder(internalPlugin, scriptName, this).builder()
+        KSLEntityBehaviorBuilder(internalPlugin, scriptName, this, contextRuntimeScope).builder()
     }
 }
