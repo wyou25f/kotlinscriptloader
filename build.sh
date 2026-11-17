@@ -33,7 +33,7 @@ Options:
   --help, -h             Show this help
 
 Java 21 is required. Build logs and reports are written to build-reports/.
-The project version guard pins this maintenance line to 1.2.1.
+The project version guard pins this unpublished development line to 1.2.2-SNAPSHOT.
 USAGE
 }
 
