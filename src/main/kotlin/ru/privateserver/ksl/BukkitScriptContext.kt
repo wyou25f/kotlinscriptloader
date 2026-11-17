@@ -410,6 +410,61 @@ open class BukkitScriptContext(
         return values
     }
 
+    private fun resolveNbtFile(fileName: String, operation: String): File {
+        require(fileName.endsWith(".nbt", ignoreCase = true)) {
+            "$operation expects a .nbt file: '$fileName'"
+        }
+        val root = internalPlugin.scriptsFolder.canonicalFile
+        val file = File(root, fileName).canonicalFile
+        require(file.toPath() != root.toPath() && file.toPath().startsWith(root.toPath())) {
+            "${KSLError.YAML_PATH_ESCAPE.tag} $operation: '$fileName' выходит за пределы scripts/"
+        }
+        return file
+    }
+
+    /** Reads a binary NBT compound from scripts/. Returns null when the file is missing. */
+    @Synchronized
+    fun loadNBT(
+        fileName: String,
+        limits: ru.privateserver.ksl.nbt.KSLNBTLimits = ru.privateserver.ksl.nbt.KSLNBTLimits.DEFAULT,
+        maxFileBytes: Long = ru.privateserver.ksl.nbt.KSLNBTFiles.DEFAULT_MAX_FILE_BYTES
+    ): ru.privateserver.ksl.nbt.KSLNBTDocument? {
+        requireActiveGeneration("loadNBT")
+        return ru.privateserver.ksl.nbt.KSLNBTFiles.load(
+            resolveNbtFile(fileName, "loadNBT"),
+            limits,
+            maxFileBytes
+        )
+    }
+
+    /** Writes a detached document as binary NBT. The existing file survives a failed write. */
+    @Synchronized
+    fun saveNBT(fileName: String, document: ru.privateserver.ksl.nbt.KSLNBTDocument): Boolean {
+        requireActiveGeneration("saveNBT")
+        val file = resolveNbtFile(fileName, "saveNBT")
+        return try {
+            ru.privateserver.ksl.nbt.KSLNBTFiles.save(file, document)
+            true
+        } catch (ex: Exception) {
+            internalPlugin.logger.warning("[$scriptName] Не удалось сохранить NBT '$fileName': ${ex.message}")
+            false
+        }
+    }
+
+    /** Loads or creates a detached binary NBT document, applies edits and atomically saves it. */
+    @Synchronized
+    fun editNBT(
+        fileName: String,
+        limits: ru.privateserver.ksl.nbt.KSLNBTLimits = ru.privateserver.ksl.nbt.KSLNBTLimits.DEFAULT,
+        block: ru.privateserver.ksl.nbt.KSLNBTCompound.() -> Unit
+    ): ru.privateserver.ksl.nbt.KSLNBTDocument {
+        requireActiveGeneration("editNBT")
+        val document = loadNBT(fileName, limits) ?: ru.privateserver.ksl.nbt.KSLNBTEngine.empty(limits)
+        document.edit(block)
+        check(saveNBT(fileName, document)) { "Could not save binary NBT file '$fileName'" }
+        return document
+    }
+
     private fun resolveYamlFile(fileName: String, operation: String): File {
         val root = internalPlugin.scriptsFolder.canonicalFile
         val file = File(root, fileName).canonicalFile

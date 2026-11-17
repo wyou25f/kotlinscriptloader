@@ -87,7 +87,7 @@ class KSLPublicApiTest {
     @Test
     fun `structured logger is part of the public addon api`() {
         assertTrue(KSLAPI::class.java.methods.any { it.name == "createLogger" })
-        assertEquals(12, ru.privateserver.ksl.KSL.API_VERSION)
+        assertEquals(13, ru.privateserver.ksl.KSL.API_VERSION)
         assertEquals("DEBUG", KSLLogLevel.DEBUG.name)
     }
 
@@ -133,6 +133,13 @@ class KSLPublicApiTest {
         assertEquals("ru.privateserver.ksl.KSLEntityBuilder", KSLEntityBuilder::class.java.name)
         assertEquals("ru.privateserver.ksl.KSLEntityBehaviorBuilder", KSLEntityBehaviorBuilder::class.java.name)
     }
+    @Test
+    fun `detached nbt types are exported from the public api package`() {
+        assertEquals("ru.privateserver.ksl.nbt.KSLNBTDocument", KSLNBTDocument::class.java.name)
+        assertEquals("ru.privateserver.ksl.nbt.KSLNBTLimits", KSLNBTLimits::class.java.name)
+        assertEquals("ru.privateserver.ksl.nbt.KSLNBTCompound", KSLNBTCompound::class.java.name)
+    }
+
     @Test
     fun `addon config is exported from the public api package`() {
         assertEquals("ru.privateserver.ksl.KSLAddonConfig", KSLAddonConfig::class.java.name)

@@ -23,6 +23,12 @@ import ru.privateserver.ksl.KSLSoundSequenceBuilder as CoreKSLSoundSequenceBuild
 import ru.privateserver.ksl.KSLEffectSpec as CoreKSLEffectSpec
 import ru.privateserver.ksl.KSLEntityBuilder as CoreKSLEntityBuilder
 import ru.privateserver.ksl.KSLEntityBehaviorBuilder as CoreKSLEntityBehaviorBuilder
+import ru.privateserver.ksl.nbt.KSLNBTDocument as CoreKSLNBTDocument
+import ru.privateserver.ksl.nbt.KSLNBTLimits as CoreKSLNBTLimits
+import ru.privateserver.ksl.nbt.KSLNBTView as CoreKSLNBTView
+import ru.privateserver.ksl.nbt.KSLNBTCompound as CoreKSLNBTCompound
+import ru.privateserver.ksl.nbt.KSLNBTEngine as CoreKSLNBTEngine
+import ru.privateserver.ksl.nbt.KSLNBTFiles as CoreKSLNBTFiles
 import ru.privateserver.ksl.std.item.KSLCustomEnchantDamageTakenContext as CoreKSLCustomEnchantDamageTakenContext
 import ru.privateserver.ksl.KSLScriptEvent as CoreKSLScriptEvent
 import ru.privateserver.ksl.api.library.KSLModuleDescriptor as CoreKSLModuleDescriptor
@@ -99,6 +105,14 @@ typealias KSLEffectSpec = CoreKSLEffectSpec
 typealias KSLEntityBuilder = CoreKSLEntityBuilder
 /** Event and tick callbacks attached to one living entity. */
 typealias KSLEntityBehaviorBuilder = CoreKSLEntityBehaviorBuilder
+/** Detached NBT document and its bounded parser/codec. */
+typealias KSLNBTDocument = CoreKSLNBTDocument
+typealias KSLNBTLimits = CoreKSLNBTLimits
+typealias KSLNBTView = CoreKSLNBTView
+typealias KSLNBTCompound = CoreKSLNBTCompound
+typealias KSLNBTEngine = CoreKSLNBTEngine
+/** Binary .nbt file reader and atomic writer. */
+typealias KSLNBTFiles = CoreKSLNBTFiles
 /** Context for armor enchantments reacting to damage taken. */
 typealias KSLCustomEnchantDamageTakenContext = CoreKSLCustomEnchantDamageTakenContext
 typealias KSLScriptEvent = CoreKSLScriptEvent
