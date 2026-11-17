@@ -1,4 +1,4 @@
-name: Release publishing (disabled during 1.2.2 development)
+name: Release publishing (disabled pending explicit approval)
 
 on:
   workflow_dispatch:
@@ -12,6 +12,6 @@ jobs:
     steps:
       - name: Explain release status
         run: |
-          echo "KSL 1.2.2 is a development build and must not be published yet."
-          echo "The last intended public release is 1.2.1."
-          echo "Re-enable the release workflow only after an explicit release request."
+          echo "Publishing is disabled for the KSL 1.2.1 maintenance line."
+          echo "Do not create a release or tag as part of stability maintenance."
+          echo "Only re-enable this workflow after an explicit release request."
