@@ -2,10 +2,10 @@
 
 package ru.privateserver.ksl.std.json
 
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -15,48 +15,195 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
+import java.math.BigDecimal
+import java.math.BigInteger
+import java.time.temporal.TemporalAccessor
+import java.util.IdentityHashMap
+import java.util.UUID
 
 private val jsonNumberPattern = Regex("-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?")
 
-/** Converts common Kotlin values (including nested maps and collections) into JSON values. */
-fun Any?.toJsonElement(): JsonElement = when (this) {
-    null -> JsonNull
-    is JsonElement -> this
-    is String -> JsonPrimitive(this)
-    is Char -> JsonPrimitive(this.toString())
-    is Boolean -> JsonPrimitive(this)
-    is Byte, is Short, is Int, is Long -> JsonPrimitive(this as Number)
-    is Float -> {
-        require(isFinite()) { "JSON does not support non-finite numbers" }
-        JsonPrimitive(this)
-    }
-    is Double -> {
-        require(isFinite()) { "JSON does not support non-finite numbers" }
-        JsonPrimitive(this)
-    }
-    is Number -> {
-        require(jsonNumberPattern.matches(toString())) { "Number is not a valid finite JSON number: " + toString() }
-        JsonPrimitive(this)
-    }
-    is Enum<*> -> JsonPrimitive(name)
-    is Map<*, *> -> buildJsonObject {
-        this@toJsonElement.forEach { (key, value) ->
-            require(key is String) { "JSON object keys must be strings, got ${key?.let { it::class.simpleName } ?: "null"}" }
-            put(key, value.toJsonElement())
+/** Bounds object-to-JSON conversions so accidental cycles or enormous sequences fail predictably. */
+data class KSLJsonLimits(
+    val maxDepth: Int = 64,
+    val maxNodes: Int = 100_000,
+    val maxCollectionItems: Int = 25_000,
+    val maxStringLength: Int = 1_048_576
+) {
+    init {
+        require(maxDepth in 1..256) { "maxDepth must be between 1 and 256" }
+        require(maxNodes in 1..1_000_000) { "maxNodes must be between 1 and 1000000" }
+        require(maxCollectionItems in 1..1_000_000) {
+            "maxCollectionItems must be between 1 and 1000000"
+        }
+        require(maxStringLength in 1..16_777_216) {
+            "maxStringLength must be between 1 and 16777216"
         }
     }
-    is Iterable<*> -> buildJsonArray { this@toJsonElement.forEach { add(it.toJsonElement()) } }
-    is Array<*> -> buildJsonArray { this@toJsonElement.forEach { add(it.toJsonElement()) } }
-    is ByteArray -> buildJsonArray { this@toJsonElement.forEach { add(it.toJsonElement()) } }
-    is ShortArray -> buildJsonArray { this@toJsonElement.forEach { add(it.toJsonElement()) } }
-    is IntArray -> buildJsonArray { this@toJsonElement.forEach { add(it.toJsonElement()) } }
-    is LongArray -> buildJsonArray { this@toJsonElement.forEach { add(it.toJsonElement()) } }
-    is FloatArray -> buildJsonArray { this@toJsonElement.forEach { add(it.toJsonElement()) } }
-    is DoubleArray -> buildJsonArray { this@toJsonElement.forEach { add(it.toJsonElement()) } }
-    is BooleanArray -> buildJsonArray { this@toJsonElement.forEach { add(it.toJsonElement()) } }
-    is CharArray -> buildJsonArray { this@toJsonElement.forEach { add(it.toString().toJsonElement()) } }
-    is Sequence<*> -> buildJsonArray { this@toJsonElement.forEach { add(it.toJsonElement()) } }
-    else -> throw IllegalArgumentException("Unsupported JSON value type: ${this::class.qualifiedName}")
+
+    companion object {
+        @JvmField
+        val DEFAULT = KSLJsonLimits()
+    }
+}
+
+/** Converts common Kotlin values (including nested maps and collections) into JSON values. */
+fun Any?.toJsonElement(): JsonElement = toJsonElement(KSLJsonLimits.DEFAULT)
+
+/**
+ * Converts Kotlin values to JSON with explicit depth, node, collection and string bounds.
+ * Cyclic maps/collections and infinite or oversized sequences are rejected with an
+ * [IllegalArgumentException] instead of overflowing the stack or exhausting memory.
+ */
+fun Any?.toJsonElement(limits: KSLJsonLimits): JsonElement {
+    var visitedNodes = 0
+    val activeContainers = IdentityHashMap<Any, Boolean>()
+
+    fun <T> inContainer(container: Any, block: () -> T): T {
+        require(activeContainers.put(container, true) == null) {
+            "Cyclic object graph cannot be converted to JSON"
+        }
+        return try {
+            block()
+        } finally {
+            activeContainers.remove(container)
+        }
+    }
+
+    fun convert(value: Any?, depth: Int): JsonElement {
+        require(depth <= limits.maxDepth) {
+            "JSON conversion exceeded maximum nesting depth ${limits.maxDepth}"
+        }
+        visitedNodes++
+        require(visitedNodes <= limits.maxNodes) {
+            "JSON conversion exceeded maximum node count ${limits.maxNodes}"
+        }
+
+        return when (value) {
+            null -> JsonNull
+            is JsonElement -> value
+            is String -> {
+                require(value.length <= limits.maxStringLength) {
+                    "JSON string exceeds maximum length ${limits.maxStringLength}"
+                }
+                JsonPrimitive(value)
+            }
+            is Char -> JsonPrimitive(value.toString())
+            is Boolean -> JsonPrimitive(value)
+            is Byte, is Short, is Int, is Long -> JsonPrimitive(value as Number)
+            is BigInteger, is BigDecimal -> {
+                val number = value.toString()
+                require(jsonNumberPattern.matches(number)) {
+                    "Number is not a valid finite JSON number: $number"
+                }
+                JsonPrimitive(value as Number)
+            }
+            is Float -> {
+                require(value.isFinite()) { "JSON does not support non-finite numbers" }
+                JsonPrimitive(value)
+            }
+            is Double -> {
+                require(value.isFinite()) { "JSON does not support non-finite numbers" }
+                JsonPrimitive(value)
+            }
+            is Number -> {
+                val number = value.toString()
+                require(jsonNumberPattern.matches(number)) {
+                    "Number is not a valid finite JSON number: $number"
+                }
+                JsonPrimitive(value)
+            }
+            is Enum<*> -> JsonPrimitive(value.name)
+            is TemporalAccessor -> JsonPrimitive(value.toString())
+            is UUID -> JsonPrimitive(value.toString())
+            is Map<*, *> -> inContainer(value) {
+                buildJsonObject {
+                    var count = 0
+                    value.forEach { (key, child) ->
+                        count++
+                        require(count <= limits.maxCollectionItems) {
+                            "JSON object exceeds maximum entry count ${limits.maxCollectionItems}"
+                        }
+                        require(key is String) {
+                            "JSON object keys must be strings, got ${key?.let { it::class.simpleName } ?: "null"}"
+                        }
+                        require(key.length <= limits.maxStringLength) {
+                            "JSON object key exceeds maximum length ${limits.maxStringLength}"
+                        }
+                        put(key, convert(child, depth + 1))
+                    }
+                }
+            }
+            is Iterable<*> -> inContainer(value) {
+                buildJsonArray {
+                    var count = 0
+                    value.forEach { child ->
+                        count++
+                        require(count <= limits.maxCollectionItems) {
+                            "JSON array exceeds maximum item count ${limits.maxCollectionItems}"
+                        }
+                        add(convert(child, depth + 1))
+                    }
+                }
+            }
+            is Sequence<*> -> inContainer(value) {
+                buildJsonArray {
+                    val iterator = value.iterator()
+                    var count = 0
+                    while (iterator.hasNext()) {
+                        require(count < limits.maxCollectionItems) {
+                            "JSON sequence exceeds maximum item count ${limits.maxCollectionItems}"
+                        }
+                        add(convert(iterator.next(), depth + 1))
+                        count++
+                    }
+                }
+            }
+            is Array<*> -> inContainer(value) {
+                require(value.size <= limits.maxCollectionItems) {
+                    "JSON array exceeds maximum item count ${limits.maxCollectionItems}"
+                }
+                buildJsonArray { value.forEach { add(convert(it, depth + 1)) } }
+            }
+            is ByteArray -> {
+                require(value.size <= limits.maxCollectionItems)
+                buildJsonArray { value.forEach { add(convert(it, depth + 1)) } }
+            }
+            is ShortArray -> {
+                require(value.size <= limits.maxCollectionItems)
+                buildJsonArray { value.forEach { add(convert(it, depth + 1)) } }
+            }
+            is IntArray -> {
+                require(value.size <= limits.maxCollectionItems)
+                buildJsonArray { value.forEach { add(convert(it, depth + 1)) } }
+            }
+            is LongArray -> {
+                require(value.size <= limits.maxCollectionItems)
+                buildJsonArray { value.forEach { add(convert(it, depth + 1)) } }
+            }
+            is FloatArray -> {
+                require(value.size <= limits.maxCollectionItems)
+                buildJsonArray { value.forEach { add(convert(it, depth + 1)) } }
+            }
+            is DoubleArray -> {
+                require(value.size <= limits.maxCollectionItems)
+                buildJsonArray { value.forEach { add(convert(it, depth + 1)) } }
+            }
+            is BooleanArray -> {
+                require(value.size <= limits.maxCollectionItems)
+                buildJsonArray { value.forEach { add(convert(it, depth + 1)) } }
+            }
+            is CharArray -> {
+                require(value.size <= limits.maxCollectionItems)
+                buildJsonArray { value.forEach { add(convert(it.toString(), depth + 1)) } }
+            }
+            else -> throw IllegalArgumentException(
+                "Unsupported JSON value type: ${value::class.qualifiedName}"
+            )
+        }
+    }
+
+    return convert(this, 0)
 }
 
 /** Builds a JSON object from ordinary Kotlin values. */
@@ -104,25 +251,110 @@ fun JsonArray.longAt(index: Int): Long? = getOrNull(index)?.longOrNull()
 fun JsonArray.doubleAt(index: Int): Double? = getOrNull(index)?.doubleOrNull()?.takeIf { it.isFinite() }
 fun JsonArray.boolAt(index: Int): Boolean? = getOrNull(index)?.booleanOrNull()
 
+private val strictJsonCodec = Json {
+    explicitNulls = true
+    allowSpecialFloatingPointValues = false
+}
 
-/** Parses JSON and wraps syntax errors with a concise, script-friendly message. */
-fun parseJson(source: String): JsonElement {
+private val compatibleJsonCodec = Json {
+    explicitNulls = true
+    allowSpecialFloatingPointValues = false
+    allowComments = true
+    allowTrailingComma = true
+}
+
+/** Parses strict RFC 8259 JSON and wraps syntax errors with a concise script-friendly message. */
+fun parseJson(source: String): JsonElement = parseWithCodec(source, strictJsonCodec)
+
+/**
+ * Parses JSON plus common configuration-file extensions: // and /* */ comments,
+ * and trailing commas. Serialization remains standard JSON and omits comments.
+ */
+fun parseJsonCompatible(source: String): JsonElement = parseWithCodec(source, compatibleJsonCodec)
+
+private fun parseWithCodec(source: String, codec: Json): JsonElement {
     require(source.isNotBlank()) { "JSON source must not be blank" }
     return try {
-        Json.parseToJsonElement(source)
+        codec.parseToJsonElement(source.removePrefix("\uFEFF"))
     } catch (ex: Exception) {
         throw IllegalArgumentException("Invalid JSON: ${ex.message ?: ex::class.simpleName}", ex)
     }
 }
 
-/** Parses JSON without throwing; malformed input returns null. JSON literal null returns JsonNull. */
+/** Parses strict JSON without throwing; malformed input returns null. JSON literal null returns JsonNull. */
 fun parseJsonOrNull(source: String): JsonElement? =
     runCatching { parseJson(source) }.getOrNull()
 
-/** Serializes a JSON value as compact or human-readable JSON. */
+/** Parses compatible JSON without throwing; malformed input returns null. */
+fun parseJsonCompatibleOrNull(source: String): JsonElement? =
+    runCatching { parseJsonCompatible(source) }.getOrNull()
+
+/** Serializes a JSON value as compact or human-readable standards-compliant JSON. */
 fun JsonElement.toJsonString(pretty: Boolean = false): String =
-    Json { prettyPrint = pretty; explicitNulls = true }
+    Json { prettyPrint = pretty; explicitNulls = true; allowSpecialFloatingPointValues = false }
         .encodeToString(JsonElement.serializer(), this)
+
+/**
+ * Converts a JSON tree into ordinary mutable Kotlin values.
+ * Integers retain 64-bit precision where possible and fall back to BigInteger;
+ * decimal/exponent values become BigDecimal for loss-minimizing TOML/JSON transfer.
+ */
+fun JsonElement.toKotlinValue(limits: KSLJsonLimits = KSLJsonLimits.DEFAULT): Any? {
+    var visitedNodes = 0
+
+    fun convert(value: JsonElement, depth: Int): Any? {
+        require(depth <= limits.maxDepth) {
+            "JSON conversion exceeded maximum nesting depth ${limits.maxDepth}"
+        }
+        visitedNodes++
+        require(visitedNodes <= limits.maxNodes) {
+            "JSON conversion exceeded maximum node count ${limits.maxNodes}"
+        }
+
+        return when (value) {
+            JsonNull -> null
+            is JsonObject -> {
+                require(value.size <= limits.maxCollectionItems) {
+                    "JSON object exceeds maximum entry count ${limits.maxCollectionItems}"
+                }
+                linkedMapOf<String, Any?>().apply {
+                    value.forEach { (key, child) ->
+                        require(key.length <= limits.maxStringLength) {
+                            "JSON object key exceeds maximum length ${limits.maxStringLength}"
+                        }
+                        put(key, convert(child, depth + 1))
+                    }
+                }
+            }
+            is JsonArray -> {
+                require(value.size <= limits.maxCollectionItems) {
+                    "JSON array exceeds maximum item count ${limits.maxCollectionItems}"
+                }
+                value.map { convert(it, depth + 1) }
+            }
+            is JsonPrimitive -> when {
+                value.isString -> {
+                    require(value.content.length <= limits.maxStringLength) {
+                        "JSON string exceeds maximum length ${limits.maxStringLength}"
+                    }
+                    value.content
+                }
+                value.booleanOrNull != null -> value.booleanOrNull
+                else -> parseKotlinNumber(value.content)
+            }
+        }
+    }
+
+    return convert(this, 0)
+}
+
+private fun parseKotlinNumber(content: String): Number {
+    require(jsonNumberPattern.matches(content)) { "Invalid JSON number: $content" }
+    if (!content.contains('.') && !content.contains('e', ignoreCase = true)) {
+        return content.toLongOrNull() ?: BigInteger(content)
+    }
+    return BigDecimal(content)
+}
 
 /**
  * Resolves a dot-separated path through objects and arrays.
@@ -142,6 +374,20 @@ fun JsonElement.atPath(path: String): JsonElement? {
 /** Resolves a path or throws an error that identifies the missing JSON field. */
 fun JsonElement.requireAtPath(path: String): JsonElement =
     atPath(path) ?: throw IllegalArgumentException("Required JSON path '$path' was not found")
+
+/** Reads an RFC 6901 JSON Pointer, including keys containing dots or slashes. */
+fun JsonElement.atJsonPointer(pointer: String): JsonElement? {
+    if (pointer.isEmpty()) return this
+    if (!pointer.startsWith('/')) return null
+    return pointer.drop(1).split('/').fold(this as JsonElement?) { current, rawSegment ->
+        val segment = rawSegment.replace("~1", "/").replace("~0", "~")
+        when (val value = current) {
+            is JsonObject -> value[segment]
+            is JsonArray -> segment.toIntOrNull()?.let(value::getOrNull)
+            else -> null
+        }
+    }
+}
 
 /** Deep-merges objects; nested objects merge recursively while arrays and scalar values are replaced. */
 fun JsonObject.deepMerge(override: JsonObject): JsonObject = buildJsonObject {
