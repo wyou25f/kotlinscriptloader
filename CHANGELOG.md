@@ -5,7 +5,9 @@
 - Added per-script generation identities and isolated runtime scopes for each initialized version.
 - A failed runtime initialization now cleans partial registrations and attempts to re-evaluate the last successfully compiled artifact in a fresh generation.
 - Script registry reports the recovered script as DEGRADED when the latest update failed but the previous version was restored.
-- Bound Bukkit tasks, listeners, commands, GUI, placeholders, event-bus subscriptions, worker handles/futures, particle effects and entity tick tasks to captured generation scopes.
+- Bound Bukkit tasks, listeners, commands, GUI, placeholders, event-bus subscriptions, worker handles/futures, particle effects, entity spawns, entity tick-index records and entity death/damage/attack/drop hooks to captured generation scopes.
+- Generation-owned entity cleanup respects `removeOnReload`; a rejected spawn is removed even when it requested persistence, because it never acquired a valid owner scope.
+- GUI disposal requested from a worker thread is marshalled to Bukkit's primary thread.
 - Stale script contexts now reject new resource registration instead of attaching resources to a replacement generation.
 - `/ksl runtime` and watchdog diagnostics include active generation state and generation-owned runtime-scope resource counts.
 - Added TOML arrays-of-tables and inline-table writing, stricter numeric validation and exact integer accessors.
