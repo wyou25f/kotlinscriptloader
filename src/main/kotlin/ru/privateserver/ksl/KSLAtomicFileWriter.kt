@@ -19,6 +19,13 @@ internal object KSLAtomicFileWriter {
     private val locks = Array(64) { ReentrantLock() }
 
     fun writeText(destination: File, content: String) {
+        writeFile(destination) { temporary ->
+            Files.write(temporary.toPath(), content.toByteArray(StandardCharsets.UTF_8))
+        }
+    }
+
+    /** Writes binary or structured data through a unique sibling temp file, then atomically replaces the target. */
+    fun writeFile(destination: File, writer: (File) -> Unit) {
         val target = destination.toPath().toAbsolutePath().normalize()
         val parent = target.parent
             ?: throw IllegalArgumentException("Destination must have a parent directory: $destination")
@@ -31,7 +38,10 @@ internal object KSLAtomicFileWriter {
                 .take(48)
             val temporary = Files.createTempFile(parent, ".$safeName.", ".tmp")
             try {
-                Files.write(temporary, content.toByteArray(StandardCharsets.UTF_8))
+                writer(temporary.toFile())
+                check(Files.isRegularFile(temporary)) {
+                    "File writer did not produce a regular temporary file for $destination"
+                }
                 try {
                     Files.move(
                         temporary,
