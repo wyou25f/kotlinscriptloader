@@ -64,7 +64,7 @@ api.reloadScriptAsync("events/join") { result ->
 
 `reloadScript` is synchronous and blocks the caller until compilation and swap finish. Keep it for controlled tooling where blocking is intentional; prefer `reloadScriptAsync` for normal addon integrations.
 
-The public KSL API contract is version 11. An addon can declare `minApiVersion = 11` when it requires this method.
+The public KSL API contract is version 12. Version 12 includes the structured logger for scripts and addons; see [Structured logging](13-structured-logging.md). Addons should compare `minApiVersion` with the installed `api.apiVersion` rather than hard-code a value.
 
 ## IntelliJ preflight
 

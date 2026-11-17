@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.2 development update — structured logging and IDEA authoring
+
+- Added API v12 structured logging for `.kts` scripts and Kotlin/Java addons: named loggers, TRACE/DEBUG/INFO/WARN/ERROR levels, child categories and key/value fields.
+- Added administrator-controlled global minimum level, per-script/per-addon overrides and bounded message length. Code-level logger preferences cannot lower the server minimum.
+- Existing `log`, `logWarn` and `logError` script helpers remain compatible and delegate to structured logging.
+- Expanded IntelliJ completion for logger types, levels, child categories and addon APIs.
+- Added a local warning for bare `print`/`println` calls and a `.kts` quick fix to use `scriptLogger().info(...)`.
+- IntelliJ plugin remains version 1.2.2. The KSL 1.2.2 build remains development-only; no public release/tag is created by this work.
+
 ## 1.2.2 — Script & Addon Authoring Reliability
 - Added local authoring warnings for blocking sleeps/coroutines, unconditional loops, unmanaged threads and direct Bukkit scheduler tasks.
 - `/ksl validate [script-id]` now combines compiler diagnostics with authoring warnings and writes a bounded full report under `plugins/KotlinScriptLoader/reports/`.

@@ -8,14 +8,15 @@ KSL 1.2.2 focuses on safer authoring for larger Kotlin scripts and addons, clear
 - **Readable error reports:** validation writes the full diagnostic set to `plugins/KotlinScriptLoader/reports/`. Chat output stays compact; reports are capped at 2 MB and the newest ten are retained. Fifty or more diagnostics no longer need to flood console output.
 - **No script execution during validation:** validation compiles source and checks it, but does not evaluate top-level script code.
 - **Async addon reload:** public API v11 adds `KSLAPI.reloadScriptAsync`, allowing addons to compile one script off-thread and apply the result on the server thread.
-- **IntelliJ addon diagnostics:** the IDE companion analyzes KSL `.kt` addon sources as well as server `.kts` scripts, with warnings for common blocking patterns and synchronous reload calls.
+- **IntelliJ authoring support:** the IDE companion provides KSL API/logging completion, local preflight, and a quick fix for unstructured print calls while retaining thread-safety and dependency diagnostics.
+- **Structured logging:** API v12 adds admin-aware script/addon loggers, child categories, structured fields and per-owner server log-level overrides.
 - **Safer compile saturation:** the bounded compile pool never runs rejected work inline. Background submitters wait for capacity; server-thread submitters fail fast if the queue is unexpectedly saturated.
 - **Regression coverage:** added tests for 50 diagnostics, report truncation, authoring warnings, async reload callbacks and compile-queue saturation.
 
 ## Compatibility
 
 - Main build: Paper 1.21.x and Java 21.
-- Public KSL API version: **11**.
+- Public KSL API version: **12**.
 - Compatibility branches remain separate and are not modified by this release.
 
 ## Important notes

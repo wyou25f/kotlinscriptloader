@@ -21,6 +21,7 @@
 - [Надёжная разработка скриптов и аддонов](10-authoring-reliability.md) — validation, 50+ диагностик, watchdog-aware подходы и безопасный async reload.
 - [Удобная разработка скриптов и аддонов](11-developer-workflow.md) — starter kit, API patterns, addon scope, IDE completion и workflow 1.2.2.
 - [Java и Kotlin API без лишней рутины](12-java-kotlin-interop.md) — стандартные JDK imports, вызовы Java/Kotlin методов и строгие sandbox-ограничения.
+- [Структурированное логирование KSL](13-structured-logging.md) — logger DSL для .kts и аддонов, уровни и серверные overrides.
 
 ## Офлайн-сайт
 
