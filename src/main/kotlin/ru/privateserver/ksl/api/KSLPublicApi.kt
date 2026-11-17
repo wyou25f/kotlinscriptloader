@@ -230,6 +230,13 @@ inline fun <reified T : Any> KSLAPI.serviceOrThrow(key: String): T =
 fun KSLAPI.addImports(vararg packages: String) =
     addDefaultImports(*packages)
 
+/** Creates a structured addon logger with an optional per-logger configuration block. */
+fun KSLAPI.logger(
+    ownerId: String,
+    name: String = ownerId,
+    configure: KSLLoggerConfig.() -> Unit = {}
+): KSLLogger = createLogger(ownerId, name, KSLLoggerConfig().apply(configure))
+
 /** Returns a typed integration hook, or null when no matching hook is registered. */
 inline fun <reified T : KSLHook> KSLAPI.hook(hookId: String): T? =
     getHook(hookId, T::class.java)

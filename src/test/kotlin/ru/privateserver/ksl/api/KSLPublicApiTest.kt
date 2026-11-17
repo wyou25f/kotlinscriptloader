@@ -85,6 +85,13 @@ class KSLPublicApiTest {
     }
 
     @Test
+    fun `structured logger is part of the public addon api`() {
+        assertTrue(KSLAPI::class.java.methods.any { it.name == "createLogger" })
+        assertEquals(12, ru.privateserver.ksl.KSL.API_VERSION)
+        assertEquals("DEBUG", KSLLogLevel.DEBUG.name)
+    }
+
+    @Test
     fun `public api aliases and helper names remain available`() {
         val installed = api()
         assertEquals(KSL_API_VERSION, ru.privateserver.ksl.KSL.API_VERSION)

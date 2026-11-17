@@ -148,6 +148,34 @@ class KSLScriptDefinitionTest {
         )
     }
 
+
+    @Test
+    fun `script and addon logger DSL compile in KSL scripts`() {
+        val source = """
+            val scriptLog = scriptLogger("economy") {
+                level = KSLLogLevel.DEBUG
+                prefix = "SHOP"
+            }
+            scriptLog.info("purchase saved", "amount" to 25)
+            scriptLog.child("database").warn("slow query")
+
+            val addonLog = api.logger("example-addon", "storage") {
+                level = KSLLogLevel.INFO
+                includeOwner = true
+            }
+            addonLog.error("storage ready")
+        """.trimIndent()
+
+        val result = runBlocking {
+            JvmScriptCompiler()(source.toScriptSource("structured_logging.kts"), KSLScriptCompilationConfiguration)
+        }
+        assertTrue(
+            result is ResultWithDiagnostics.Success,
+            "KSL structured logging should compile: " +
+                (result as? ResultWithDiagnostics.Failure)?.reports?.joinToString("; ") { it.message }
+        )
+    }
+
     @Test
     fun `script template exposes the canonical runtime definition to IDE tooling`() {
         val definition = KSLScript::class.java.getAnnotation(KotlinScript::class.java)
