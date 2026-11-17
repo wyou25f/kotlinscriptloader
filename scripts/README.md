@@ -25,7 +25,7 @@ Examples (run from the repository root):
     ./build.sh Build --no-daemon
     ./build.sh Quality --offline
     ./scripts/test-build.sh --detailed --open-report
-    ./scripts/inspect-jar.sh build/libs/KotlinScriptLoader-1.2.1.jar
+    ./scripts/inspect-jar.sh build/libs/KotlinScriptLoader-1.2.2-SNAPSHOT.jar
     ./scripts/collect-diagnostics.sh --include-build-output --run-environment-check
 
 ## Windows and PowerShell
