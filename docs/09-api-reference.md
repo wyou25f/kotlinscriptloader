@@ -196,7 +196,7 @@ try {
 
 1. Открой папку ide/ как Gradle project.
 2. Используй JDK 21 и JAR той же версии, что установлена на сервере.
-3. Передай -PkslJar=/path/to/KotlinScriptLoader-1.2.2-SNAPSHOT.jar.
+3. Передай -PkslJar=/path/to/KotlinScriptLoader-1.2.2.jar.
 4. Передай -PkslScriptsDir=/path/to/plugins/KotlinScriptLoader/scripts, чтобы IDE индексировала живые скрипты.
 5. Выполни verifyKslIdeSetup. Эта задача проверяет классы шаблона/API и компилирует Addon Starter Kit.
 6. Открой ide/samples/ide-completion-smoke-test.kts и проверь completion, KDoc и navigation. Ошибочный sample предназначен только для проверки диагностики.

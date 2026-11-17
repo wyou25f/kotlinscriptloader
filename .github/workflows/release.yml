@@ -12,6 +12,6 @@ jobs:
     steps:
       - name: Explain release status
         run: |
-          echo "Publishing is disabled for the unpublished KSL 1.2.2-SNAPSHOT development line."
+          echo "Publishing is disabled for the unpublished KSL 1.2.2 development line."
           echo "Do not create a release or tag until the maintainer explicitly approves publication."
           echo "Only re-enable this workflow after an explicit release request."

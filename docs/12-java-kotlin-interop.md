@@ -131,6 +131,6 @@ KSL и Paper работают в одной JVM. Sandbox — это дополн
 
 ## Статус версии
 
-- Development build version: 1.2.2-SNAPSHOT.
+- Development build version: 1.2.2.
 - Последний публичный стабильный релиз: 1.2.1.
 - Релиз 1.2.1 не публикуется этим изменением.

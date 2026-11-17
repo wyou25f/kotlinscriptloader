@@ -112,8 +112,8 @@ KSL IntelliJ plugin дополняет completion для `scriptLogger`, `kslLog
 
 ## Совместимость
 
-- KSL development build version: 1.2.2-SNAPSHOT.
-- Public KSL API contract: version 12.
+- KSL development build version: 1.2.2.
+- Public KSL API contract: version 14.
 - IDEA plugin version: 1.2.1.
 - Последний публичный стабильный релиз KSL: 1.2.1.
 - Этот документ не создаёт GitHub Release или release tag.
