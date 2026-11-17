@@ -1,24 +1,8 @@
 name: Deploy KSL website to GitHub Pages
 
+# Publishing is intentionally manual while the 1.2.2 development line is in progress.
+# Do not restore push, release or workflow_run triggers until the maintainer explicitly asks to deploy.
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'website/**'
-  release:
-    types: [published]
-  workflow_run:
-    workflows:
-      - Build
-      - 'IntelliJ Plugin'
-      - 'KSL Compatibility Build · Minecraft 1.16.5–1.21'
-      - 'KSL Compatibility Build · Minecraft 1.18+'
-    types: [completed]
-    branches:
-      - main
-      - 'compat/mc-1.16.5-1.21'
-      - 'compat/mc-1.18-plus'
   workflow_dispatch:
 
 permissions:
