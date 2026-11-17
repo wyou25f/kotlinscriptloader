@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - 'website/**'
-      - '.github/workflows/pages.yml'
   release:
     types: [published]
   workflow_run:
