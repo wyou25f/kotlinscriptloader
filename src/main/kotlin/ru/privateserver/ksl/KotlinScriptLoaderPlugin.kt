@@ -800,14 +800,14 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         logger.info("$c9${bold}╚══════════════════════════════════════╝$r")
     }
 
-    // SQLite by default; MySQL/MariaDB when database.type says so (manage it with phpMyAdmin or any SQL client).
+    // SQLite by default; MySQL/MariaDB/PostgreSQL when database.type selects a remote backend.
     var dialect: KSLDialect = KSLDialect.SQLITE
         private set
 
     internal var databaseExecutionPolicy: KSLDatabaseExecutionPolicy = KSLDatabaseExecutionPolicy()
         private set
 
-    // database.cache in config.yml; by default on for SQLite and off for MySQL/MariaDB.
+    // database.cache in config.yml; by default on for SQLite and off for remote SQL backends.
     var tableCacheEnabled: Boolean = true
         private set
 
@@ -818,7 +818,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private fun readDatabaseSettings(): KSLDatabaseSettings = KSLDatabaseSettings.parse(
         type = config.getString("database.type", "sqlite") ?: "sqlite",
         host = config.getString("database.host", "localhost") ?: "localhost",
-        port = config.getInt("database.port", 3306),
+        port = config.getInt("database.port", 0),
         name = config.getString("database.name", "ksl") ?: "ksl",
         user = config.getString("database.user", "") ?: "",
         // Keeping the password out of config.yml: leave it empty and set the KSL_DB_PASSWORD environment variable.
@@ -864,7 +864,11 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                     addDataSourceProperty("busy_timeout", "5000")
                 } else {
                     jdbcUrl         = parsed.jdbcUrl()
-                    driverClassName = "org.mariadb.jdbc.Driver"
+                    driverClassName = if (parsed.dialect == KSLDialect.POSTGRESQL) {
+                        "org.postgresql.Driver"
+                    } else {
+                        "org.mariadb.jdbc.Driver"
+                    }
                     username        = parsed.user
                     password        = parsed.password
                 }

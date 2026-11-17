@@ -6,13 +6,20 @@ object Migrations {
 
     // One statement per schema version; the index is the version it brings the database to.
     fun statements(dialect: KSLDialect): List<String> {
+        val mysql = dialect.isMySqlFamily
         val sqlite = dialect == KSLDialect.SQLITE
-        // MySQL cannot index plain TEXT, and its default collation is case-insensitive while SQLite's is not;
-        // the binary collation keeps 'Foo' and 'foo' distinct on every backend.
-        val key = if (sqlite) "TEXT" else "VARCHAR(190) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
-        val body = if (sqlite) "TEXT" else "LONGTEXT"
+        val key = when {
+            sqlite -> "TEXT"
+            mysql -> "VARCHAR(190) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
+            else -> "VARCHAR(190)"
+        }
+        val body = when {
+            sqlite -> "TEXT"
+            mysql -> "LONGTEXT"
+            else -> "TEXT"
+        }
         val integer = if (sqlite) "INTEGER" else "BIGINT"
-        val tail = if (sqlite) "" else " ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        val tail = if (mysql) " ENGINE=InnoDB DEFAULT CHARSET=utf8mb4" else ""
         val k = dialect.quote("key")
         return listOf(
             "CREATE TABLE IF NOT EXISTS ksl_scripts (name $key PRIMARY KEY, last_loaded $integer)$tail",
@@ -37,18 +44,17 @@ object Migrations {
         return version - applied
     }
 
-    // SQLite keeps the version in its own header, which also keeps databases created by older KSL builds valid.
-    // MySQL/MariaDB have no equivalent, so a small table holds it.
+    // SQLite keeps the version in its own header; remote backends use ksl_meta.
     private fun readVersion(connection: Connection, dialect: KSLDialect): Int {
         if (dialect == KSLDialect.SQLITE) {
             return connection.createStatement().use { st ->
                 st.executeQuery("PRAGMA user_version").use { rs -> if (rs.next()) rs.getInt(1) else 0 }
             }
         }
+        val metaTail = if (dialect.isMySqlFamily) " ENGINE=InnoDB DEFAULT CHARSET=utf8mb4" else ""
         connection.createStatement().use {
             it.executeUpdate(
-                "CREATE TABLE IF NOT EXISTS ksl_meta (meta_key VARCHAR(64) NOT NULL PRIMARY KEY, meta_value VARCHAR(64)) " +
-                    "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+                "CREATE TABLE IF NOT EXISTS ksl_meta (meta_key VARCHAR(64) NOT NULL PRIMARY KEY, meta_value VARCHAR(64))$metaTail"
             )
         }
         return connection.prepareStatement("SELECT meta_value FROM ksl_meta WHERE meta_key = ?").use { ps ->
@@ -62,7 +68,9 @@ object Migrations {
             connection.createStatement().use { it.executeUpdate("PRAGMA user_version = $version") }
             return
         }
-        connection.prepareStatement(dialect.upsert("ksl_meta", listOf("meta_key", "meta_value"), listOf("meta_key"))).use { ps ->
+        connection.prepareStatement(
+            dialect.upsert("ksl_meta", listOf("meta_key", "meta_value"), listOf("meta_key"))
+        ).use { ps ->
             ps.setString(1, SCHEMA_VERSION_KEY)
             ps.setString(2, version.toString())
             ps.executeUpdate()

@@ -59,7 +59,7 @@ class KSLPersistStore(private val plugin: KotlinScriptLoaderPlugin) {
         return try {
             plugin.dbCall {
                 plugin.database.connection.use { conn ->
-                    conn.prepareStatement("SELECT value FROM ksl_persist WHERE script_name = ? AND `key` = ?").use { ps ->
+                    conn.prepareStatement("SELECT value FROM ksl_persist WHERE script_name = ? AND ${plugin.dialect.quote("key")} = ?").use { ps ->
                         ps.setString(1, scriptName)
                         ps.setString(2, key)
                         ps.executeQuery().use { rs ->

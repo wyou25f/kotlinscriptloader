@@ -25,7 +25,7 @@ class KSLDbMigrator(private val plugin: KotlinScriptLoaderPlugin) {
     }
 
     fun migrate(): Counts {
-        check(plugin.dialect.isRemote) { "Перенос нужен только при database.type: mysql или mariadb" }
+        check(plugin.dialect.isRemote) { "Перенос нужен только при удалённой database.type: mysql, mariadb или postgresql" }
         check(sourceFile.exists()) { "Файл ${sourceFile.name} не найден" }
         return openSource().use { source ->
             plugin.database.connection.use { target ->
