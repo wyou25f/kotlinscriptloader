@@ -203,8 +203,10 @@ internal class KSLGenerationManager<T : Any>(
 
     fun currentScope(scriptId: String): KSLRuntimeScope? {
         val candidate = evaluating.get()
-        if (candidate?.scriptId == scriptId && !candidate.scope.isClosed) return candidate.scope
-        return active[scriptId]?.scope?.takeUnless { it.isClosed }
+        if (candidate?.scriptId == scriptId) return candidate.scope
+        // Return a closed active scope as well. A closed generation must reject new
+        // registrations; falling back to a legacy scope would silently revive it.
+        return active[scriptId]?.scope
     }
 
     fun snapshots(): List<KSLGenerationSnapshot> {
