@@ -62,6 +62,13 @@ open class BukkitScriptContext(
     private val contextRuntimeScope = plugin.scriptRuntimeScope(scriptName)
     private val scopedTableViews = java.util.concurrent.ConcurrentHashMap<String, KSLQuickTable>()
 
+    @PublishedApi
+    internal fun requireActiveGeneration(operation: String) {
+        check(!contextRuntimeScope.isClosed) {
+            "[$scriptName] $operation: этот контекст принадлежит выгруженному поколению; повторно получи контекст после reload"
+        }
+    }
+
     /**
      * Raw plugin access is retained for trusted scripts and addon compatibility.
      * Sandboxed scripts must use the explicit KSL context API instead.
@@ -506,8 +513,10 @@ open class BukkitScriptContext(
     }
 
     // @key@ in message()/richMessage(); removed when the script unloads. Names of built-in tokens are reserved.
-    fun registerTextPlaceholder(key: String, resolver: (Player?) -> String?) =
+    fun registerTextPlaceholder(key: String, resolver: (Player?) -> String?) {
+        requireActiveGeneration("registerTextPlaceholder")
         internalPlugin.registerTextPlaceholder("script:$scriptName", key, resolver, contextRuntimeScope)
+    }
 
     fun YamlConfiguration.message(path: String, vararg replacements: Pair<String, Any?>): String {
         val raw = getString(path) ?: return path
@@ -832,6 +841,7 @@ open class BukkitScriptContext(
         block: () -> Unit,
         schedule: (Runnable) -> BukkitTask
     ): Int {
+        requireActiveGeneration(where)
         val taskId = java.util.concurrent.atomic.AtomicInteger()
         val completed = java.util.concurrent.atomic.AtomicBoolean()
         val failures = KSLTaskFailurePolicy(internalPlugin.taskFailureLimit)
@@ -873,38 +883,46 @@ open class BukkitScriptContext(
     }
 
     /** Runs on KSL's bounded priority-aware worker pool. Bukkit world access belongs in runSync(). */
-    fun worker(priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL, block: () -> Unit): Long =
-        ownWorkerHandle(internalPlugin.workScheduler.submitHandle(scriptName, priority) {
+    fun worker(priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL, block: () -> Unit): Long {
+        requireActiveGeneration("worker")
+        return ownWorkerHandle(internalPlugin.workScheduler.submitHandle(scriptName, priority) {
             executeWorker("worker:$priority", block)
         }).id
+    }
 
     /** Submits work and returns a handle with cancellation, state and completion information. */
     fun workerHandle(
         priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL,
         block: () -> Unit
-    ): ru.privateserver.ksl.rt.KSLWorkHandle =
-        ownWorkerHandle(internalPlugin.workScheduler.submitHandle(scriptName, priority) {
+    ): ru.privateserver.ksl.rt.KSLWorkHandle {
+        requireActiveGeneration("workerHandle")
+        return ownWorkerHandle(internalPlugin.workScheduler.submitHandle(scriptName, priority) {
             executeWorker("worker:$priority", block)
         })
+    }
 
     /** Returns a future for a value computed off-thread. Completion callbacks may run on the worker or registering thread; use runSync() for Bukkit operations. */
     fun <T> workerFuture(
         priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL,
         block: () -> T
-    ): java.util.concurrent.CompletableFuture<T> =
-        ownWorkerFuture(internalPlugin.workScheduler.submitFuture(scriptName, priority) {
+    ): java.util.concurrent.CompletableFuture<T> {
+        requireActiveGeneration("workerFuture")
+        return ownWorkerFuture(internalPlugin.workScheduler.submitFuture(scriptName, priority) {
             executeWorker("worker-future:$priority", block)
         })
+    }
 
     /** Runs one delayed worker callback; cancel the returned handle to stop it before execution. */
     fun workerAfter(
         delayMillis: Long,
         priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL,
         block: () -> Unit
-    ): ru.privateserver.ksl.rt.KSLWorkHandle =
-        ownWorkerHandle(internalPlugin.workScheduler.scheduleHandle(
+    ): ru.privateserver.ksl.rt.KSLWorkHandle {
+        requireActiveGeneration("workerAfter")
+        return ownWorkerHandle(internalPlugin.workScheduler.scheduleHandle(
             scriptName, delayMillis, java.util.concurrent.TimeUnit.MILLISECONDS, priority
         ) { executeWorker("worker-after:$priority", block) })
+    }
 
     /** Runs repeatedly on a fixed-rate clock. Overlapping ticks are skipped, never queued. */
     fun workerAtFixedRate(
@@ -912,10 +930,12 @@ open class BukkitScriptContext(
         initialDelayMillis: Long = 0L,
         priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL,
         block: () -> Unit
-    ): ru.privateserver.ksl.rt.KSLWorkHandle =
-        ownWorkerHandle(internalPlugin.workScheduler.scheduleAtFixedRateHandle(
+    ): ru.privateserver.ksl.rt.KSLWorkHandle {
+        requireActiveGeneration("workerAtFixedRate")
+        return ownWorkerHandle(internalPlugin.workScheduler.scheduleAtFixedRateHandle(
             scriptName, initialDelayMillis, periodMillis, java.util.concurrent.TimeUnit.MILLISECONDS, priority
         ) { executeWorker("worker-fixed-rate:$priority", block) })
+    }
 
     /** Runs repeatedly with the delay measured from completion of the previous run. */
     fun workerWithFixedDelay(
@@ -923,10 +943,12 @@ open class BukkitScriptContext(
         initialDelayMillis: Long = 0L,
         priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL,
         block: () -> Unit
-    ): ru.privateserver.ksl.rt.KSLWorkHandle =
-        ownWorkerHandle(internalPlugin.workScheduler.scheduleWithFixedDelayHandle(
+    ): ru.privateserver.ksl.rt.KSLWorkHandle {
+        requireActiveGeneration("workerWithFixedDelay")
+        return ownWorkerHandle(internalPlugin.workScheduler.scheduleWithFixedDelayHandle(
             scriptName, initialDelayMillis, delayMillis, java.util.concurrent.TimeUnit.MILLISECONDS, priority
         ) { executeWorker("worker-fixed-delay:$priority", block) })
+    }
 
     fun cpu(block: () -> Unit): Long = worker(block = block)
     fun work(block: () -> Unit): Long = worker(block = block)
@@ -982,6 +1004,7 @@ open class BukkitScriptContext(
         ignoreCancelled: Boolean = false,
         crossinline action: T.() -> Unit
     ) {
+        requireActiveGeneration("onEvent")
         val listener = object : Listener {}
         val executor = EventExecutor { _, event ->
             if (event is T) {
@@ -1049,12 +1072,14 @@ open class BukkitScriptContext(
     ) = registerCommandAny(name, aliases, permission, tabComplete, action)
 
     private fun addCommand(command: DynamicCommand) {
+        requireActiveGeneration("registerCommand")
         Bukkit.getCommandMap().register(internalPlugin.name.lowercase(), command)
         internalPlugin.trackCommand(scriptName, command, contextRuntimeScope)
     }
 
     // Subscriptions are dropped automatically when the script unloads.
     fun subscribe(topic: String, handler: (Any?) -> Unit): AutoCloseable {
+        requireActiveGeneration("subscribe")
         val subscription = internalPlugin.addonManager.subscribeFromScript(scriptName, topic, handler)
         val closed = java.util.concurrent.atomic.AtomicBoolean(false)
         val cleanup = contextRuntimeScope.onClose {
@@ -1399,6 +1424,7 @@ open class BukkitScriptContext(
         updateScriptTag { persistentTagStore.remove(it, key) }
 
     fun registerPlaceholder(key: String, resolver: (OfflinePlayer) -> String?) {
+        requireActiveGeneration("registerPlaceholder")
         if (!internalPlugin.papiEnabled) {
             internalPlugin.logger.warning("[$scriptName] ${KSLError.PAPI_MISSING.tag} PlaceholderAPI не найден — плейсхолдер '$key' пропущен"); return
         }
@@ -1475,6 +1501,7 @@ open class BukkitScriptContext(
         library<T>(key) ?: error("Библиотека '$key' не найдена — проверь, что скрипт с export(\"$key\", ...) загружен раньше (см. @requires)")
 
     fun gui(title: String, rows: Int = 3, builder: KSLGuiInstance.() -> Unit): KSLGuiInstance {
+        requireActiveGeneration("gui")
         val instance = KSLGuiInstance(scriptName, internalPlugin, rows, title)
         internalPlugin.trackGui(scriptName, instance, contextRuntimeScope)
         instance.builder()
@@ -1485,6 +1512,7 @@ open class BukkitScriptContext(
         internalPlugin.persistStore.property(scriptName, key, persistent, default)
 
     fun executeConsole(command: String) {
+        requireActiveGeneration("executeConsole")
         // The one DSL call that runs with full console rights; op, stop and similar are refused by default.
         if (!internalPlugin.canScriptExecuteConsole(scriptName, command)) {
             internalPlugin.logger.warning("[$scriptName] ${KSLError.COMMAND_BLOCKED.tag} Консольная команда '${command.trim().substringBefore(' ')}' заблокирована правилами безопасности")
@@ -1588,6 +1616,7 @@ open class BukkitScriptContext(
     }
 
     fun Location.playEffect(particle: Particle, builder: KSLEffectSpec.() -> Unit): Int {
+        requireActiveGeneration("playEffect")
         requirePrimaryThread("playEffect")
         val frozen = this.clone()
         val spec = KSLEffectSpec(particle, { frozen }, internalPlugin.addonManager.effectShapes)
@@ -1596,6 +1625,7 @@ open class BukkitScriptContext(
     }
 
     fun Entity.playEffect(particle: Particle, follow: Boolean = false, builder: KSLEffectSpec.() -> Unit): Int {
+        requireActiveGeneration("playEffect")
         requirePrimaryThread("playEffect")
         val entity = this
         val supplier: () -> Location = if (follow) {
@@ -1638,6 +1668,7 @@ open class BukkitScriptContext(
         removeOnReload: Boolean = true,
         builder: KSLEntityBuilder.() -> Unit = {}
     ): LivingEntity {
+        requireActiveGeneration("spawnCustomEntity")
         requirePrimaryThread("spawnCustomEntity")
         require(location.x.isFinite() && location.y.isFinite() && location.z.isFinite() && location.yaw.isFinite() && location.pitch.isFinite()) {
             "[$scriptName] spawnCustomEntity: координаты и поворот должны быть конечными числами"
@@ -1761,6 +1792,7 @@ open class BukkitScriptContext(
         removeOnReload: Boolean = true,
         builder: KSLShopkeeperBuilder.() -> Unit
     ): Villager {
+        requireActiveGeneration("spawnShopkeeper")
         requirePrimaryThread("spawnShopkeeper")
         require(name.isNotBlank()) { "[$scriptName] spawnShopkeeper: имя не должно быть пустым" }
         require(location.x.isFinite() && location.y.isFinite() && location.z.isFinite() && location.yaw.isFinite() && location.pitch.isFinite()) {
@@ -1832,6 +1864,7 @@ open class BukkitScriptContext(
         spawnShopkeeper(location, name, removeOnReload, builder)
 
     fun LivingEntity.behavior(builder: KSLEntityBehaviorBuilder.() -> Unit) {
+        requireActiveGeneration("behavior")
         KSLEntityBehaviorBuilder(internalPlugin, scriptName, this, contextRuntimeScope).builder()
     }
 }
