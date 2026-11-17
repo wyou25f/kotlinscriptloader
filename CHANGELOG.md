@@ -1,32 +1,32 @@
 # Changelog
 
-## 1.2.2 development update — stability and early warnings
+## 1.2.1 maintenance update — stability and early warnings
 
 - Added trend-aware DB queue pressure monitoring with an early growth signal, high-watermark fallback and one warning per pressure episode.
 - Added regression tests for queue growth detection, alert hysteresis and invalid samples.
 - IntelliJ preflight now warns about dynamic SQL string construction and blocking waits on async DB/reload futures.
 - IntelliJ preflight bounds work on very large files, caches Gradle model reads by VFS modification stamps and handles nested Kotlin block comments.
-- The IDEA companion remains at the repository's current development version 1.2.2. No public KSL or IDEA plugin release/tag is created by this change.
+- The IDEA companion remains on the 1.2.1 line. No public KSL or IDEA plugin release/tag is created by this maintenance update.
 
-## 1.2.2 development update — database safety, reload lifecycle and NBT engine
+## 1.2.1 development update — database safety, reload lifecycle and NBT engine
 
 - Remote MySQL/MariaDB connections now default to certificate and hostname verification; insecure `disable` / `trust` modes require explicit opt-in.
 - Added bounded script SQL execution (timeouts, row caps, SQL length and batch size), transaction-scoped query sessions, and exact per-script sandbox database capabilities. Raw JDBC remains trusted-script-only.
 - Script-owned database operations and table views are tied to runtime generations; queued work is cancelled on unload, and optimistic cache entries are invalidated when writes are cancelled or rejected.
 - Added a detached, copy-on-write NBT document engine with bounded SNBT preflight and safe nested compound paths.
-- The Public API version remains 12. This is development work only; it does not publish KSL 1.2.2 or create a release/tag.
+- The Public API version remains 12. This is development work only; it does not publish KSL 1.2.1 or create a release/tag.
 
 
-## 1.2.2 development update — structured logging and IDEA authoring
+## 1.2.1 development update — structured logging and IDEA authoring
 
 - Added API v12 structured logging for `.kts` scripts and Kotlin/Java addons: named loggers, TRACE/DEBUG/INFO/WARN/ERROR levels, child categories and key/value fields.
 - Added administrator-controlled global minimum level, per-script/per-addon overrides and bounded message length. Code-level logger preferences cannot lower the server minimum.
 - Existing `log`, `logWarn` and `logError` script helpers remain compatible and delegate to structured logging.
 - Expanded IntelliJ completion for logger types, levels, child categories and addon APIs.
 - Added a local warning for bare `print`/`println` calls and a `.kts` quick fix to use `scriptLogger().info(...)`.
-- IntelliJ plugin remains version 1.2.2. The KSL 1.2.2 build remains development-only; no public release/tag is created by this work.
+- IntelliJ plugin remains version 1.2.1. The KSL 1.2.1 build remains development-only; no public release/tag is created by this work.
 
-## 1.2.2 — Script & Addon Authoring Reliability
+## 1.2.1 — Script & Addon Authoring Reliability
 - Added local authoring warnings for blocking sleeps/coroutines, unconditional loops, unmanaged threads and direct Bukkit scheduler tasks.
 - `/ksl validate [script-id]` now combines compiler diagnostics with authoring warnings and writes a bounded full report under `plugins/KotlinScriptLoader/reports/`.
 - Validation never evaluates script code; chat output is capped while the report retains the full diagnostic set (up to 2 MB).
@@ -35,7 +35,7 @@
 - Compile-pool saturation no longer falls back to executing compilation on the submitting thread.
 - Added regression coverage for 50 diagnostics, report truncation, queue saturation, authoring warnings and async reload callback semantics.
 
-## Additional 1.2.2 development changes
+## Additional 1.2.1 development changes
 
 ## Script Registry
 - Расширен снимок реестра скриптов: состояния LOADED, DEGRADED, FAILED и UNLOADED, последняя ошибка, время последней попытки и наличие исходного файла.
