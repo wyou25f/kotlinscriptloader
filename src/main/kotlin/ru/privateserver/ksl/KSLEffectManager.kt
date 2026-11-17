@@ -91,7 +91,14 @@ class KSLEffectManager(private val plugin: KotlinScriptLoaderPlugin) {
 
     private fun activeEffectCount(): Int = activeByScript.values.sumOf { it.size }
 
-    fun play(scriptName: String, spec: KSLEffectSpec): Int {
+    fun play(
+        scriptName: String,
+        spec: KSLEffectSpec,
+        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope = plugin.scriptRuntimeScope(scriptName)
+    ): Int {
+        require(!ownerScope.isClosed) {
+            "[$scriptName] playEffect: script context belongs to an unloaded generation"
+        }
         require(Bukkit.isPrimaryThread()) {
             "[$scriptName] playEffect должен вызываться в главном потоке сервера; используй runSync { ... }"
         }
@@ -217,7 +224,7 @@ class KSLEffectManager(private val plugin: KotlinScriptLoaderPlugin) {
             tick = if (tick > Long.MAX_VALUE - interval) spec.durationTicks else tick + interval
         }, 0L, interval)
 
-        plugin.trackTask(scriptName, task.taskId)
+        plugin.trackTask(scriptName, task.taskId, ownerScope)
         activeByScript.computeIfAbsent(scriptName) { ConcurrentHashMap.newKeySet() }.add(task.taskId)
         return task.taskId
     }
