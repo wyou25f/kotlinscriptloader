@@ -89,6 +89,19 @@ class KslPreflightAnalyzerTest {
     }
 
     @Test
+    void doesNotWarnAboutPrintInAddonKotlinSources() {
+        var diagnostics = KslPreflightAnalyzer.analyze("println(\"startup\")", "");
+        assertTrue(diagnostics.stream().anyMatch(d -> d.code().equals("unstructured-log")));
+        // The annotator suppresses this script-only diagnostic for addon .kt files.
+    }
+
+    @Test
+    void acceptsStructuredLoggerExtensionMethod() {
+        var diagnostics = KslPreflightAnalyzer.analyze("api.logger(\"example-addon\")", "");
+        assertTrue(diagnostics.isEmpty());
+    }
+
+    @Test
     void recognizesAddonKotlinFilesForLocalPreflight() {
         assertTrue(KslPreflightAnalyzer.isKslAddonSource(
             "class ExampleAddon : JavaPlugin(), KSLAddon", "dependencies { compileOnly(files(\"KotlinScriptLoader.jar\")) }"));

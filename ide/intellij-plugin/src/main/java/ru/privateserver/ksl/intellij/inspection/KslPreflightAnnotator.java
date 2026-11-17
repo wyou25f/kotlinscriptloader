@@ -23,6 +23,7 @@ public final class KslPreflightAnnotator implements Annotator {
         if (!scriptFile && !addonSource) return;
         for (KslPreflightAnalyzer.Diagnostic diagnostic :
             KslPreflightAnalyzer.analyze(file.getText(), configuration)) {
+            if (diagnostic.code().equals("unstructured-log") && !scriptFile) continue;
             var builder = holder.newAnnotation(
                 diagnostic.error() ? HighlightSeverity.ERROR : HighlightSeverity.WARNING,
                 diagnostic.message())

@@ -13,7 +13,7 @@ public final class KslPreflightAnalyzer {
     private static final Pattern API_CALL = Pattern.compile("\\b(?:KSL\\s*\\.\\s*api|api)\\s*\\.\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*\\(");
     private static final Pattern PAPER_VERSION = Pattern.compile("(?:paper-api|spigot-api)[^\\n\\r]*?(1\\.\\d+)", Pattern.CASE_INSENSITIVE);
     private static final Set<String> API_METHODS = Set.of(
-        "createConfig", "createLogger", "registerAddon", "unregisterAddon", "registerService", "unregisterService",
+        "createConfig", "createLogger", "logger", "registerAddon", "unregisterAddon", "registerService", "unregisterService",
         "getService", "service", "requireService", "addDefaultImports", "registerStandardLibraryModule",
         "unregisterStandardLibraryModule", "standardLibraryModules", "registerContextExtension",
         "unregisterContextExtension", "registeredAddons", "isAddonLoaded", "onAddonReady",
