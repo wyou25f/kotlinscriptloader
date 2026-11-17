@@ -1338,10 +1338,10 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         val previous = generationManager.activeGeneration(id)
         val candidate = generationManager.begin(id, unit.sourceStamp, unit)
 
-        // External Bukkit registrations still use the existing owner registry. Retire the
-        // previous generation before evaluation, then recover its compiled artifact if the
-        // candidate fails during initialization.
-        unloadScript(id)
+        // Stage replacement registrations while keeping the previous generation scope alive.
+        // The owner-indexed Bukkit registries are still detached by script id, but the old
+        // generation scope is not disposed until the candidate is committed or recovery fails.
+        unloadScript(id, closeGeneration = false, publishUnloaded = false)
         val ok = try {
             generationManager.withCandidate(candidate) { scriptEngine.evaluate(unit) }
         } catch (error: Throwable) {
@@ -1356,8 +1356,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             scriptLastErrorById.remove(id)
         } else {
             val failure = scriptEngine.snapshot().lastFailure ?: "generation initialization failed"
-            // Remove every partial registration before attempting to restore the previous artifact.
-            unloadScript(id)
+            // Remove partial registrations and candidate-owned resources, without disposing
+            // the previous active scope that may still be needed by old context closures.
+            unloadScript(id, closeGeneration = false, publishUnloaded = false)
             generationManager.fail(candidate, IllegalStateException(failure))
 
             if (previous != null) {
@@ -1379,8 +1380,10 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                             "в поколении ${recovery.number}."
                     )
                 } else {
-                    unloadScript(id)
+                    unloadScript(id, closeGeneration = false, publishUnloaded = false)
                     generationManager.fail(recovery, IllegalStateException("previous generation recovery failed"))
+                    generationManager.retireActive(id)
+                    addonManager.publish("ksl.script.unloaded", KSLScriptEvent(id))
                 }
             }
             scriptLastErrorById[id] = if (restored) {
@@ -1560,7 +1563,11 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         }
     }
 
-    private fun unloadScript(scriptName: String, closeGeneration: Boolean = true) {
+    private fun unloadScript(
+        scriptName: String,
+        closeGeneration: Boolean = true,
+        publishUnloaded: Boolean = true
+    ) {
         if (::customEnchantManager.isInitialized) runCatching { customEnchantManager.unregisterOwner(scriptName) }
         if (::workScheduler.isInitialized) runCatching { workScheduler.cancelOwner(scriptName) }
         if (::effectManager.isInitialized) runCatching { effectManager.cleanupForScript(scriptName) }
@@ -1577,7 +1584,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             .onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось закрыть runtime-ресурсы: ${it.message}") }
         if (::persistStore.isInitialized) runCatching { persistStore.clearScript(scriptName) }
             .onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось очистить кеш persist: ${it.message}") }
-        if (liveScripts.remove(scriptName)) addonManager.publish("ksl.script.unloaded", KSLScriptEvent(scriptName))
+        if (liveScripts.remove(scriptName) && publishUnloaded) {
+            addonManager.publish("ksl.script.unloaded", KSLScriptEvent(scriptName))
+        }
         runCatching {
             val taskIds = synchronized(taskLock) { tasksByScript.remove(scriptName)?.toList().orEmpty() }
             taskIds.forEach { Bukkit.getScheduler().cancelTask(it) }
