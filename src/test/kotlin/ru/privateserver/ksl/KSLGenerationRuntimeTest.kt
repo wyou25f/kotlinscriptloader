@@ -42,7 +42,12 @@ class KSLGenerationRuntimeTest {
         first.scope.own(AutoCloseable { released.set(true) })
 
         val second = manager.begin("economy/shop", "stamp-2", "compiled-v2")
-        manager.withCandidate(second) { }
+        manager.withCandidate(second) {
+            assertSame(second.scope, manager.currentScope("economy/shop"))
+            assertSame(first, manager.activeGeneration("economy/shop"))
+            assertFalse(first.scope.isClosed, "the manager retains the previous active generation until activation")
+        }
+        assertSame(first, manager.activeGeneration("economy/shop"))
         manager.activate(second)
 
         assertSame(second, manager.activeGeneration("economy/shop"))
@@ -115,6 +120,23 @@ class KSLGenerationRuntimeTest {
         assertEquals(KSLGenerationState.DISPOSED, another.state)
         assertTrue(another.scope.isClosed)
         assertTrue(manager.snapshots().isEmpty())
+    }
+
+    @Test
+    fun `scope cleanup failures are recorded without escaping generation failure handling`() {
+        val manager = manager()
+        val candidate = manager.begin("jobs/cleanup", "stamp", "compiled")
+        candidate.scope.own(AutoCloseable {
+            throw IllegalStateException("resource close failed")
+        })
+        manager.withCandidate(candidate) { }
+
+        manager.fail(candidate, IllegalArgumentException("initialization failed"))
+
+        assertEquals(KSLGenerationState.FAILED, candidate.state)
+        assertTrue(candidate.scope.isClosed)
+        assertTrue(candidate.failure.orEmpty().contains("initialization failed"))
+        assertTrue(candidate.failure.orEmpty().contains("resource close failed"))
     }
 
     @Test
