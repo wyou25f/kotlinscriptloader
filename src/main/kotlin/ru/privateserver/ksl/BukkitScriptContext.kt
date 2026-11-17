@@ -69,6 +69,11 @@ open class BukkitScriptContext(
         }
     }
 
+    @PublishedApi
+    internal fun trackListenerForCurrentGeneration(listener: Listener) {
+        internalPlugin.trackListener(scriptName, listener, contextRuntimeScope)
+    }
+
     /**
      * Raw plugin access is retained for trusted scripts and addon compatibility.
      * Sandboxed scripts must use the explicit KSL context API instead.
@@ -1018,7 +1023,7 @@ open class BukkitScriptContext(
             }
         }
         Bukkit.getPluginManager().registerEvent(T::class.java, listener, priority, executor, internalPlugin, ignoreCancelled)
-        internalPlugin.trackListener(scriptName, listener, contextRuntimeScope)
+        trackListenerForCurrentGeneration(listener)
     }
 
     inline fun <reified T : Event> on(
