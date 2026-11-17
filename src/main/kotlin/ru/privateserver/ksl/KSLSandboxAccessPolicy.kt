@@ -16,4 +16,21 @@ internal object KSLSandboxAccessPolicy {
             )
         }
     }
+
+    /**
+     * SQL access is a separate opt-in capability. It exposes only the bounded KSL
+     * query API, never the raw Hikari pool or JDBC connection.
+     */
+    fun requireDatabaseAccess(
+        scriptName: String,
+        sandboxed: Boolean,
+        allowedSandboxScripts: Set<String>
+    ) {
+        if (sandboxed && scriptName !in allowedSandboxScripts) {
+            throw SecurityException(
+                "Sandboxed script '$scriptName' has no database capability. " +
+                    "Add its exact script id to security.sandbox-database-allowlist only when required."
+            )
+        }
+    }
 }

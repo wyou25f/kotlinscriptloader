@@ -59,6 +59,7 @@ val KSL_SCRIPT_DEFAULT_IMPORTS: List<String> = listOf(
     "io.papermc.paper.event.entity.*",
     "ru.privateserver.ksl.dsl.*",
     "ru.privateserver.ksl.nbt.*",
+    "ru.privateserver.ksl.KSLDatabaseSession",
     "ru.privateserver.ksl.api.*",
     "ru.privateserver.ksl.std.text.*",
     "ru.privateserver.ksl.std.math.*",

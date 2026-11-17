@@ -3,6 +3,7 @@ package ru.privateserver.ksl.nbt
 import de.tr7zw.changeme.nbtapi.iface.ReadWriteNBT
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -33,6 +34,26 @@ class KSLNBTCompoundTest {
         assertTrue(nbt.remove("profile"))
         assertFalse(nbt.remove("profile"))
         assertNull(nbt.compound("profile"))
+    }
+
+
+    @Test
+    fun nestedPathHelpersReadAndWriteCompoundLeaves() {
+        val nbt = KSLNBTCompound(fakeNbt())
+        nbt.setStringAt("profile.stats.rank", "builder")
+        nbt.setIntAt("profile.stats.level", 7)
+
+        assertEquals("builder", nbt.stringAt("profile.stats.rank"))
+        assertEquals(7, nbt.intAt("profile.stats.level"))
+        assertEquals("builder", nbt.compoundAt("profile.stats")?.string("rank"))
+        assertNull(nbt.stringAt("profile.missing.value"))
+    }
+
+    @Test
+    fun nestedPathHelpersRejectUnsafeSegments() {
+        val nbt = KSLNBTCompound(fakeNbt())
+        assertThrows(IllegalArgumentException::class.java) { nbt.setStringAt("../outside", "x") }
+        assertThrows(IllegalArgumentException::class.java) { nbt.intAt("profile..level") }
     }
 
     private fun fakeNbt(values: MutableMap<String, Any?> = linkedMapOf()): ReadWriteNBT {

@@ -53,3 +53,26 @@ Supported values: string, byte, short, int, long, float, double, boolean, byte/i
 NBT operations must run on the server primary thread. Use `runSync { ... }` when calling them from asynchronous work.
 
 The legacy `ItemStack.setTag/getTag/hasTag` and typed PDC tag APIs remain unchanged.
+
+## Detached NBT document engine
+
+Для подготовки и преобразования SNBT без изменения живого предмета, сущности или блока используйте detached-документ. Он хранит собственный снимок NBT и публикует изменения только после успешного завершения edit-блока.
+
+```kotlin
+val document = KSLNBTEngine.parse("""{owner:"Alex",stats:{level:3}}""")
+
+document.edit {
+    setStringAt("owner", "Riley")
+    setIntAt("stats.level", 4)
+}
+
+val level = document.read { intAt("stats.level") }
+val snbt = document.snbt()
+val backup = document.copy()
+```
+
+`KSLNBTEngine.empty()` создаёт пустой документ. `parse()` проверяет размер SNBT, глубину контейнеров и число элементов до передачи текста парсеру Item-NBT-API. Стандартные лимиты — 1 MiB текста, 64 уровня вложенности и 65 536 элементов; их можно настроить через `KSLNBTLimits`.
+
+`edit { ... }` работает с временной копией. Если блок выбрасывает исключение или итоговый SNBT не проходит проверку, исходный документ остаётся неизменным. Значения, возвращённые из `read { ... }`, следует считать снимком; callback получает только read-only view.
+
+Detached engine не привязан к Bukkit и не изменяет live-объекты. Применение результата к ItemStack, Entity или TileState по-прежнему выполняйте через соответствующие `modifyNBT` методы на главном потоке сервера. Самостоятельная проверка SNBT не гарантирует, что произвольные поля допустимы для конкретной версии Minecraft.

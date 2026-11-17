@@ -42,6 +42,12 @@ class KSLValueCache(private val limit: Int) {
         values.clear()
     }
 
+    /** Invalidates one optimistic write without discarding other scripts' cached cells. */
+    fun invalidate(key: String) = synchronized(mutationLock) {
+        version.incrementAndGet()
+        values.remove(key)
+    }
+
     fun size(): Int = values.size
 
     // Called only while holding mutationLock.

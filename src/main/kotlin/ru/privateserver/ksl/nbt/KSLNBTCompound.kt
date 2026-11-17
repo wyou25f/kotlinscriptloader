@@ -38,12 +38,64 @@ open class KSLNBTView internal constructor(protected val handle: ReadableNBT) {
     fun compoundList(key: String): List<KSLNBTView> = handle.getCompoundList(key).map { KSLNBTView(it) }
 
     fun compound(key: String): KSLNBTView? = handle.getCompound(key)?.let(::KSLNBTView)
+
+    private fun pathParent(path: String): Pair<KSLNBTView, String>? {
+        val segments = KSLNBTPathPolicy.parse(path)
+        var current = this
+        for (segment in segments.dropLast(1)) {
+            current = current.compound(segment) ?: return null
+        }
+        return current to segments.last()
+    }
+
+    fun stringAt(path: String): String? = pathParent(path)?.let { (parent, key) -> parent.string(key) }
+    fun intAt(path: String): Int? = pathParent(path)?.let { (parent, key) -> parent.int(key) }
+    fun longAt(path: String): Long? = pathParent(path)?.let { (parent, key) -> parent.long(key) }
+    fun doubleAt(path: String): Double? = pathParent(path)?.let { (parent, key) -> parent.double(key) }
+    fun booleanAt(path: String): Boolean? = pathParent(path)?.let { (parent, key) -> parent.boolean(key) }
+
+    fun compoundAt(path: String): KSLNBTView? {
+        val segments = KSLNBTPathPolicy.parse(path)
+        var current = this
+        for (segment in segments) {
+            current = current.compound(segment) ?: return null
+        }
+        return current
+    }
+
+    /** Creates a new wrapper over the same detached read-only handle. */
+    internal fun asReadOnlyView(): KSLNBTView = KSLNBTView(handle)
+
     fun snbt(): String = handle.toString()
     override fun toString(): String = snbt()
 }
 
 /** Mutable NBT compound exposed to KSL scripts. */
 class KSLNBTCompound internal constructor(private val writable: ReadWriteNBT) : KSLNBTView(writable) {
+    private fun setAt(path: String, action: (KSLNBTCompound, String) -> Unit) {
+        val segments = KSLNBTPathPolicy.parse(path)
+        var parent = this
+        for (segment in segments.dropLast(1)) {
+            parent = parent.getOrCreateCompound(segment)
+        }
+        action(parent, segments.last())
+    }
+
+    fun getOrCreateCompoundAt(path: String): KSLNBTCompound {
+        val segments = KSLNBTPathPolicy.parse(path)
+        var current = this
+        for (segment in segments) {
+            current = current.getOrCreateCompound(segment)
+        }
+        return current
+    }
+
+    fun setStringAt(path: String, value: String) = setAt(path) { parent, key -> parent.setString(key, value) }
+    fun setIntAt(path: String, value: Int) = setAt(path) { parent, key -> parent.setInt(key, value) }
+    fun setLongAt(path: String, value: Long) = setAt(path) { parent, key -> parent.setLong(key, value) }
+    fun setDoubleAt(path: String, value: Double) = setAt(path) { parent, key -> parent.setDouble(key, value) }
+    fun setBooleanAt(path: String, value: Boolean) = setAt(path) { parent, key -> parent.setBoolean(key, value) }
+
     fun setString(key: String, value: String) = writable.setString(key, value)
     fun setByte(key: String, value: Byte) = writable.setByte(key, value)
     fun setShort(key: String, value: Short) = writable.setShort(key, value)
@@ -112,10 +164,18 @@ class KSLNBTCompound internal constructor(private val writable: ReadWriteNBT) : 
         return true
     }
     fun getOrCreateCompound(key: String): KSLNBTCompound = KSLNBTCompound(writable.getOrCreateCompound(key))
-    fun merge(snbt: String) { writable.mergeCompound(NBT.parseNBT(snbt)) }
+    fun merge(snbt: String) = mergeValidated(snbt, KSLNBTLimits.DEFAULT)
+
+    internal fun mergeValidated(snbt: String, limits: KSLNBTLimits) {
+        KSLNBTSnbtPolicy.validate(snbt, limits)
+        writable.mergeCompound(NBT.parseNBT(snbt))
+    }
 
     companion object {
         fun empty(): KSLNBTCompound = KSLNBTCompound(NBT.createNBTObject())
-        fun parse(snbt: String): KSLNBTCompound = KSLNBTCompound(NBT.parseNBT(snbt))
+        fun parse(snbt: String): KSLNBTCompound {
+            KSLNBTSnbtPolicy.validate(snbt)
+            return KSLNBTCompound(NBT.parseNBT(snbt))
+        }
     }
 }

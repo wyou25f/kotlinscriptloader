@@ -249,6 +249,8 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
             }
         } catch (ex: Throwable) {
             false to "${ex::class.simpleName}: ${ex.message}"
+        } finally {
+            runCatching { plugin.closeScriptRuntimeScope("__selftest__") }
         }
     }
 
@@ -301,6 +303,8 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
             }
         } catch (ex: Throwable) {
             false to "${ex::class.simpleName}: ${ex.message}"
+        } finally {
+            runCatching { plugin.closeScriptRuntimeScope("__sandbox_probe__") }
         }
     }
 

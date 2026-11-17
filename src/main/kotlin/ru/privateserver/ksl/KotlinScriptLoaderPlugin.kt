@@ -175,6 +175,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         private set
 
     private var sandboxConsoleAllowlist: Set<String> = emptySet()
+    private var sandboxDatabaseAllowlist: Set<String> = emptySet()
 
     private var maxListeners = 500
     private var maxTasks = 2000
@@ -183,6 +184,14 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private val limitWarned = ConcurrentHashMap.newKeySet<String>()
 
     fun isSandboxed(scriptId: String): Boolean = sandboxEnabled && scriptId !in sandboxTrusted
+
+    internal fun requireScriptDatabaseAccess(scriptId: String) {
+        KSLSandboxAccessPolicy.requireDatabaseAccess(
+            scriptName = scriptId,
+            sandboxed = isSandboxed(scriptId),
+            allowedSandboxScripts = sandboxDatabaseAllowlist
+        )
+    }
 
 
     internal fun createScriptLogger(scriptId: String, name: String, config: KSLLoggerConfig): KSLLogger =
@@ -244,7 +253,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
         sandboxEnabled = config.getBoolean("sandbox", false)
         sandboxStrict = !config.getString("security.sandbox-level", "strict").equals("text", ignoreCase = true)
-        sandboxTrusted = config.getStringList("security.sandbox-trusted").map { it.trim().removeSuffix(".kts") }.toSet()
+        sandboxTrusted = config.getStringList("security.sandbox-trusted").map { it.trim().removeSuffix(".kts") }.filter { it.isNotEmpty() }.toSet()
+        sandboxDatabaseAllowlist = config.getStringList("security.sandbox-database-allowlist")
+            .map { it.trim().removeSuffix(".kts") }.filter { it.isNotEmpty() }.toSet()
         val allowedPatterns = config.getStringList("security.sandbox-allowed").map { it.trim() }.toSet()
         sandboxPatterns = (KSLSandboxRules.forbidden + config.getStringList("security.sandbox-extra-forbidden"))
             .filter { it !in allowedPatterns }.distinct()
@@ -366,6 +377,11 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         return scriptRuntimeScopes.computeIfAbsent(scriptId) {
             ru.privateserver.ksl.rt.KSLRT.scope("script:$it")
         }
+    }
+
+    /** Closes a runtime generation that belongs to a diagnostic or short-lived context. */
+    internal fun closeScriptRuntimeScope(scriptId: String) {
+        scriptRuntimeScopes.remove(scriptId)?.close()
     }
 
     fun <T> measureScriptExecution(scriptId: String, operation: String, block: () -> T): T =
@@ -717,6 +733,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     var dialect: KSLDialect = KSLDialect.SQLITE
         private set
 
+    internal var databaseExecutionPolicy: KSLDatabaseExecutionPolicy = KSLDatabaseExecutionPolicy()
+        private set
+
     // database.cache in config.yml; by default on for SQLite and off for MySQL/MariaDB.
     var tableCacheEnabled: Boolean = true
         private set
@@ -733,8 +752,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         user = config.getString("database.user", "") ?: "",
         // Keeping the password out of config.yml: leave it empty and set the KSL_DB_PASSWORD environment variable.
         password = (config.getString("database.password", "") ?: "").ifBlank { System.getenv("KSL_DB_PASSWORD") ?: "" },
-        sslMode = config.getString("database.ssl-mode", "disable") ?: "disable",
-        poolSize = config.getInt("database.pool-size", 4)
+        sslMode = config.getString("database.ssl-mode", "verify-full") ?: "verify-full",
+        poolSize = config.getInt("database.pool-size", 4),
+        allowInsecureTransport = config.getBoolean("database.allow-insecure-transport", false)
     )
 
     private fun initDatabase(): Boolean {
@@ -742,6 +762,11 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         return try {
             val parsed = readDatabaseSettings()
             settings = parsed
+            databaseExecutionPolicy = KSLDatabaseExecutionPolicy.fromConfig(
+                queryTimeoutSeconds = config.getInt("database.query-timeout-seconds", 10),
+                maxQueryRows = config.getInt("database.query-max-rows", 10_000),
+                maxBatchRows = config.getInt("database.max-batch-rows", 1_000)
+            )
             if (parsed.poolSize > dbQueryExecutor.maximumPoolSize) {
                 dbQueryExecutor.maximumPoolSize = parsed.poolSize
                 dbQueryExecutor.corePoolSize = parsed.poolSize
@@ -1435,7 +1460,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         limitWarned.remove("$scriptName|T")
         loadMillisById.remove(scriptName)
         scriptDiagnostics.clearScript(scriptName)
-        runCatching { scriptRuntimeScopes.remove(scriptName)?.close() }
+        runCatching { closeScriptRuntimeScope(scriptName) }
             .onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось закрыть runtime-ресурсы: ${it.message}") }
         if (::persistStore.isInitialized) runCatching { persistStore.clearScript(scriptName) }
             .onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось очистить кеш persist: ${it.message}") }
@@ -1510,6 +1535,11 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     // Re-reads config.yml and everything derived from it.
     private fun refreshConfig() {
         reloadConfig()
+        databaseExecutionPolicy = KSLDatabaseExecutionPolicy.fromConfig(
+            queryTimeoutSeconds = config.getInt("database.query-timeout-seconds", 10),
+            maxQueryRows = config.getInt("database.query-max-rows", 10_000),
+            maxBatchRows = config.getInt("database.max-batch-rows", 1_000)
+        )
         localeManager.reload(config.getString("language", "ru"))
         loadConfigTextPlaceholders()
         clearTableCaches()

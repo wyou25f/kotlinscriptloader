@@ -2,6 +2,10 @@ package ru.privateserver.ksl.rt
 
 import java.time.Duration
 import java.util.LinkedHashMap
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.Executor
+import java.util.concurrent.FutureTask
+import java.util.concurrent.ThreadPoolExecutor
 
 /**
  * Owns runtime resources with an explicit lifetime.
@@ -38,6 +42,68 @@ class KSLRuntimeScope(val name: String) : AutoCloseable {
      * without running it, allowing early release of captured objects.
      */
     fun onClose(action: () -> Unit): AutoCloseable = registerCleanup(action)
+
+    /**
+     * Submits work owned by this runtime scope.
+     *
+     * The future is cancelled and the worker is interrupted when the scope closes.
+     * ThreadPoolExecutor queues are also cleaned up so a reload does not leave stale
+     * work waiting behind the replacement script.
+     */
+    fun <T> submit(executor: Executor, operation: () -> T): CompletableFuture<T> {
+        val completion = CompletableFuture<T>()
+        lateinit var task: FutureTask<Unit>
+
+        fun removeTask() {
+            if (executor is ThreadPoolExecutor) executor.remove(task)
+        }
+
+        task = FutureTask {
+            if (!isClosed && !completion.isCancelled) {
+                try {
+                    val value = operation()
+                    if (isClosed || completion.isCancelled) completion.cancel(false)
+                    else completion.complete(value)
+                } catch (error: Throwable) {
+                    if (!completion.isDone) completion.completeExceptionally(error)
+                }
+            }
+            Unit
+        }
+
+        val ownership = try {
+            own(AutoCloseable {
+                removeTask()
+                task.cancel(true)
+                completion.cancel(true)
+            })
+        } catch (error: IllegalStateException) {
+            if (!completion.isDone) completion.completeExceptionally(error)
+            return completion
+        }
+
+        completion.whenComplete { _, _ ->
+            if (completion.isCancelled) {
+                removeTask()
+                task.cancel(true)
+            }
+            ownership.close()
+        }
+
+        try {
+            executor.execute(task)
+            // Scope closure/cancellation can race with the hand-off to the executor.
+            // Re-check after enqueueing so a cancelled task cannot remain in the queue.
+            if (completion.isCancelled || isClosed) {
+                removeTask()
+                task.cancel(true)
+            }
+        } catch (error: Throwable) {
+            ownership.close()
+            completion.completeExceptionally(error)
+        }
+        return completion
+    }
 
     private fun registerCleanup(action: () -> Unit): AutoCloseable {
         val cleanup = Cleanup(action)

@@ -74,6 +74,13 @@ REQUIRED=(
   "ru/privateserver/ksl/rt/KSLCache.class"
   "ru/privateserver/ksl/rt/KSLProfiler.class"
   "ru/privateserver/ksl/rt/KSLRuntimeScope.class"
+  "ru/privateserver/ksl/KSLDatabaseSettings.class"
+  "ru/privateserver/ksl/KSLDatabaseExecutionPolicy.class"
+  "ru/privateserver/ksl/KSLDatabaseSession.class"
+  "ru/privateserver/ksl/nbt/KSLNBTEngine.class"
+  "ru/privateserver/ksl/nbt/KSLNBTDocument.class"
+  "ru/privateserver/ksl/nbt/KSLNBTLimits.class"
+  "ru/privateserver/ksl/nbt/KSLNBTSnbtPolicy.class"
 )
 for entry in "${REQUIRED[@]}"; do
   if has_entry "$entry"; then ok "$entry"; else issue "Required entry missing: $entry"; fi

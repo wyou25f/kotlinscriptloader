@@ -45,7 +45,14 @@ try {
         "ru/privateserver/ksl/api/KSLLoggerConfig.class",
         "ru/privateserver/ksl/rt/KSLCache.class",
         "ru/privateserver/ksl/rt/KSLProfiler.class",
-        "ru/privateserver/ksl/rt/KSLRuntimeScope.class"
+        "ru/privateserver/ksl/rt/KSLRuntimeScope.class",
+        "ru/privateserver/ksl/KSLDatabaseSettings.class",
+        "ru/privateserver/ksl/KSLDatabaseExecutionPolicy.class",
+        "ru/privateserver/ksl/KSLDatabaseSession.class",
+        "ru/privateserver/ksl/nbt/KSLNBTEngine.class",
+        "ru/privateserver/ksl/nbt/KSLNBTDocument.class",
+        "ru/privateserver/ksl/nbt/KSLNBTLimits.class",
+        "ru/privateserver/ksl/nbt/KSLNBTSnbtPolicy.class"
     )
     foreach ($Entry in $Required) {
         if ($Archive.GetEntry($Entry)) { Write-Host "[OK] $Entry" -ForegroundColor Green }

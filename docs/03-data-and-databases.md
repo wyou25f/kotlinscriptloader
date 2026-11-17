@@ -255,8 +255,12 @@ database:
   name: ksl
   user: ksl
   password: ""
-  ssl-mode: disable
+  ssl-mode: verify-full
+  allow-insecure-transport: false
   pool-size: 4
+  query-timeout-seconds: 10
+  query-max-rows: 10000
+  max-batch-rows: 1000
 ~~~
 
 Для MySQL 8 указывайте:
@@ -268,6 +272,9 @@ database:
 
 KSL использует MariaDB Connector/J и для MySQL, и для MariaDB, но для MySQL 8 формирует JDBC-параметры с учётом механизма аутентификации MySQL.
 
+Для удалённой БД используйте `verify-full`: драйвер проверяет цепочку сертификата и имя сервера. Убедитесь, что хост указан в SAN сертификата и сервер предоставляет доверенную цепочку. `verify-ca` проверяет сертификат без проверки имени хоста. Режимы `disable` и `trust` считаются небезопасными и требуют явного `database.allow-insecure-transport: true`; используйте их только в изолированной тестовой сети. Старые конфиги с удалённой БД и `ssl-mode: disable` после обновления потребуют осознанно включить этот флаг либо настроить TLS.
+
+
 ### 5.1 Параметры
 
 | Ключ | Значение |
@@ -278,8 +285,12 @@ KSL использует MariaDB Connector/J и для MySQL, и для MariaDB,
 | name | Имя базы |
 | user | Пользователь БД; для remote DB не может быть пустым |
 | password | Пароль пользователя |
-| ssl-mode | disable, trust, verify-ca или verify-full |
+| ssl-mode | disable, trust, verify-ca или verify-full; удалённая БД по умолчанию требует verify-full |
+| allow-insecure-transport | Явное подтверждение для disable/trust; по умолчанию false |
 | pool-size | Размер пула, KSL ограничивает его 1–32 |
+| query-timeout-seconds | Таймаут JDBC-запроса, 1–120 секунд |
+| query-max-rows | Максимум строк результата, 1–100000 |
+| max-batch-rows | Максимум строк одной batch-операции, 1–5000 |
 
 ### 5.2 Пароль через переменную окружения
 
@@ -546,7 +557,26 @@ Mapper должен вернуть обычное Kotlin-значение. JDBC 
 
 Используйте whenComplete/exceptionally для обработки отказов. Не вызывайте join() на главном серверном потоке. Очереди ограничены; если очередь заполнена, KSL может отклонить новую операцию, вместо того чтобы бесконечно расти в памяти.
 
-### 10.4 Прямое подключение
+### 10.4 Ограничения и транзакции
+
+KSL применяет к скриптовым SQL-запросам лимит длины текста SQL, таймаут JDBC и максимальное число возвращаемых строк. Значения задаются в `database.query-timeout-seconds`, `database.query-max-rows` и `database.max-batch-rows`. Пределы сверху ограничены самим KSL, поэтому чрезмерные значения в конфиге будут приведены к допустимому диапазону. Длина SQL-текста ограничена 65 536 символами.
+
+`transactionAsync { ... }` выполняет блок в упорядоченной очереди записи. Внутри доступны `execute`, `queryOne`, `queryList` и ограниченный `batch`. Блок коммитится при нормальном завершении; исключение приводит к rollback. Результаты запросов нужно копировать в обычные Kotlin-значения, не сохранять JDBC-объекты и не использовать сессию после завершения транзакции.
+
+~~~kotlin
+transactionAsync {
+    execute("UPDATE accounts SET balance = balance - ? WHERE uuid = ?", 10, fromId)
+    execute("UPDATE accounts SET balance = balance + ? WHERE uuid = ?", 10, toId)
+    queryOne("SELECT balance FROM accounts WHERE uuid = ?", toId) {
+        getLong("balance")
+    }
+}
+~~~
+
+Sandboxed scripts по умолчанию не могут вызывать SQL API или `table()`. Для конкретного доверенного скрипта можно выдать точную capability через `security.sandbox-database-allowlist`. Это разрешает только ограниченный KSL SQL API; raw `database` / JDBC pool остаётся доступен только trusted-скриптам. Sandbox работает внутри JVM и не является защитной границей для враждебного кода.
+
+
+### 10.5 Прямое подключение
 
 Если используете низкоуровневый database.connection, закрывайте connection/statement/result set через use. Не удерживайте JDBC connection в глобальном объекте или Player session.
 

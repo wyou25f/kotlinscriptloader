@@ -5,6 +5,10 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 class KSLRuntimeScopeTest {
@@ -88,4 +92,47 @@ class KSLRuntimeScopeTest {
         assertThrows(IllegalStateException::class.java) { profiles.profiler("overflow") }
         profiles.close()
     }
+    @Test
+    fun submitCompletesAndReleasesItsOwnershipHandle() {
+        val executor = ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue())
+        val scope = KSLRuntimeScope("submitted")
+        try {
+            val result = scope.submit(executor) { 42 }
+            assertEquals(42, result.get(2, TimeUnit.SECONDS))
+            assertEquals(0, scope.ownedResourceCount)
+        } finally {
+            scope.close()
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun closingScopeCancelsAndRemovesQueuedWork() {
+        val executor = ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue())
+        val scope = KSLRuntimeScope("queued")
+        val started = CountDownLatch(1)
+        try {
+            executor.execute {
+                started.countDown()
+                try {
+                    CountDownLatch(1).await(5, TimeUnit.SECONDS)
+                } catch (_: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                }
+            }
+            assertTrue(started.await(2, TimeUnit.SECONDS))
+
+            val stale = scope.submit(executor) { "must-not-run" }
+            assertEquals(1, executor.queue.size)
+
+            scope.close()
+
+            assertTrue(stale.isCancelled)
+            assertEquals(0, executor.queue.size)
+        } finally {
+            scope.close()
+            executor.shutdownNow()
+        }
+    }
+
 }

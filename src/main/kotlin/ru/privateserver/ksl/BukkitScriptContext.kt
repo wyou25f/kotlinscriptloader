@@ -57,6 +57,10 @@ open class BukkitScriptContext(
 ) {
 
     private val kslPlugin = plugin
+    // Capture the scope once. A context created by an old script generation must not
+    // start owning resources in the replacement generation after /ksl reload.
+    private val contextRuntimeScope = plugin.scriptRuntimeScope(scriptName)
+    private val scopedTableViews = java.util.concurrent.ConcurrentHashMap<String, KSLQuickTable>()
 
     /**
      * Raw plugin access is retained for trusted scripts and addon compatibility.
@@ -64,6 +68,9 @@ open class BukkitScriptContext(
      */
     val plugin: KotlinScriptLoaderPlugin
         get() {
+            check(!contextRuntimeScope.isClosed) {
+                "[$scriptName] This script context belongs to an unloaded runtime. Reload the script before using the plugin API."
+            }
             KSLSandboxAccessPolicy.requireTrustedAccess(scriptName, kslPlugin.isSandboxed(scriptName), "plugin")
             return kslPlugin
         }
@@ -75,7 +82,7 @@ open class BukkitScriptContext(
 
     /** Per-script scope; caches, profilers and owned AutoCloseable resources close on reload. */
     val runtimeScope: ru.privateserver.ksl.rt.KSLRuntimeScope
-        get() = internalPlugin.scriptRuntimeScope(scriptName)
+        get() = contextRuntimeScope
 
     /** Official owner-scoped scheduler. Its tasks are cancelled automatically on script unload. */
     val scheduler: KSLTaskScope
@@ -87,8 +94,29 @@ open class BukkitScriptContext(
     /** Registers a cleanup callback. Close the returned handle to unregister it early. */
     fun onUnload(action: () -> Unit): AutoCloseable = runtimeScope.onClose(action)
 
+    private fun requireScriptDatabaseAccess() {
+        internalPlugin.requireScriptDatabaseAccess(scriptName)
+        check(!contextRuntimeScope.isClosed) {
+            "[$scriptName] This script context belongs to an unloaded runtime. Reload the script before using its database API."
+        }
+    }
+
+    private fun <T> submitDatabaseOperation(
+        executor: java.util.concurrent.Executor,
+        operation: () -> T
+    ): java.util.concurrent.CompletableFuture<T> {
+        requireScriptDatabaseAccess()
+        return contextRuntimeScope.submit(executor) {
+            requireScriptDatabaseAccess()
+            operation()
+        }
+    }
+
     private val scriptDatabase: HikariDataSource
-        get() = internalPlugin.database
+        get() {
+            requireScriptDatabaseAccess()
+            return internalPlugin.database
+        }
 
     private fun requirePrimaryThread(operation: String) {
         check(Bukkit.isPrimaryThread()) {
@@ -562,10 +590,18 @@ open class BukkitScriptContext(
         target.block()
     }
 
-    fun table(name: String): KSLQuickTable = internalPlugin.tableStore.table(name)
+    fun table(name: String): KSLQuickTable {
+        requireScriptDatabaseAccess()
+        return scopedTableViews.computeIfAbsent(name) {
+            internalPlugin.tableStore.scopedTable(it, scriptName, contextRuntimeScope)
+        }
+    }
 
     val database: HikariDataSource
         get() {
+            check(!contextRuntimeScope.isClosed) {
+                "[$scriptName] This script context belongs to an unloaded runtime. Reload the script before using its database API."
+            }
             KSLSandboxAccessPolicy.requireTrustedAccess(scriptName, internalPlugin.isSandboxed(scriptName), "database")
             return internalPlugin.database
         }
@@ -591,44 +627,101 @@ open class BukkitScriptContext(
         dbQuery(yamlSqlQuery(queryPath), *args, block = block)
     }
 
-    /**
-     * Future-based prepared UPDATE/INSERT/DELETE. The returned future completes on the DB writer thread.
-     * Queue saturation is reported as an exceptional completion instead of blocking the caller.
-     */
+    /** Future-based, parameterized write on KSL's ordered database writer. */
     fun dbExecuteAsync(sql: String, vararg args: Any?): java.util.concurrent.CompletableFuture<Int> =
-        try {
-            java.util.concurrent.CompletableFuture.supplyAsync({
-                scriptDatabase.connection.use { conn ->
-                    conn.prepareStatement(sql).use { ps ->
-                        args.forEachIndexed { i, arg -> ps.setObject(i + 1, arg) }
-                        ps.executeUpdate()
-                    }
+        submitDatabaseOperation(internalPlugin.dbExecutor) {
+            scriptDatabase.connection.use { connection ->
+                internalPlugin.databaseExecutionPolicy.prepare(connection, sql, args, query = false).use { statement ->
+                    requireScriptDatabaseAccess()
+                    statement.executeUpdate()
                 }
-            }, internalPlugin.dbExecutor)
-        } catch (ex: java.util.concurrent.RejectedExecutionException) {
-            java.util.concurrent.CompletableFuture.failedFuture(ex)
+            }
         }
 
     /**
-     * Future-based query API. [mapper] must return detached values; never return a ResultSet
-     * or JDBC object because the connection is closed before the future completes.
+     * Future-based prepared query. The mapper runs on KSL's database reader pool.
+     * It must return detached values and must not access Bukkit state.
      */
     fun <T> dbQueryAsync(
         sql: String,
         vararg args: Any?,
         mapper: (ResultSet) -> T
     ): java.util.concurrent.CompletableFuture<T> =
-        try {
-            java.util.concurrent.CompletableFuture.supplyAsync({
-                scriptDatabase.connection.use { conn ->
-                    conn.prepareStatement(sql).use { ps ->
-                        args.forEachIndexed { i, arg -> ps.setObject(i + 1, arg) }
-                        ps.executeQuery().use(mapper)
+        submitDatabaseOperation(internalPlugin.dbQueryExecutor) {
+            scriptDatabase.connection.use { connection ->
+                internalPlugin.databaseExecutionPolicy.prepare(connection, sql, args, query = true).use { statement ->
+                    requireScriptDatabaseAccess()
+                    statement.executeQuery().use { rows ->
+                        requireScriptDatabaseAccess()
+                        mapper(rows)
                     }
                 }
-            }, internalPlugin.dbQueryExecutor)
-        } catch (ex: java.util.concurrent.RejectedExecutionException) {
-            java.util.concurrent.CompletableFuture.failedFuture(ex)
+            }
+        }
+
+    /** Returns detached mapped rows, capped by database.query-max-rows. */
+    fun <T> dbQueryListAsync(
+        sql: String,
+        vararg args: Any?,
+        mapper: ResultSet.() -> T
+    ): java.util.concurrent.CompletableFuture<List<T>> =
+        submitDatabaseOperation(internalPlugin.dbQueryExecutor) {
+            scriptDatabase.connection.use { connection ->
+                KSLDatabaseSession(connection, internalPlugin.databaseExecutionPolicy) {
+                    !contextRuntimeScope.isClosed
+                }.queryList(sql, *args, mapper = mapper)
+            }
+        }
+
+    /** Returns the first detached row, or null when the query matched no rows. */
+    fun <T> dbQueryOneAsync(
+        sql: String,
+        vararg args: Any?,
+        mapper: ResultSet.() -> T
+    ): java.util.concurrent.CompletableFuture<T?> =
+        submitDatabaseOperation(internalPlugin.dbQueryExecutor) {
+            scriptDatabase.connection.use { connection ->
+                KSLDatabaseSession(connection, internalPlugin.databaseExecutionPolicy) {
+                    !contextRuntimeScope.isClosed
+                }.queryOne(sql, *args, mapper = mapper)
+            }
+        }
+
+    /**
+     * Runs a multi-statement transaction on the ordered writer thread.
+     * Exceptions roll the transaction back; successful blocks commit once.
+     */
+    fun <T> dbTransactionAsync(
+        block: KSLDatabaseSession.() -> T
+    ): java.util.concurrent.CompletableFuture<T> =
+        submitDatabaseOperation(internalPlugin.dbExecutor) {
+            scriptDatabase.connection.use { connection ->
+                val previousAutoCommit = connection.autoCommit
+                connection.autoCommit = false
+                var transactionActive = true
+                var failure: Throwable? = null
+                try {
+                    val session = KSLDatabaseSession(
+                        connection,
+                        internalPlugin.databaseExecutionPolicy
+                    ) { !contextRuntimeScope.isClosed && transactionActive }
+                    val result = session.block()
+                    requireScriptDatabaseAccess()
+                    connection.commit()
+                    result
+                } catch (error: Throwable) {
+                    failure = error
+                    runCatching { connection.rollback() }.onFailure(error::addSuppressed)
+                    throw error
+                } finally {
+                    transactionActive = false
+                    try {
+                        connection.autoCommit = previousAutoCommit
+                    } catch (restoreError: Throwable) {
+                        failure?.addSuppressed(restoreError) ?: throw restoreError
+                    }
+                }
+            }
         }
 
     fun dbExecuteYamlAsync(queryPath: String, vararg args: Any?): java.util.concurrent.CompletableFuture<Int> =
@@ -643,26 +736,27 @@ open class BukkitScriptContext(
 
     fun dbExecute(sql: String, vararg args: Any?) {
         dbExecuteAsync(sql, *args).whenComplete { _, error ->
-            if (error != null) internalPlugin.logger.warning("[$scriptName] ${KSLError.DB_SCRIPT_QUERY_FAILED.tag} dbExecute: ${error.cause?.message ?: error.message}")
+            if (error != null && error !is java.util.concurrent.CancellationException) {
+                internalPlugin.logger.warning("[$scriptName] ${KSLError.DB_SCRIPT_QUERY_FAILED.tag} dbExecute: ${error.cause?.message ?: error.message}")
+            }
         }
     }
 
     fun dbQuery(sql: String, vararg args: Any?, block: (ResultSet) -> Unit) {
-        try {
-            internalPlugin.dbQueryExecutor.execute {
-                try {
-                    scriptDatabase.connection.use { conn ->
-                        conn.prepareStatement(sql).use { ps ->
-                            args.forEachIndexed { i, arg -> ps.setObject(i + 1, arg) }
-                            ps.executeQuery().use(block)
-                        }
+        submitDatabaseOperation(internalPlugin.dbQueryExecutor) {
+            scriptDatabase.connection.use { connection ->
+                internalPlugin.databaseExecutionPolicy.prepare(connection, sql, args, query = true).use { statement ->
+                    requireScriptDatabaseAccess()
+                    statement.executeQuery().use { rows ->
+                        requireScriptDatabaseAccess()
+                        block(rows)
                     }
-                } catch (ex: Exception) {
-                    internalPlugin.logger.warning("[$scriptName] ${KSLError.DB_SCRIPT_QUERY_FAILED.tag} dbQuery: ${ex.message}")
                 }
             }
-        } catch (ex: java.util.concurrent.RejectedExecutionException) {
-            internalPlugin.logger.warning("[$scriptName] ${KSLError.DB_SCRIPT_QUERY_FAILED.tag} Очередь чтения БД заполнена; запрос отклонён")
+        }.whenComplete { _, error ->
+            if (error != null && error !is java.util.concurrent.CancellationException) {
+                internalPlugin.logger.warning("[$scriptName] ${KSLError.DB_SCRIPT_QUERY_FAILED.tag} dbQuery: ${error.cause?.message ?: error.message}")
+            }
         }
     }
 
@@ -674,6 +768,11 @@ open class BukkitScriptContext(
     fun executeYamlAsync(queryPath: String, vararg args: Any?) = dbExecuteYamlAsync(queryPath, *args)
     fun <T> queryAsync(sql: String, vararg args: Any?, mapper: (ResultSet) -> T) =
         dbQueryAsync(sql, *args, mapper = mapper)
+    fun <T> queryListAsync(sql: String, vararg args: Any?, mapper: ResultSet.() -> T) =
+        dbQueryListAsync(sql, *args, mapper = mapper)
+    fun <T> queryOneAsync(sql: String, vararg args: Any?, mapper: ResultSet.() -> T) =
+        dbQueryOneAsync(sql, *args, mapper = mapper)
+    fun <T> transactionAsync(block: KSLDatabaseSession.() -> T) = dbTransactionAsync(block)
     fun <T> queryYamlAsync(queryPath: String, vararg args: Any?, mapper: (ResultSet) -> T) =
         dbQueryYamlAsync(queryPath, *args, mapper = mapper)
 

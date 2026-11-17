@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.2 development update — database safety, reload lifecycle and NBT engine
+
+- Remote MySQL/MariaDB connections now default to certificate and hostname verification; insecure `disable` / `trust` modes require explicit opt-in.
+- Added bounded script SQL execution (timeouts, row caps, SQL length and batch size), transaction-scoped query sessions, and exact per-script sandbox database capabilities. Raw JDBC remains trusted-script-only.
+- Script-owned database operations and table views are tied to runtime generations; queued work is cancelled on unload, and optimistic cache entries are invalidated when writes are cancelled or rejected.
+- Added a detached, copy-on-write NBT document engine with bounded SNBT preflight and safe nested compound paths.
+- The Public API version remains 12. This is development work only; it does not publish KSL 1.2.2 or create a release/tag.
+
+
 ## 1.2.2 development update — structured logging and IDEA authoring
 
 - Added API v12 structured logging for `.kts` scripts and Kotlin/Java addons: named loggers, TRACE/DEBUG/INFO/WARN/ERROR levels, child categories and key/value fields.

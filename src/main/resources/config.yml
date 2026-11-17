@@ -21,9 +21,16 @@ database:
   name: ksl
   user: ""
   password: ""
+  # Remote MySQL/MariaDB verifies the server certificate and hostname by default.
+  # disable/trust are rejected unless allow-insecure-transport is explicitly enabled.
   # disable | trust | verify-ca | verify-full
-  ssl-mode: disable
+  ssl-mode: verify-full
+  allow-insecure-transport: false
   pool-size: 4
+  # Maximum JDBC execution time, returned rows and rows in one prepared batch.
+  query-timeout-seconds: 10
+  query-max-rows: 10000
+  max-batch-rows: 1000
   # Кэш значений table() в памяти. По умолчанию: sqlite - включён, mysql/mariadb - выключен
   # (данные могут менять другие серверы или вы сами в phpMyAdmin). Очищается при /ksl reload.
   # cache: true
@@ -69,6 +76,8 @@ security:
   sandbox-level: strict
   # Скрипты, на которые sandbox не действует (имена как в /ksl reload, например economy/shop)
   sandbox-trusted: []
+  # Exact script ids allowed to use bounded SQL methods while sandboxed. Raw JDBC stays blocked.
+  sandbox-database-allowlist: []
   # Дополнительные запрещённые фрагменты текста / разрешённые из списка по умолчанию
   sandbox-extra-forbidden: []
   sandbox-allowed: []

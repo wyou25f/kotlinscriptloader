@@ -4,6 +4,12 @@ KSL 1.2.2 focuses on safer authoring for larger Kotlin scripts and addons, clear
 
 ## Highlights
 
+- **Database transport security:** remote MySQL/MariaDB uses `verify-full` by default. Insecure `disable` / `trust` modes require the explicit `database.allow-insecure-transport: true` setting.
+- **Bounded SQL:** script queries have JDBC timeouts, result-row caps and SQL-length limits. Transaction sessions provide bounded prepared batches and rollback on exceptions.
+- **Sandbox database capability:** sandboxed scripts are denied SQL and `table()` by default. An exact script id can be allowlisted for the bounded KSL SQL API; raw JDBC remains unavailable to sandboxed scripts.
+- **Reload-safe work:** script-owned DB futures and table writes are tied to a runtime generation and pending operations are cancelled during unload.
+- **Detached NBT engine:** a copy-on-write SNBT document API adds configurable size, nesting and entry limits while keeping live Bukkit NBT operations separate.
+
 - **Authoring preflight:** `/ksl validate [script-id]` now combines Kotlin compiler diagnostics with conservative warnings for blocking sleeps/coroutines, unconditional loops, unmanaged threads and direct Bukkit scheduler tasks.
 - **Readable error reports:** validation writes the full diagnostic set to `plugins/KotlinScriptLoader/reports/`. Chat output stays compact; reports are capped at 2 MB and the newest ten are retained. Fifty or more diagnostics no longer need to flood console output.
 - **No script execution during validation:** validation compiles source and checks it, but does not evaluate top-level script code.
@@ -14,6 +20,8 @@ KSL 1.2.2 focuses on safer authoring for larger Kotlin scripts and addons, clear
 - **Regression coverage:** added tests for 50 diagnostics, report truncation, authoring warnings, async reload callbacks and compile-queue saturation.
 
 ## Compatibility
+
+- Existing remote-DB configs that explicitly use `ssl-mode: disable` or `trust` must either configure verified TLS or explicitly set `database.allow-insecure-transport: true`. This is an intentional fail-closed change; review the setting before upgrading.
 
 - Main build: Paper 1.21.x and Java 21.
 - Public KSL API version: **12**.
