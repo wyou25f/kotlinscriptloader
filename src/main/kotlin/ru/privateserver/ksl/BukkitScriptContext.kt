@@ -507,7 +507,7 @@ open class BukkitScriptContext(
 
     // @key@ in message()/richMessage(); removed when the script unloads. Names of built-in tokens are reserved.
     fun registerTextPlaceholder(key: String, resolver: (Player?) -> String?) =
-        internalPlugin.registerTextPlaceholder("script:$scriptName", key, resolver)
+        internalPlugin.registerTextPlaceholder("script:$scriptName", key, resolver, contextRuntimeScope)
 
     fun YamlConfiguration.message(path: String, vararg replacements: Pair<String, Any?>): String {
         val raw = getString(path) ?: return path
@@ -1402,7 +1402,7 @@ open class BukkitScriptContext(
         if (!internalPlugin.papiEnabled) {
             internalPlugin.logger.warning("[$scriptName] ${KSLError.PAPI_MISSING.tag} PlaceholderAPI не найден — плейсхолдер '$key' пропущен"); return
         }
-        internalPlugin.registerPlaceholder(scriptName, key, resolver)
+        internalPlugin.registerPlaceholder(scriptName, key, resolver, contextRuntimeScope)
     }
 
     fun luckPermsGroup(player: Player): String? = internalPlugin.luckPerms?.primaryGroup(player)
