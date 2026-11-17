@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — Generation Runtime and Quality
+## 1.2.2-SNAPSHOT — development (not published)
 
 - Added per-script generation identities and isolated runtime scopes for each initialized version.
 - A failed runtime initialization now cleans partial registrations and attempts to re-evaluate the last successfully compiled artifact in a fresh generation.
