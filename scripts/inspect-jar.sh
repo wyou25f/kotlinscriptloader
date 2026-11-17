@@ -88,6 +88,14 @@ REQUIRED=(
   "ru/privateserver/ksl/nbt/KSLNBTDocument.class"
   "ru/privateserver/ksl/nbt/KSLNBTLimits.class"
   "ru/privateserver/ksl/nbt/KSLNBTSnbtPolicy.class"
+  "ru/privateserver/ksl/nbt/KSLNBTFiles.class"
+  "ru/privateserver/ksl/schem/KSLClipboard.class"
+  "ru/privateserver/ksl/std/csv/KslCsvOptions.class"
+  "ru/privateserver/ksl/std/csv/KslCsvRow.class"
+  "ru/privateserver/ksl/std/csv/KslCsvTable.class"
+  "ru/privateserver/ksl/std/csv/KslCsvCodec.class"
+  "ru/privateserver/ksl/std/csv/KslCsvFiles.class"
+  "ru/privateserver/ksl/std/csv/KslCsvKt.class"
 )
 for entry in "${REQUIRED[@]}"; do
   if has_entry "$entry"; then ok "$entry"; else issue "Required entry missing: $entry"; fi

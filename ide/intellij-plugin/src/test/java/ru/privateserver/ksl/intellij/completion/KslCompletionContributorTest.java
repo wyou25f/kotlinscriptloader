@@ -5,6 +5,15 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class KslCompletionContributorTest {
     @Test
+    void suggestsNewDatabaseNbtSchematicAndCsvApis() {
+        var suggestions = KslCompletionContributor.suggestions();
+        assertTrue(suggestions.stream().anyMatch(item -> item.lookup().equals("loadNBT(fileName)")));
+        assertTrue(suggestions.stream().anyMatch(item -> item.lookup().equals("loadSchematic(fileName)")));
+        assertTrue(suggestions.stream().anyMatch(item -> item.lookup().equals("csvTable(\"id\", \"name\")")));
+        assertTrue(suggestions.stream().anyMatch(item -> item.lookup().equals("editCsv(fileName, columns) { }")));
+    }
+
+    @Test
     void enablesCompletionForKslScripts() {
         assertTrue(KslCompletionContributor.supportsFile("join.kts", ""));
     }

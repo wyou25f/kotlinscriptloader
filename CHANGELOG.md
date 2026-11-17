@@ -13,6 +13,10 @@
 - Entity builders reject mutations after their owning generation has unloaded, including for mobs retained with `removeOnReload=false`.
 - `/ksl runtime` and watchdog diagnostics include active generation state and generation-owned runtime-scope resource counts.
 - Added PostgreSQL as a first-class database backend with the official JDBC driver, native SQL quoting/UPSERT, schema migrations and verified TLS defaults.
+- Added binary .nbt file loading, editing and atomic saving through the detached NBT document model.
+- Added optional WorldEdit Sponge .schem clipboard capture, load, save and paste with path, file-size and block-volume limits.
+- Added a full CSV standard library: bounded RFC 4180 parser/writer, editable table/row abstractions, typed accessors, filtering, projection, sorting, UTF-8 file I/O and script context helpers.
+- Exposed CSV types and helper functions through KSLAPI/Public API; API compatibility level is now 14.
 - Added TOML arrays-of-tables and inline-table writing, stricter numeric validation and exact integer accessors.
 - Added JSONC-compatible input (comments and trailing commas), bounded Kotlin-object conversion, cycle detection and precision-preserving Long/BigInteger/BigDecimal conversion.
 - JSON and TOML saves now use collision-safe temporary files, atomic replacement and per-path write serialization; UTF-8 BOM is accepted on input.
