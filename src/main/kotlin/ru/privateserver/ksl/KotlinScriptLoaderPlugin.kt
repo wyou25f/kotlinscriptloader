@@ -1896,7 +1896,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 if (ids.isEmpty()) tasksByScript.remove(scriptName, ids)
                 return
             }
-            if (taskId !in ids && ids.size >= maxTasks) {
+            if (taskId in ids) return
+            if (ids.size >= maxTasks) {
                 scheduler.cancelTask(taskId)
                 rejected = true
             } else {
