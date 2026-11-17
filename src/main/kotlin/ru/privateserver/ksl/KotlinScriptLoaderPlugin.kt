@@ -90,7 +90,8 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     fun dbQueueSize(): Int = dbExecutor.queue.size
     fun dbQueryQueueSize(): Int = dbQueryExecutor.queue.size
 
-    private val dbQueueWarnAt = 5000
+    private val dbQueueWarnAt = 5_000 // Shared with the read-only health snapshot below.
+    private val dbQueuePressureMonitor = KSLQueuePressureMonitor(warningAt = dbQueueWarnAt)
 
     @Volatile
     internal var watchdogMonitor: KSLWatchdogMonitor? = null
@@ -107,14 +108,24 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     }
 
     private fun startQueueMonitor() {
+        // Queue-size reads are O(1). A 100-tick sample interval catches fast growth
+        // without querying the database or adding work to either database executor.
         Bukkit.getScheduler().runTaskTimerAsynchronously(this, Runnable {
-            val queued = dbQueueSize()
-            val readQueued = dbQueryQueueSize()
-            if (queued >= dbQueueWarnAt || readQueued >= dbQueueWarnAt) {
-                logger.warning("${KSLError.DB_QUEUE_LARGE.tag} ${message("console.database.queue-backlog", "writes" to queued, "reads" to readQueued)}")
+            val pressure = dbQueuePressureMonitor.sample(dbQueueSize(), dbQueryQueueSize()) ?: return@Runnable
+            val trend = "since-last-check: writes ${signed(pressure.writeGrowth)}, reads ${signed(pressure.readGrowth)}"
+            val reason = if (pressure.reason == KSLQueuePressureMonitor.Reason.RAPID_GROWTH) {
+                "early-warning"
+            } else {
+                "high-watermark"
             }
-        }, 600L, 600L)
+            logger.warning(
+                "${KSLError.DB_QUEUE_LARGE.tag} ${message("console.database.queue-backlog", "writes" to pressure.writes, "reads" to pressure.reads)} " +
+                    "($reason; $trend)"
+            )
+        }, 100L, 100L)
     }
+
+    private fun signed(value: Int): String = if (value > 0) "+$value" else value.toString()
 
     // Runs after every write queued before it. Inline on the DB thread: waiting on our own queue would deadlock.
     fun <T> dbCall(task: () -> T): T {

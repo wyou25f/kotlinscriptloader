@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.2 development update — stability and early warnings
+
+- Added trend-aware DB queue pressure monitoring with an early growth signal, high-watermark fallback and one warning per pressure episode.
+- Added regression tests for queue growth detection, alert hysteresis and invalid samples.
+- IntelliJ preflight now warns about dynamic SQL string construction and blocking waits on async DB/reload futures.
+- IntelliJ preflight bounds work on very large files, caches Gradle model reads by VFS modification stamps and handles nested Kotlin block comments.
+- The IDEA companion remains at the repository's current development version 1.2.2. No public KSL or IDEA plugin release/tag is created by this change.
+
 ## 1.2.2 development update — database safety, reload lifecycle and NBT engine
 
 - Remote MySQL/MariaDB connections now default to certificate and hostname verification; insecure `disable` / `trust` modes require explicit opt-in.

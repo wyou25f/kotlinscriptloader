@@ -107,6 +107,73 @@ class KslPreflightAnalyzerTest {
             "class ExampleAddon : JavaPlugin(), KSLAddon", "dependencies { compileOnly(files(\"KotlinScriptLoader.jar\")) }"));
     }
 
+
+    @Test
+    void warnsAboutInterpolatedOrConcatenatedSqlButAcceptsBoundParameters() {
+        var interpolated = KslPreflightAnalyzer.analyze(
+            """
+            dbQuery("SELECT * FROM users WHERE name = '$name'")
+            """, "");
+        assertEquals(1, interpolated.size());
+        assertEquals("dynamic-sql", interpolated.get(0).code());
+        assertFalse(interpolated.get(0).error());
+
+        var concatenated = KslPreflightAnalyzer.analyze(
+            """
+            dbExecute("UPDATE users SET name = '" + name)
+            """, "");
+        assertTrue(concatenated.stream().anyMatch(d -> d.code().equals("dynamic-sql")));
+
+        var parameterized = KslPreflightAnalyzer.analyze(
+            """
+            dbQuery("SELECT * FROM users WHERE name = ?", name)
+            """, "");
+        assertTrue(parameterized.stream().noneMatch(d -> d.code().equals("dynamic-sql")));
+
+        var unrelated = KslPreflightAnalyzer.analyze(
+            """
+            executor.execute("UPDATE users SET name = '" + name)
+            """, "");
+        assertTrue(unrelated.stream().noneMatch(d -> d.code().equals("dynamic-sql")));
+    }
+
+    @Test
+    void warnsWhenAsyncDatabaseOrReloadFuturesAreBlocked() {
+        var diagnostics = KslPreflightAnalyzer.analyze(
+            """
+            dbQueryAsync("SELECT 1").get()
+            api.reloadScriptAsync("shop").join()
+            queryAsync("SELECT 1").join()
+            dbExecuteAsync(
+                "UPDATE users SET active = ?",
+                listOf(true)
+            ).get()
+            """, "");
+        assertEquals(4, diagnostics.stream().filter(d -> d.code().equals("blocking-future-wait")).count());
+    }
+
+    @Test
+    void ignoresDynamicSqlAndFutureWaitPatternsInCommentsAndStrings() {
+        var diagnostics = KslPreflightAnalyzer.analyze(
+            """
+            // dbQuery("SELECT * FROM users WHERE name = '$name'")
+            val example = "dbQueryAsync().get()"
+            /* outer comment
+               /* nested comment */
+               dbExecute("UPDATE users SET name = '$name'")
+            */
+            """, "");
+        assertTrue(diagnostics.isEmpty());
+    }
+
+    @Test
+    void reportsWhenLargeFilesAreSkippedInsteadOfClaimingTheyAreSafe() {
+        var diagnostics = KslPreflightAnalyzer.analyze(" ".repeat(1_000_001), "");
+        assertEquals(1, diagnostics.size());
+        assertEquals("analysis-limit", diagnostics.get(0).code());
+        assertFalse(diagnostics.get(0).error());
+    }
+
     @Test
     void ignoresApiLikeTextInsideStringsAndComments() {
         var diagnostics = KslPreflightAnalyzer.analyze(

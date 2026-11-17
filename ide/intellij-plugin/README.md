@@ -28,6 +28,9 @@ through **Settings → Plugins → ⚙ → Install Plugin from Disk**.
 - **Deprecated and version-sensitive APIs:** flags known deprecated
   `PlayerChatEvent` usage and legacy Material constants when a modern
   Paper/Spigot target is declared.
+- **Dynamic SQL:** warns when recognizable SQL passed to KSL database methods uses Kotlin string interpolation or concatenation. Prefer `?` placeholders with separate values; the check is conservative and does not attempt to resolve computed SQL variables.
+- **Blocking async waits:** warns when KSL async database/reload futures are immediately blocked with `.get()` or `.join()`.
+- **Analysis bounds:** files over 1,000,000 characters are explicitly marked as skipped rather than reported as clean. Gradle build configuration is cached by VFS modification stamps to avoid repeated disk reads during editor analysis.
 - **Async thread-safety:** warns about common Bukkit/Paper player and world
   calls inside KSL `runAsync { }`, `afterAsync { }` and `repeatAsync { }`
   blocks. The quick fix wraps a standalone statement in `runSync { ... }` (declaration lines are excluded to preserve variable scope);

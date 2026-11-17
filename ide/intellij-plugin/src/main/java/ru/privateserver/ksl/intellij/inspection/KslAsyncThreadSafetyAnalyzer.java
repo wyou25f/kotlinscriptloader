@@ -28,7 +28,8 @@ public final class KslAsyncThreadSafetyAnalyzer {
     }
 
     public static List<Diagnostic> analyze(String source) {
-        if (source == null || source.isEmpty()) {
+        if (source == null || source.isEmpty() || source.length() > KslPreflightAnalyzer.MAX_SOURCE_CHARS) {
+            // KslPreflightAnalyzer emits an explicit analysis-limit diagnostic for oversized files.
             return List.of();
         }
 

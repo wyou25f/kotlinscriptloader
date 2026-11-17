@@ -26,6 +26,16 @@ class KslCompletionContributorTest {
     }
 
     @Test
+    void suggestsSaferDatabaseAndDetachedNbtApis() {
+        assertTrue(KslCompletionContributor.hasSuggestion("dbExecuteAsync(sql, ...)"));
+        assertTrue(KslCompletionContributor.hasSuggestion("dbQueryAsync(sql, ...)"));
+        assertTrue(KslCompletionContributor.hasSuggestion("dbQueryListAsync(sql, ...)"));
+        assertTrue(KslCompletionContributor.hasSuggestion("dbTransactionAsync { }"));
+        assertTrue(KslCompletionContributor.hasSuggestion("KSLNBTEngine.parse(snbt)"));
+        assertTrue(KslCompletionContributor.hasSuggestion("KSLNBTLimits()"));
+    }
+
+    @Test
     void doesNotPolluteUnrelatedKotlinProjects() {
         assertFalse(KslCompletionContributor.supportsFile("Main.kt",
             "fun main() = println(\"hello\")"));

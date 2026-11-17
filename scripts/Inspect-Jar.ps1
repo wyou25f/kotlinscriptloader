@@ -46,6 +46,7 @@ try {
         "ru/privateserver/ksl/rt/KSLCache.class",
         "ru/privateserver/ksl/rt/KSLProfiler.class",
         "ru/privateserver/ksl/rt/KSLRuntimeScope.class",
+        "ru/privateserver/ksl/KSLQueuePressureMonitor.class",
         "ru/privateserver/ksl/KSLDatabaseSettings.class",
         "ru/privateserver/ksl/KSLDatabaseExecutionPolicy.class",
         "ru/privateserver/ksl/KSLDatabaseSession.class",

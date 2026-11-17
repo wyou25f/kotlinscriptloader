@@ -9,6 +9,16 @@ import java.util.regex.Pattern;
 
 /** Conservative, non-executing checks for KSL Kotlin scripts and Gradle classpaths. */
 public final class KslPreflightAnalyzer {
+    static final int MAX_SOURCE_CHARS = 1_000_000;
+    private static final Pattern SQL_CALL = Pattern.compile(
+        "\\bdb(?:Execute|Query|Transaction)[A-Za-z0-9_]*\\s*\\("
+    );
+    private static final Pattern SQL_PREFIX = Pattern.compile(
+        "(?is)^\\s*(?:SELECT|INSERT|UPDATE|DELETE|REPLACE|WITH|CREATE|ALTER|DROP|TRUNCATE)\\b"
+    );
+    private static final Pattern ASYNC_FUTURE_CALL = Pattern.compile(
+        "\\b(?:db(?:Execute|Query|Transaction)[A-Za-z0-9_]*|(?:execute|query|queryList|queryOne|transaction)|reload(?:Script|Scripts|All))Async\\s*\\("
+    );
     private static final Pattern IMPORT = Pattern.compile("(?m)^\\s*import\\s+([\\w.*]+)");
     private static final Pattern API_CALL = Pattern.compile("\\b(?:KSL\\s*\\.\\s*api|api)\\s*\\.\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*\\(");
     private static final Pattern PAPER_VERSION = Pattern.compile("(?:paper-api|spigot-api)[^\\n\\r]*?(1\\.\\d+)", Pattern.CASE_INSENSITIVE);
@@ -43,6 +53,10 @@ public final class KslPreflightAnalyzer {
 
     public static List<Diagnostic> analyze(String source, String buildConfiguration) {
         if (source == null || source.isEmpty()) return List.of();
+        if (source.length() > MAX_SOURCE_CHARS) {
+            return List.of(new Diagnostic("analysis-limit", 0, Math.min(1, source.length()),
+                "KSL static analysis was skipped because this file exceeds 1,000,000 characters. Split the file or run the normal Gradle/KSL validation; no safety conclusion was made.", false));
+        }
         String config = buildConfiguration == null ? "" : buildConfiguration;
         boolean gradleModel = config.contains("dependencies") || config.contains("plugins");
         List<Diagnostic> result = new ArrayList<>();
@@ -68,6 +82,8 @@ public final class KslPreflightAnalyzer {
         }
 
         String code = maskCommentsAndStrings(source);
+        addDynamicSqlDiagnostics(result, code, source);
+        addBlockingFutureWaitDiagnostics(result, code);
         addMatches(result, THREAD_SLEEP, code, "blocking-call",
             "Thread.sleep blocks the current thread and can stall script loading or synchronous callbacks. Use KSL scheduling/worker APIs.", false);
         addMatches(result, RUN_BLOCKING, code, "blocking-call",
@@ -127,6 +143,104 @@ public final class KslPreflightAnalyzer {
         }
     }
 
+
+    private record StringLiteral(int endOffset, int contentStart, int contentEnd, String value) {}
+
+    /**
+     * Flags SQL assembled through Kotlin interpolation or string concatenation.
+     * Only recognizable SQL statements passed to known KSL/session methods are considered.
+     */
+    private static void addDynamicSqlDiagnostics(List<Diagnostic> target, String code, String source) {
+        Matcher calls = SQL_CALL.matcher(code);
+        while (calls.find()) {
+            int literalStart = skipWhitespace(source, calls.end());
+            StringLiteral literal = readStringLiteral(source, literalStart);
+            if (literal == null || !SQL_PREFIX.matcher(literal.value()).find()) continue;
+
+            int afterLiteral = skipWhitespace(source, literal.endOffset());
+            boolean concatenated = afterLiteral < source.length() && source.charAt(afterLiteral) == '+';
+            if (!concatenated && !containsKotlinInterpolation(source, literal.contentStart(), literal.contentEnd())) continue;
+
+            target.add(new Diagnostic("dynamic-sql", literalStart, literal.endOffset(),
+                "This SQL statement is assembled dynamically. Prefer SQL placeholders (?) and pass values as parameters to the KSL database method; this keeps data separate from SQL syntax.", false));
+        }
+    }
+
+    private static void addBlockingFutureWaitDiagnostics(List<Diagnostic> target, String code) {
+        Matcher calls = ASYNC_FUTURE_CALL.matcher(code);
+        while (calls.find()) {
+            int open = code.indexOf('(', calls.start());
+            int close = matchingParenthesis(code, open);
+            if (close < 0) continue;
+
+            int cursor = skipWhitespace(code, close + 1);
+            if (cursor >= code.length() || code.charAt(cursor) != '.') continue;
+            cursor = skipWhitespace(code, cursor + 1);
+            int methodStart = cursor;
+            while (cursor < code.length() && Character.isJavaIdentifierPart(code.charAt(cursor))) cursor++;
+            String method = code.substring(methodStart, cursor);
+            if (!method.equals("get") && !method.equals("join")) continue;
+            cursor = skipWhitespace(code, cursor);
+            if (cursor >= code.length() || code.charAt(cursor) != '(') continue;
+
+            target.add(new Diagnostic("blocking-future-wait", methodStart, cursor,
+                "Waiting with ." + method + "() blocks the calling thread. In server callbacks prefer whenComplete/thenApply or an async workflow; only block a dedicated worker when a bounded wait is intentional.", false));
+        }
+    }
+
+    private static int matchingParenthesis(String source, int open) {
+        if (open < 0 || open >= source.length() || source.charAt(open) != '(') return -1;
+        int depth = 0;
+        for (int i = open; i < source.length(); i++) {
+            char current = source.charAt(i);
+            if (current == '(') depth++;
+            else if (current == ')' && --depth == 0) return i;
+        }
+        return -1;
+    }
+
+    private static int skipWhitespace(String source, int offset) {
+        int cursor = offset;
+        while (cursor < source.length() && Character.isWhitespace(source.charAt(cursor))) cursor++;
+        return cursor;
+    }
+
+    private static StringLiteral readStringLiteral(String source, int start) {
+        if (start < 0 || start >= source.length() || source.charAt(start) != '"') return null;
+        boolean triple = start + 2 < source.length() && source.startsWith("\"\"\"", start);
+        int contentStart = start + (triple ? 3 : 1);
+        int cursor = contentStart;
+        while (cursor < source.length()) {
+            if (triple && cursor + 2 < source.length() && source.startsWith("\"\"\"", cursor)) {
+                return new StringLiteral(cursor + 3, contentStart, cursor, source.substring(contentStart, cursor));
+            }
+            char current = source.charAt(cursor);
+            if (!triple && current == '\\') {
+                cursor = Math.min(source.length(), cursor + 2);
+                continue;
+            }
+            if (!triple && current == '"') {
+                return new StringLiteral(cursor + 1, contentStart, cursor, source.substring(contentStart, cursor));
+            }
+            cursor++;
+        }
+        return null;
+    }
+
+    private static boolean containsKotlinInterpolation(String source, int start, int end) {
+        for (int i = start; i < end; i++) {
+            if (source.charAt(i) != '$') continue;
+            int slashes = 0;
+            for (int j = i - 1; j >= start && source.charAt(j) == '\\'; j--) slashes++;
+            if (slashes % 2 != 0) continue;
+            if (i + 1 < end && (source.charAt(i + 1) == '{' || Character.isJavaIdentifierStart(source.charAt(i + 1)))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+
     private static int parseMinor(String version) {
         try { return Integer.parseInt(version.substring(version.indexOf('.') + 1)); }
         catch (RuntimeException ignored) { return -1; }
@@ -141,28 +255,78 @@ public final class KslPreflightAnalyzer {
     private static String maskCommentsAndStrings(String source) {
         StringBuilder out = new StringBuilder(source);
         int i = 0;
+        int blockDepth = 0;
+        boolean lineComment = false;
+        boolean string = false;
+        boolean tripleString = false;
+        boolean character = false;
+        boolean escaped = false;
+
         while (i < source.length()) {
             char c = source.charAt(i);
-            if (c == '/' && i + 1 < source.length() && source.charAt(i + 1) == '/') {
-                int end = source.indexOf('\n', i);
-                if (end < 0) end = source.length();
-                blank(out, i, end); i = end;
-            } else if (c == '/' && i + 1 < source.length() && source.charAt(i + 1) == '*') {
-                int end = source.indexOf("*/", i + 2);
-                end = end < 0 ? source.length() : end + 2;
-                blank(out, i, end); i = end;
-            } else if (c == '"' || c == '\'') {
-                char quote = c;
-                boolean triple = quote == '"' && i + 2 < source.length()
-                    && source.charAt(i + 1) == '"' && source.charAt(i + 2) == '"';
-                int start = i;
-                i += triple ? 3 : 1;
-                while (i < source.length()) {
-                    if (triple && i + 2 < source.length() && source.startsWith("\"\"\"", i)) { i += 3; break; }
-                    if (!triple && source.charAt(i) == quote && source.charAt(i - 1) != '\\') { i++; break; }
-                    i++;
+            char next = i + 1 < source.length() ? source.charAt(i + 1) : '\0';
+            char third = i + 2 < source.length() ? source.charAt(i + 2) : '\0';
+
+            if (lineComment) {
+                if (c == '\n' || c == '\r') lineComment = false;
+                else blank(out, i, i + 1);
+                i++;
+                continue;
+            }
+            if (blockDepth > 0) {
+                blank(out, i, i + 1);
+                if (c == '/' && next == '*') {
+                    blank(out, i + 1, i + 2);
+                    blockDepth++;
+                    i += 2;
+                } else if (c == '*' && next == '/') {
+                    blank(out, i + 1, i + 2);
+                    blockDepth--;
+                    i += 2;
+                } else i++;
+                continue;
+            }
+            if (tripleString) {
+                blank(out, i, i + 1);
+                if (c == '"' && next == '"' && third == '"') {
+                    blank(out, i + 1, i + 3);
+                    i += 3;
+                    tripleString = false;
+                } else i++;
+                continue;
+            }
+            if (string || character) {
+                blank(out, i, i + 1);
+                if (escaped) escaped = false;
+                else if (c == '\\') escaped = true;
+                else if ((string && c == '"') || (character && c == '\'')) {
+                    string = false;
+                    character = false;
                 }
-                blank(out, start, i);
+                i++;
+                continue;
+            }
+
+            if (c == '/' && next == '/') {
+                blank(out, i, i + 2);
+                i += 2;
+                lineComment = true;
+            } else if (c == '/' && next == '*') {
+                blank(out, i, i + 2);
+                i += 2;
+                blockDepth = 1;
+            } else if (c == '"' && next == '"' && third == '"') {
+                blank(out, i, i + 3);
+                i += 3;
+                tripleString = true;
+            } else if (c == '"') {
+                blank(out, i, i + 1);
+                i++;
+                string = true;
+            } else if (c == '\'') {
+                blank(out, i, i + 1);
+                i++;
+                character = true;
             } else i++;
         }
         return out.toString();

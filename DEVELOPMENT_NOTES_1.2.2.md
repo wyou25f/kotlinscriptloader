@@ -9,6 +9,8 @@ KSL 1.2.2 focuses on safer authoring for larger Kotlin scripts and addons, clear
 - **Sandbox database capability:** sandboxed scripts are denied SQL and `table()` by default. An exact script id can be allowlisted for the bounded KSL SQL API; raw JDBC remains unavailable to sandboxed scripts.
 - **Reload-safe work:** script-owned DB futures and table writes are tied to a runtime generation and pending operations are cancelled during unload.
 - **Detached NBT engine:** a copy-on-write SNBT document API adds configurable size, nesting and entry limits while keeping live Bukkit NBT operations separate.
+- **Database pressure warning:** the queue monitor samples bounded writer/reader queues, flags rapid growth before the high watermark, and suppresses duplicate alerts until both queues recover. It does not run SQL or resize queues automatically.
+- **IDE authoring safeguards:** preflight warns about interpolated/concatenated SQL and immediately blocked async DB/reload futures. Oversized files receive an explicit skipped-analysis warning, and Gradle model reads are cached by VFS modification stamps.
 
 - **Authoring preflight:** `/ksl validate [script-id]` now combines Kotlin compiler diagnostics with conservative warnings for blocking sleeps/coroutines, unconditional loops, unmanaged threads and direct Bukkit scheduler tasks.
 - **Readable error reports:** validation writes the full diagnostic set to `plugins/KotlinScriptLoader/reports/`. Chat output stays compact; reports are capped at 2 MB and the newest ten are retained. Fifty or more diagnostics no longer need to flood console output.

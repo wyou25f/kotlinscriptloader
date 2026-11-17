@@ -48,7 +48,7 @@ intellijPlatform {
             sinceBuild = "243"
         }
         changeNotes = """
-            1.2.2: Add structured KSL logger completion, println-to-scriptLogger quick fix, logging diagnostics, and expanded Kotlin addon authoring support.
+            1.2.2: Add structured KSL logger completion, println-to-scriptLogger quick fix, logging diagnostics, expanded Kotlin addon authoring support, bounded preflight analysis, cached Gradle model reads, dynamic SQL hints and blocking async-wait warnings.
         """.trimIndent()
     }
 }
