@@ -140,6 +140,23 @@ class KSLGenerationRuntimeTest {
     }
 
     @Test
+    fun `closed active scope remains visible and cannot trigger a legacy fallback`() {
+        val manager = manager()
+        val generation = manager.begin("legacy/fallback", "stamp", "compiled")
+        manager.withCandidate(generation) { }
+        manager.activate(generation)
+
+        generation.scope.close()
+
+        assertSame(generation.scope, manager.currentScope("legacy/fallback"))
+        assertTrue(manager.currentScope("legacy/fallback")?.isClosed == true)
+        assertSame(generation, manager.activeGeneration("legacy/fallback"))
+
+        manager.retireActive("legacy/fallback")
+        assertEquals(KSLGenerationState.DISPOSED, generation.state)
+    }
+
+    @Test
     fun `duplicate candidates are rejected without leaking their scope`() {
         val scopes = mutableListOf<KSLRuntimeScope>()
         val manager = KSLGenerationManager<String> { name ->
