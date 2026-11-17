@@ -210,7 +210,7 @@ class KSLRuntimeScope(val name: String) : AutoCloseable {
     }
 
     companion object {
-        const val MAX_OWNED_RESOURCES: Int = 256
+        const val MAX_OWNED_RESOURCES: Int = 4096
         const val MAX_PROFILERS_PER_SCOPE: Int = 128
     }
 }
