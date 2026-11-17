@@ -266,6 +266,10 @@ open class BukkitScriptContext(
         prettyPrint = true
         explicitNulls = true
         allowSpecialFloatingPointValues = false
+        // Accept JSONC-style comments and trailing commas on input for existing config files.
+        // Encoding remains standards-compliant JSON and does not write comments.
+        allowComments = true
+        allowTrailingComma = true
     }
 
     private fun resolveJsonFile(fileName: String, operation: String): File {
@@ -286,7 +290,7 @@ open class BukkitScriptContext(
         val file = resolveJsonFile(fileName, "loadJson")
         if (!file.isFile) return null
         return try {
-            jsonCodec.parseToJsonElement(file.readText(Charsets.UTF_8))
+            jsonCodec.parseToJsonElement(file.readText(Charsets.UTF_8).removePrefix("\uFEFF"))
         } catch (ex: SerializationException) {
             val backup = File(file.parentFile, "${file.name}.broken-${System.currentTimeMillis()}")
             val saved = runCatching { file.copyTo(backup) }.isSuccess
@@ -312,16 +316,12 @@ open class BukkitScriptContext(
     fun saveJson(fileName: String, value: JsonElement): Boolean {
         val file = resolveJsonFile(fileName, "saveJson")
         return try {
-            file.parentFile?.mkdirs()
-            val temporary = File(file.parentFile, "${file.name}.tmp")
-            temporary.writeText(jsonCodec.encodeToString(JsonElement.serializer(), value), Charsets.UTF_8)
-            try {
-                Files.move(temporary.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
-            } catch (ex: AtomicMoveNotSupportedException) {
-                Files.move(temporary.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
-            }
+            KSLAtomicFileWriter.writeText(
+                file,
+                jsonCodec.encodeToString(JsonElement.serializer(), value)
+            )
             true
-        } catch (ex: IOException) {
+        } catch (ex: Exception) {
             internalPlugin.logger.warning("[$scriptName] Не удалось сохранить JSON '$fileName': ${ex.message}")
             false
         }
@@ -358,7 +358,7 @@ open class BukkitScriptContext(
         val file = resolveTomlFile(fileName, "loadToml")
         if (!file.isFile) return null
         return try {
-            KSLTomlCodec.parse(file.readText(Charsets.UTF_8))
+            KSLTomlCodec.parse(file.readText(Charsets.UTF_8).removePrefix("\uFEFF"))
         } catch (ex: Exception) {
             val backup = File(file.parentFile, file.name + ".broken-" + System.currentTimeMillis())
             val saved = runCatching { file.copyTo(backup) }.isSuccess
@@ -375,14 +375,7 @@ open class BukkitScriptContext(
     fun saveToml(fileName: String, values: Map<String, Any?>): Boolean {
         val file = resolveTomlFile(fileName, "saveToml")
         return try {
-            file.parentFile?.mkdirs()
-            val temporary = File(file.parentFile, file.name + ".tmp")
-            temporary.writeText(KSLTomlCodec.encode(values), Charsets.UTF_8)
-            try {
-                Files.move(temporary.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
-            } catch (ex: AtomicMoveNotSupportedException) {
-                Files.move(temporary.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
-            }
+            KSLAtomicFileWriter.writeText(file, KSLTomlCodec.encode(values))
             true
         } catch (ex: Exception) {
             internalPlugin.logger.warning("[" + scriptName + "] Не удалось сохранить TOML '" + fileName + "': " + ex.message)
