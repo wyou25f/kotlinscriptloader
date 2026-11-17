@@ -33,7 +33,7 @@ Options:
   --help, -h             Show this help
 
 Java 21 is required. Build logs and reports are written to build-reports/.
-The project version guard intentionally remains at the current 1.2.2 development version.
+The project version guard pins this maintenance line to 1.2.1.
 USAGE
 }
 
@@ -89,7 +89,7 @@ done
 if [[ "$SKIP_PREFLIGHT" -eq 0 ]]; then
   ksl_check_java_21
 fi
-ksl_check_development_version
+ksl_check_project_version
 
 VERSION="$(ksl_project_version)"
 declare -a GRADLE_TASKS
