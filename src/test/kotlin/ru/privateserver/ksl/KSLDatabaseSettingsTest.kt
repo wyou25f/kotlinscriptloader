@@ -49,13 +49,44 @@ class KSLDatabaseSettingsTest {
             KSLDatabaseSettings.parse(type = "mysql", host = "db.example.test;DROP", name = "ksl", user = "ksl")
         }
         assertThrows(IllegalArgumentException::class.java) {
-            KSLDatabaseSettings.parse(type = "mysql", host = "db.example.test", port = 0, name = "ksl", user = "ksl")
+            KSLDatabaseSettings.parse(type = "mysql", host = "db.example.test", port = -1, name = "ksl", user = "ksl")
         }
         assertThrows(IllegalArgumentException::class.java) {
             KSLDatabaseSettings.parse(type = "mysql", host = "db.example.test", name = "bad name", user = "ksl")
         }
         assertThrows(IllegalArgumentException::class.java) {
             KSLDatabaseSettings.parse(type = "mysql", host = "db.example.test", name = "ksl", user = " ")
+        }
+    }
+
+
+    @Test
+    fun postgresUsesItsNativePortAndVerifiedJdbcUrl() {
+        val settings = KSLDatabaseSettings.parse(
+            type = "postgresql",
+            host = "db.example.test",
+            name = "ksl_prod",
+            user = "ksl"
+        )
+        assertEquals(5432, settings.port)
+        assertEquals("jdbc:postgresql://db.example.test:5432/ksl_prod?sslmode=verify-full", settings.jdbcUrl())
+        assertTrue(settings.describe().startsWith("PostgreSQL ksl@db.example.test:5432/ksl_prod"))
+        assertFalse(settings.describe().contains(settings.password))
+    }
+
+    @Test
+    fun postgresTlsModesWithoutServerIdentityVerificationNeedOptIn() {
+        for (mode in listOf("disable", "allow", "prefer", "require")) {
+            assertThrows(IllegalArgumentException::class.java) {
+                KSLDatabaseSettings.parse(type = "postgres", user = "ksl", sslMode = mode)
+            }
+            val allowed = KSLDatabaseSettings.parse(
+                type = "postgres",
+                user = "ksl",
+                sslMode = mode,
+                allowInsecureTransport = true
+            )
+            assertTrue(allowed.jdbcUrl().contains("sslmode=$mode"))
         }
     }
 
