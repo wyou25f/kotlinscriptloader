@@ -6,7 +6,7 @@
 
 Скопируй ide/templates/addon-starter в отдельный Gradle-проект. Открой его в IntelliJ IDEA с JDK 21 и укажи JAR именно той сборки KSL, которая установлена на тестовом сервере:
 
-    ./gradlew -PkslJar=/absolute/path/to/KotlinScriptLoader-1.2.2-SNAPSHOT.jar compileKotlin
+    ./gradlew -PkslJar=/absolute/path/to/KotlinScriptLoader-1.2.2.jar compileKotlin
 
 Не используй JAR другой версии: он может содержать другой публичный API.
 
@@ -110,7 +110,7 @@ reloadScript остаётся синхронным для совместимос
 
 1. Открой ide/ как Gradle-проект.
 2. Используй JDK 21.
-3. Передай -PkslJar=/path/to/KotlinScriptLoader-1.2.2-SNAPSHOT.jar.
+3. Передай -PkslJar=/path/to/KotlinScriptLoader-1.2.2.jar.
 4. Для live scripts добавь -PkslScriptsDir=/path/to/plugins/KotlinScriptLoader/scripts.
 5. Запусти verifyKslIdeSetup.
 6. Установи собранный KSL IntelliJ plugin и открой ide/samples/ide-completion-smoke-test.kts.
