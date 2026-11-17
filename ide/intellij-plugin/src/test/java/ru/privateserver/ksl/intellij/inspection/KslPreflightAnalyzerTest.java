@@ -73,6 +73,22 @@ class KslPreflightAnalyzerTest {
     }
 
     @Test
+    void warnsAboutUnstructuredPrintCalls() {
+        var diagnostics = KslPreflightAnalyzer.analyze(
+            "println(\"ready\")\\nprint(value)", "");
+        assertEquals(2, diagnostics.size());
+        assertTrue(diagnostics.stream().allMatch(d -> d.code().equals("unstructured-log")));
+        assertTrue(diagnostics.stream().noneMatch(KslPreflightAnalyzer.Diagnostic::error));
+    }
+
+    @Test
+    void acceptsTheNewStructuredLoggerApiMethod() {
+        var diagnostics = KslPreflightAnalyzer.analyze(
+            "api.createLogger(\"example-addon\", \"storage\")", "");
+        assertTrue(diagnostics.isEmpty());
+    }
+
+    @Test
     void recognizesAddonKotlinFilesForLocalPreflight() {
         assertTrue(KslPreflightAnalyzer.isKslAddonSource(
             "class ExampleAddon : JavaPlugin(), KSLAddon", "dependencies { compileOnly(files(\"KotlinScriptLoader.jar\")) }"));

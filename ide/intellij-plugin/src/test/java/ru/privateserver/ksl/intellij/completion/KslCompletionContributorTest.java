@@ -18,6 +18,14 @@ class KslCompletionContributorTest {
     }
 
     @Test
+    void offersStructuredLoggerAndAddonLoggerSuggestions() {
+        assertTrue(KslCompletionContributor.hasSuggestion("scriptLogger()"));
+        assertTrue(KslCompletionContributor.hasSuggestion("KSLLogLevel.DEBUG"));
+        assertTrue(KslCompletionContributor.hasSuggestion("logger.child(\"database\")"));
+        assertTrue(KslCompletionContributor.hasSuggestion("api.createLogger(addonId, \"database\")"));
+    }
+
+    @Test
     void doesNotPolluteUnrelatedKotlinProjects() {
         assertFalse(KslCompletionContributor.supportsFile("Main.kt",
             "fun main() = println(\"hello\")"));

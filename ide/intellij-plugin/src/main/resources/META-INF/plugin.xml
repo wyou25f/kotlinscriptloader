@@ -5,8 +5,8 @@
     <vendor url="https://github.com/wyou25f/kotlinscriptloader">KotlinScriptLoader</vendor>
     <description><![CDATA[
         Editor assistance for Kotlin Script Loader server scripts and addon projects.
-        Adds KSL API completion, async thread-safety diagnostics, dependency checks,
-        blocking-call and lifecycle-risk warnings, quick fixes and local static preflight.
+        Adds KSL API and structured logging completion, async thread-safety diagnostics,
+        dependency checks, quick fixes and local static preflight for scripts and addons.
         Preflight does not compile, execute scripts or connect to a server.
     ]]></description>
     <depends>com.intellij.modules.platform</depends>

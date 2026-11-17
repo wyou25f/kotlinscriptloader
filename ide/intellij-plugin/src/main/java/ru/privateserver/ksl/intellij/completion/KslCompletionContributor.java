@@ -24,6 +24,21 @@ public final class KslCompletionContributor extends CompletionContributor {
         new Suggestion("KSLApiProvider.requireApi()", "KSL API", "Obtain the installed public API"),
         new Suggestion("KSLAddonScope.create(api)", "Lifecycle", "Create a scope that owns listeners, tasks and subscriptions"),
         new Suggestion("api.createConfig(this)", "Configuration", "Load an addon-owned YAML config with defaults"),
+        new Suggestion("scriptLogger()", "Logging", "Create an admin-aware logger for the current KSL script"),
+        new Suggestion("scriptLogger(\"economy\") { level = KSLLogLevel.DEBUG }", "Logging DSL", "Create a named script logger with a requested level"),
+        new Suggestion("kslLogger()", "Logging", "Short alias for scriptLogger"),
+        new Suggestion("KSLLogger", "Logging API", "Structured logger shared by KSL scripts and addons"),
+        new Suggestion("KSLLoggerConfig", "Logging API", "Configure level, prefix and owner/category fields"),
+        new Suggestion("KSLLogLevel.TRACE", "Logging levels", "Most detailed logger level; the server admin can suppress it"),
+        new Suggestion("KSLLogLevel.DEBUG", "Logging levels", "Debug detail; enabled only when the server policy allows it"),
+        new Suggestion("logger.trace()", "Logging", "Write trace-level structured details"),
+        new Suggestion("logger.debug()", "Logging", "Write debug-level structured details"),
+        new Suggestion("logger.info()", "Logging", "Write an informational structured message"),
+        new Suggestion("logger.warn()", "Logging", "Write a warning with optional fields"),
+        new Suggestion("logger.error()", "Logging", "Write an error with optional cause and fields"),
+        new Suggestion("logger.child(\"database\")", "Logging", "Create a child category under the current logger"),
+        new Suggestion("api.createLogger(addonId, \"database\")", "Addon logging", "Create a logger owned by this addon"),
+        new Suggestion("api.logger(addonId, \"database\") { }", "Addon logging DSL", "Create and configure an addon logger"),
         new Suggestion("api.registerService", "Services", "Register a service for other addons"),
         new Suggestion("api.service<T>(\"\")", "Services", "Look up an optional typed service"),
         new Suggestion("api.requireService<T>(\"\")", "Services", "Look up a required typed service"),
@@ -82,6 +97,10 @@ public final class KslCompletionContributor extends CompletionContributor {
                 }
             }
         });
+    }
+
+    static boolean hasSuggestion(String lookup) {
+        return SUGGESTIONS.stream().anyMatch(suggestion -> suggestion.lookup().equals(lookup));
     }
 
     static boolean supportsFile(String name, String source) {

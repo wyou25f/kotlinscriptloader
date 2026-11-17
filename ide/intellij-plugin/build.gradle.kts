@@ -48,7 +48,7 @@ intellijPlatform {
             sinceBuild = "243"
         }
         changeNotes = """
-            1.2.2: Add blocking-call diagnostics, addon Kotlin preflight, synchronous reload warnings and improved authoring safety checks.
+            1.2.2: Add structured KSL logger completion, println-to-scriptLogger quick fix, logging diagnostics, and expanded Kotlin addon authoring support.
         """.trimIndent()
     }
 }

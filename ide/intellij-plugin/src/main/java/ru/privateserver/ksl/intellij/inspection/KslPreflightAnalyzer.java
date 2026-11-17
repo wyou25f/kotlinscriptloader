@@ -13,7 +13,7 @@ public final class KslPreflightAnalyzer {
     private static final Pattern API_CALL = Pattern.compile("\\b(?:KSL\\s*\\.\\s*api|api)\\s*\\.\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*\\(");
     private static final Pattern PAPER_VERSION = Pattern.compile("(?:paper-api|spigot-api)[^\\n\\r]*?(1\\.\\d+)", Pattern.CASE_INSENSITIVE);
     private static final Set<String> API_METHODS = Set.of(
-        "createConfig", "registerAddon", "unregisterAddon", "registerService", "unregisterService",
+        "createConfig", "createLogger", "registerAddon", "unregisterAddon", "registerService", "unregisterService",
         "getService", "service", "requireService", "addDefaultImports", "registerStandardLibraryModule",
         "unregisterStandardLibraryModule", "standardLibraryModules", "registerContextExtension",
         "unregisterContextExtension", "registeredAddons", "isAddonLoaded", "onAddonReady",
@@ -35,6 +35,7 @@ public final class KslPreflightAnalyzer {
     private static final Pattern INFINITE_LOOP = Pattern.compile("\\bwhile\\s*\\(\\s*true\\s*\\)\\s*\\{");
     private static final Pattern RAW_THREAD = Pattern.compile("\\bThread\\s*(?:\\(|\\{)|\\bExecutors\\s*\\.\\s*new(?:SingleThreadExecutor|FixedThreadPool|CachedThreadPool|ScheduledThreadPool)");
     private static final Pattern SYNC_RELOAD = Pattern.compile("\\b(?:KSL\\s*\\.\\s*api|api)\\s*\\.\\s*reloadScript\\s*\\(");
+    private static final Pattern UNSTRUCTURED_PRINT = Pattern.compile("\\b(println|print)\\s*\\(");
 
     private KslPreflightAnalyzer() {}
 
@@ -77,6 +78,8 @@ public final class KslPreflightAnalyzer {
             "A manually created thread/executor is not owned by the script lifecycle. Prefer KSL workers or register explicit cleanup.", false);
         addMatches(result, SYNC_RELOAD, code, "blocking-reload",
             "KSLAPI.reloadScript blocks until compilation and swap finish. Use reloadScriptAsync from addon callbacks.", false);
+        addMatches(result, UNSTRUCTURED_PRINT, code, "unstructured-log",
+            "Bare print/println output has no KSL owner, category or server-controlled level. Prefer scriptLogger().info(...).", false);
         boolean explicitApiContext = code.contains("KSL.api")
             || Pattern.compile("\\b(?:val|var)\\s+api\\s*:\\s*(?:ru\\.privateserver\\.ksl\\.api\\.)?KSLAPI\\b")
                 .matcher(code).find();

@@ -31,6 +31,9 @@ public final class KslPreflightAnnotator implements Annotator {
             if (diagnostic.code().startsWith("missing-")) {
                 builder.withFix(new KslOpenGradleIntentionAction());
             }
+            if (diagnostic.code().equals("unstructured-log") && file.getName().endsWith(".kts")) {
+                builder.withFix(new KslStructuredLoggerIntentionAction(diagnostic.startOffset()));
+            }
             builder.create();
         }
     }
