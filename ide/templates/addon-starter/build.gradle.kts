@@ -11,7 +11,7 @@ repositories {
 }
 
 val kslJar = providers.gradleProperty("kslJar")
-    .orElse("libs/KotlinScriptLoader-1.2.1.jar")
+    .orElse("libs/KotlinScriptLoader-1.2.2-SNAPSHOT.jar")
 
 dependencies {
     compileOnly(files(kslJar))
