@@ -15,8 +15,11 @@ import net.kyori.adventure.text.Component
 class KSLEntityBuilder(
     private val entity: LivingEntity,
     private val plugin: KotlinScriptLoaderPlugin,
-    private val scriptName: String
+    private val scriptName: String,
+    private val ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope
 ) {
+    constructor(entity: LivingEntity, plugin: KotlinScriptLoaderPlugin, scriptName: String) :
+        this(entity, plugin, scriptName, plugin.scriptRuntimeScope(scriptName))
 
     private val equipKeys = setOf("HAND", "OFFHAND", "HELMET", "CHESTPLATE", "LEGGINGS", "BOOTS")
 
@@ -310,6 +313,7 @@ class KSLEntityBuilder(
 
     // Replaces the vanilla drops (keepDefault = true adds to them); exp overrides the dropped experience.
     fun drops(vararg items: ItemStack, exp: Int? = null, keepDefault: Boolean = false) {
-        plugin.entityManager.setDrops(scriptName, entity, items.toList(), exp, keepDefault)
+        check(!ownerScope.isClosed) { "[$scriptName] entity builder belongs to an unloaded generation" }
+        plugin.entityManager.setDrops(scriptName, entity, items.toList(), exp, keepDefault, ownerScope)
     }
 }
