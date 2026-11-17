@@ -115,6 +115,14 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                     sender.sendMessage(plugin.message("runtime.tasks", "completed" to w.completed, "rejected" to w.rejected))
                     val cache = plugin.compileCacheSnapshot()
                     sender.sendMessage("§7Compile cache: §f${cache.hits} hits §8/ §f${cache.misses} misses §8| §f${"%.1f".format(java.util.Locale.ROOT, cache.hitRate * 100)}% §8| §f${cache.size}/${cache.maxSize} §8| evictions: §f${cache.evictions}")
+                    val generations = plugin.generationSnapshots()
+                    sender.sendMessage("§7Script generations: §f${generations.count { it.active }} active §8/ §f${generations.size} tracked")
+                    generations.take(10).forEach { generation ->
+                        sender.sendMessage(
+                            "§8• §f${generation.scriptId}#${generation.generation} §7${generation.state} " +
+                                "§8| resources: §f${generation.ownedResources}"
+                        )
+                    }
                     sender.sendMessage(plugin.message("runtime.setting"))
                     sender.sendMessage(plugin.message("runtime.heap-note"))
                 }
