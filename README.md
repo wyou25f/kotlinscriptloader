@@ -88,14 +88,22 @@ The multi-page KotlinScriptLoader website is in [`website/`](website/). It inclu
 
 ## Build and test
 
-The repository uses JDK 21 and PowerShell 7+:
+The repository uses JDK 21. Native Bash tools are available for Linux and macOS; PowerShell 7+ remains supported on Windows:
+
+```bash
+./build.sh -Task Build
+./build.sh -Task Test
+./build.sh -Task Quality
+```
+
+PowerShell users can continue using:
 
 ```powershell
 ./build.ps1 -Task Build
 ./build.ps1 -Task Test
 ```
 
-The plugin JAR is written to `build/libs/`. Build logs and diagnostic reports are written to `build-reports/`.
+The plugin JAR is written to `build/libs/`. Build logs and diagnostic reports are written to `build-reports/`. See [development tools](scripts/README.md) for all commands, options and diagnostics utilities.
 
 ## Security model
 

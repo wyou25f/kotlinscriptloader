@@ -43,7 +43,7 @@
         <div class="section-head"><div><span class="eyebrow">04 / ENVIRONMENT</span><h2>Окружение и файлы</h2></div></div>
         <dl>
           <div><dt>Операционная система</dt><dd id="os">—</dd></div>
-          <div><dt>PowerShell</dt><dd id="ps">—</dd></div>
+          <div><dt>Runner</dt><dd id="runner">—</dd></div>
           <div><dt>JAVA_HOME</dt><dd id="java">—</dd></div>
           <div><dt>Начало</dt><dd id="started">—</dd></div>
           <div><dt>Завершение</dt><dd id="finished">—</dd></div>
@@ -66,7 +66,7 @@
     put("exit", report.exitCode);
     put("count", (report.taskOutput || []).length);
     put("os", report.operatingSystem);
-    put("ps", report.powershell);
+    put("runner", report.runner || report.powershell || "unknown");
     put("java", report.javaHome);
     put("started", report.startedAt);
     put("finished", report.finishedAt);

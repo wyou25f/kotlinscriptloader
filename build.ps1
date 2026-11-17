@@ -8,6 +8,10 @@ param(
     [switch]$SkipPreflight
 )
 $ErrorActionPreference = "Stop"
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    Write-Error "PowerShell 7 or later is required. Use ./build.sh on Linux/macOS if PowerShell is unavailable."
+    exit 1
+}
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $IsWindowsHost = ($env:OS -eq "Windows_NT") -or ($PSVersionTable.PSEdition -eq "Desktop")
 
@@ -25,7 +29,8 @@ $RequiredFiles = @(
     "settings.gradle.kts", "build.gradle.kts",
     "gradle/wrapper/gradle-wrapper.properties",
     "src/main/resources/plugin.yml",
-    "scripts/Debug-Build.ps1", "scripts/Diagnose-Environment.ps1"
+    "scripts/Debug-Build.ps1", "scripts/Diagnose-Environment.ps1",
+    "scripts/Inspect-Jar.ps1", "scripts/Build-Report.html", "scripts/Build-Report.css"
 )
 foreach ($Relative in $RequiredFiles) {
     if (-not (Test-Path (Join-Path $Root $Relative) -PathType Leaf)) {
@@ -37,15 +42,25 @@ $Wrapper = if ($IsWindowsHost) { Join-Path $Root "gradlew.bat" } else { Join-Pat
 if (-not (Test-Path $Wrapper -PathType Leaf)) { Stop-Build "Gradle wrapper not found: $Wrapper" }
 
 if (-not $SkipPreflight) {
-    if (-not (Get-Command java -ErrorAction SilentlyContinue)) {
+    $JavaExecutable = "java"
+    if ($env:JAVA_HOME) {
+        if (-not (Test-Path $env:JAVA_HOME -PathType Container)) {
+            Stop-Build "JAVA_HOME points to a missing directory: $env:JAVA_HOME"
+        }
+        $JavaExecutable = Join-Path $env:JAVA_HOME $(if ($IsWindowsHost) { "bin/java.exe" } else { "bin/java" })
+        if (-not (Test-Path $JavaExecutable -PathType Leaf)) {
+            Stop-Build "JAVA_HOME does not contain a Java executable: $JavaExecutable"
+        }
+    } elseif (-not (Get-Command java -ErrorAction SilentlyContinue)) {
         Stop-Build "Java 21 is required, but java was not found on PATH."
     }
-    $JavaOutput = (& java -version 2>&1 | Out-String)
-    if ($JavaOutput -notmatch 'version "21\.') {
-        Stop-Build "KSL requires Java 21. Detected: $($JavaOutput.Trim())"
+    $JavaOutput = (& $JavaExecutable -version 2>&1 | Out-String)
+    $JavaExitCode = $LASTEXITCODE
+    if ($JavaExitCode -ne 0) {
+        Stop-Build "Could not execute Java: $JavaExecutable"
     }
-    if ($env:JAVA_HOME -and -not (Test-Path $env:JAVA_HOME -PathType Container)) {
-        Stop-Build "JAVA_HOME points to a missing directory: $env:JAVA_HOME"
+    if ($JavaOutput -notmatch '(?i)(version\s+"21(?:\.|")|openjdk\s+21(?:\s|$))') {
+        Stop-Build "KSL requires Java 21. Detected: $($JavaOutput.Trim())"
     }
 }
 

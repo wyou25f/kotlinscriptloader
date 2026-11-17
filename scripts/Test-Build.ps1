@@ -5,6 +5,7 @@ param(
     [switch]$Offline,
     [switch]$OpenReport
 )
+$ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 $Arguments = @{ GradleTasks = @("clean", "check", "koverHtmlReport", "koverXmlReport", "componentTestAudit"); ReportName = "verify" }
 if ($Detailed) { $Arguments.Detailed = $true }
@@ -20,5 +21,11 @@ Write-Host "TEST OUTPUTS" -ForegroundColor Cyan
 if (Test-Path $Html) { Write-Host "Gradle test report: $Html" -ForegroundColor Green }
 if (Test-Path $Xml) { Write-Host "JUnit XML results:  $Xml" -ForegroundColor Green }
 if (Test-Path $Report) { Write-Host "KSL build report:   $Report" -ForegroundColor Cyan }
-if ($OpenReport -and (Test-Path $Report)) { Start-Process $Report }
+if ($OpenReport -and (Test-Path $Report)) {
+    if ($env:OS -eq "Windows_NT") { Start-Process $Report }
+    elseif (Get-Command xdg-open -ErrorAction SilentlyContinue) { & xdg-open $Report }
+    elseif (Get-Command open -ErrorAction SilentlyContinue) { & open $Report }
+    else { Write-Warning "No supported desktop opener found; open manually: $Report" }
+}
 if ($Code -ne 0) { exit $Code }
+$global:LASTEXITCODE = 0

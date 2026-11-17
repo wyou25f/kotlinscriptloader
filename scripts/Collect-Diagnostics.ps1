@@ -31,7 +31,18 @@ try {
             elseif ($Source -eq (Join-Path $Root "build/reports/tests/test")) { "gradle-test-html" }
             else { "junit-xml" }
         $Destination = Join-Path $Stage $Name
-        Copy-Item $Source $Destination -Recurse -Force
+        if ($Name -eq "build-reports") {
+            New-Item -ItemType Directory -Force -Path $Destination | Out-Null
+            $SourceRoot = (Resolve-Path $Source).Path
+            foreach ($File in (Get-ChildItem $SourceRoot -File -Recurse | Where-Object { $_.Name -notlike "KSL-diagnostics-*.zip" })) {
+                $Relative = $File.FullName.Substring($SourceRoot.Length).TrimStart([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+                $Target = Join-Path $Destination $Relative
+                New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Target) | Out-Null
+                Copy-Item $File.FullName $Target -Force
+            }
+        } else {
+            Copy-Item $Source $Destination -Recurse -Force
+        }
     }
     if (-not (Get-ChildItem $Stage -Force -ErrorAction SilentlyContinue)) {
         throw "No diagnostics found. Run ./build.ps1 -Task Test or ./build.ps1 -Task Build first."

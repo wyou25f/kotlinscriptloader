@@ -2,6 +2,7 @@
 param(
     [string[]]$GradleTasks = @("build"),
     [ValidateSet("build", "test", "verify", "quality", "audit", "ide", "custom", "clean", "release")]
+    [ValidatePattern("^[a-zA-Z0-9._-]+$")]
     [string]$ReportName = "build",
     [switch]$Detailed,
     [switch]$Offline,
@@ -71,6 +72,7 @@ $Report = [ordered]@{
     durationSeconds = $Duration
     machine = $env:COMPUTERNAME
     operatingSystem = [System.Runtime.InteropServices.RuntimeInformation]::OSDescription
+    runner = "PowerShell $($PSVersionTable.PSVersion) ($($PSVersionTable.PSEdition))"
     powershell = $PSVersionTable.PSVersion.ToString()
     javaHome = $env:JAVA_HOME
     gradleTasks = $GradleTasks

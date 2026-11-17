@@ -28,24 +28,24 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Set up PowerShell
+      - name: Validate native Bash tools
         shell: bash
         run: |
-          command -v pwsh >/dev/null || {
-            echo "PowerShell Core (pwsh) is required for the shared build diagnostics."
-            exit 1
-          }
+          bash -n build.sh scripts/*.sh
+          ./build.sh --help
+          ./scripts/diagnose-environment.sh --help
+          ./scripts/inspect-jar.sh --help
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
       - name: Diagnose build environment
-        shell: pwsh
-        run: ./build.ps1 -Task Diagnose
+        shell: bash
+        run: ./build.sh -Task Diagnose
 
       - name: Run strict quality gate
-        shell: pwsh
-        run: ./build.ps1 -Task Quality -NoDaemon -Detailed
+        shell: bash
+        run: ./build.sh -Task Quality -NoDaemon -Detailed
 
       - name: Upload build and test diagnostics
         if: always()
@@ -63,12 +63,12 @@ jobs:
           retention-days: 14
 
       - name: Assemble and verify plugin JAR
-        shell: pwsh
-        run: ./build.ps1 -Task Package -NoDaemon
+        shell: bash
+        run: ./build.sh -Task Package -NoDaemon
 
       - name: Inspect plugin JAR contents
-        shell: pwsh
-        run: ./scripts/Inspect-Jar.ps1
+        shell: bash
+        run: ./scripts/inspect-jar.sh
 
       - name: Upload JAR inspection report
         if: always()
