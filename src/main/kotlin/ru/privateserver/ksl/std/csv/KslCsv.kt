@@ -151,6 +151,9 @@ class KslCsvTable(columns: List<String>) {
 
     fun append(vararg values: Any?): KslCsvRow = addRow(values.toList())
 
+    /** Adds a row by position, padding omitted cells with empty strings. */
+    fun addRow(vararg values: Any?): KslCsvRow = addRow(values.toList())
+
     fun addRow(values: List<Any?>): KslCsvRow {
         require(values.size <= headers.size) {
             "CSV row has ${values.size} values, but the table has only ${headers.size} columns"
