@@ -1613,9 +1613,16 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
         runCatching {
             placeholdersByScript.remove(scriptName)
-            // Only this script's own entries: another script may have taken over a key with the same name.
-            placeholders.releaseOwner("script:$scriptName")
-            textPlaceholders.releaseOwner("script:$scriptName")
+            // Release the exact active generation owner during staged reload, plus the
+            // legacy owner used by contexts created before generation scopes existed.
+            val owners = listOfNotNull(
+                "script:$scriptName",
+                generationManager.activeGeneration(scriptName)?.scope?.name
+            ).distinct()
+            owners.forEach { owner ->
+                placeholders.releaseOwner(owner)
+                textPlaceholders.releaseOwner(owner)
+            }
         }.onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось снять часть плейсхолдеров: ${it.message}") }
 
         runCatching { addonManager.notifyContextDestroyed(scriptName) }
@@ -2062,14 +2069,35 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         unregisterCommands(listOf(command))
     }
 
-    fun registerPlaceholder(scriptName: String, key: String, resolver: (OfflinePlayer) -> String?) {
+    fun registerPlaceholder(
+        scriptName: String,
+        key: String,
+        resolver: (OfflinePlayer) -> String?,
+        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope = scriptRuntimeScope(scriptName)
+    ) {
         val normalized = key.lowercase()
-        val owner = "script:$scriptName"
+        val owner = ownerScope.name
         val previousOwner = placeholders.ownerOf(normalized)
         if (placeholders.contains(normalized) && previousOwner != owner) {
             logger.warning("[$scriptName] ${KSLError.PLACEHOLDER_CONFLICT.tag} Плейсхолдер %ksl_$normalized% уже занят (${previousOwner ?: "аддон/хук"}) — будет перезаписан")
         }
         placeholders.put(normalized, resolver, owner)
         placeholdersByScript.computeIfAbsent(scriptName) { mutableListOf() }.add(normalized)
+        try {
+            ownerScope.onClose {
+                placeholders.removeOwned(normalized, owner)
+                placeholdersByScript.computeIfPresent(scriptName) { _, keys ->
+                    keys.remove(normalized)
+                    if (keys.isEmpty()) null else keys
+                }
+            }
+        } catch (error: IllegalStateException) {
+            placeholders.removeOwned(normalized, owner)
+            placeholdersByScript.computeIfPresent(scriptName) { _, keys ->
+                keys.remove(normalized)
+                if (keys.isEmpty()) null else keys
+            }
+            throw error
+        }
     }
 }
