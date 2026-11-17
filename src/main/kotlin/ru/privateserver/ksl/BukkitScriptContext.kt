@@ -837,7 +837,7 @@ open class BukkitScriptContext(
         val failures = KSLTaskFailurePolicy(internalPlugin.taskFailureLimit)
         val task = schedule(guarded(where, repeating, taskId, completed, failures, block))
         taskId.set(task.taskId)
-        internalPlugin.trackTask(scriptName, task.taskId)
+        internalPlugin.trackTask(scriptName, task.taskId, contextRuntimeScope)
         // A very short async task may finish before its id is published.
         if (completed.get()) internalPlugin.untrackTask(scriptName, task.taskId)
         return task.taskId
@@ -978,7 +978,7 @@ open class BukkitScriptContext(
             }
         }
         Bukkit.getPluginManager().registerEvent(T::class.java, listener, priority, executor, internalPlugin, ignoreCancelled)
-        internalPlugin.trackListener(scriptName, listener)
+        internalPlugin.trackListener(scriptName, listener, contextRuntimeScope)
     }
 
     inline fun <reified T : Event> on(
@@ -1033,7 +1033,7 @@ open class BukkitScriptContext(
 
     private fun addCommand(command: DynamicCommand) {
         Bukkit.getCommandMap().register(internalPlugin.name.lowercase(), command)
-        internalPlugin.trackCommand(scriptName, command)
+        internalPlugin.trackCommand(scriptName, command, contextRuntimeScope)
     }
 
     // Subscriptions are dropped automatically when the script unloads.
