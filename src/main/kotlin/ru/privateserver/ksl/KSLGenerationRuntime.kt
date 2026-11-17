@@ -72,7 +72,7 @@ internal class KSLScriptGeneration<T : Any> internal constructor(
                 "Cannot fail generation $scriptId#$number from state $state"
             }
             state = KSLGenerationState.FAILED
-            if (error != null) failure = "${error::class.simpleName}: ${error.message ?: "no message"}"
+            if (error != null) failure = describeFailure(error)
         }
         try {
             scope.close()
@@ -91,11 +91,18 @@ internal class KSLScriptGeneration<T : Any> internal constructor(
     }
 
     private fun rememberFailure(error: Throwable) {
-        val detail = "${error::class.simpleName}: ${error.message ?: "no message"}"
+        val detail = describeFailure(error)
         synchronized(stateLock) {
             failure = listOfNotNull(failure, detail).joinToString("; ").take(512)
         }
     }
+
+    private fun describeFailure(error: Throwable): String =
+        generateSequence(error) { it.cause }
+            .take(4)
+            .joinToString(" <- ") { cause ->
+                "${cause::class.simpleName}: ${cause.message ?: "no message"}"
+            }
 
     internal fun snapshot(active: Boolean) = KSLGenerationSnapshot(
         scriptId = scriptId,
