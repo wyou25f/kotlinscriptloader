@@ -11,8 +11,10 @@ class KSLEntityBehaviorBuilder(
     private val plugin: KotlinScriptLoaderPlugin,
     private val scriptName: String,
     private val entity: LivingEntity,
-    private val ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope = plugin.scriptRuntimeScope(scriptName)
+    private val ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope
 ) {
+    constructor(plugin: KotlinScriptLoaderPlugin, scriptName: String, entity: LivingEntity) :
+        this(plugin, scriptName, entity, plugin.scriptRuntimeScope(scriptName))
 
     private companion object {
         const val MAX_CONSECUTIVE_ERRORS = 5
