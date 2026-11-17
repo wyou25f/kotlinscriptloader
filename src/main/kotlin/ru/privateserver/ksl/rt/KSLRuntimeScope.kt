@@ -79,11 +79,11 @@ class KSLRuntimeScope(val name: String) : AutoCloseable {
         }
 
         ownership = try {
-            own(AutoCloseable {
+            onClose {
                 removeTask()
                 task.cancel(true)
                 completion.cancel(true)
-            })
+            }
         } catch (error: IllegalStateException) {
             if (!completion.isDone) completion.completeExceptionally(error)
             return completion

@@ -1,24 +1,16 @@
 package ru.privateserver.ksl.nbt
 
-import be.seeseemelk.mockbukkit.MockBukkit
-import org.junit.jupiter.api.AfterAll
-import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
+/**
+ * These tests cover the detached engine's input and path policies without requiring
+ * a live CraftBukkit/NMS runtime. Item-NBT-API parsing is exercised by the server
+ * integration environment rather than MockBukkit, which does not ship NMS classes.
+ */
 class KSLNBTEngineTest {
-    companion object {
-        @JvmStatic
-        @BeforeAll
-        fun startServer() { MockBukkit.mock() }
-
-        @JvmStatic
-        @AfterAll
-        fun stopServer() { MockBukkit.unmock() }
-    }
-
     @Test
     fun validatesSimpleCompoundsArraysAndQuotedDelimiters() {
         KSLNBTSnbtPolicy.validate("""{name:"a,b",stats:{level:3},values:[1,2,3],bytes:[B;1b,2b]}""")
@@ -56,36 +48,19 @@ class KSLNBTEngineTest {
     }
 
     @Test
-    fun documentEditsAreTransactionalAndCopiesAreDetached() {
-        val document = KSLNBTEngine.parse("{stats:{level:2}}")
-        assertThrows(IllegalStateException::class.java) {
-            document.edit {
-                setIntAt("stats.level", 9)
-                throw IllegalStateException("abort")
-            }
-        }
-        assertEquals(2, document.read { intAt("stats.level") })
-
-        val copy = document.copy()
-        copy.edit { setIntAt("stats.level", 7) }
-        assertEquals(2, document.read { intAt("stats.level") })
-        assertEquals(7, copy.read { intAt("stats.level") })
-    }
-
-    @Test
-    fun retainedMutableEditorCannotMutatePublishedDocument() {
+    fun emptyDocumentIsDetachedAndPreflightRejectionIsAtomic() {
         val document = KSLNBTEngine.empty()
-        lateinit var retained: KSLNBTCompound
-        document.edit {
-            setString("owner", "first")
-            retained = this
+        assertEquals("{}", document.snbt())
+
+        assertThrows(IllegalArgumentException::class.java) {
+            document.merge("{unfinished")
         }
-        retained.setString("owner", "later")
-        assertEquals("first", document.read { string("owner") })
+
+        assertEquals("{}", document.snbt())
     }
 
     @Test
-    fun customLimitsApplyToParseAndMerge() {
+    fun customLimitsApplyBeforeParserAndMerge() {
         val limits = KSLNBTLimits(maxSnbtCharacters = 24)
         assertThrows(IllegalArgumentException::class.java) {
             KSLNBTEngine.parse("{a:\"this value is too long\"}", limits)
