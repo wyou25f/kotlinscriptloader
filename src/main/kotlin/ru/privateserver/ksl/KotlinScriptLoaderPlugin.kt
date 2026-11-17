@@ -495,7 +495,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private val listenerLock = Any()
     private val commandsByScript     = ConcurrentHashMap<String, MutableList<DynamicCommand>>()
     private val commandLock = Any()
-    private val placeholdersByScript = ConcurrentHashMap<String, MutableList<String>>()
+    private val placeholdersByScript = ConcurrentHashMap<String, MutableList<Pair<String, String>>>()
     private val tasksByScript        = ConcurrentHashMap<String, MutableSet<Int>>()
     private val taskScopeCleanups = HashMap<Int, AutoCloseable>()
     private val taskLock = Any()
@@ -2096,20 +2096,20 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             logger.warning("[$scriptName] ${KSLError.PLACEHOLDER_CONFLICT.tag} Плейсхолдер %ksl_$normalized% уже занят (${previousOwner ?: "аддон/хук"}) — будет перезаписан")
         }
         placeholders.put(normalized, resolver, owner)
-        placeholdersByScript.computeIfAbsent(scriptName) { mutableListOf() }.add(normalized)
+        placeholdersByScript.computeIfAbsent(scriptName) { mutableListOf() }.add(normalized to owner)
         try {
             ownerScope.onClose {
                 placeholders.removeOwned(normalized, owner)
-                placeholdersByScript.computeIfPresent(scriptName) { _, keys ->
-                    keys.remove(normalized)
-                    if (keys.isEmpty()) null else keys
+                placeholdersByScript.computeIfPresent(scriptName) { _, registrations ->
+                    registrations.remove(normalized to owner)
+                    if (registrations.isEmpty()) null else registrations
                 }
             }
         } catch (error: IllegalStateException) {
             placeholders.removeOwned(normalized, owner)
-            placeholdersByScript.computeIfPresent(scriptName) { _, keys ->
-                keys.remove(normalized)
-                if (keys.isEmpty()) null else keys
+            placeholdersByScript.computeIfPresent(scriptName) { _, registrations ->
+                registrations.remove(normalized to owner)
+                if (registrations.isEmpty()) null else registrations
             }
             throw error
         }
