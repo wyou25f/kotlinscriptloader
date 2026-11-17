@@ -8,7 +8,7 @@
 - IntelliJ preflight bounds work on very large files, caches Gradle model reads by VFS modification stamps and handles nested Kotlin block comments.
 - The IDEA companion remains on the 1.2.1 line. No public KSL or IDEA plugin release/tag is created by this maintenance update.
 
-## 1.2.1 development update — database safety, reload lifecycle and NBT engine
+## 1.2.1 maintenance notes — database safety, reload lifecycle and NBT engine
 
 - Remote MySQL/MariaDB connections now default to certificate and hostname verification; insecure `disable` / `trust` modes require explicit opt-in.
 - Added bounded script SQL execution (timeouts, row caps, SQL length and batch size), transaction-scoped query sessions, and exact per-script sandbox database capabilities. Raw JDBC remains trusted-script-only.
