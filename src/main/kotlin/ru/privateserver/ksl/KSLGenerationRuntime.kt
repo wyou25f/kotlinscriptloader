@@ -135,6 +135,7 @@ internal class KSLGenerationManager<T : Any>(
 
     fun begin(scriptId: String, sourceStamp: String, artifact: T): KSLScriptGeneration<T> {
         require(scriptId.isNotBlank()) { "scriptId must not be blank" }
+        check(!candidates.containsKey(scriptId)) { "A generation for '$scriptId' is already initializing" }
         val number = counters.computeIfAbsent(scriptId) { AtomicLong() }.incrementAndGet()
         val generation = KSLScriptGeneration(
             scriptId = scriptId,
@@ -145,7 +146,10 @@ internal class KSLGenerationManager<T : Any>(
         )
         generation.markCompiled()
         val previous = candidates.putIfAbsent(scriptId, generation)
-        check(previous == null) { "A generation for '$scriptId' is already initializing" }
+        if (previous != null) {
+            runCatching { generation.scope.close() }
+            error("A generation for '$scriptId' is already initializing")
+        }
         return generation
     }
 
