@@ -1,11 +1,24 @@
 package ru.privateserver.ksl.nbt
 
+import be.seeseemelk.mockbukkit.MockBukkit
+import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class KSLNBTEngineTest {
+    companion object {
+        @JvmStatic
+        @BeforeAll
+        fun startServer() { MockBukkit.mock() }
+
+        @JvmStatic
+        @AfterAll
+        fun stopServer() { MockBukkit.unmock() }
+    }
+
     @Test
     fun validatesSimpleCompoundsArraysAndQuotedDelimiters() {
         KSLNBTSnbtPolicy.validate("""{name:"a,b",stats:{level:3},values:[1,2,3],bytes:[B;1b,2b]}""")

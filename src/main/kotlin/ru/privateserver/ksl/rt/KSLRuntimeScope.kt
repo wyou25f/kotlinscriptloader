@@ -58,20 +58,27 @@ class KSLRuntimeScope(val name: String) : AutoCloseable {
             if (executor is ThreadPoolExecutor) executor.remove(task)
         }
 
+        lateinit var ownership: AutoCloseable
         task = FutureTask {
             if (!isClosed && !completion.isCancelled) {
                 try {
                     val value = operation()
-                    if (isClosed || completion.isCancelled) completion.cancel(false)
-                    else completion.complete(value)
+                    if (isClosed || completion.isCancelled) {
+                        completion.cancel(false)
+                    } else {
+                        // Release scope bookkeeping before exposing completion to callers.
+                        ownership.close()
+                        completion.complete(value)
+                    }
                 } catch (error: Throwable) {
+                    ownership.close()
                     if (!completion.isDone) completion.completeExceptionally(error)
                 }
             }
             Unit
         }
 
-        val ownership = try {
+        ownership = try {
             own(AutoCloseable {
                 removeTask()
                 task.cancel(true)

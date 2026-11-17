@@ -37,6 +37,7 @@ class KSLDatabaseSession internal constructor(
         val statement = policy.prepare(connection, sql, parameters, query = true)
         statement.maxRows = 1
         return statement.use { ps ->
+            checkActive()
             ps.executeQuery().use { rows ->
                 checkActive()
                 if (rows.next()) mapper(rows) else null
@@ -55,6 +56,7 @@ class KSLDatabaseSession internal constructor(
     ): List<T> {
         checkActive()
         return policy.prepare(connection, sql, parameters, query = true).use { statement ->
+            checkActive()
             statement.executeQuery().use { rows ->
                 val result = ArrayList<T>()
                 while (rows.next()) {

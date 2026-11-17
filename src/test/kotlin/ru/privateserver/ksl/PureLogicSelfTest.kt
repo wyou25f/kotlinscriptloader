@@ -154,9 +154,9 @@ private fun testDialect() {
 
     check("sqlite settings need no credentials", KSLDatabaseSettings.parse("sqlite").dialect == KSLDialect.SQLITE)
     val mysqlSettings = KSLDatabaseSettings.parse("mysql", host = "db.local", port = 3307, name = "ksl_prod", user = "ksl", password = "p@ss/word?")
-    check("mysql url carries host, port, database and ssl mode", mysqlSettings.jdbcUrl() == "jdbc:mariadb://db.local:3307/ksl_prod?sslMode=disable&allowPublicKeyRetrieval=true")
-    check("mariadb url has no MySQL-only option", KSLDatabaseSettings.parse("mariadb", user = "u").jdbcUrl() == "jdbc:mariadb://localhost:3306/ksl?sslMode=disable")
-    check("the password never appears in describe()", !mysqlSettings.describe().contains("p@ss") && mysqlSettings.describe() == "MySQL ksl@db.local:3307/ksl_prod")
+    check("mysql url carries host, port, database and ssl mode", mysqlSettings.jdbcUrl() == "jdbc:mariadb://db.local:3307/ksl_prod?sslMode=verify-full")
+    check("mariadb url has no MySQL-only option", KSLDatabaseSettings.parse("mariadb", user = "u").jdbcUrl() == "jdbc:mariadb://localhost:3306/ksl?sslMode=verify-full")
+    check("the password never appears in describe()", !mysqlSettings.describe().contains("p@ss") && mysqlSettings.describe() == "MySQL ksl@db.local:3307/ksl_prod (ssl=verify-full)")
     check("remote settings require a user", runCatching { KSLDatabaseSettings.parse("mysql") }.isFailure)
     check("a database name with a URL separator is rejected", runCatching { KSLDatabaseSettings.parse("mysql", user = "u", name = "ksl?x=1") }.isFailure)
     check("an unknown ssl mode is rejected", runCatching { KSLDatabaseSettings.parse("mysql", user = "u", sslMode = "yes") }.isFailure)
