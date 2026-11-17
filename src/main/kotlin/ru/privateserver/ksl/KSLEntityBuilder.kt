@@ -13,13 +13,24 @@ import org.bukkit.potion.PotionEffectType
 import net.kyori.adventure.text.Component
 
 class KSLEntityBuilder(
-    private val entity: LivingEntity,
+    entity: LivingEntity,
     private val plugin: KotlinScriptLoaderPlugin,
     private val scriptName: String,
     private val ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope
 ) {
     constructor(entity: LivingEntity, plugin: KotlinScriptLoaderPlugin, scriptName: String) :
         this(entity, plugin, scriptName, plugin.scriptRuntimeScope(scriptName))
+
+    // Builders may escape their DSL lambda. Resolve the entity through this guarded
+    // accessor so an old builder cannot mutate a persistent mob after its generation retires.
+    private val rawEntity = entity
+    private val entity: LivingEntity
+        get() {
+            check(!ownerScope.isClosed) {
+                "[$scriptName] entity builder belongs to an unloaded generation"
+            }
+            return rawEntity
+        }
 
     private val equipKeys = setOf("HAND", "OFFHAND", "HELMET", "CHESTPLATE", "LEGGINGS", "BOOTS")
 

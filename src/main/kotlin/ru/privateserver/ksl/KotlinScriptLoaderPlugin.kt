@@ -326,6 +326,11 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     internal fun taskScope(owner: String): KSLTaskScope = KSLTaskScope(taskScheduler, owner)
 
+    internal fun taskScope(
+        owner: String,
+        generationScope: ru.privateserver.ksl.rt.KSLRuntimeScope
+    ): KSLTaskScope = KSLTaskScope(taskScheduler, owner, generationScope)
+
     /** Registers an addon-provided scheduler factory for later creation. */
     fun registerSchedulerFactory(id: String, factory: KSLTaskSchedulerFactory): AutoCloseable {
         check(::schedulerRegistry.isInitialized) { "KSL scheduler registry is not initialized yet" }

@@ -9,6 +9,8 @@
 - Generation-owned entity cleanup respects `removeOnReload`; a rejected spawn is removed even when it requested persistence, because it never acquired a valid owner scope.
 - GUI disposal requested from a worker thread is marshalled to Bukkit's primary thread.
 - Stale script contexts now reject new resource registration instead of attaching resources to a replacement generation.
+- The official scheduler facade is bound to its captured generation; scheduled work is cancelled on close, and stale facades cannot schedule or cancel replacement-generation tasks.
+- Entity builders reject mutations after their owning generation has unloaded, including for mobs retained with `removeOnReload=false`.
 - `/ksl runtime` and watchdog diagnostics include active generation state and generation-owned runtime-scope resource counts.
 - Added TOML arrays-of-tables and inline-table writing, stricter numeric validation and exact integer accessors.
 - Added JSONC-compatible input (comments and trailing commas), bounded Kotlin-object conversion, cycle detection and precision-preserving Long/BigInteger/BigDecimal conversion.

@@ -99,9 +99,12 @@ open class BukkitScriptContext(
     val runtimeScope: ru.privateserver.ksl.rt.KSLRuntimeScope
         get() = contextRuntimeScope
 
-    /** Official owner-scoped scheduler. Its tasks are cancelled automatically on script unload. */
+    /** Official owner-scoped scheduler. Its tasks are cancelled automatically on generation unload. */
     val scheduler: KSLTaskScope
-        get() = internalPlugin.taskScope(scriptName)
+        get() {
+            requireActiveGeneration("scheduler")
+            return internalPlugin.taskScope(scriptName, contextRuntimeScope)
+        }
 
     /** Registers an AutoCloseable resource for automatic cleanup when this script unloads. */
     fun <T : AutoCloseable> own(resource: T): T = runtimeScope.own(resource)

@@ -4,6 +4,7 @@ import ru.privateserver.ksl.rt.KSLWorkHandle
 import ru.privateserver.ksl.rt.KSLWorkPriority
 import ru.privateserver.ksl.rt.KSLWorkScheduler
 import ru.privateserver.ksl.rt.KSLWorkSnapshot
+import ru.privateserver.ksl.rt.KSLRuntimeScope
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
@@ -143,20 +144,57 @@ class KSLOfficialTaskScheduler(private val workers: KSLWorkScheduler) : KSLTaskS
 
 /** Script-bound facade: task ownership is always the current script ID. */
 class KSLTaskScope internal constructor(
-    private val scheduler: KSLTaskScheduler, private val owner: String
+    private val scheduler: KSLTaskScheduler,
+    private val owner: String,
+    private val generationScope: KSLRuntimeScope?
 ) {
+    // Preserve the original constructor for existing addon integrations.
+    internal constructor(scheduler: KSLTaskScheduler, owner: String) : this(scheduler, owner, null)
+
+    private fun ensureActive() {
+        check(generationScope?.isClosed != true) {
+            "Task scope '$owner' belongs to an unloaded runtime generation"
+        }
+    }
+
+    private fun own(handle: KSLTaskHandle): KSLTaskHandle {
+        val scope = generationScope ?: return handle
+        val registration = try {
+            scope.onClose { handle.cancel(true) }
+        } catch (error: IllegalStateException) {
+            // onClose runs the cleanup immediately when closure wins the race.
+            handle.cancel(true)
+            throw error
+        }
+        // One-shot work releases its ownership as soon as it completes; repeating
+        // work remains owned until explicitly cancelled or the generation closes.
+        handle.completion.whenComplete { _, _ -> registration.close() }
+        return handle
+    }
+
+    private fun submit(spec: KSLTaskSpec): KSLTaskHandle {
+        ensureActive()
+        val guarded = spec.copy(
+            owner = owner,
+            action = { context ->
+                ensureActive()
+                spec.action(context)
+            }
+        )
+        return own(scheduler.schedule(guarded))
+    }
+
     /**
      * Schedules a complete task specification while enforcing this scope's owner.
      * A caller cannot use a spec to submit work under another script/addon identity.
      */
-    fun schedule(spec: KSLTaskSpec): KSLTaskHandle =
-        scheduler.schedule(spec.copy(owner = owner))
+    fun schedule(spec: KSLTaskSpec): KSLTaskHandle = submit(spec)
 
     fun schedule(
         delay: Duration = Duration.ZERO,
         priority: KSLWorkPriority = KSLWorkPriority.NORMAL,
         action: (KSLTaskContext) -> Unit
-    ): KSLTaskHandle = scheduler.schedule(KSLTaskSpec(owner, delay, priority = priority, action = action))
+    ): KSLTaskHandle = submit(KSLTaskSpec(owner, delay, priority = priority, action = action))
 
     fun repeat(
         interval: Duration,
@@ -164,10 +202,20 @@ class KSLTaskScope internal constructor(
         mode: KSLTaskRepeatMode = KSLTaskRepeatMode.FIXED_DELAY,
         priority: KSLWorkPriority = KSLWorkPriority.NORMAL,
         action: (KSLTaskContext) -> Unit
-    ): KSLTaskHandle = scheduler.schedule(KSLTaskSpec(owner, initialDelay, interval, mode, priority, action))
+    ): KSLTaskHandle = submit(KSLTaskSpec(owner, initialDelay, interval, mode, priority, action))
 
-    fun cancel(taskId: Long, mayInterruptIfRunning: Boolean = true) =
-        scheduler.cancel(owner, taskId, mayInterruptIfRunning)
-    fun cancelAll(): Int = scheduler.cancelOwner(owner)
-    fun snapshot(): KSLWorkSnapshot = scheduler.snapshot()
+    fun cancel(taskId: Long, mayInterruptIfRunning: Boolean = true): Boolean {
+        ensureActive()
+        return scheduler.cancel(owner, taskId, mayInterruptIfRunning)
+    }
+
+    fun cancelAll(): Int {
+        ensureActive()
+        return scheduler.cancelOwner(owner)
+    }
+
+    fun snapshot(): KSLWorkSnapshot {
+        ensureActive()
+        return scheduler.snapshot()
+    }
 }
