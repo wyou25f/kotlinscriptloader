@@ -63,8 +63,11 @@ open class BukkitScriptContext(
     private val scopedTableViews = java.util.concurrent.ConcurrentHashMap<String, KSLQuickTable>()
 
     @PublishedApi
+    internal fun isGenerationActive(): Boolean = !contextRuntimeScope.isClosed
+
+    @PublishedApi
     internal fun requireActiveGeneration(operation: String) {
-        check(!contextRuntimeScope.isClosed) {
+        check(isGenerationActive()) {
             "[$scriptName] $operation: этот контекст принадлежит выгруженному поколению; повторно получи контекст после reload"
         }
     }
@@ -814,6 +817,15 @@ open class BukkitScriptContext(
         failures: KSLTaskFailurePolicy,
         block: () -> Unit
     ) = Runnable {
+        if (!isGenerationActive()) {
+            completed.set(true)
+            val id = taskId.get()
+            if (id > 0) {
+                Bukkit.getScheduler().cancelTask(id)
+                internalPlugin.untrackTask(scriptName, id)
+            }
+            return@Runnable
+        }
         try {
             internalPlugin.measureScriptExecution(scriptName, "task:$where") {
                 val monitor = internalPlugin.watchdogMonitor
@@ -864,7 +876,11 @@ open class BukkitScriptContext(
     /** Runs a worker callback and records failures before returning them to the scheduler. */
     private fun <T> executeWorker(where: String, block: () -> T): T =
         try {
-            internalPlugin.measureScriptExecution(scriptName, where, block)
+            requireActiveGeneration(where)
+            internalPlugin.measureScriptExecution(scriptName, where) {
+                requireActiveGeneration(where)
+                block()
+            }
         } catch (ex: Throwable) {
             KSLErrors.log(internalPlugin, scriptName, where, ex, KSLError.TASK_FAILED)
             throw ex
@@ -1012,7 +1028,7 @@ open class BukkitScriptContext(
         requireActiveGeneration("onEvent")
         val listener = object : Listener {}
         val executor = EventExecutor { _, event ->
-            if (event is T) {
+            if (event is T && isGenerationActive()) {
                 try {
                     internalPlugin.measureScriptExecution(scriptName, "event:${T::class.simpleName}") {
                         event.action()
