@@ -135,7 +135,7 @@ class JsonExtensionsTest {
     @Test
     fun conversionRejectsCyclesAndEnforcesDepthNodeAndSequenceLimits() {
         val cycle = mutableListOf<Any?>()
-        cycle += cycle
+        cycle.add(cycle)
 
         assertThrows(IllegalArgumentException::class.java) { cycle.toJsonElement() }
         assertThrows(IllegalArgumentException::class.java) {
