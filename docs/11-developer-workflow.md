@@ -1,12 +1,12 @@
-# KSL 1.2.2 — удобная разработка скриптов и аддонов
+# KSL 1.2.1 — удобная разработка скриптов и аддонов
 
-Это руководство описывает текущие development-сборки 1.2.2. Оно не объявляет публичный релиз.
+Это руководство описывает рабочий процесс проекта KSL 1.2.1. Оно не меняет номер версии и не объявляет новый релиз.
 
 ## 1. Начать с готового аддона
 
 Скопируй ide/templates/addon-starter в отдельный Gradle-проект. Открой его в IntelliJ IDEA с JDK 21 и укажи JAR именно той сборки KSL, которая установлена на тестовом сервере:
 
-    ./gradlew -PkslJar=/absolute/path/to/KotlinScriptLoader-1.2.2.jar compileKotlin
+    ./gradlew -PkslJar=/absolute/path/to/KotlinScriptLoader-1.2.1.jar compileKotlin
 
 Не используй JAR другой версии: он может содержать другой публичный API.
 
@@ -110,7 +110,7 @@ reloadScript остаётся синхронным для совместимос
 
 1. Открой ide/ как Gradle-проект.
 2. Используй JDK 21.
-3. Передай -PkslJar=/path/to/KotlinScriptLoader-1.2.2.jar.
+3. Передай -PkslJar=/path/to/KotlinScriptLoader-1.2.1.jar.
 4. Для live scripts добавь -PkslScriptsDir=/path/to/plugins/KotlinScriptLoader/scripts.
 5. Запусти verifyKslIdeSetup.
 6. Установи собранный KSL IntelliJ plugin и открой ide/samples/ide-completion-smoke-test.kts.
@@ -143,7 +143,7 @@ IDE warnings и preflight — эвристики. Они помогают нах
 
 ## Статус
 
-- Runtime build version: 1.2.2 (development build).
+- Runtime build version: 1.2.1 (development build).
 - Последний опубликованный стабильный релиз: 1.2.1.
-- Этот документ не публикует 1.2.2 и не создаёт release tag.
+- Этот документ не публикует 1.2.1 и не создаёт release tag.
 - Compatibility branches не изменяются этим руководством.
