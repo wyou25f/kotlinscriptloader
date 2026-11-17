@@ -122,6 +122,8 @@ val verifyShadowJar by tasks.registering {
                 "ru/privateserver/ksl/libs/nbtapi/NBT.class",
                 "ru/privateserver/ksl/nbt/KSLNBTView.class",
                 "ru/privateserver/ksl/nbt/KSLNBTCompound.class",
+                "ru/privateserver/ksl/nbt/KSLNBTFiles.class",
+                "ru/privateserver/ksl/schem/KSLClipboard.class",
                 "ru/privateserver/ksl/KSLTabHook.class",
                 "ru/privateserver/ksl/KSLSkinHook.class",
                 "ru/privateserver/ksl/KSLVaultHook.class",

@@ -23,6 +23,7 @@ import ru.privateserver.ksl.KSLSoundSequenceBuilder as CoreKSLSoundSequenceBuild
 import ru.privateserver.ksl.KSLEffectSpec as CoreKSLEffectSpec
 import ru.privateserver.ksl.KSLEntityBuilder as CoreKSLEntityBuilder
 import ru.privateserver.ksl.KSLEntityBehaviorBuilder as CoreKSLEntityBehaviorBuilder
+import ru.privateserver.ksl.schem.KSLClipboard as CoreKSLClipboard
 import ru.privateserver.ksl.nbt.KSLNBTDocument as CoreKSLNBTDocument
 import ru.privateserver.ksl.nbt.KSLNBTLimits as CoreKSLNBTLimits
 import ru.privateserver.ksl.nbt.KSLNBTView as CoreKSLNBTView
@@ -105,6 +106,8 @@ typealias KSLEffectSpec = CoreKSLEffectSpec
 typealias KSLEntityBuilder = CoreKSLEntityBuilder
 /** Event and tick callbacks attached to one living entity. */
 typealias KSLEntityBehaviorBuilder = CoreKSLEntityBehaviorBuilder
+/** Bounded in-memory WorldEdit clipboard used by the optional schematic API. */
+typealias KSLClipboard = CoreKSLClipboard
 /** Detached NBT document and its bounded parser/codec. */
 typealias KSLNBTDocument = CoreKSLNBTDocument
 typealias KSLNBTLimits = CoreKSLNBTLimits

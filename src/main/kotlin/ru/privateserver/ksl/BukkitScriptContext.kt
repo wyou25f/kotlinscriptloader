@@ -1524,6 +1524,65 @@ open class BukkitScriptContext(
     fun weFillSelection(player: Player, material: org.bukkit.Material): Int? = internalPlugin.worldEdit?.fillSelection(player, material)
     fun weHasClipboard(player: Player): Boolean = internalPlugin.worldEdit?.hasClipboard(player) ?: false
 
+    private fun resolveSchematicFile(fileName: String, operation: String): File {
+        require(fileName.endsWith(".schem", ignoreCase = true)) {
+            "$operation expects a Sponge .schem file: '$fileName'"
+        }
+        val root = File(internalPlugin.dataFolder, "schematics").canonicalFile
+        val file = File(root, fileName).canonicalFile
+        require(file.toPath() != root.toPath() && file.toPath().startsWith(root.toPath())) {
+            "${KSLError.YAML_PATH_ESCAPE.tag} $operation: '$fileName' выходит за пределы schematics/"
+        }
+        return file
+    }
+
+    private fun requireWorldEditForSchematic(): KSLWorldEditHook =
+        internalPlugin.worldEdit
+            ?: throw IllegalStateException("Для работы с .schem нужен установленный и включённый WorldEdit")
+
+    /** Captures the player's current WorldEdit selection into a reusable clipboard. */
+    fun copySchematicSelection(player: Player): ru.privateserver.ksl.schem.KSLClipboard? {
+        requireActiveGeneration("copySchematicSelection")
+        requirePrimaryThread("copySchematicSelection")
+        return requireWorldEditForSchematic().captureSelection(player)
+    }
+
+    /** Loads a Sponge schematic from plugins/KotlinScriptLoader/schematics/. */
+    fun loadSchematic(fileName: String): ru.privateserver.ksl.schem.KSLClipboard? {
+        requireActiveGeneration("loadSchematic")
+        val file = resolveSchematicFile(fileName, "loadSchematic")
+        if (!file.exists()) return null
+        return requireWorldEditForSchematic().loadSchematic(file)
+    }
+
+    /** Saves a clipboard to plugins/KotlinScriptLoader/schematics/ using atomic replacement. */
+    fun saveSchematic(fileName: String, clipboard: ru.privateserver.ksl.schem.KSLClipboard): Boolean {
+        requireActiveGeneration("saveSchematic")
+        val file = resolveSchematicFile(fileName, "saveSchematic")
+        return requireWorldEditForSchematic().saveSchematic(file, clipboard)
+    }
+
+    /** Convenience method: copies and saves the player's current WorldEdit selection. */
+    fun saveSchematicSelection(player: Player, fileName: String): Boolean {
+        val clipboard = copySchematicSelection(player) ?: return false
+        return saveSchematic(fileName, clipboard)
+    }
+
+    /** Pastes a loaded or captured schematic at a block location. */
+    fun pasteSchematic(
+        player: Player,
+        clipboard: ru.privateserver.ksl.schem.KSLClipboard,
+        location: org.bukkit.Location,
+        ignoreAirBlocks: Boolean = false
+    ): Boolean {
+        requireActiveGeneration("pasteSchematic")
+        requirePrimaryThread("pasteSchematic")
+        require(location.x.isFinite() && location.y.isFinite() && location.z.isFinite()) {
+            "Schematic paste location must use finite coordinates"
+        }
+        return requireWorldEditForSchematic().pasteSchematic(player, clipboard, location, ignoreAirBlocks)
+    }
+
     fun wgRegionsAt(location: org.bukkit.Location): List<String> = internalPlugin.worldGuard?.regionsAt(location) ?: emptyList()
     fun wgIsInRegion(location: org.bukkit.Location, regionId: String): Boolean = internalPlugin.worldGuard?.isInRegion(location, regionId) ?: false
     fun wgCanBuild(player: Player, location: org.bukkit.Location): Boolean = internalPlugin.worldGuard?.canBuild(player, location) ?: true
