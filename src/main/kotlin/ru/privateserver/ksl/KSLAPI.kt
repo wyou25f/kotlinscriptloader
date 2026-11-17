@@ -4,6 +4,8 @@ import org.bukkit.OfflinePlayer
 import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Player
 import org.bukkit.plugin.java.JavaPlugin
+import ru.privateserver.ksl.api.KSLLogger
+import ru.privateserver.ksl.api.KSLLoggerConfig
 import ru.privateserver.ksl.api.library.KSLStandardLibraryModule
 
 interface KSLAPI {
@@ -15,6 +17,13 @@ interface KSLAPI {
     /** Creates a YAML config in the addon's own data folder, loading defaults from its jar resources. */
     fun createConfig(owner: JavaPlugin, fileName: String = "config.yml", copyDefaults: Boolean = true): KSLAddonConfig =
         KSLAddonConfig.create(owner, fileName, copyDefaults)
+
+    /** Creates an addon-owned structured logger. The official KSL runtime enforces administrator log levels. */
+    fun createLogger(
+        ownerId: String,
+        name: String = ownerId,
+        config: KSLLoggerConfig = KSLLoggerConfig()
+    ): KSLLogger = KSLLogger.forJavaLogger(kslPlugin.logger, "addon:$ownerId", name, config)
 
     fun registerAddon(addon: KSLAddon)
     fun unregisterAddon(addonId: String)

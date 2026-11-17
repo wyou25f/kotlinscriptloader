@@ -1,5 +1,8 @@
 package ru.privateserver.ksl.dsl
 
+import ru.privateserver.ksl.api.KSLLogger
+import ru.privateserver.ksl.api.KSLLoggerConfig
+
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.TextDecoration
 import io.papermc.paper.event.player.AsyncChatEvent
@@ -120,11 +123,21 @@ fun Player.giveItem(stack: ItemStack): Boolean {
 
 // ---- script context ----
 
-fun BukkitScriptContext.log(message: String) = internalPlugin.logger.info("[$scriptName] $message")
+/** Creates a named, administrator-aware logger owned by the current script. */
+fun BukkitScriptContext.scriptLogger(
+    name: String = scriptName,
+    configure: KSLLoggerConfig.() -> Unit = {}
+): KSLLogger = internalPlugin.createScriptLogger(scriptName, name, KSLLoggerConfig().apply(configure))
 
-fun BukkitScriptContext.logWarn(message: String) = internalPlugin.logger.warning("[$scriptName] $message")
+/** Backwards-compatible alias for [scriptLogger]. */
+fun BukkitScriptContext.kslLogger(
+    name: String = scriptName,
+    configure: KSLLoggerConfig.() -> Unit = {}
+): KSLLogger = scriptLogger(name, configure)
 
-fun BukkitScriptContext.logError(message: String) = internalPlugin.logger.severe("[$scriptName] $message")
+fun BukkitScriptContext.log(message: String) = scriptLogger().info(message)
+fun BukkitScriptContext.logWarn(message: String) = scriptLogger().warn(message)
+fun BukkitScriptContext.logError(message: String) = scriptLogger().error(message)
 
 fun BukkitScriptContext.later(ticks: Long, block: () -> Unit): Int = delay(ticks, block)
 

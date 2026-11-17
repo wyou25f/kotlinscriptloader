@@ -7,6 +7,8 @@ import org.bukkit.entity.Player
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import ru.privateserver.ksl.api.KSLLogger
+import ru.privateserver.ksl.api.KSLLoggerConfig
 import ru.privateserver.ksl.api.library.KSLModulePlanner
 import ru.privateserver.ksl.api.library.KSLStandardLibraryModule
 
@@ -16,6 +18,9 @@ class KSLAddonManager(private val plugin: KotlinScriptLoaderPlugin) : KSLAPI {
     override val apiVersion: Int get() = KSL.API_VERSION
     override fun createConfig(owner: org.bukkit.plugin.java.JavaPlugin, fileName: String, copyDefaults: Boolean): KSLAddonConfig =
         KSLAddonConfig.create(owner, fileName, copyDefaults)
+
+    override fun createLogger(ownerId: String, name: String, config: KSLLoggerConfig): KSLLogger =
+        plugin.createAddonLogger(ownerId, name, config)
 
     // The owner is whoever asked, not the awaited addon: what the callback registers must be cleaned up with the asker.
     private class ReadyHook(val owner: String?, val callback: (KSLAddon) -> Unit)

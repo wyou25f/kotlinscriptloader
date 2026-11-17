@@ -13,6 +13,9 @@ import org.bukkit.event.Listener
 import org.bukkit.plugin.java.JavaPlugin
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+import ru.privateserver.ksl.api.KSLLogger
+import ru.privateserver.ksl.api.KSLLoggerConfig
+import ru.privateserver.ksl.api.KSLLogLevel
 import ru.privateserver.ksl.std.item.KSLCustomEnchantManager
 import ru.privateserver.ksl.mcp.KSLMcpServer
 import ru.privateserver.ksl.kslshu.KSLTaskScheduler
@@ -149,6 +152,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     val cooldownStore = KSLCooldownStore()
 
+    @Volatile
+    private var kslLoggingPolicy: KSLLoggingPolicy = KSLLoggingPolicy.DEFAULT
+
     var sandboxEnabled = false
         private set
 
@@ -178,6 +184,37 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     fun isSandboxed(scriptId: String): Boolean = sandboxEnabled && scriptId !in sandboxTrusted
 
+
+    internal fun createScriptLogger(scriptId: String, name: String, config: KSLLoggerConfig): KSLLogger =
+        createKslLogger("script:$scriptId", name, config)
+
+    internal fun createAddonLogger(addonId: String, name: String, config: KSLLoggerConfig): KSLLogger =
+        createKslLogger("addon:$addonId", name, config)
+
+    private fun createKslLogger(ownerKey: String, name: String, config: KSLLoggerConfig): KSLLogger =
+        KSLLogger.create(
+            ownerKey = ownerKey,
+            name = name,
+            config = config,
+            administratorMinimumLevel = { kslLoggingPolicy.minimumLevel(ownerKey) },
+            maxMessageLength = { kslLoggingPolicy.maxMessageLength },
+            sink = ::writeKslLog
+        )
+
+    private fun writeKslLog(record: ru.privateserver.ksl.api.KSLLogRecord) {
+        val text = "[KSL] ${record.render(kslLoggingPolicy.maxMessageLength)}"
+        when (record.level) {
+            KSLLogLevel.TRACE -> logger.info("[TRACE] $text")
+            KSLLogLevel.DEBUG -> logger.info("[DEBUG] $text")
+            KSLLogLevel.INFO -> logger.info(text)
+            KSLLogLevel.WARN -> if (record.cause == null) logger.warning(text)
+                else logger.log(java.util.logging.Level.WARNING, text, record.cause)
+            KSLLogLevel.ERROR -> if (record.cause == null) logger.severe(text)
+                else logger.log(java.util.logging.Level.SEVERE, text, record.cause)
+            KSLLogLevel.OFF -> Unit
+        }
+    }
+
     // Script problems are for the script's author to fix, not a fault of the server, so they are yellow unless asked otherwise.
     fun logScriptProblem(message: String) {
         if (config.getBoolean("logging.script-errors-as-warnings", true)) logger.warning(message) else logger.severe(message)
@@ -196,6 +233,15 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         KSLCommandPolicy.isAllowedForScript(command, isSandboxed(scriptId), consoleBlocklist, sandboxConsoleAllowlist)
 
     fun readSecurityConfig() {
+        val loggingSection = config.getConfigurationSection("logging")
+        val levelSection = loggingSection?.getConfigurationSection("owner-levels")
+        val ownerLevels = levelSection?.getKeys(false)?.associateWith { levelSection.getString(it) ?: "" }.orEmpty()
+        kslLoggingPolicy = KSLLoggingPolicy.parse(
+            defaultLevel = loggingSection?.getString("default-level", "INFO"),
+            ownerLevels = ownerLevels,
+            maxMessageLength = loggingSection?.getInt("max-message-length", 4_096) ?: 4_096
+        )
+
         sandboxEnabled = config.getBoolean("sandbox", false)
         sandboxStrict = !config.getString("security.sandbox-level", "strict").equals("text", ignoreCase = true)
         sandboxTrusted = config.getStringList("security.sandbox-trusted").map { it.trim().removeSuffix(".kts") }.toSet()

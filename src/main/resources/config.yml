@@ -87,7 +87,18 @@ security:
 
 # Как KSL сообщает о проблемах в скриптах.
 logging:
-  # true - ошибки скриптов жёлтые (WARN): это дело автора скрипта, а не поломка сервера; false - красные (ERROR)
+  # Minimum level enforced by the server for all script/addon loggers.
+  # A logger in code may request a stricter level, but cannot lower this server minimum.
+  default-level: INFO
+  # Optional per-owner minimum levels. Keys: "script:<script-id>" or "addon:<addon-id>".
+  # Example:
+  # owner-levels:
+  #   "script:economy/shop": DEBUG
+  #   "addon:example-addon": TRACE
+  owner-levels: {}
+  # Maximum rendered KSL logger message length (128-16384).
+  max-message-length: 4096
+  # true - script failures are yellow (WARN); false - red (ERROR).
   script-errors-as-warnings: true
 
 notifications:
