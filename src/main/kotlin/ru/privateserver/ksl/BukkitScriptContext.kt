@@ -1448,7 +1448,7 @@ open class BukkitScriptContext(
 
     fun gui(title: String, rows: Int = 3, builder: KSLGuiInstance.() -> Unit): KSLGuiInstance {
         val instance = KSLGuiInstance(scriptName, internalPlugin, rows, title)
-        internalPlugin.trackGui(scriptName, instance)
+        internalPlugin.trackGui(scriptName, instance, contextRuntimeScope)
         instance.builder()
         return instance
     }
