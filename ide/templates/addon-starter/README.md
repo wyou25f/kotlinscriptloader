@@ -1,6 +1,6 @@
 # KSL Addon Starter
 
-Готовый Kotlin/Paper-проект для разработки аддона под KotlinScriptLoader 1.2.2 development builds.
+Готовый Kotlin/Paper-проект для разработки аддона под KotlinScriptLoader 1.2.1 builds.
 
 ## Требования
 
@@ -15,9 +15,9 @@
 2. Откройте каталог в IntelliJ IDEA как Gradle project.
 3. Укажите локальный JAR KSL:
 
-    ./gradlew -PkslJar=/absolute/path/to/KotlinScriptLoader-1.2.2.jar compileKotlin
+    ./gradlew -PkslJar=/absolute/path/to/KotlinScriptLoader-1.2.1.jar compileKotlin
 
-По умолчанию Gradle ожидает JAR в libs/KotlinScriptLoader-1.2.2.jar. Не скачивайте несуществующий релиз 1.2.2: используйте JAR из текущего development build workflow.
+По умолчанию Gradle ожидает JAR в libs/KotlinScriptLoader-1.2.1.jar. Не скачивайте несуществующий релиз 1.2.1: используйте JAR из текущего development build workflow.
 
 ## Структура
 
