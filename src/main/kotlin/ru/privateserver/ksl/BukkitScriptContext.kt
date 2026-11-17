@@ -1707,7 +1707,7 @@ open class BukkitScriptContext(
             error("${KSLError.ENTITY_NOT_LIVING.tag} spawnCustomEntity: TYPE:${type.name} — не LivingEntity (нужен живой моб вроде ZOMBIE/SKELETON/COW), заспавненная сущность удалена")
         }
 
-        internalPlugin.entityManager.trackSpawn(scriptName, entity, removeOnReload)
+        internalPlugin.entityManager.trackSpawn(scriptName, entity, removeOnReload, contextRuntimeScope)
         try {
             attrs["NAME"]?.let { name ->
                 entity.customName(parseMM(name))
@@ -1739,7 +1739,7 @@ open class BukkitScriptContext(
                 runCatching { handler(entity, value) }
                     .onFailure { internalPlugin.logger.warning("[$scriptName] ${KSLError.ENTITY_ATTRIBUTE_FAILED.tag} spawnCustomEntity: $key:$value — ${it.message}") }
             }
-            KSLEntityBuilder(entity, internalPlugin, scriptName).builder()
+            KSLEntityBuilder(entity, internalPlugin, scriptName, contextRuntimeScope).builder()
         } catch (ex: Throwable) {
             // Do not leave a half-initialised mob in the world.
             internalPlugin.entityManager.forget(scriptName, entity)
@@ -1817,7 +1817,7 @@ open class BukkitScriptContext(
             error("[$scriptName] spawnShopkeeper: Paper не вернул сущность Villager")
         }
 
-        internalPlugin.entityManager.trackSpawn(scriptName, villager, removeOnReload)
+        internalPlugin.entityManager.trackSpawn(scriptName, villager, removeOnReload, contextRuntimeScope)
         try {
             villager.customName(parseMM(name))
             villager.isCustomNameVisible = true
