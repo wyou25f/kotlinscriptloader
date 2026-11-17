@@ -5,9 +5,14 @@
 - Added per-script generation identities and isolated runtime scopes for each initialized version.
 - A failed runtime initialization now cleans partial registrations and attempts to re-evaluate the last successfully compiled artifact in a fresh generation.
 - Script registry reports the recovered script as DEGRADED when the latest update failed but the previous version was restored.
-- `/ksl runtime` and watchdog diagnostics now include active generation state and generation-owned runtime-scope resource counts.
-- Added focused generation lifecycle tests and JAR-content verification for the generation runtime classes.
-- Recovery re-runs the previous script code; it does not roll back arbitrary world changes, outbound requests or committed database writes.
+- Bound Bukkit tasks, listeners, commands, GUI, placeholders, event-bus subscriptions, worker handles/futures, particle effects and entity tick tasks to captured generation scopes.
+- Stale script contexts now reject new resource registration instead of attaching resources to a replacement generation.
+- `/ksl runtime` and watchdog diagnostics include active generation state and generation-owned runtime-scope resource counts.
+- Added TOML arrays-of-tables and inline-table writing, stricter numeric validation and exact integer accessors.
+- Added JSONC-compatible input (comments and trailing commas), bounded Kotlin-object conversion, cycle detection and precision-preserving Long/BigInteger/BigDecimal conversion.
+- JSON and TOML saves now use collision-safe temporary files, atomic replacement and per-path write serialization; UTF-8 BOM is accepted on input.
+- Added regression tests for generation lifecycle, JSON/TOML round trips and concurrent atomic writes, plus JAR-content verification for new runtime classes.
+- Recovery re-runs the previous script code; it does not roll back arbitrary world changes, outbound requests or committed database writes. The Bukkit owner registries are still switched by script ID, so this is not yet a gapless transactional hot swap.
 
 ## 1.2.1 maintenance update — stability and early warnings
 
