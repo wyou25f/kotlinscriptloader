@@ -143,7 +143,7 @@ IDE warnings и preflight — эвристики. Они помогают нах
 
 ## Статус
 
-- Runtime build version: 1.2.1 (development build).
+- Runtime build version: 1.2.1.
 - Последний опубликованный стабильный релиз: 1.2.1.
 - Этот документ не публикует 1.2.1 и не создаёт release tag.
 - Compatibility branches не изменяются этим руководством.
