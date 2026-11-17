@@ -84,7 +84,7 @@ class KslPreflightAnalyzerTest {
     @Test
     void acceptsTheNewStructuredLoggerApiMethod() {
         var diagnostics = KslPreflightAnalyzer.analyze(
-            "api.createLogger(\"example-addon\", \"storage\")", "");
+            "val api: KSLAPI = TODO()\napi.createLogger(\"example-addon\", \"storage\")", "");
         assertTrue(diagnostics.isEmpty());
     }
 
@@ -97,7 +97,7 @@ class KslPreflightAnalyzerTest {
 
     @Test
     void acceptsStructuredLoggerExtensionMethod() {
-        var diagnostics = KslPreflightAnalyzer.analyze("val api: KSLAPI = TODO()\\napi.logger(\"example-addon\")", "");
+        var diagnostics = KslPreflightAnalyzer.analyze("val api: KSLAPI = TODO()\napi.logger(\"example-addon\")", "");
         assertTrue(diagnostics.isEmpty());
     }
 
