@@ -1,6 +1,6 @@
 # Книга III. Данные, базы данных и конфигурация KSL
 
-**Практическое руководство по SQLite, MySQL, MariaDB, phpMyAdmin, SQL, YAML, TOML и JSON**
+**Практическое руководство по SQLite, MySQL, MariaDB, PostgreSQL, phpMyAdmin, SQL, YAML, TOML и JSON**
 
 Книга объясняет, где KSL хранит данные, когда нужна внешняя база, как безопасно создать пользователя в phpMyAdmin, настроить SSL, писать SQL-запросы и не потерять данные при миграции.
 
@@ -966,3 +966,27 @@ toJsonElement поддерживает Kotlin primitives, enum, maps, collection
 - [ ] JDBC ресурсы закрываются.
 
 **Конец книги III.** Следующая книга — коллекция практических рецептов.
+
+
+## PostgreSQL (KSL 1.2.2)
+
+PostgreSQL — полноценный удалённый backend наряду с MySQL и MariaDB. KSL использует PostgreSQL JDBC driver, отдельный SQL dialect, PostgreSQL-native `ON CONFLICT ... DO UPDATE`, двойные кавычки для идентификаторов и те же внутренние таблицы `ksl_*`.
+
+Пример `config.yml`:
+
+```yaml
+database:
+  type: postgresql
+  host: 127.0.0.1
+  port: 5432
+  name: ksl
+  user: ksl_app
+  password: ""
+  ssl-mode: verify-full
+  allow-insecure-transport: false
+  pool-size: 4
+```
+
+Для пароля рекомендуется переменная окружения `KSL_DB_PASSWORD`. По умолчанию PostgreSQL JDBC driver проверяет сертификат и имя сервера через `verify-full`. Режимы `disable`, `allow`, `prefer` и `require` не проверяют серверную идентичность и требуют явного `allow-insecure-transport: true`.
+
+Если `database.port: 0`, KSL выбирает стандартный порт backend: 3306 для MySQL/MariaDB и 5432 для PostgreSQL. Если в старом конфиге уже записан `3306`, при переходе на PostgreSQL укажи `5432` или `0`. Схема `ksl_*` и `ksl_meta` создаются автоматически; SQLite → PostgreSQL перенос сохраняет исходный `ksl.db`.

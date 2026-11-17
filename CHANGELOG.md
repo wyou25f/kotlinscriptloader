@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.2-SNAPSHOT — development (not published)
+## 1.2.2 — development (not published)
 
 - Added per-script generation identities and isolated runtime scopes for each initialized version.
 - A failed runtime initialization now cleans partial registrations and attempts to re-evaluate the last successfully compiled artifact in a fresh generation.
@@ -12,6 +12,7 @@
 - The official scheduler facade is bound to its captured generation; scheduled work is cancelled on close, and stale facades cannot schedule or cancel replacement-generation tasks.
 - Entity builders reject mutations after their owning generation has unloaded, including for mobs retained with `removeOnReload=false`.
 - `/ksl runtime` and watchdog diagnostics include active generation state and generation-owned runtime-scope resource counts.
+- Added PostgreSQL as a first-class database backend with the official JDBC driver, native SQL quoting/UPSERT, schema migrations and verified TLS defaults.
 - Added TOML arrays-of-tables and inline-table writing, stricter numeric validation and exact integer accessors.
 - Added JSONC-compatible input (comments and trailing commas), bounded Kotlin-object conversion, cycle detection and precision-preserving Long/BigInteger/BigDecimal conversion.
 - JSON and TOML saves now use collision-safe temporary files, atomic replacement and per-path write serialization; UTF-8 BOM is accepted on input.

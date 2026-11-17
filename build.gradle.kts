@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "ru.privateserver"
-version = "1.2.2-SNAPSHOT"
+version = "1.2.2"
 
 repositories {
     mavenCentral()
@@ -62,6 +62,8 @@ dependencies {
     implementation("org.xerial:sqlite-jdbc:3.46.1.3")
     implementation("org.tomlj:tomlj:1.1.1")
     implementation("org.mariadb.jdbc:mariadb-java-client:3.4.1")
+    // PostgreSQL JDBC driver; packaged into the plugin JAR.
+    implementation("org.postgresql:postgresql:42.7.14")
     // Embedded and relocated: no separate NBTAPI plugin is required.
     implementation("de.tr7zw:item-nbt-api:2.16.1")
 
@@ -186,6 +188,7 @@ val verifyShadowJar by tasks.registering {
                 "ru/privateserver/ksl/KSLGenerationSnapshot.class",
                 "ru/privateserver/ksl/KSLQueuePressureMonitor.class",
                 "ru/privateserver/ksl/KSLDatabaseSettings.class",
+                "org/postgresql/Driver.class",
                 "ru/privateserver/ksl/KSLDatabaseExecutionPolicy.class",
                 "ru/privateserver/ksl/KSLDatabaseSession.class",
                 "ru/privateserver/ksl/nbt/KSLNBTEngine.class",
