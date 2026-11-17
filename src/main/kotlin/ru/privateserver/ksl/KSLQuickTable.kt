@@ -61,6 +61,7 @@ class KSLQuickTable private constructor(
         check(isActive()) {
             "KSL table '$tableName' belongs to unloaded script runtime '${ownerName ?: "unknown"}'"
         }
+        ownerName?.let(plugin::requireScriptDatabaseAccess)
     }
 
     init { plugin.dialect.requireKeyLength("table_name", tableName) }
@@ -103,6 +104,7 @@ class KSLQuickTable private constructor(
                 val taken = writes.take(ticket) ?: return@Runnable
                 if (!isActive()) return@Runnable
                 try {
+                    ensureActive()
                     plugin.database.connection.use { conn: Connection ->
                         conn.prepareStatement(upsertSql).use { ps ->
                             ps.setString(1, tableName)
@@ -220,6 +222,7 @@ class KSLQuickTable private constructor(
             val deleteTask = Runnable {
                 if (!isActive()) return@Runnable
                 try {
+                    ensureActive()
                     plugin.database.connection.use { conn: Connection ->
                         val sql = if (columnKey != null)
                             "DELETE FROM ksl_table WHERE table_name = ? AND row_key = ? AND column_key = ?"
