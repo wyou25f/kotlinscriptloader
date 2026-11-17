@@ -497,6 +497,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private val commandLock = Any()
     private val placeholdersByScript = ConcurrentHashMap<String, MutableList<String>>()
     private val tasksByScript        = ConcurrentHashMap<String, MutableSet<Int>>()
+    private val taskScopeCleanups = HashMap<Int, AutoCloseable>()
     private val taskLock = Any()
     private val scriptsWithGuis       = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     // Owner label is "script:<name>" for scripts and the addon id for addons.
@@ -1588,7 +1589,11 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             addonManager.publish("ksl.script.unloaded", KSLScriptEvent(scriptName))
         }
         runCatching {
-            val taskIds = synchronized(taskLock) { tasksByScript.remove(scriptName)?.toList().orEmpty() }
+            val (taskIds, cleanupHandles) = synchronized(taskLock) {
+                val ids = tasksByScript.remove(scriptName)?.toList().orEmpty()
+                ids to ids.mapNotNull { taskScopeCleanups.remove(it) }
+            }
+            cleanupHandles.forEach { it.close() }
             taskIds.forEach { Bukkit.getScheduler().cancelTask(it) }
         }.onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось отменить часть тасков: ${it.message}") }
 
@@ -1873,12 +1878,20 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     // Registration, completion and unload share one lock so a task cannot be inserted
     // into a fresh owner set while that script is being torn down.
-    fun trackTask(scriptName: String, taskId: Int) {
+    fun trackTask(
+        scriptName: String,
+        taskId: Int,
+        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope = scriptRuntimeScope(scriptName)
+    ) {
         var rejected = false
         synchronized(taskLock) {
             val scheduler = Bukkit.getScheduler()
             val ids = tasksByScript.computeIfAbsent(scriptName) { ConcurrentHashMap.newKeySet() }
-            ids.removeIf { !scheduler.isQueued(it) && !scheduler.isCurrentlyRunning(it) }
+            val stale = ids.filter { !scheduler.isQueued(it) && !scheduler.isCurrentlyRunning(it) }
+            stale.forEach { staleId ->
+                ids.remove(staleId)
+                runCatching { taskScopeCleanups.remove(staleId)?.close() }
+            }
             if (!scheduler.isQueued(taskId) && !scheduler.isCurrentlyRunning(taskId)) {
                 if (ids.isEmpty()) tasksByScript.remove(scriptName, ids)
                 return
@@ -1888,39 +1901,58 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 rejected = true
             } else {
                 ids.add(taskId)
+                try {
+                    taskScopeCleanups[taskId] = ownerScope.onClose {
+                        scheduler.cancelTask(taskId)
+                        untrackTask(scriptName, taskId)
+                    }
+                } catch (error: IllegalStateException) {
+                    ids.remove(taskId)
+                    if (ids.isEmpty()) tasksByScript.remove(scriptName, ids)
+                    scheduler.cancelTask(taskId)
+                    rejected = true
+                }
             }
         }
         if (rejected && limitWarned.add("$scriptName|T")) {
-            logger.severe("[$scriptName] ${KSLError.SCRIPT_LIMIT_TASKS.tag} У скрипта уже $maxTasks активных задач — новые отменяются (security.limits.max-tasks-per-script)")
+            logger.severe("[$scriptName] ${KSLError.SCRIPT_LIMIT_TASKS.tag} Задача отклонена: превышен лимит или runtime generation уже закрыт (security.limits.max-tasks-per-script)")
         }
     }
 
     fun untrackTask(scriptName: String, taskId: Int) {
-        synchronized(taskLock) {
-            tasksByScript.computeIfPresent(scriptName) { _, ids ->
-                ids.remove(taskId)
-                if (ids.isEmpty()) null else ids
-            }
+        val cleanup = synchronized(taskLock) {
+            val ids = tasksByScript[scriptName] ?: return
+            if (!ids.remove(taskId)) return
+            if (ids.isEmpty()) tasksByScript.remove(scriptName, ids)
+            taskScopeCleanups.remove(taskId)
         }
+        runCatching { cleanup?.close() }
     }
 
     /** Cancels only a Bukkit task registered by the requesting script. */
-    internal fun cancelTrackedTask(scriptName: String, taskId: Int): Boolean =
-        synchronized(taskLock) {
-            val ids = tasksByScript[scriptName] ?: return@synchronized false
-            if (!isTaskOwnedBy(scriptName, taskId, tasksByScript)) return@synchronized false
+    internal fun cancelTrackedTask(scriptName: String, taskId: Int): Boolean {
+        val cleanup = synchronized(taskLock) {
+            val ids = tasksByScript[scriptName] ?: return false
+            if (!isTaskOwnedBy(scriptName, taskId, tasksByScript)) return false
             ids.remove(taskId)
             if (ids.isEmpty()) tasksByScript.remove(scriptName, ids)
-            Bukkit.getScheduler().cancelTask(taskId)
-            true
+            taskScopeCleanups.remove(taskId)
         }
+        runCatching { cleanup?.close() }
+        Bukkit.getScheduler().cancelTask(taskId)
+        return true
+    }
 
     fun trackGui(scriptName: String, gui: KSLGuiInstance) {
         scriptsWithGuis.add(scriptName)
         guiManager.track(gui)
     }
 
-    fun trackListener(scriptName: String, listener: Listener) {
+    fun trackListener(
+        scriptName: String,
+        listener: Listener,
+        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope = scriptRuntimeScope(scriptName)
+    ) {
         // Keep the per-script limit check and registration atomic with unloadScript().
         val accepted = synchronized(listenerLock) {
             val listeners = listenersByScript.computeIfAbsent(scriptName) { mutableListOf() }
@@ -1937,7 +1969,26 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             if (limitWarned.add("$scriptName|L")) {
                 logger.severe("[$scriptName] ${KSLError.SCRIPT_LIMIT_LISTENERS.tag} У скрипта уже $maxListeners обработчиков событий — новые отклоняются (security.limits.max-listeners-per-script)")
             }
+            return
         }
+
+        try {
+            ownerScope.onClose { releaseTrackedListener(scriptName, listener) }
+        } catch (error: IllegalStateException) {
+            // A stale context must not attach its listener to the replacement generation.
+            releaseTrackedListener(scriptName, listener)
+            throw error
+        }
+    }
+
+    private fun releaseTrackedListener(scriptName: String, listener: Listener) {
+        synchronized(listenerLock) {
+            listenersByScript.computeIfPresent(scriptName) { _, listeners ->
+                listeners.remove(listener)
+                if (listeners.isEmpty()) null else listeners
+            }
+        }
+        HandlerList.unregisterAll(listener)
     }
 
     private val commandSyncQueued = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -1959,13 +2010,24 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private fun trackedCommandCount(scriptName: String): Int =
         synchronized(commandLock) { commandsByScript[scriptName]?.size ?: 0 }
 
-    fun trackCommand(scriptName: String, command: DynamicCommand) {
+    fun trackCommand(
+        scriptName: String,
+        command: DynamicCommand,
+        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope = scriptRuntimeScope(scriptName)
+    ) {
         // A small array-backed owner list is cheaper than a separate ConcurrentHashMap per script.
         synchronized(commandLock) {
             val owned = commandsByScript.getOrPut(scriptName) { ArrayList(1) }
             if (owned.none { it === command }) owned.add(command)
         }
         scheduleCommandSync()
+
+        try {
+            ownerScope.onClose { releaseTrackedCommand(scriptName, command) }
+        } catch (error: IllegalStateException) {
+            releaseTrackedCommand(scriptName, command)
+            throw error
+        }
 
         for (label in sequenceOf(command.name).plus(command.aliases)) {
             if (Bukkit.getCommandMap().getCommand(label) !== command) {
@@ -1977,6 +2039,16 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
                 )
             }
         }
+    }
+
+    private fun releaseTrackedCommand(scriptName: String, command: DynamicCommand) {
+        synchronized(commandLock) {
+            commandsByScript.computeIfPresent(scriptName) { _, commands ->
+                commands.removeAll { it === command }
+                if (commands.isEmpty()) null else commands
+            }
+        }
+        unregisterCommands(listOf(command))
     }
 
     fun registerPlaceholder(scriptName: String, key: String, resolver: (OfflinePlayer) -> String?) {
