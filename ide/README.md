@@ -9,7 +9,7 @@ separate from the runtime plugin and adds no runtime dependencies to KSL.
 1. Download the artifact for the exact build you installed from
    [GitHub Actions](../.github/workflows/build.yml). Artifacts are named
    `KSL-build-<run-number>-<commit-sha>` so consecutive builds are easy to tell apart.
-2. Copy the JAR to `ide/libs/KotlinScriptLoader-1.2.1.jar`, or pass its full path
+2. Copy the JAR to `ide/libs/KotlinScriptLoader-1.2.2-SNAPSHOT.jar`, or pass its full path
    through `-PkslJar=/absolute/path/to/KotlinScriptLoader-1.2.1.jar`.
 3. Open `ide/` in IntelliJ IDEA as a Gradle project. Use JDK 21 and let Gradle sync.
 4. Point the project at the server's scripts folder:
