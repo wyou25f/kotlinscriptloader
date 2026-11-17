@@ -69,8 +69,8 @@ if ($GradleBuild -notmatch 'version\s*=\s*"([^"]+)"') {
     Stop-Build "Could not determine project version from build.gradle.kts."
 }
 $ProjectVersion = $Matches[1]
-if ($ProjectVersion -ne "1.2.1") {
-    Stop-Build "The maintenance build must remain 1.2.1; found $ProjectVersion in build.gradle.kts."
+if ($ProjectVersion -ne "1.2.2-SNAPSHOT") {
+    Stop-Build "The development build must remain 1.2.2-SNAPSHOT; found $ProjectVersion in build.gradle.kts."
 }
 
 $GradleTasks = switch ($Task) {
