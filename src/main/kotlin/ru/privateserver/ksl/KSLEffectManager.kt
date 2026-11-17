@@ -164,6 +164,10 @@ class KSLEffectManager(private val plugin: KotlinScriptLoaderPlugin) {
         }
 
         task = Bukkit.getScheduler().runTaskTimer(plugin, Runnable {
+            if (ownerScope.isClosed) {
+                stop()
+                return@Runnable
+            }
             try {
                 if (tick >= spec.durationTicks || spec.stopCondition?.invoke() == true) {
                     stop()
