@@ -48,13 +48,59 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
         dropSpecs.values.map { it.scriptName } +
         tickTasks.values.flatMap { tasks -> tasks.map { it.scriptName } }
 
-    fun trackSpawn(scriptName: String, entity: LivingEntity, removeEntityOnReload: Boolean) {
+    fun trackSpawn(scriptName: String, entity: LivingEntity, removeEntityOnReload: Boolean) =
+        trackSpawn(scriptName, entity, removeEntityOnReload, plugin.scriptRuntimeScope(scriptName))
+
+    fun trackSpawn(
+        scriptName: String,
+        entity: LivingEntity,
+        removeEntityOnReload: Boolean,
+        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope
+    ) {
         val pdc = entity.persistentDataContainer
         pdc.set(ownerKey, PersistentDataType.STRING, scriptName)
         // Survives restarts, unlike the in-memory index; lets onEntitiesLoad spot husks left behind.
         if (removeEntityOnReload) pdc.set(ephemeralKey, PersistentDataType.BYTE, 1.toByte())
         entitiesByScript.computeIfAbsent(scriptName) { ConcurrentHashMap.newKeySet() }.add(entity.uniqueId)
         removeOnReload[entity.uniqueId] = removeEntityOnReload
+        try {
+            ownerScope.onClose { releaseSpawn(scriptName, entity.uniqueId, removeEntityOnReload) }
+        } catch (error: IllegalStateException) {
+            releaseSpawn(scriptName, entity.uniqueId, removeEntityOnReload)
+            throw error
+        }
+    }
+
+    private fun releaseSpawn(scriptName: String, entityId: UUID, removeEntityOnReload: Boolean) {
+        var wasTracked = false
+        entitiesByScript.computeIfPresent(scriptName) { _, ids ->
+            wasTracked = ids.remove(entityId)
+            if (ids.isEmpty()) null else ids
+        }
+        if (!wasTracked) return
+
+        val shouldRemove = removeOnReload.remove(entityId) ?: removeEntityOnReload
+        dropHooks(entityId)
+        if (!shouldRemove) return
+
+        val removeEntity = Runnable {
+            runCatching { Bukkit.getEntity(entityId)?.remove() }
+                .onFailure {
+                    plugin.logger.warning(
+                        "[$scriptName] ${KSLError.ENTITY_CLEANUP_FAILED.tag} Не удалось убрать сущность $entityId при закрытии generation: ${it.message}"
+                    )
+                }
+        }
+        if (Bukkit.isPrimaryThread()) {
+            removeEntity.run()
+        } else {
+            runCatching { Bukkit.getScheduler().runTask(plugin, removeEntity) }
+                .onFailure {
+                    plugin.logger.warning(
+                        "[$scriptName] ${KSLError.ENTITY_CLEANUP_FAILED.tag} Не удалось запланировать удаление сущности $entityId: ${it.message}"
+                    )
+                }
+        }
     }
 
     // Used when spawning fails half-way: the entity is being removed, so nothing should reference it.
@@ -94,8 +140,31 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
         }
     }
 
-    fun trackTickTask(scriptName: String, entityId: UUID, task: BukkitTask) {
-        tickTasks.computeIfAbsent(entityId) { ConcurrentHashMap.newKeySet() }.add(Hook(scriptName, task))
+    fun trackTickTask(scriptName: String, entityId: UUID, task: BukkitTask) =
+        trackTickTask(scriptName, entityId, task, plugin.scriptRuntimeScope(scriptName))
+
+    fun trackTickTask(
+        scriptName: String,
+        entityId: UUID,
+        task: BukkitTask,
+        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope
+    ) {
+        val tracked = Hook(scriptName, task)
+        tickTasks.computeIfAbsent(entityId) { ConcurrentHashMap.newKeySet() }.add(tracked)
+        try {
+            ownerScope.onClose {
+                tickTasks.computeIfPresent(entityId) { _, tasks ->
+                    tasks.remove(tracked)
+                    if (tasks.isEmpty()) null else tasks
+                }
+            }
+        } catch (error: IllegalStateException) {
+            tickTasks.computeIfPresent(entityId) { _, tasks ->
+                tasks.remove(tracked)
+                if (tasks.isEmpty()) null else tasks
+            }
+            throw error
+        }
     }
 
     fun untrackTickTask(scriptName: String, entityId: UUID, taskId: Int) {
@@ -112,20 +181,78 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
         }
     }
 
-    fun setDeathCallback(scriptName: String, entity: LivingEntity, callback: (LivingEntity, Player?) -> Unit) {
-        deathHooks[entity.uniqueId] = Hook(scriptName, callback)
+    fun setDeathCallback(scriptName: String, entity: LivingEntity, callback: (LivingEntity, Player?) -> Unit) =
+        setDeathCallback(scriptName, entity, callback, plugin.scriptRuntimeScope(scriptName))
+
+    fun setDeathCallback(
+        scriptName: String,
+        entity: LivingEntity,
+        callback: (LivingEntity, Player?) -> Unit,
+        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope
+    ) {
+        val uuid = entity.uniqueId
+        val hook = Hook(scriptName, callback)
+        deathHooks[uuid] = hook
+        bindHookCleanup(ownerScope) { deathHooks.remove(uuid, hook) }
     }
 
-    fun setDamagedCallback(scriptName: String, entity: LivingEntity, callback: (LivingEntity, EntityDamageEvent) -> Unit) {
-        damagedHooks[entity.uniqueId] = Hook(scriptName, callback)
+    fun setDamagedCallback(scriptName: String, entity: LivingEntity, callback: (LivingEntity, EntityDamageEvent) -> Unit) =
+        setDamagedCallback(scriptName, entity, callback, plugin.scriptRuntimeScope(scriptName))
+
+    fun setDamagedCallback(
+        scriptName: String,
+        entity: LivingEntity,
+        callback: (LivingEntity, EntityDamageEvent) -> Unit,
+        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope
+    ) {
+        val uuid = entity.uniqueId
+        val hook = Hook(scriptName, callback)
+        damagedHooks[uuid] = hook
+        bindHookCleanup(ownerScope) { damagedHooks.remove(uuid, hook) }
     }
 
-    fun setAttackCallback(scriptName: String, entity: LivingEntity, callback: (LivingEntity, EntityDamageByEntityEvent) -> Unit) {
-        attackHooks[entity.uniqueId] = Hook(scriptName, callback)
+    fun setAttackCallback(scriptName: String, entity: LivingEntity, callback: (LivingEntity, EntityDamageByEntityEvent) -> Unit) =
+        setAttackCallback(scriptName, entity, callback, plugin.scriptRuntimeScope(scriptName))
+
+    fun setAttackCallback(
+        scriptName: String,
+        entity: LivingEntity,
+        callback: (LivingEntity, EntityDamageByEntityEvent) -> Unit,
+        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope
+    ) {
+        val uuid = entity.uniqueId
+        val hook = Hook(scriptName, callback)
+        attackHooks[uuid] = hook
+        bindHookCleanup(ownerScope) { attackHooks.remove(uuid, hook) }
     }
 
-    fun setDrops(scriptName: String, entity: LivingEntity, items: List<ItemStack>, exp: Int?, keepDefault: Boolean) {
-        dropSpecs[entity.uniqueId] = DropSpec(scriptName, items.map { it.clone() }, exp, keepDefault)
+    fun setDrops(scriptName: String, entity: LivingEntity, items: List<ItemStack>, exp: Int?, keepDefault: Boolean) =
+        setDrops(scriptName, entity, items, exp, keepDefault, plugin.scriptRuntimeScope(scriptName))
+
+    fun setDrops(
+        scriptName: String,
+        entity: LivingEntity,
+        items: List<ItemStack>,
+        exp: Int?,
+        keepDefault: Boolean,
+        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope
+    ) {
+        val uuid = entity.uniqueId
+        val spec = DropSpec(scriptName, items.map { it.clone() }, exp, keepDefault)
+        dropSpecs[uuid] = spec
+        bindHookCleanup(ownerScope) { dropSpecs.remove(uuid, spec) }
+    }
+
+    private inline fun bindHookCleanup(
+        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope,
+        crossinline cleanup: () -> Unit
+    ) {
+        try {
+            ownerScope.onClose { cleanup() }
+        } catch (error: IllegalStateException) {
+            cleanup()
+            throw error
+        }
     }
 
     fun ownerOf(entity: LivingEntity): String? =
