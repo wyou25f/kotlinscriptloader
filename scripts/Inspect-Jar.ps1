@@ -51,7 +51,7 @@ try {
         "ru/privateserver/ksl/KSLScriptGeneration.class",
         "ru/privateserver/ksl/KSLGenerationState.class",
         "ru/privateserver/ksl/KSLGenerationSnapshot.class",
-        "ru/privateserver/ksl/KSLQueuePressureMonitor.class,
+        "ru/privateserver/ksl/KSLQueuePressureMonitor.class",
         "ru/privateserver/ksl/KSLDatabaseSettings.class",
         "ru/privateserver/ksl/KSLDatabaseExecutionPolicy.class",
         "ru/privateserver/ksl/KSLDatabaseSession.class",
