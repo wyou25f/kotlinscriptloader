@@ -763,7 +763,7 @@ migrateConfig(
 
 ## Глава 15. TOML
 
-TOML подходит для настроек, когда нужны явные типы и таблицы.
+TOML подходит для конфигурации, когда нужны явные типы, вложенные таблицы и удобочитаемый синтаксис.
 
 ~~~toml
 port = 25565
@@ -774,8 +774,15 @@ motd = "Welcome"
 host = "localhost"
 pool-size = 4
 
-[features]
-shop = true
+[[shops]]
+id = "tools"
+
+[shops.location]
+world = "world"
+x = 10
+
+[[shops]]
+id = "food"
 ~~~
 
 ### Чтение
@@ -785,6 +792,7 @@ val settings = loadToml("data/settings.toml")
 val port = settings?.tomlInt("port", 25565) ?: 25565
 val db = settings?.tomlTable("database")
 val host = db?.tomlString("host", "localhost") ?: "localhost"
+val shops = settings?.tomlList("shops").orEmpty()
 ~~~
 
 ### Запись
@@ -797,24 +805,32 @@ editToml("data/settings.toml") {
         "host" to "localhost",
         "pool-size" to 6
     )
+    this["shops"] = listOf(
+        mapOf("id" to "tools", "enabled" to true),
+        mapOf("id" to "food", "enabled" to false)
+    )
 }
 ~~~
 
 Также доступны loadToml/saveToml/editToml и aliases readToml/writeToml/updateToml.
 
-### Ограничения кодека
+### Поддержка и ограничения
 
-TOML codec KSL работает с обычными Kotlin Maps и списками. Поддерживаются scalar values, arrays и nested tables. Null не поддерживается; arrays of tables и неподдерживаемые объекты должны считаться ошибкой.
+- Поддерживаются scalar values, обычные arrays, nested tables, inline tables и arrays of tables (например, [[name]]).
+- Поддерживаются строки, Boolean, целые числа в диапазоне signed 64-bit, конечные Float/Double, BigDecimal, BigInteger в допустимом диапазоне и стандартные TOML date/time значения (LocalDate, LocalTime, LocalDateTime, OffsetDateTime).
+- Null не существует в TOML. Кодек отклоняет null и неподдерживаемые типы, а не теряет данные молча.
+- Ключи Map должны быть строками. Ключи с пробелами, точками или специальными символами автоматически заключаются в кавычки.
+- BOM в начале UTF-8 файла принимается.
 
-Парсер преобразует документ в map, поэтому комментарии, исходные отступы и форматирование не сохраняются как отдельные метаданные. После повторной сериализации комментарии могут исчезнуть.
+Парсер возвращает map/list представление. Комментарии, исходные отступы и точное форматирование не сохраняются; после editToml комментарии могут исчезнуть. Вложенные Map в таблицах записываются как tables, Map внутри массивов — как inline tables, а массивы Map — как arrays of tables.
 
 ---
 
 ## Глава 16. JSON
 
-JSON подходит для обмена данными, API payloads и файлов, где важна совместимость с другими системами. Стандартный JSON не поддерживает комментарии.
+JSON подходит для обмена данными, API payloads и файлов, где важна совместимость с другими системами. Запись остаётся стандартным JSON, а чтение конфигурационных файлов дополнительно принимает распространённые JSONC-расширения.
 
-### Создание объекта
+### Создание и преобразование
 
 ~~~kotlin
 val profile = jsonObjectOf(
@@ -824,7 +840,12 @@ val profile = jsonObjectOf(
     "coins" to 250L,
     "tags" to listOf("builder", "vip")
 )
+
+val tree = profile.toJsonString(pretty = true)
+val values = parseJson(tree).toKotlinValue()
 ~~~
+
+toKotlinValue преобразует JSON tree в обычные Kotlin Map/List и примитивы. Целые числа сохраняют точность как Long или BigInteger, дробные и экспоненциальные значения — как BigDecimal. Это удобно для обмена JSON и TOML; при переносе нужно помнить, что TOML не поддерживает null.
 
 ### Чтение
 
@@ -832,13 +853,28 @@ val profile = jsonObjectOf(
 val data = loadJsonObject("data/profile.json")
 val coins = data?.long("coins", 0L) ?: 0L
 val name = data?.string("name", "Unknown") ?: "Unknown"
+
+val compatible = parseJsonCompatible(
+    """
+    {
+      // comments and trailing commas are accepted on input
+      "enabled": true,
+    }
+    """.trimIndent()
+)
 ~~~
 
-В STD доступны string/int/long/double/bool, objectValue, arrayValue, hasKey, requireString/requireInt/requireLong/requireDouble/requireBoolean и безопасные accessor методы для JsonArray.
+parseJson проверяет строгий JSON. parseJsonCompatible и файловый loadJson также принимают // / block comments и trailing commas. parseJsonCompatibleOrNull возвращает null при ошибке. Неquoted keys и произвольный JSON5 не поддерживаются. При сохранении комментарии и завершающие запятые не выводятся.
 
-### Ограничения
+### Типы, лимиты и пути
 
-toJsonElement поддерживает common Kotlin primitives, enum, maps, collections и массивы. Ключи Map обязаны быть String. NaN и Infinity не являются допустимыми JSON числами. Произвольный объект нужно сначала явно преобразовать в поддерживаемое представление.
+В STD доступны string/int/long/double/bool, objectValue, arrayValue, hasKey, requireString/requireInt/requireLong/requireDouble/requireBoolean, accessor методы для JsonArray, atPath() и RFC 6901 atJsonPointer().
+
+toJsonElement поддерживает Kotlin primitives, enum, maps, collections, sequences, массивы, BigInteger/BigDecimal, UUID и java.time values. Ключи Map обязаны быть String. NaN и Infinity не являются допустимыми JSON числами. Циклические object graphs отклоняются.
+
+Для обычного toJsonElement применяются защитные лимиты: глубина 64, 100 000 узлов, 25 000 элементов коллекции и 1 MiB на строку/ключ. Для специальных сценариев можно передать KSLJsonLimits с собственными ограничениями.
+
+Ошибочный файл при чтении не перезаписывается: KSL сохраняет резервную копию с суффиксом .broken-* и сообщает причину. JSON/TOML сохраняются через уникальный временный файл и атомарную замену; одновременные записи в один путь сериализуются локальным lock.
 
 ---
 
