@@ -39,7 +39,7 @@ tasks.register("verifyKslIdeSetup") {
     doLast {
         val jarFile = file(kslJarPath.get())
         check(jarFile.isFile) {
-            "KSL plugin JAR not found: ${jarFile.absolutePath}. Set -PkslJar=/path/to/KotlinScriptLoader-1.2.1.jar"
+            "KSL plugin JAR not found: ${jarFile.absolutePath}. Set -PkslJar=/path/to/KotlinScriptLoader-1.2.2-SNAPSHOT.jar"
         }
         ZipFile(jarFile).use { jar ->
             listOf(
