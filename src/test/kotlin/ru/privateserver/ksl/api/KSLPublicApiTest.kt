@@ -87,7 +87,7 @@ class KSLPublicApiTest {
     @Test
     fun `structured logger is part of the public addon api`() {
         assertTrue(KSLAPI::class.java.methods.any { it.name == "createLogger" })
-        assertEquals(13, ru.privateserver.ksl.KSL.API_VERSION)
+        assertEquals(14, ru.privateserver.ksl.KSL.API_VERSION)
         assertEquals("DEBUG", KSLLogLevel.DEBUG.name)
     }
 
@@ -133,6 +133,21 @@ class KSLPublicApiTest {
         assertEquals("ru.privateserver.ksl.KSLEntityBuilder", KSLEntityBuilder::class.java.name)
         assertEquals("ru.privateserver.ksl.KSLEntityBehaviorBuilder", KSLEntityBehaviorBuilder::class.java.name)
     }
+    @Test
+    fun `CSV types and helper extensions are exported from the public api package`() {
+        assertEquals("ru.privateserver.ksl.std.csv.KslCsvTable", KSLCSVTable::class.java.name)
+        assertEquals("ru.privateserver.ksl.std.csv.KslCsvRow", KSLCSVRow::class.java.name)
+        assertEquals("ru.privateserver.ksl.std.csv.KslCsvOptions", KSLCSVOptions::class.java.name)
+
+        val installed = api()
+        val table = installed.csvTable("id", "name")
+        table.addRow(7, "Alice")
+        assertEquals("Alice", table[0]["name"])
+
+        val parsed = installed.parseCsv("id,name\n8,Bob")
+        assertEquals("Bob", parsed[0]["name"])
+    }
+
     @Test
     fun `detached nbt types are exported from the public api package`() {
         assertEquals("ru.privateserver.ksl.nbt.KSLNBTDocument", KSLNBTDocument::class.java.name)

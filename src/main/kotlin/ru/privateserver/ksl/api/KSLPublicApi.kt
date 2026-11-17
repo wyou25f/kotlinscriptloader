@@ -24,6 +24,12 @@ import ru.privateserver.ksl.KSLEffectSpec as CoreKSLEffectSpec
 import ru.privateserver.ksl.KSLEntityBuilder as CoreKSLEntityBuilder
 import ru.privateserver.ksl.KSLEntityBehaviorBuilder as CoreKSLEntityBehaviorBuilder
 import ru.privateserver.ksl.schem.KSLClipboard as CoreKSLClipboard
+import ru.privateserver.ksl.std.csv.KslCsvOptions as CoreKslCsvOptions
+import ru.privateserver.ksl.std.csv.KslCsvRow as CoreKslCsvRow
+import ru.privateserver.ksl.std.csv.KslCsvTable as CoreKslCsvTable
+import ru.privateserver.ksl.std.csv.KslCsvCodec as CoreKslCsvCodec
+import ru.privateserver.ksl.std.csv.KslCsvFiles as CoreKslCsvFiles
+import java.io.File
 import ru.privateserver.ksl.nbt.KSLNBTDocument as CoreKSLNBTDocument
 import ru.privateserver.ksl.nbt.KSLNBTLimits as CoreKSLNBTLimits
 import ru.privateserver.ksl.nbt.KSLNBTView as CoreKSLNBTView
@@ -108,6 +114,10 @@ typealias KSLEntityBuilder = CoreKSLEntityBuilder
 typealias KSLEntityBehaviorBuilder = CoreKSLEntityBehaviorBuilder
 /** Bounded in-memory WorldEdit clipboard used by the optional schematic API. */
 typealias KSLClipboard = CoreKSLClipboard
+/** Editable CSV table model exposed to Kotlin/Java addons. */
+typealias KSLCSVTable = CoreKslCsvTable
+typealias KSLCSVRow = CoreKslCsvRow
+typealias KSLCSVOptions = CoreKslCsvOptions
 /** Detached NBT document and its bounded parser/codec. */
 typealias KSLNBTDocument = CoreKSLNBTDocument
 typealias KSLNBTLimits = CoreKSLNBTLimits
@@ -151,6 +161,28 @@ typealias KSLTaskScope = CoreKSLTaskScope
 typealias KSLTaskSpec = CoreKSLTaskSpec
 typealias KSLTaskState = CoreKSLTaskState
 typealias KSLOfficialTaskScheduler = CoreKSLOfficialTaskScheduler
+
+/** Creates a CSV table through the stable addon API. */
+fun KSLAPI.csvTable(vararg columns: String): KSLCSVTable =
+    CoreKslCsvTable(columns.toList())
+
+/** Parses CSV source text through the stable addon API. */
+@JvmOverloads
+fun KSLAPI.parseCsv(
+    source: String,
+    options: KSLCSVOptions = KSLCSVOptions()
+): KSLCSVTable = CoreKslCsvCodec.parse(source, options)
+
+/** Reads a UTF-8 CSV file; missing files return null. */
+@JvmOverloads
+fun KSLAPI.readCsv(file: File, options: KSLCSVOptions = KSLCSVOptions()): KSLCSVTable? =
+    CoreKslCsvFiles.read(file, options)
+
+/** Atomically writes a UTF-8 CSV file. */
+@JvmOverloads
+fun KSLAPI.writeCsv(file: File, table: KSLCSVTable, options: KSLCSVOptions = KSLCSVOptions()) {
+    CoreKslCsvFiles.write(file, table, options)
+}
 
 /** Current read-only JVM, CPU, thread and GC telemetry. */
 val kslRuntimeStats: KSLRuntimeSnapshot

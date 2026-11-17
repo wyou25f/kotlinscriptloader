@@ -410,6 +410,70 @@ open class BukkitScriptContext(
         return values
     }
 
+    private fun resolveCsvFile(fileName: String, operation: String): File {
+        require(fileName.endsWith(".csv", ignoreCase = true)) {
+            "$operation expects a .csv file: '$fileName'"
+        }
+        val root = internalPlugin.scriptsFolder.canonicalFile
+        val file = File(root, fileName).canonicalFile
+        require(file.toPath() != root.toPath() && file.toPath().startsWith(root.toPath())) {
+            "${KSLError.YAML_PATH_ESCAPE.tag} $operation: '$fileName' выходит за пределы scripts/"
+        }
+        return file
+    }
+
+    /** Reads a CSV table from scripts/. Returns null if the file does not exist. */
+    @Synchronized
+    fun loadCsv(
+        fileName: String,
+        options: ru.privateserver.ksl.std.csv.KslCsvOptions = ru.privateserver.ksl.std.csv.KslCsvOptions()
+    ): ru.privateserver.ksl.std.csv.KslCsvTable? {
+        requireActiveGeneration("loadCsv")
+        return ru.privateserver.ksl.std.csv.KslCsvFiles.read(
+            resolveCsvFile(fileName, "loadCsv"),
+            options
+        )
+    }
+
+    /** Saves a CSV table as UTF-8 with an atomic file replacement. */
+    @Synchronized
+    fun saveCsv(
+        fileName: String,
+        table: ru.privateserver.ksl.std.csv.KslCsvTable,
+        options: ru.privateserver.ksl.std.csv.KslCsvOptions = ru.privateserver.ksl.std.csv.KslCsvOptions()
+    ): Boolean {
+        requireActiveGeneration("saveCsv")
+        val file = resolveCsvFile(fileName, "saveCsv")
+        return try {
+            ru.privateserver.ksl.std.csv.KslCsvFiles.write(file, table, options)
+            true
+        } catch (ex: Exception) {
+            internalPlugin.logger.warning("[$scriptName] Не удалось сохранить CSV '$fileName': ${ex.message}")
+            false
+        }
+    }
+
+    /** Loads or creates a CSV table, applies edits, and atomically saves the result. */
+    @Synchronized
+    fun editCsv(
+        fileName: String,
+        columns: List<String> = emptyList(),
+        options: ru.privateserver.ksl.std.csv.KslCsvOptions = ru.privateserver.ksl.std.csv.KslCsvOptions(),
+        block: ru.privateserver.ksl.std.csv.KslCsvTable.() -> Unit
+    ): ru.privateserver.ksl.std.csv.KslCsvTable {
+        requireActiveGeneration("editCsv")
+        val existing = loadCsv(fileName, options)
+        val table = existing ?: ru.privateserver.ksl.std.csv.KslCsvTable(columns)
+        if (existing != null && columns.isNotEmpty()) {
+            require(existing.columns == columns) {
+                "CSV schema mismatch for '$fileName': existing ${existing.columns}, requested $columns"
+            }
+        }
+        table.block()
+        check(saveCsv(fileName, table, options)) { "Could not save CSV file '$fileName'" }
+        return table
+    }
+
     private fun resolveNbtFile(fileName: String, operation: String): File {
         require(fileName.endsWith(".nbt", ignoreCase = true)) {
             "$operation expects a .nbt file: '$fileName'"
