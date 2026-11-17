@@ -24,6 +24,20 @@ class KSLGuiManager(private val plugin: KotlinScriptLoaderPlugin) : Listener {
 
     /** Disposes exactly one GUI; closing an old generation must not affect its replacement's GUIs. */
     fun dispose(gui: KSLGuiInstance) {
+        if (!Bukkit.isPrimaryThread()) {
+            val scheduled = runCatching {
+                Bukkit.getScheduler().runTask(plugin, Runnable { dispose(gui) })
+            }.isSuccess
+            if (scheduled) return
+
+            // Scheduler shutdown can race with plugin disable. Disable handlers immediately
+            // even when Bukkit can no longer safely close the inventory from this thread.
+            gui.dispose()
+            synchronized(trackedGuis) { trackedGuis.remove(gui) }
+            plugin.logger.warning("[GUI] Не удалось запланировать закрытие inventory для поколения скрипта '${gui.scriptName}'.")
+            return
+        }
+
         gui.dispose()
         Bukkit.getOnlinePlayers().forEach { player ->
             val holder = player.openInventory.topInventory.getHolder(false) as? KSLGuiHolder
