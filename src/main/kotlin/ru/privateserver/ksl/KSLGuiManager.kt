@@ -22,6 +22,16 @@ class KSLGuiManager(private val plugin: KotlinScriptLoaderPlugin) : Listener {
         synchronized(trackedGuis) { trackedGuis[gui] = true }
     }
 
+    /** Disposes exactly one GUI; closing an old generation must not affect its replacement's GUIs. */
+    fun dispose(gui: KSLGuiInstance) {
+        gui.dispose()
+        Bukkit.getOnlinePlayers().forEach { player ->
+            val holder = player.openInventory.topInventory.getHolder(false) as? KSLGuiHolder
+            if (holder?.gui === gui) player.closeInventory()
+        }
+        synchronized(trackedGuis) { trackedGuis.remove(gui) }
+    }
+
     // getHolder(false): the default variant snapshots block state on every click in any container, server-wide.
     @EventHandler
     fun onClick(event: InventoryClickEvent) {
