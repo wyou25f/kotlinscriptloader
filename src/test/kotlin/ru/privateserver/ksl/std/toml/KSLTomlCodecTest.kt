@@ -52,6 +52,52 @@ class KSLTomlCodecTest {
     }
 
     @Test
+    fun encodesAndParsesArraysOfTablesAndNestedChildTables() {
+        val input = mapOf(
+            "products" to listOf(
+                mapOf("name" to "hammer", "details" to mapOf("weight" to 1.5, "fragile" to false)),
+                mapOf("name" to "nail", "details" to mapOf("weight" to 0.1, "fragile" to true))
+            )
+        )
+
+        val encoded = KSLTomlCodec.encode(input)
+        assertTrue(encoded.contains("[[products]]"))
+        assertTrue(encoded.contains("[products.details]"))
+
+        val products = KSLTomlCodec.parse(encoded)["products"] as List<*>
+        assertEquals(2, products.size)
+        assertEquals("hammer", (products[0] as Map<*, *>)["name"])
+        assertEquals("nail", (products[1] as Map<*, *>)["name"])
+        assertEquals(false, ((products[0] as Map<*, *>)["details"] as Map<*, *>)["fragile"])
+    }
+
+    @Test
+    fun inlineTablesMixedArraysQuotedDottedKeysAndControlCharactersRoundTrip() {
+        val input = mapOf(
+            "a.b" to mapOf(" spaced key " to "value\u0001with-control"),
+            "mixed" to listOf("start", mapOf("enabled" to true, "threshold" to BigDecimal("42")))
+        )
+
+        val encoded = KSLTomlCodec.encode(input)
+        assertTrue(encoded.contains("\"a.b\""))
+        assertTrue(encoded.contains("{ enabled = true, threshold = 42.0 }"))
+
+        val parsed = KSLTomlCodec.parse(encoded)
+        val dotted = parsed["a.b"] as Map<*, *>
+        assertEquals("value\u0001with-control", dotted[" spaced key "])
+        val mixed = parsed["mixed"] as List<*>
+        assertEquals("start", mixed[0])
+        assertEquals(true, (mixed[1] as Map<*, *>)["enabled"])
+    }
+
+    @Test
+    fun rejectsIntegersOutsideTomlSigned64BitRange() {
+        assertThrows(IllegalArgumentException::class.java) {
+            KSLTomlCodec.encode(mapOf("too-large" to BigInteger("9223372036854775808")))
+        }
+    }
+
+    @Test
     fun rejectsStandaloneOffsetTimeBecauseItIsNotATomlValue() {
         assertThrows(IllegalStateException::class.java) {
             KSLTomlCodec.encode(mapOf("server-time" to java.time.OffsetTime.parse("07:32:00Z")))
