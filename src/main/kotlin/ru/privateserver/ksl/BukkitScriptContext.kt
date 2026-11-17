@@ -856,28 +856,45 @@ open class BukkitScriptContext(
         }
 
     /** Runs work on KSL's bounded priority-aware worker pool. Bukkit world access belongs in runSync(). */
+    private fun ownWorkerHandle(handle: ru.privateserver.ksl.rt.KSLWorkHandle): ru.privateserver.ksl.rt.KSLWorkHandle {
+        val cleanup = contextRuntimeScope.onClose { handle.cancel(true) }
+        // One-shot work releases its ownership record on completion; repeating work
+        // keeps the record until it is cancelled or the generation is retired.
+        handle.completion.whenComplete { _, _ -> cleanup.close() }
+        return handle
+    }
+
+    private fun <T> ownWorkerFuture(
+        future: java.util.concurrent.CompletableFuture<T>
+    ): java.util.concurrent.CompletableFuture<T> {
+        val cleanup = contextRuntimeScope.onClose { future.cancel(true) }
+        future.whenComplete { _, _ -> cleanup.close() }
+        return future
+    }
+
+    /** Runs on KSL's bounded priority-aware worker pool. Bukkit world access belongs in runSync(). */
     fun worker(priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL, block: () -> Unit): Long =
-        internalPlugin.submitWorker(scriptName, priority) {
+        ownWorkerHandle(internalPlugin.workScheduler.submitHandle(scriptName, priority) {
             executeWorker("worker:$priority", block)
-        }
+        }).id
 
     /** Submits work and returns a handle with cancellation, state and completion information. */
     fun workerHandle(
         priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL,
         block: () -> Unit
     ): ru.privateserver.ksl.rt.KSLWorkHandle =
-        internalPlugin.workScheduler.submitHandle(scriptName, priority) {
+        ownWorkerHandle(internalPlugin.workScheduler.submitHandle(scriptName, priority) {
             executeWorker("worker:$priority", block)
-        }
+        })
 
     /** Returns a future for a value computed off-thread. Completion callbacks may run on the worker or registering thread; use runSync() for Bukkit operations. */
     fun <T> workerFuture(
         priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL,
         block: () -> T
     ): java.util.concurrent.CompletableFuture<T> =
-        internalPlugin.workScheduler.submitFuture(scriptName, priority) {
+        ownWorkerFuture(internalPlugin.workScheduler.submitFuture(scriptName, priority) {
             executeWorker("worker-future:$priority", block)
-        }
+        })
 
     /** Runs one delayed worker callback; cancel the returned handle to stop it before execution. */
     fun workerAfter(
@@ -885,9 +902,9 @@ open class BukkitScriptContext(
         priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL,
         block: () -> Unit
     ): ru.privateserver.ksl.rt.KSLWorkHandle =
-        internalPlugin.workScheduler.scheduleHandle(
+        ownWorkerHandle(internalPlugin.workScheduler.scheduleHandle(
             scriptName, delayMillis, java.util.concurrent.TimeUnit.MILLISECONDS, priority
-        ) { executeWorker("worker-after:$priority", block) }
+        ) { executeWorker("worker-after:$priority", block) })
 
     /** Runs repeatedly on a fixed-rate clock. Overlapping ticks are skipped, never queued. */
     fun workerAtFixedRate(
@@ -896,9 +913,9 @@ open class BukkitScriptContext(
         priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL,
         block: () -> Unit
     ): ru.privateserver.ksl.rt.KSLWorkHandle =
-        internalPlugin.workScheduler.scheduleAtFixedRateHandle(
+        ownWorkerHandle(internalPlugin.workScheduler.scheduleAtFixedRateHandle(
             scriptName, initialDelayMillis, periodMillis, java.util.concurrent.TimeUnit.MILLISECONDS, priority
-        ) { executeWorker("worker-fixed-rate:$priority", block) }
+        ) { executeWorker("worker-fixed-rate:$priority", block) })
 
     /** Runs repeatedly with the delay measured from completion of the previous run. */
     fun workerWithFixedDelay(
@@ -907,9 +924,9 @@ open class BukkitScriptContext(
         priority: ru.privateserver.ksl.rt.KSLWorkPriority = ru.privateserver.ksl.rt.KSLWorkPriority.NORMAL,
         block: () -> Unit
     ): ru.privateserver.ksl.rt.KSLWorkHandle =
-        internalPlugin.workScheduler.scheduleWithFixedDelayHandle(
+        ownWorkerHandle(internalPlugin.workScheduler.scheduleWithFixedDelayHandle(
             scriptName, initialDelayMillis, delayMillis, java.util.concurrent.TimeUnit.MILLISECONDS, priority
-        ) { executeWorker("worker-fixed-delay:$priority", block) }
+        ) { executeWorker("worker-fixed-delay:$priority", block) })
 
     fun cpu(block: () -> Unit): Long = worker(block = block)
     fun work(block: () -> Unit): Long = worker(block = block)
@@ -1037,8 +1054,19 @@ open class BukkitScriptContext(
     }
 
     // Subscriptions are dropped automatically when the script unloads.
-    fun subscribe(topic: String, handler: (Any?) -> Unit): AutoCloseable =
-        internalPlugin.addonManager.subscribeFromScript(scriptName, topic, handler)
+    fun subscribe(topic: String, handler: (Any?) -> Unit): AutoCloseable {
+        val subscription = internalPlugin.addonManager.subscribeFromScript(scriptName, topic, handler)
+        val closed = java.util.concurrent.atomic.AtomicBoolean(false)
+        val cleanup = contextRuntimeScope.onClose {
+            if (closed.compareAndSet(false, true)) subscription.close()
+        }
+        return AutoCloseable {
+            if (closed.compareAndSet(false, true)) {
+                cleanup.close()
+                subscription.close()
+            }
+        }
+    }
 
     fun publish(topic: String, payload: Any? = null): Int = internalPlugin.addonManager.publish(topic, payload)
 
