@@ -507,18 +507,32 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     // @key@ tokens for message()/richMessage(); owner is "script:<name>", an addon id, or "config".
     val textPlaceholders = KSLOwnedRegistry<(Player?) -> String?>()
 
-    fun registerTextPlaceholder(owner: String?, key: String, resolver: (Player?) -> String?) {
+    fun registerTextPlaceholder(
+        owner: String?,
+        key: String,
+        resolver: (Player?) -> String?,
+        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope? = null
+    ) {
         val normalized = key.lowercase()
-        val ownerLabel = owner ?: "external"
+        val ownerLabel = ownerScope?.name ?: owner ?: "external"
+        val resourceOwner = ownerScope?.name ?: owner
         if (normalized in KSLTextPlaceholders.reserved) {
             logger.warning("[$ownerLabel] ${KSLError.TEXT_PLACEHOLDER_RESERVED.tag} ${message("console.placeholder.reserved", "placeholder" to "@$normalized@")}")
             return
         }
         val previous = textPlaceholders.ownerOf(normalized)
-        if (textPlaceholders.contains(normalized) && previous != owner) {
+        if (textPlaceholders.contains(normalized) && previous != resourceOwner) {
             logger.warning("[$ownerLabel] ${KSLError.PLACEHOLDER_CONFLICT.tag} ${message("console.placeholder.conflict", "placeholder" to "@$normalized@", "owner" to (previous ?: "?"))}")
         }
-        textPlaceholders.put(normalized, resolver, owner)
+        textPlaceholders.put(normalized, resolver, resourceOwner)
+        if (ownerScope != null && resourceOwner != null) {
+            try {
+                ownerScope.onClose { textPlaceholders.removeOwned(normalized, resourceOwner) }
+            } catch (error: IllegalStateException) {
+                textPlaceholders.removeOwned(normalized, resourceOwner)
+                throw error
+            }
+        }
     }
 
     fun resolveTextPlaceholder(key: String, player: Player?): String? {
