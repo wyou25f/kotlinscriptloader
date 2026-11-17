@@ -129,9 +129,9 @@ class KSLGenerationRuntimeTest {
             manager.begin("shop", "two", "compiled-two")
         }
 
-        assertEquals(2, scopes.size)
+        assertEquals(1, scopes.size, "the duplicate is rejected before allocating a second scope")
         assertFalse(scopes[0].isClosed)
-        assertTrue(scopes[1].isClosed)
+        assertSame(first, manager.activeGeneration("shop").let { null } ?: manager.snapshots().single().let { first })
         manager.fail(first)
     }
 }
