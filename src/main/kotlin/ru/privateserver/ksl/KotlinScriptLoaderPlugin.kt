@@ -1396,6 +1396,14 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         loadMillisById[id] = totalMs
         scriptStamps[id] = unit.sourceStamp.ifBlank { stampOf(unit.file) }
 
+        if (restored) {
+            // Consumers should know that the prior script version is live again even
+            // though the attempted replacement failed.
+            addonManager.publish(
+                "ksl.script.loaded",
+                KSLScriptEvent(id, totalMs, "previous generation restored after failed reload")
+            )
+        }
         val eventError = if (ok) null else scriptLastErrorById[id]
         addonManager.publish(
             if (ok) "ksl.script.loaded" else "ksl.script.failed",
