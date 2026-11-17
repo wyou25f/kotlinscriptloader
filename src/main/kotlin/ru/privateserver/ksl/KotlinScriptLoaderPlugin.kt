@@ -1944,9 +1944,19 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         return true
     }
 
-    fun trackGui(scriptName: String, gui: KSLGuiInstance) {
+    fun trackGui(
+        scriptName: String,
+        gui: KSLGuiInstance,
+        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope = scriptRuntimeScope(scriptName)
+    ) {
         scriptsWithGuis.add(scriptName)
         guiManager.track(gui)
+        try {
+            ownerScope.onClose { guiManager.dispose(gui) }
+        } catch (error: IllegalStateException) {
+            guiManager.dispose(gui)
+            throw error
+        }
     }
 
     fun trackListener(
