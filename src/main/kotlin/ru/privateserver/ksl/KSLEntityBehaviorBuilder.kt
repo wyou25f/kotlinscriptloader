@@ -10,7 +10,8 @@ import org.bukkit.scheduler.BukkitTask
 class KSLEntityBehaviorBuilder(
     private val plugin: KotlinScriptLoaderPlugin,
     private val scriptName: String,
-    private val entity: LivingEntity
+    private val entity: LivingEntity,
+    private val ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope = plugin.scriptRuntimeScope(scriptName)
 ) {
 
     private companion object {
@@ -18,6 +19,7 @@ class KSLEntityBehaviorBuilder(
     }
 
     fun onTick(period: Long, initialDelay: Long = 0L, block: (LivingEntity) -> Unit) {
+        check(!ownerScope.isClosed) { "[$scriptName] entity behavior belongs to an unloaded generation" }
         val validPeriod = KSLErrors.validPeriod(plugin, scriptName, "entity onTick", period)
         require(initialDelay >= 0L) {
             "[$scriptName] entity onTick: initialDelay должен быть неотрицательным числом тиков"
@@ -52,21 +54,24 @@ class KSLEntityBehaviorBuilder(
                 }
             }
         }, initialDelay, validPeriod)
-        plugin.trackTask(scriptName, task.taskId)
+        plugin.trackTask(scriptName, task.taskId, ownerScope)
         plugin.entityManager.trackTickTask(scriptName, entityId, task)
     }
 
     fun onDeath(block: (LivingEntity, Player?) -> Unit) {
+        check(!ownerScope.isClosed) { "[$scriptName] entity behavior belongs to an unloaded generation" }
         plugin.entityManager.setDeathCallback(scriptName, entity, block)
     }
 
     // The mob took damage (not cancelled by others). The event can be modified, e.g. event.damage = 1.0.
     fun onDamaged(block: (LivingEntity, EntityDamageEvent) -> Unit) {
+        check(!ownerScope.isClosed) { "[$scriptName] entity behavior belongs to an unloaded generation" }
         plugin.entityManager.setDamagedCallback(scriptName, entity, block)
     }
 
     // The mob hit someone (not cancelled by others). Projectile damage is not included.
     fun onAttack(block: (LivingEntity, EntityDamageByEntityEvent) -> Unit) {
+        check(!ownerScope.isClosed) { "[$scriptName] entity behavior belongs to an unloaded generation" }
         plugin.entityManager.setAttackCallback(scriptName, entity, block)
     }
 }
