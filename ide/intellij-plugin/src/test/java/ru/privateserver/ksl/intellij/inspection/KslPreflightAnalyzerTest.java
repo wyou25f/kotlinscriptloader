@@ -75,7 +75,7 @@ class KslPreflightAnalyzerTest {
     @Test
     void warnsAboutUnstructuredPrintCalls() {
         var diagnostics = KslPreflightAnalyzer.analyze(
-            "println(\"ready\")\\nprint(value)", "");
+            "println(\"ready\")\nprint(value)", "");
         assertEquals(2, diagnostics.size());
         assertTrue(diagnostics.stream().allMatch(d -> d.code().equals("unstructured-log")));
         assertTrue(diagnostics.stream().noneMatch(KslPreflightAnalyzer.Diagnostic::error));
@@ -97,7 +97,7 @@ class KslPreflightAnalyzerTest {
 
     @Test
     void acceptsStructuredLoggerExtensionMethod() {
-        var diagnostics = KslPreflightAnalyzer.analyze("api.logger(\"example-addon\")", "");
+        var diagnostics = KslPreflightAnalyzer.analyze("val api: KSLAPI = TODO()\\napi.logger(\"example-addon\")", "");
         assertTrue(diagnostics.isEmpty());
     }
 
