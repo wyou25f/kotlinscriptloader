@@ -179,6 +179,7 @@ val verifyShadowJar by tasks.registering {
                 "ru/privateserver/ksl/rt/KSLCache.class",
                 "ru/privateserver/ksl/rt/KSLProfiler.class",
                 "ru/privateserver/ksl/rt/KSLRuntimeScope.class",
+                "ru/privateserver/ksl/KSLAtomicFileWriter.class",
                 "ru/privateserver/ksl/KSLGenerationManager.class",
                 "ru/privateserver/ksl/KSLScriptGeneration.class",
                 "ru/privateserver/ksl/KSLGenerationState.class",
