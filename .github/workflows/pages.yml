@@ -29,7 +29,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: github-pages-${{ github.event.workflow_run.name || github.event_name }}-${{ github.event.workflow_run.head_sha || github.sha }}
+  group: github-pages-${{ github.event.workflow_run.head_sha || github.sha }}
   cancel-in-progress: true
 
 jobs:
@@ -63,7 +63,9 @@ jobs:
           python - <<'PY'
           import json
           import os
+          import time
           from pathlib import Path
+          from urllib.error import HTTPError
           from urllib.parse import urlencode
           from concurrent.futures import ThreadPoolExecutor
           from urllib.request import Request, urlopen
@@ -80,9 +82,42 @@ jobs:
               return json.loads(Path(path).read_text(encoding="utf-8"))
 
           def api_json(path):
-              request = Request(f"{api_base}/{path}", headers=headers)
-              with urlopen(request, timeout=30) as response:
-                  return json.load(response)
+              url = f"{api_base}/{path}"
+              for attempt in range(6):
+                  request = Request(url, headers=headers)
+                  try:
+                      with urlopen(request, timeout=30) as response:
+                          return json.load(response)
+                  except HTTPError as error:
+                      body = error.read().decode("utf-8", errors="replace")
+                      message = body.lower()
+                      retry_after = error.headers.get("Retry-After")
+                      rate_remaining = error.headers.get("X-RateLimit-Remaining")
+                      rate_reset = error.headers.get("X-RateLimit-Reset")
+                      retryable = error.code in (429, 500, 502, 503, 504) or (
+                          error.code == 403 and (
+                              retry_after is not None
+                              or rate_remaining == "0"
+                              or "rate limit" in message
+                              or "secondary rate limit" in message
+                          )
+                      )
+                      if not retryable or attempt == 5:
+                          raise RuntimeError(
+                              f"GitHub API HTTP {error.code} for {path}: {body[:500]}"
+                          ) from error
+                      if retry_after:
+                          delay = max(1.0, min(300.0, float(retry_after)))
+                      elif rate_remaining == "0" and rate_reset:
+                          delay = max(1.0, min(300.0, float(rate_reset) - time.time() + 1.0))
+                      else:
+                          delay = min(60.0, 2.0 ** (attempt + 1))
+                      print(
+                          f"GitHub API HTTP {error.code} for {path}; retry {attempt + 1}/5 in {delay:.0f}s",
+                          flush=True,
+                      )
+                      time.sleep(delay)
+              raise RuntimeError(f"GitHub API request did not complete: {path}")
 
 
           branches_data = read("/tmp/ksl-branches.json")
@@ -131,7 +166,7 @@ jobs:
               for branch_name, summaries in summaries_by_branch.items()
               for summary in summaries
           ]
-          with ThreadPoolExecutor(max_workers=8) as executor:
+          with ThreadPoolExecutor(max_workers=4) as executor:
               for branch_name, commit_data in executor.map(enrich_commit, commit_tasks):
                   history_branches[branch_name].append(commit_data)
 
@@ -255,7 +290,7 @@ jobs:
                       return {
                           "run_id": run["id"], "run_number": run.get("run_number"),
                           "sha": run.get("head_sha"), "created_at": run.get("created_at"),
-                          "html_url": run.get("html_url"), "version": "1.2.0",
+                          "html_url": run.get("html_url"), "version": "1.2.1",
                           "artifact": {"id": artifact["id"], "name": artifact.get("name"),
                                        "size_in_bytes": artifact.get("size_in_bytes"),
                                        "expired": artifact.get("expired", False)},
