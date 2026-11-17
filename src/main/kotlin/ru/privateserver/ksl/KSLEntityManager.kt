@@ -67,6 +67,9 @@ class KSLEntityManager(private val plugin: KotlinScriptLoaderPlugin) : Listener 
             ownerScope.onClose { releaseSpawn(scriptName, entity.uniqueId, removeEntityOnReload) }
         } catch (error: IllegalStateException) {
             releaseSpawn(scriptName, entity.uniqueId, removeEntityOnReload)
+            // The scope rejected this newly-created entity. Even removeOnReload=false
+            // must not leave an unowned spawn behind when registration never succeeded.
+            runCatching { entity.remove() }.onFailure(error::addSuppressed)
             throw error
         }
     }
