@@ -4,7 +4,7 @@ import org.bukkit.event.Listener
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Test
 import org.bukkit.entity.LivingEntity
-import java.util.function.Function
+import kotlin.jvm.functions.Function1
 
 class KSLGenerationApiCompatibilityTest {
 
@@ -21,7 +21,7 @@ class KSLGenerationApiCompatibilityTest {
                 "registerPlaceholder",
                 String::class.java,
                 String::class.java,
-                Function::class.java
+                Function1::class.java
             )
         )
         assertNotNull(
@@ -29,7 +29,7 @@ class KSLGenerationApiCompatibilityTest {
                 "registerTextPlaceholder",
                 String::class.java,
                 String::class.java,
-                Function::class.java
+                Function1::class.java
             )
         )
     }
