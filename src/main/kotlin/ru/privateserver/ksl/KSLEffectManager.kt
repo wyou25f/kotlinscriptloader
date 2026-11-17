@@ -91,10 +91,13 @@ class KSLEffectManager(private val plugin: KotlinScriptLoaderPlugin) {
 
     private fun activeEffectCount(): Int = activeByScript.values.sumOf { it.size }
 
+    fun play(scriptName: String, spec: KSLEffectSpec): Int =
+        play(scriptName, spec, plugin.scriptRuntimeScope(scriptName))
+
     fun play(
         scriptName: String,
         spec: KSLEffectSpec,
-        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope = plugin.scriptRuntimeScope(scriptName)
+        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope
     ): Int {
         require(!ownerScope.isClosed) {
             "[$scriptName] playEffect: script context belongs to an unloaded generation"
