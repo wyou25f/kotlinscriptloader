@@ -57,23 +57,23 @@ class KSLEntityBehaviorBuilder(
             }
         }, initialDelay, validPeriod)
         plugin.trackTask(scriptName, task.taskId, ownerScope)
-        plugin.entityManager.trackTickTask(scriptName, entityId, task)
+        plugin.entityManager.trackTickTask(scriptName, entityId, task, ownerScope)
     }
 
     fun onDeath(block: (LivingEntity, Player?) -> Unit) {
         check(!ownerScope.isClosed) { "[$scriptName] entity behavior belongs to an unloaded generation" }
-        plugin.entityManager.setDeathCallback(scriptName, entity, block)
+        plugin.entityManager.setDeathCallback(scriptName, entity, block, ownerScope)
     }
 
     // The mob took damage (not cancelled by others). The event can be modified, e.g. event.damage = 1.0.
     fun onDamaged(block: (LivingEntity, EntityDamageEvent) -> Unit) {
         check(!ownerScope.isClosed) { "[$scriptName] entity behavior belongs to an unloaded generation" }
-        plugin.entityManager.setDamagedCallback(scriptName, entity, block)
+        plugin.entityManager.setDamagedCallback(scriptName, entity, block, ownerScope)
     }
 
     // The mob hit someone (not cancelled by others). Projectile damage is not included.
     fun onAttack(block: (LivingEntity, EntityDamageByEntityEvent) -> Unit) {
         check(!ownerScope.isClosed) { "[$scriptName] entity behavior belongs to an unloaded generation" }
-        plugin.entityManager.setAttackCallback(scriptName, entity, block)
+        plugin.entityManager.setAttackCallback(scriptName, entity, block, ownerScope)
     }
 }
