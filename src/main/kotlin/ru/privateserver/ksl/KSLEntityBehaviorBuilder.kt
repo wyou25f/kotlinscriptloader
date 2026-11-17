@@ -37,6 +37,10 @@ class KSLEntityBehaviorBuilder(
         }
 
         task = Bukkit.getScheduler().runTaskTimer(plugin, Runnable {
+            if (ownerScope.isClosed) {
+                stop()
+                return@Runnable
+            }
             // Resolve by UUID every tick: the original Bukkit entity object may become invalid
             // when its chunk unloads. Keep the task dormant and resume with the reloaded entity.
             val current = Bukkit.getEntity(entityId) as? LivingEntity ?: return@Runnable
