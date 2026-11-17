@@ -507,11 +507,14 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     // @key@ tokens for message()/richMessage(); owner is "script:<name>", an addon id, or "config".
     val textPlaceholders = KSLOwnedRegistry<(Player?) -> String?>()
 
+    fun registerTextPlaceholder(owner: String?, key: String, resolver: (Player?) -> String?) =
+        registerTextPlaceholder(owner, key, resolver, null)
+
     fun registerTextPlaceholder(
         owner: String?,
         key: String,
         resolver: (Player?) -> String?,
-        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope? = null
+        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope?
     ) {
         val normalized = key.lowercase()
         val ownerLabel = ownerScope?.name ?: owner ?: "external"
@@ -1899,10 +1902,13 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     // Registration, completion and unload share one lock so a task cannot be inserted
     // into a fresh owner set while that script is being torn down.
+    fun trackTask(scriptName: String, taskId: Int) =
+        trackTask(scriptName, taskId, scriptRuntimeScope(scriptName))
+
     fun trackTask(
         scriptName: String,
         taskId: Int,
-        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope = scriptRuntimeScope(scriptName)
+        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope
     ) {
         var rejected = false
         synchronized(taskLock) {
@@ -1965,10 +1971,13 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         return true
     }
 
+    fun trackGui(scriptName: String, gui: KSLGuiInstance) =
+        trackGui(scriptName, gui, scriptRuntimeScope(scriptName))
+
     fun trackGui(
         scriptName: String,
         gui: KSLGuiInstance,
-        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope = scriptRuntimeScope(scriptName)
+        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope
     ) {
         scriptsWithGuis.add(scriptName)
         guiManager.track(gui)
@@ -1980,10 +1989,13 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         }
     }
 
+    fun trackListener(scriptName: String, listener: Listener) =
+        trackListener(scriptName, listener, scriptRuntimeScope(scriptName))
+
     fun trackListener(
         scriptName: String,
         listener: Listener,
-        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope = scriptRuntimeScope(scriptName)
+        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope
     ) {
         // Keep the per-script limit check and registration atomic with unloadScript().
         val accepted = synchronized(listenerLock) {
@@ -2042,10 +2054,13 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     private fun trackedCommandCount(scriptName: String): Int =
         synchronized(commandLock) { commandsByScript[scriptName]?.size ?: 0 }
 
+    fun trackCommand(scriptName: String, command: DynamicCommand) =
+        trackCommand(scriptName, command, scriptRuntimeScope(scriptName))
+
     fun trackCommand(
         scriptName: String,
         command: DynamicCommand,
-        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope = scriptRuntimeScope(scriptName)
+        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope
     ) {
         // A small array-backed owner list is cheaper than a separate ConcurrentHashMap per script.
         synchronized(commandLock) {
@@ -2083,11 +2098,14 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         unregisterCommands(listOf(command))
     }
 
+    fun registerPlaceholder(scriptName: String, key: String, resolver: (OfflinePlayer) -> String?) =
+        registerPlaceholder(scriptName, key, resolver, scriptRuntimeScope(scriptName))
+
     fun registerPlaceholder(
         scriptName: String,
         key: String,
         resolver: (OfflinePlayer) -> String?,
-        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope = scriptRuntimeScope(scriptName)
+        ownerScope: ru.privateserver.ksl.rt.KSLRuntimeScope
     ) {
         val normalized = key.lowercase()
         val owner = ownerScope.name
