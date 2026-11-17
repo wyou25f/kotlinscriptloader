@@ -17,7 +17,7 @@
 
     ./gradlew -PkslJar=/absolute/path/to/KotlinScriptLoader-1.2.1.jar compileKotlin
 
-По умолчанию Gradle ожидает JAR в libs/KotlinScriptLoader-1.2.1.jar. Не скачивайте несуществующий релиз 1.2.1: используйте JAR из текущего development build workflow.
+По умолчанию Gradle ожидает JAR в libs/KotlinScriptLoader-1.2.1.jar. Используйте JAR версии 1.2.1, установленный на тестовом сервере, и передавайте путь через `-PkslJar`, если он лежит не в `libs/`.
 
 ## Структура
 
