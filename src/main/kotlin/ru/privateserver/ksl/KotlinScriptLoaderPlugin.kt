@@ -1,5 +1,7 @@
 package ru.privateserver.ksl
 
+import ru.privateserver.ksl.script.KSLScriptPathPolicy
+
 import ru.privateserver.ksl.locale.KSLLocaleManager
 import ru.privateserver.ksl.locale.KSLMessageBundle
 import ru.privateserver.ksl.rt.monitoring.KSLWatchdogMonitor

@@ -1,5 +1,4 @@
-package ru.privateserver.ksl
-
+package ru.privateserver.ksl.gui
 /** Pure validation for pagination slot layouts; kept independent from Bukkit for regression tests. */
 internal object KSLGuiLayout {
     fun validationError(size: Int, slots: List<Int>, prevSlot: Int, nextSlot: Int): String? {

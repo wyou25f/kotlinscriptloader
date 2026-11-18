@@ -1,5 +1,8 @@
 package ru.privateserver.ksl
 
+import ru.privateserver.ksl.gui.KSLGuiLayout
+import ru.privateserver.ksl.storage.KSLPersistentTagKey
+
 import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Player
 import org.junit.jupiter.api.Assertions.assertFalse

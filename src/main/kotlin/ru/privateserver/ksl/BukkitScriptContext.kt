@@ -1,5 +1,7 @@
 package ru.privateserver.ksl
 
+import ru.privateserver.ksl.config.KSLConfigMigrationRunner
+
 import ru.privateserver.ksl.storage.KSLPersistentTagStore
 
 import ru.privateserver.ksl.database.KSLYamlSqlQueryCache

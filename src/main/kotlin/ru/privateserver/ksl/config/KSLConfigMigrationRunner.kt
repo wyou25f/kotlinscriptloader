@@ -1,5 +1,4 @@
-package ru.privateserver.ksl
-
+package ru.privateserver.ksl.config
 /**
  * Runs sequential configuration migrations on a working copy.
  *
