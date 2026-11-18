@@ -87,7 +87,7 @@ class KSLPublicApiTest {
     @Test
     fun `structured logger is part of the public addon api`() {
         assertTrue(KSLAPI::class.java.methods.any { it.name == "createLogger" })
-        assertEquals(14, ru.privateserver.ksl.KSL.API_VERSION)
+        assertEquals(15, ru.privateserver.ksl.KSL.API_VERSION)
         assertEquals("DEBUG", KSLLogLevel.DEBUG.name)
     }
 
@@ -138,6 +138,9 @@ class KSLPublicApiTest {
         assertEquals("ru.privateserver.ksl.std.csv.KslCsvTable", KSLCSVTable::class.java.name)
         assertEquals("ru.privateserver.ksl.std.csv.KslCsvRow", KSLCSVRow::class.java.name)
         assertEquals("ru.privateserver.ksl.std.csv.KslCsvOptions", KSLCSVOptions::class.java.name)
+        assertEquals("ru.privateserver.ksl.std.csv.KslCsvSchema", KSLCSVSchema::class.java.name)
+        assertEquals("ru.privateserver.ksl.std.csv.KslCsvColumn", KSLCSVColumn::class.java.name)
+        assertEquals("ru.privateserver.ksl.std.csv.KslCsvType", KSLCSVType::class.java.name)
 
         val installed = api()
         val table = installed.csvTable("id", "name")
@@ -146,6 +149,11 @@ class KSLPublicApiTest {
 
         val parsed = installed.parseCsv("id,name\n8,Bob")
         assertEquals("Bob", parsed[0]["name"])
+        val schema = installed.csvSchema {
+            int("id", required = true)
+            text("name", trim = true)
+        }
+        assertTrue(schema.validate(parsed).isValid)
     }
 
     @Test

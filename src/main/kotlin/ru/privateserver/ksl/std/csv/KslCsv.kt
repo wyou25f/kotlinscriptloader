@@ -7,6 +7,9 @@ import java.io.File
 import java.io.IOException
 import java.math.BigDecimal
 import java.nio.charset.StandardCharsets
+import java.time.Instant
+import java.time.LocalDate
+import java.util.UUID
 
 /** Parser, writer and resource limits for an RFC 4180-style CSV document. */
 data class KslCsvOptions(
@@ -95,6 +98,41 @@ class KslCsvRow internal constructor(
             else -> throw IllegalArgumentException("CSV column '$column' is not a valid Boolean")
         }
 
+    fun getDecimal(column: String, default: BigDecimal = BigDecimal.ZERO): BigDecimal =
+        get(column).toBigDecimalOrNull() ?: default
+
+    fun requireDecimal(column: String): BigDecimal =
+        get(column).toBigDecimalOrNull()
+            ?: throw IllegalArgumentException("CSV column '$column' is not a valid Decimal")
+
+    fun getUuid(column: String, default: UUID? = null): UUID? =
+        runCatching { UUID.fromString(get(column)) }.getOrNull() ?: default
+
+    fun requireUuid(column: String): UUID =
+        runCatching { UUID.fromString(get(column)) }.getOrElse {
+            throw IllegalArgumentException("CSV column '$column' is not a valid UUID", it)
+        }
+
+    fun getLocalDate(column: String, default: LocalDate? = null): LocalDate? =
+        runCatching { LocalDate.parse(get(column)) }.getOrNull() ?: default
+
+    fun requireLocalDate(column: String): LocalDate =
+        runCatching { LocalDate.parse(get(column)) }.getOrElse {
+            throw IllegalArgumentException("CSV column '$column' is not an ISO-8601 date", it)
+        }
+
+    fun getInstant(column: String, default: Instant? = null): Instant? =
+        runCatching { Instant.parse(get(column)) }.getOrNull() ?: default
+
+    fun requireInstant(column: String): Instant =
+        runCatching { Instant.parse(get(column)) }.getOrElse {
+            throw IllegalArgumentException("CSV column '$column' is not an ISO-8601 instant", it)
+        }
+
+    fun requireNotBlank(column: String): String =
+        get(column).takeIf { it.isNotBlank() }
+            ?: throw IllegalArgumentException("CSV column '$column' must not be blank")
+
     fun asMap(): Map<String, String> =
         headers.indices.associate { headers[it] to values[it] }
 
@@ -149,6 +187,18 @@ class KslCsvTable(columns: List<String>) {
         return data.map { it[index] }
     }
 
+    fun containsColumn(name: String): Boolean = name in headers
+    fun indexOfColumn(name: String): Int = headers.indexOf(name)
+
+    fun renameColumn(oldName: String, newName: String): Boolean {
+        val index = headers.indexOf(oldName)
+        if (index < 0) return false
+        require(newName.isNotBlank()) { "CSV column name must not be blank" }
+        require(newName == oldName || newName !in headers) { "Duplicate CSV column '$newName'" }
+        headers[index] = newName
+        return true
+    }
+
     fun append(vararg values: Any?): KslCsvRow = addRow(values.toList())
 
     /** Adds a row by position, padding omitted cells with empty strings. */
@@ -196,6 +246,21 @@ class KslCsvTable(columns: List<String>) {
 
     fun removeRow(index: Int): List<String> = data.removeAt(index).toList()
 
+    fun firstOrNull(): KslCsvRow? = data.firstOrNull()?.let { KslCsvRow(headers, it) }
+    fun lastOrNull(): KslCsvRow? = data.lastOrNull()?.let { KslCsvRow(headers, it) }
+    fun first(): KslCsvRow = firstOrNull() ?: throw NoSuchElementException("CSV table is empty")
+    fun last(): KslCsvRow = lastOrNull() ?: throw NoSuchElementException("CSV table is empty")
+
+    fun takeRows(count: Int): KslCsvTable {
+        require(count >= 0) { "Row count must not be negative" }
+        return fromRows(headers, data.take(count))
+    }
+
+    fun dropRows(count: Int): KslCsvTable {
+        require(count >= 0) { "Row count must not be negative" }
+        return fromRows(headers, data.drop(count))
+    }
+
     fun removeRows(predicate: (KslCsvRow) -> Boolean): Int {
         val before = data.size
         data.removeAll { predicate(KslCsvRow(headers, it)) }
@@ -225,6 +290,39 @@ class KslCsvTable(columns: List<String>) {
         return KslCsvRow(headers, row)
     }
 
+    fun findAll(column: String, value: String): List<KslCsvRow> {
+        val index = columnIndex(column)
+        return data.filter { it[index] == value }.map { KslCsvRow(headers, it) }
+    }
+
+    fun upsertBy(column: String, values: Map<String, Any?>): KslCsvRow {
+        val keyIndex = columnIndex(column)
+        require(column in values) { "upsertBy requires the key column '$column' in values" }
+        val unknown = values.keys - headers.toSet()
+        require(unknown.isEmpty()) { "Unknown CSV columns: " + unknown.joinToString() }
+        val keyValue = values[column]?.let(::cell) ?: ""
+        val existing = data.firstOrNull { it[keyIndex] == keyValue }
+        if (existing == null) return addRow(values)
+        val row = KslCsvRow(headers, existing)
+        values.forEach { (name, value) -> row[name] = value }
+        return row
+    }
+
+    fun updateRows(
+        predicate: (KslCsvRow) -> Boolean,
+        transform: KslCsvRow.() -> Unit
+    ): Int {
+        var changed = 0
+        data.forEach { values ->
+            val row = KslCsvRow(headers, values)
+            if (predicate(row)) {
+                row.transform()
+                changed++
+            }
+        }
+        return changed
+    }
+
     fun filterRows(predicate: (KslCsvRow) -> Boolean): KslCsvTable =
         KslCsvTable(headers).also { target ->
             data.filter { predicate(KslCsvRow(headers, it)) }.forEach { target.addRow(it) }
@@ -237,6 +335,30 @@ class KslCsvTable(columns: List<String>) {
             data.forEach { row -> target.addRow(indices.map { row[it] }) }
         }
     }
+
+    fun distinctBy(column: String): KslCsvTable {
+        val index = columnIndex(column)
+        val seen = HashSet<String>()
+        return KslCsvTable(headers).also { target ->
+            data.forEach { row -> if (seen.add(row[index])) target.addRow(row) }
+        }
+    }
+
+    fun groupRowsBy(column: String): Map<String, KslCsvTable> {
+        val index = columnIndex(column)
+        val groups = linkedMapOf<String, KslCsvTable>()
+        data.forEach { row ->
+            val key = row[index]
+            groups.getOrPut(key) { KslCsvTable(headers) }.addRow(row)
+        }
+        return groups
+    }
+
+    fun sortedBy(
+        column: String,
+        comparator: Comparator<String> = naturalOrder(),
+        descending: Boolean = false
+    ): KslCsvTable = copy().also { it.sortBy(column, comparator, descending) }
 
     fun <T> mapRows(transform: (KslCsvRow) -> T): List<T> =
         data.map { transform(KslCsvRow(headers, it)) }
@@ -548,3 +670,32 @@ fun String.parseCsv(options: KslCsvOptions = KslCsvOptions()): KslCsvTable =
 /** Encodes this table to CSV text. */
 fun KslCsvTable.toCsv(options: KslCsvOptions = KslCsvOptions()): String =
     KslCsvCodec.encode(this, options)
+
+
+## Typed schemas and normalization
+
+A CSV file does not store cell types. Define a schema once, then validate or normalize each loaded table:
+
+```kotlin
+val schema = csvSchema {
+    int("id", required = true)
+    text("name", required = true, trim = true)
+    decimal("balance", defaultValue = BigDecimal.ZERO)
+    bool("active", defaultValue = true)
+    uuid("owner")
+    date("joined")
+    instant("updatedAt")
+}
+val result = schema.normalize(loadCsv("data/users.csv") ?: csvTable())
+if (!result.isValid) {
+    result.validation.issues.forEach { issue ->
+        scriptLogger("csv").warn("CSV row " + (issue.rowNumber?.toString() ?: "-") +
+            ", column " + issue.column + ": " + issue.message)
+    }
+}
+val normalized = result.table
+```
+
+Types: `TEXT`, `INT`, `LONG`, `DECIMAL`, `DOUBLE`, `BOOLEAN`, `UUID`, `DATE`, `INSTANT`. Required fields, defaults, trimming and allowed values are supported. `normalize()` returns a new table, adds missing schema columns, fills configured defaults in blank cells and orders schema columns first. Validation reports missing/unexpected columns, required values and invalid types. Issue collection is bounded by `maxIssues`.
+
+Table helpers now also include `upsertBy`, `distinctBy`, `groupRowsBy`, `findAll`, `updateRows`, `renameColumn`, `takeRows`, `dropRows` and `sortedBy`. Typed row reads include Decimal, UUID, LocalDate and Instant. Addons can use schema aliases and `KSLAPI.csvSchema { ... }`; API compatibility is 15.
