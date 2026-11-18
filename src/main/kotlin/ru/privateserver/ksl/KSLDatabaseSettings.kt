@@ -1,5 +1,7 @@
 package ru.privateserver.ksl
 
+import java.util.Locale
+
 /**
  * Validated database connection settings.
  *
@@ -24,7 +26,7 @@ data class KSLDatabaseSettings(
             require(port in 1..65535) { "Remote database port must be in 1..65535" }
             require(name == name.trim() && NAME.matches(name)) { "Invalid remote database name" }
             require(user.isNotBlank() && user == user.trim()) { "Remote database user must not be blank or padded" }
-            require(sslMode == sslMode.trim().lowercase() && sslMode in allowedSslModes(dialect)) {
+            require(sslMode == sslMode.trim().lowercase(Locale.ROOT) && sslMode in allowedSslModes(dialect)) {
                 "Unsupported ${dialect.label} SSL mode: $sslMode"
             }
             require(sslMode !in insecureSslModes(dialect) || allowInsecureTransport) {
@@ -100,7 +102,7 @@ data class KSLDatabaseSettings(
             val cleanHost = host.trim()
             val cleanName = name.trim()
             val cleanUser = user.trim()
-            val cleanSsl = sslMode.trim().lowercase()
+            val cleanSsl = sslMode.trim().lowercase(Locale.ROOT)
             require(HOST.matches(cleanHost)) {
                 "${KSLError.CONFIG_DB_INVALID.tag} database.host '$host' содержит недопустимые символы"
             }

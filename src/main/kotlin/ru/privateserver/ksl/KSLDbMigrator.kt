@@ -4,7 +4,7 @@ import java.io.File
 import java.sql.Connection
 import java.util.Properties
 
-// Copies the data of the old SQLite file (ksl.db) into the configured MySQL/MariaDB database.
+// Copies the data of the old SQLite file (ksl.db) into the configured remote SQL database.
 // Rows are upserted, so the migration can be repeated safely; the source file is never modified.
 class KSLDbMigrator(private val plugin: KotlinScriptLoaderPlugin) {
 
@@ -12,7 +12,7 @@ class KSLDbMigrator(private val plugin: KotlinScriptLoaderPlugin) {
 
     private companion object {
         const val BATCH = 500
-        // Must match the VARCHAR(190) key columns created by Migrations for MySQL/MariaDB.
+        // Must match the VARCHAR(190) key columns created by Migrations for remote SQL backends.
         const val MAX_KEY_LENGTH = 190
     }
 

@@ -135,8 +135,15 @@ class KslCsvTest {
 
     @Test
     fun csvSchemaReportsMissingAndUnexpectedColumnsAndBoundsIssueCount() {
-        val table = csvTable("extra") { addRow("a"); addRow("b"); addRow("c") }
-        val schema = csvSchema(maxIssues = 2) { int("id", required = true) }
+        val table = csvTable("id", "extra") {
+            addRow("not-an-int", "a")
+            addRow("still-not-an-int", "b")
+            addRow("also-not-an-int", "c")
+        }
+        val schema = csvSchema(maxIssues = 2) {
+            int("id", required = true)
+            text("name", required = true)
+        }
         val result = schema.validate(table)
         assertFalse(result.isValid)
         assertTrue(result.issuesTruncated)
