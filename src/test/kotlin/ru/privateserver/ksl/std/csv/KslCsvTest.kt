@@ -178,4 +178,40 @@ class KslCsvTest {
             directory.deleteRecursively()
         }
     }
+
+    @Test
+    fun descendingSortReversesComparatorWithoutNegatingItsResult() {
+        val table = csvTable("value") {
+            addRow("a")
+            addRow("b")
+            addRow("c")
+        }
+        val extremeComparator = Comparator<String> { left, right ->
+            when {
+                left < right -> Int.MIN_VALUE
+                left > right -> Int.MAX_VALUE
+                else -> 0
+            }
+        }
+
+        table.sortBy("value", extremeComparator, descending = true)
+
+        assertEquals(listOf("c", "b", "a"), table.column("value"))
+    }
+
+    @Test
+    fun csvEncoderEnforcesFieldAndTotalCharacterLimitsBeforeAppendingOversizedCells() {
+        val table = csvTable("value") { addRow("too-long") }
+
+        assertThrows(IllegalArgumentException::class.java) {
+            KslCsvCodec.encode(table, KslCsvOptions(maxFieldCharacters = 3))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            KslCsvCodec.encode(
+                csvTable("value") { addRow("abc") },
+                KslCsvOptions(maxTotalCharacters = 3)
+            )
+        }
+    }
+
 }

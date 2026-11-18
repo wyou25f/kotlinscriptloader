@@ -1,5 +1,7 @@
 package ru.privateserver.ksl
 
+import ru.privateserver.ksl.database.KSLDatabaseTransactions
+
 import java.io.File
 import java.sql.Connection
 import java.util.Properties

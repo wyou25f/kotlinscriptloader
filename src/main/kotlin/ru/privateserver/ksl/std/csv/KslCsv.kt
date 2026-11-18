@@ -371,8 +371,8 @@ class KslCsvTable(columns: List<String>) {
     ) {
         val index = columnIndex(column)
         data.sortWith { left, right ->
-            val result = comparator.compare(left[index], right[index])
-            if (descending) -result else result
+            if (descending) comparator.compare(right[index], left[index])
+            else comparator.compare(left[index], right[index])
         }
     }
 
@@ -591,30 +591,44 @@ object KslCsvCodec {
         val output = StringBuilder()
         var recordsWritten = 0
 
+        fun appendChecked(value: String) {
+            require(output.length.toLong() + value.length.toLong() <= options.maxTotalCharacters.toLong()) {
+                "Encoded CSV exceeds ${options.maxTotalCharacters} characters"
+            }
+            output.append(value)
+        }
+
+        fun appendChecked(value: Char) {
+            require(output.length.toLong() + 1L <= options.maxTotalCharacters.toLong()) {
+                "Encoded CSV exceeds ${options.maxTotalCharacters} characters"
+            }
+            output.append(value)
+        }
+
         fun appendRecord(values: List<String>) {
-            if (recordsWritten > 0) output.append(options.lineSeparator)
+            if (recordsWritten > 0) appendChecked(options.lineSeparator)
             values.forEachIndexed { columnIndex, value ->
-                if (columnIndex > 0) output.append(options.delimiter)
+                require(value.length <= options.maxFieldCharacters) {
+                    "CSV field exceeds ${options.maxFieldCharacters} characters"
+                }
+                if (columnIndex > 0) appendChecked(options.delimiter)
                 val mustQuote = value.contains(options.delimiter) ||
                     value.contains(options.quote) ||
                     value.contains('\r') || value.contains('\n') ||
                     value.firstOrNull()?.isWhitespace() == true ||
                     value.lastOrNull()?.isWhitespace() == true
                 if (mustQuote) {
-                    output.append(options.quote)
+                    appendChecked(options.quote)
                     value.forEach { ch ->
-                        if (ch == options.quote) output.append(options.quote)
-                        output.append(ch)
+                        if (ch == options.quote) appendChecked(options.quote)
+                        appendChecked(ch)
                     }
-                    output.append(options.quote)
+                    appendChecked(options.quote)
                 } else {
-                    output.append(value)
+                    appendChecked(value)
                 }
             }
             recordsWritten++
-            require(output.length <= options.maxTotalCharacters) {
-                "Encoded CSV exceeds ${options.maxTotalCharacters} characters"
-            }
         }
 
         if (options.hasHeader && table.columnCount > 0) appendRecord(table.columns)
