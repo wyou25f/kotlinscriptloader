@@ -1,4 +1,4 @@
-package ru.privateserver.ksl
+package ru.privateserver.ksl.rt.monitoring
 
 /**
  * Detects sustained queue pressure and rapid queue growth before the hard queue limit is reached.
