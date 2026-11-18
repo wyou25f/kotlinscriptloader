@@ -1,0 +1,6 @@
+name: KSLNBTIntegration
+version: 1.2.2
+main: ru.privateserver.ksl.nbt.KSLNBTFilesPaperIntegrationPlugin
+api-version: '1.21'
+depend: [KotlinScriptLoader]
+description: Real-Paper integration checks for KSL binary NBT file I/O

@@ -375,3 +375,21 @@ tasks.register("componentTestAudit") {
         }
     }
 }
+
+
+// This test-only plugin is loaded by a real Paper server in CI. Its hard dependency on
+// KotlinScriptLoader lets it call the production NBT API without bundling duplicate KSL classes.
+tasks.register<Jar>("paperIntegrationPluginJar") {
+    group = "verification"
+    description = "Packages the NBT integration-test plugin for execution on a real Paper server."
+    dependsOn(tasks.testClasses)
+    archiveFileName.set("KSLNBTIntegration.jar")
+    destinationDirectory.set(layout.buildDirectory.dir("paper-integration/artifacts"))
+    from(sourceSets.test.get().output.classesDirs) {
+        include("ru/privateserver/ksl/nbt/KSLNBTFilesPaperIntegrationPlugin.class")
+        include("ru/privateserver/ksl/nbt/KSLNBTFilesPaperIntegrationPlugin\$*.class")
+    }
+    from("src/test/resources/paper-integration-plugin") {
+        include("plugin.yml")
+    }
+}

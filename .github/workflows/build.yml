@@ -66,6 +66,53 @@ jobs:
         shell: bash
         run: ./build.sh -Task Package -NoDaemon
 
+      - name: Build real-Paper NBT integration test plugin
+        run: ./gradlew --no-daemon paperIntegrationPluginJar
+
+      - name: Run binary NBT integration tests on Paper 1.21.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          PLUGIN_DIR="$GITHUB_WORKSPACE/build/paper-integration/plugins"
+          RESULT_FILE="$PLUGIN_DIR/KSLNBTIntegration/result.txt"
+          mkdir -p "$PLUGIN_DIR"
+          cp build/libs/KotlinScriptLoader-1.2.2.jar "$PLUGIN_DIR/KotlinScriptLoader.jar"
+          cp build/paper-integration/artifacts/KSLNBTIntegration.jar "$PLUGIN_DIR/KSLNBTIntegration.jar"
+
+          docker run -d --name ksl-paper-nbt-integration \
+            -e EULA=TRUE \
+            -e TYPE=PAPER \
+            -e VERSION=1.21.1 \
+            -e ONLINE_MODE=FALSE \
+            -e MEMORY=1G \
+            -v "$PLUGIN_DIR:/data/plugins" \
+            itzg/minecraft-server:java21
+
+          cleanup() {
+            docker logs --tail 200 ksl-paper-nbt-integration 2>&1 || true
+            docker rm -f ksl-paper-nbt-integration >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          for attempt in $(seq 1 120); do
+            if [[ -f "$RESULT_FILE" ]]; then
+              break
+            fi
+            running="$(docker inspect --format='{{.State.Running}}' ksl-paper-nbt-integration 2>/dev/null || true)"
+            if [[ "$running" != "true" ]]; then
+              echo "Paper exited before the NBT integration plugin wrote its result."
+              exit 1
+            fi
+            sleep 5
+          done
+
+          if [[ ! -f "$RESULT_FILE" ]]; then
+            echo "Timed out waiting for the real-Paper NBT integration tests."
+            exit 1
+          fi
+          cat "$RESULT_FILE"
+          grep -qx "PASS" "$RESULT_FILE"
+
       - name: Inspect plugin JAR contents
         shell: bash
         run: ./scripts/inspect-jar.sh
