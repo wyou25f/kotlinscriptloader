@@ -59,15 +59,16 @@ class KSLNBTFilesPaperIntegrationPlugin : JavaPlugin() {
                 }
 
                 val beforeFailedEdit = persisted.snbt()
+                var failedEditRejected = false
                 try {
                     persisted.edit {
                         setIntAt("stats.level", 99)
                         throw IllegalStateException("intentional integration-test rollback")
                     }
-                    error("A failing edit unexpectedly completed")
                 } catch (_: IllegalStateException) {
-                    // Expected: KSL publishes edits only after the callback completes.
+                    failedEditRejected = true
                 }
+                check(failedEditRejected) { "A failing edit unexpectedly completed" }
                 check(persisted.snbt() == beforeFailedEdit) {
                     "Failed document edit changed the published SNBT"
                 }
