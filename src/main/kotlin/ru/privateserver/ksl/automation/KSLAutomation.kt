@@ -9,6 +9,7 @@ import ru.privateserver.ksl.rt.KSLWorkPriority
 import ru.privateserver.ksl.std.toml.KSLTomlCodec
 import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicReference
 
 enum class KSLAutomationFormat { YAML, TOML }
 
@@ -109,9 +110,10 @@ object KSLAutomationConfigParser {
                 "automation"
             )
             require(seen.add(id)) { "Duplicate automation ID '" + id + "'" }
-            val enabled = item["enabled"]?.let {
-                it as? Boolean ?: throw IllegalArgumentException("automations[" + index + "].enabled must be boolean")
-            } ?: true
+            val enabled = if ("enabled" in item) {
+                item["enabled"] as? Boolean
+                    ?: throw IllegalArgumentException("automations[" + index + "].enabled must be boolean")
+            } else true
 
             val scheduleValues = item["schedule"].stringMap("automations[" + index + "].schedule")
             val schedule = parseSchedule(scheduleValues, index)
@@ -122,8 +124,9 @@ object KSLAutomationConfigParser {
             val handler = actionValues["handler"] as? String
                 ?: throw IllegalArgumentException("automations[" + index + "].action.handler must be a string")
             KSLAutomationActionRegistry.normalizeId(handler, "handler")
-            val arguments = (actionValues["args"] ?: emptyMap<String, Any?>())
-                .stringMap("automations[" + index + "].action.args")
+            val arguments = if ("args" in actionValues) {
+                actionValues["args"].stringMap("automations[" + index + "].action.args")
+            } else emptyMap()
             validateArguments(arguments, "automations[" + index + "].action.args", 0)
             KSLAutomationDefinition(id, enabled, schedule, handler.trim().lowercase(), freezeMap(arguments))
         }
@@ -147,7 +150,10 @@ object KSLAutomationConfigParser {
                 val initial = values["initial-delay-ms"]?.let {
                     boundedMillis(it, "initial-delay-ms", 1L)
                 } ?: interval
-                val mode = when ((values["mode"] as? String ?: "fixed-delay").lowercase()) {
+                val modeName = values["mode"]?.let {
+                    it as? String ?: throw IllegalArgumentException("schedule.mode must be a string")
+                } ?: "fixed-delay"
+                val mode = when (modeName.lowercase()) {
                     "fixed-delay" -> KSLTaskRepeatMode.FIXED_DELAY
                     "fixed-rate" -> KSLTaskRepeatMode.FIXED_RATE
                     else -> throw IllegalArgumentException("schedule.mode must be 'fixed-delay' or 'fixed-rate'")
@@ -244,8 +250,15 @@ class KSLAutomationEngine(
             val candidate = linkedMapOf<String, Active>()
             try {
                 resolved.forEach { (definition, handler) ->
+                    val entryReference = AtomicReference<Active?>()
                     val callback: (KSLTaskContext) -> Unit = { task ->
-                        handler.execute(KSLAutomationContext(definition.id, definition.arguments, task))
+                        val isCurrent = synchronized(lock) {
+                            val entry = entryReference.get()
+                            entry != null && active[definition.id] === entry
+                        }
+                        if (isCurrent) {
+                            handler.execute(KSLAutomationContext(definition.id, definition.arguments, task))
+                        }
                     }
                     val handle = when (val schedule = definition.schedule) {
                         is KSLAutomationSchedule.Once ->
@@ -259,7 +272,9 @@ class KSLAutomationEngine(
                                 callback
                             )
                     }
-                    candidate[definition.id] = Active(handle)
+                    val entry = Active(handle)
+                    entryReference.set(entry)
+                    candidate[definition.id] = entry
                 }
             } catch (failure: Throwable) {
                 candidate.values.forEach { runCatching { it.handle.cancel(true) } }

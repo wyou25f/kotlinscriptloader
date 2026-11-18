@@ -94,6 +94,39 @@ class KSLAutomationEngineTest {
     }
 
     @Test
+    fun rejectsWronglyTypedOptionalValues() {
+        val invalidDocuments = listOf(
+            """
+                version: 1
+                automations:
+                  - id: bad.enabled
+                    enabled: "not-a-boolean"
+                    schedule: { type: once, delay-ms: 100 }
+                    action: { handler: cache.refresh }
+            """.trimIndent(),
+            """
+                version: 1
+                automations:
+                  - id: bad.args
+                    schedule: { type: once, delay-ms: 100 }
+                    action: { handler: cache.refresh, args: [] }
+            """.trimIndent(),
+            """
+                version: 1
+                automations:
+                  - id: bad.mode
+                    schedule: { type: every, interval-ms: 1000, mode: 42 }
+                    action: { handler: cache.refresh }
+            """.trimIndent()
+        )
+        invalidDocuments.forEach { document ->
+            assertThrows(IllegalArgumentException::class.java) {
+                KSLAutomationConfigParser.parse(document, KSLAutomationFormat.YAML)
+            }
+        }
+    }
+
+    @Test
     fun oneShotRunsAndIsRemovedFromTheActiveSet() {
         val workers = KSLWorkScheduler(1, 16)
         val scope = newScope(workers)

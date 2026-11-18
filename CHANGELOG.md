@@ -2,7 +2,7 @@
 
 ## 1.2.2 — development (not published)
 
-- Added addon-scoped declarative automation with a shared YAML/TOML configuration model, bounded validation, one-shot and repeating schedules, explicit trusted action-handler registration, atomic validation-before-replacement, and automatic task cleanup on addon unload. Public API version is now 16; existing addon and scheduler APIs remain compatible.
+- Added addon-scoped declarative automation with a shared YAML/TOML configuration model, bounded validation, one-shot and repeating schedules, explicit trusted action-handler registration, validation-before-replacement with candidate callbacks gated until commit, and automatic task cleanup on addon unload. Public API version is now 16; existing addon and scheduler APIs remain compatible.
 
 - Added an opt-in JDBC account store for addon authors: normalized unique usernames, PBKDF2 password verification and hash upgrades, hashed bearer-session storage, expiry checks and session revocation. Username normalization rejects oversized input before allocating normalized copies. Addons can isolate account tables with validated SQL prefixes and use KSLAPI.createAccountStore(owner, dataSource) for a stable per-plugin namespace; tests cover cross-namespace account/session isolation and exact session-expiry boundaries. The caller retains ownership of the supplied DataSource; password work must run off the Bukkit main thread.
 
