@@ -2,7 +2,7 @@
 
 package ru.privateserver.ksl.std.csv
 
-import ru.privateserver.ksl.KSLAtomicFileWriter
+import ru.privateserver.ksl.storage.KSLAtomicFileWriter
 import java.io.File
 import java.io.IOException
 import java.math.BigDecimal

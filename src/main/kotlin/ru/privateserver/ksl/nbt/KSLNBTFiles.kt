@@ -1,7 +1,7 @@
 package ru.privateserver.ksl.nbt
 
 import de.tr7zw.changeme.nbtapi.NBT
-import ru.privateserver.ksl.KSLAtomicFileWriter
+import ru.privateserver.ksl.storage.KSLAtomicFileWriter
 import java.io.File
 import java.io.IOException
 

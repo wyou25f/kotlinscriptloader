@@ -1,4 +1,4 @@
-package ru.privateserver.ksl
+package ru.privateserver.ksl.storage
 
 import java.io.File
 import java.nio.charset.StandardCharsets

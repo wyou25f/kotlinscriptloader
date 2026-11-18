@@ -2,6 +2,7 @@ package ru.privateserver.ksl.hooks
 
 import ru.privateserver.ksl.*
 import ru.privateserver.ksl.schem.KSLClipboard
+import ru.privateserver.ksl.storage.KSLAtomicFileWriter
 import com.sk89q.worldedit.EmptyClipboardException
 import com.sk89q.worldedit.IncompleteRegionException
 import com.sk89q.worldedit.WorldEdit
