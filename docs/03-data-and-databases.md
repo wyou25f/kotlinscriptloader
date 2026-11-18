@@ -968,7 +968,7 @@ toJsonElement поддерживает Kotlin primitives, enum, maps, collection
 **Конец книги III.** Следующая книга — коллекция практических рецептов.
 
 
-## Глава 21. PostgreSQL (KSL 1.2.2)
+## Глава 20. PostgreSQL (KSL 1.2.2)
 
 PostgreSQL — полноценный удалённый backend наряду с MySQL и MariaDB. KSL использует PostgreSQL JDBC driver, отдельный SQL dialect, PostgreSQL-native `ON CONFLICT ... DO UPDATE`, двойные кавычки для идентификаторов и те же внутренние таблицы `ksl_*`.
 

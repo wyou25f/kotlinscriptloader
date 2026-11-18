@@ -148,4 +148,75 @@ class KSLAddonScopeTest {
         assertTrue(secondClosed)
         assertTrue(scope.isClosed)
     }
+
+    @Test
+    fun completedOneShotBukkitTasksAreRemovedFromTheAddonScope() {
+        val scope = scope()
+        var scheduled: Runnable? = null
+        val cancelled = java.util.concurrent.atomic.AtomicInteger()
+        val task = java.lang.reflect.Proxy.newProxyInstance(
+            org.bukkit.scheduler.BukkitTask::class.java.classLoader,
+            arrayOf(org.bukkit.scheduler.BukkitTask::class.java)
+        ) { _, method, _ ->
+            when (method.name) {
+                "cancel" -> {
+                    cancelled.incrementAndGet()
+                    null
+                }
+                "isCancelled" -> cancelled.get() > 0
+                else -> null
+            }
+        } as org.bukkit.scheduler.BukkitTask
+
+        scope.trackOneShot(
+            schedule = { runnable ->
+                scheduled = runnable
+                task
+            },
+            block = { }
+        )
+        assertEquals(1, scope.resourceCount)
+
+        requireNotNull(scheduled).run()
+
+        assertEquals(0, scope.resourceCount)
+        scope.close()
+        assertEquals(0, cancelled.get(), "completed tasks should not be cancelled during addon unload")
+    }
+
+    @Test
+    fun closingScopeBeforeOneShotTaskRunsCancelsItsScheduledHandle() {
+        val scope = scope()
+        var scheduled: Runnable? = null
+        val cancelled = java.util.concurrent.atomic.AtomicInteger()
+        val task = java.lang.reflect.Proxy.newProxyInstance(
+            org.bukkit.scheduler.BukkitTask::class.java.classLoader,
+            arrayOf(org.bukkit.scheduler.BukkitTask::class.java)
+        ) { _, method, _ ->
+            when (method.name) {
+                "cancel" -> {
+                    cancelled.incrementAndGet()
+                    null
+                }
+                "isCancelled" -> cancelled.get() > 0
+                else -> null
+            }
+        } as org.bukkit.scheduler.BukkitTask
+
+        scope.trackOneShot(
+            schedule = { runnable ->
+                scheduled = runnable
+                task
+            },
+            block = { }
+        )
+        scope.close()
+
+        assertEquals(1, cancelled.get())
+        assertEquals(0, scope.resourceCount)
+        // A scheduler race after cancellation must still be harmless and release idempotently.
+        requireNotNull(scheduled).run()
+        assertEquals(0, scope.resourceCount)
+    }
+
 }

@@ -17,6 +17,8 @@ import ru.privateserver.ksl.kslshu.KSLTaskScope
 import ru.privateserver.ksl.rt.KSLWorkPriority
 import java.time.Duration
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Explicit owner for resources created by a KSL addon.
@@ -173,22 +175,22 @@ class KSLAddonScope internal constructor(
 
     /** Schedules one task on the server thread and cancels it when the scope closes. */
     fun runSync(block: () -> Unit): BukkitTask =
-        track(Bukkit.getScheduler().runTask(owner, Runnable(block)))
+        trackOneShot({ runnable -> Bukkit.getScheduler().runTask(owner, runnable) }, block)
 
     /** Schedules one task asynchronously; do not access Bukkit world/entity/inventory state. */
     fun runAsync(block: () -> Unit): BukkitTask =
-        track(Bukkit.getScheduler().runTaskAsynchronously(owner, Runnable(block)))
+        trackOneShot({ runnable -> Bukkit.getScheduler().runTaskAsynchronously(owner, runnable) }, block)
 
     /** Schedules a server-thread task after [delayTicks]. */
     fun runSyncLater(delayTicks: Long, block: () -> Unit): BukkitTask {
         require(delayTicks >= 0L) { "delayTicks must not be negative" }
-        return track(Bukkit.getScheduler().runTaskLater(owner, Runnable(block), delayTicks))
+        return trackOneShot({ runnable -> Bukkit.getScheduler().runTaskLater(owner, runnable, delayTicks) }, block)
     }
 
     /** Schedules an async task after [delayTicks]. */
     fun runAsyncLater(delayTicks: Long, block: () -> Unit): BukkitTask {
         require(delayTicks >= 0L) { "delayTicks must not be negative" }
-        return track(Bukkit.getScheduler().runTaskLaterAsynchronously(owner, Runnable(block), delayTicks))
+        return trackOneShot({ runnable -> Bukkit.getScheduler().runTaskLaterAsynchronously(owner, runnable, delayTicks) }, block)
     }
 
     /** Repeats a task on the server thread. [periodTicks] must be positive. */
@@ -215,6 +217,50 @@ class KSLAddonScope internal constructor(
         return track(
             Bukkit.getScheduler().runTaskTimerAsynchronously(owner, Runnable(block), initialDelayTicks, periodTicks)
         )
+    }
+
+    /**
+     * Tracks one-shot Bukkit tasks only until their callback finishes. Without
+     * this release, every completed task would stay strongly referenced by a
+     * long-lived addon scope until the addon itself unloads.
+     *
+     * The post-schedule checks cover both races: the scope may close before the
+     * scheduler returns a handle, or an async callback may finish before that
+     * handle has been stored.
+     */
+    internal fun trackOneShot(
+        schedule: (Runnable) -> BukkitTask,
+        block: () -> Unit
+    ): BukkitTask {
+        val completed = AtomicBoolean(false)
+        val taskReference = AtomicReference<BukkitTask?>()
+        val cleanup = AutoCloseable { if (!completed.get()) taskReference.get()?.cancel() }
+        own(cleanup)
+
+        val runnable = Runnable {
+            try {
+                block()
+            } finally {
+                completed.set(true)
+                release(cleanup)
+            }
+        }
+
+        val task = try {
+            schedule(runnable)
+        } catch (failure: Throwable) {
+            runCatching { release(cleanup) }.onFailure(failure::addSuppressed)
+            throw failure
+        }
+
+        taskReference.set(task)
+        if (completed.get()) {
+            release(cleanup)
+        } else if (isClosed) {
+            task.cancel()
+            release(cleanup)
+        }
+        return task
     }
 
     private fun track(task: BukkitTask): BukkitTask {
