@@ -17,6 +17,7 @@ import ru.privateserver.ksl.kslshu.KSLTaskScope
 import ru.privateserver.ksl.rt.KSLWorkPriority
 import java.time.Duration
 import java.util.UUID
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
@@ -113,9 +114,28 @@ class KSLAddonScope internal constructor(
     fun ownTask(handle: KSLTaskHandle): KSLTaskHandle {
         val resource = AutoCloseable { handle.cancel(true) }
         own(resource)
-        // A completed one-shot task must not remain retained by the scope.
-        handle.completion.whenComplete { _, _ -> runCatching { release(resource) } }
-        return handle
+
+        // Publish completion only after the scope has released the task resource.
+        // This makes awaiting the returned handle a synchronization point for cleanup.
+        val completion = CompletableFuture<ru.privateserver.ksl.kslshu.KSLTaskResult>()
+        handle.completion.whenComplete { result, failure ->
+            try {
+                release(resource)
+            } catch (cleanupFailure: Throwable) {
+                if (failure != null) {
+                    failure.addSuppressed(cleanupFailure)
+                } else {
+                    completion.completeExceptionally(cleanupFailure)
+                    return@whenComplete
+                }
+            }
+
+            if (failure != null) completion.completeExceptionally(failure)
+            else completion.complete(result)
+        }
+        return KSLTaskHandle(handle.id, handle.owner, completion) { interrupt ->
+            handle.cancel(interrupt)
+        }
     }
 
     /** Subscribes to a KSL event-bus topic and owns the returned subscription. */
