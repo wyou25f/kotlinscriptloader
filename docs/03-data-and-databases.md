@@ -1170,7 +1170,7 @@ PBKDF2 требует заметной вычислительной работы
 
 ---
 
-# Дополнительная глава: NBT, vanilla components и бинарные .nbt-файлы
+## Дополнительная глава: NBT, vanilla components и бинарные .nbt-файлы
 
 KSL bundles and relocates Item-NBT-API, so a separate NBTAPI server plugin is not required.
 
@@ -1278,7 +1278,7 @@ MockBukkit остаётся основной средой быстрых unit-т
 
 ---
 
-# Дополнительная глава: CSV: таблицы, парсер, схемы и нормализация
+## Дополнительная глава: CSV: таблицы, парсер, схемы и нормализация
 
 KSL 1.2.2 includes a bounded CSV parser/writer and an editable table model. Script files live inside `scripts/`; the standalone `KslCsvFiles` API also accepts a Java `File` for addons.
 
@@ -1391,7 +1391,7 @@ Additional table operations include `upsertBy`, `distinctBy`, `groupRowsBy`, `fi
 
 ---
 
-# Дополнительная глава: Schematic clipboard и файлы .schem
+## Дополнительная глава: Schematic clipboard и файлы .schem
 
 KSL 1.2.2 exposes optional WorldEdit clipboard support. WorldEdit must be installed and enabled for schematic operations; the rest of KSL continues to work without it.
 

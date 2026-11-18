@@ -951,7 +951,7 @@ Reload parses and validates the complete document and resolves every enabled han
 
 ---
 
-# Дополнительная глава: Public API Reference и контракты KSL
+## Дополнительная глава: Public API Reference и контракты KSL
 
 Справочник публичных точек входа KSL для авторов Kotlin/Java-аддонов и .kts-скриптов. Он дополняет KDoc в исходниках и подробные книги, а не заменяет их. Проверяй API установленной версии JAR: внутренние классы могут меняться быстрее публичных контрактов.
 
@@ -1211,7 +1211,7 @@ The engine supports one-shot and repeating schedules, validates the full configu
 
 ---
 
-# Дополнительная глава: Надёжная разработка скриптов и аддонов
+## Дополнительная глава: Надёжная разработка скриптов и аддонов
 
 This guide describes the safe development loop for large KSL scripts and Paper addons. The checks are intentionally conservative: a warning points to a risky pattern, but the absence of warnings is not a proof that arbitrary Kotlin code cannot stall the server.
 
@@ -1303,7 +1303,7 @@ It analyzes `.kts` scripts and Kotlin `.kt` sources in KSL addon projects. It do
 
 ---
 
-# Дополнительная глава: Рабочий процесс, starter kit и IntelliJ IDEA
+## Дополнительная глава: Рабочий процесс, starter kit и IntelliJ IDEA
 
 Это руководство описывает рабочий процесс проекта KSL 1.2.2. Оно не меняет номер версии и не объявляет новый релиз.
 
@@ -1467,7 +1467,7 @@ IDE warnings и preflight — эвристики. Они помогают нах
 
 ---
 
-# Дополнительная глава: Java/Kotlin interop и strict sandbox
+## Дополнительная глава: Java/Kotlin interop и strict sandbox
 
 Это руководство относится к development-линии KSL 1.2.2 и не объявляет выпуск новой версии.
 
