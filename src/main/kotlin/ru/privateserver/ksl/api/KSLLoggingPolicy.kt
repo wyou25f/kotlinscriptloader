@@ -1,5 +1,4 @@
-package ru.privateserver.ksl
-
+package ru.privateserver.ksl.api
 import ru.privateserver.ksl.api.KSLLogLevel
 import java.util.Locale
 

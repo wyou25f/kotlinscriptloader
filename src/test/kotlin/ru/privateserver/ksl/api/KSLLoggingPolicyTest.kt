@@ -1,8 +1,6 @@
-package ru.privateserver.ksl
-
+package ru.privateserver.ksl.api
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
-import ru.privateserver.ksl.api.KSLLogLevel
 
 class KSLLoggingPolicyTest {
     @Test

@@ -1,5 +1,8 @@
 package ru.privateserver.ksl
 
+import ru.privateserver.ksl.api.KSLLoggingPolicy
+import ru.privateserver.ksl.rt.KSLExecutorShutdown
+
 import ru.privateserver.ksl.script.KSLCompileCacheStats
 
 import ru.privateserver.ksl.database.KSLDatabaseExecutionPolicy

@@ -1,5 +1,7 @@
 package ru.privateserver.ksl
 
+import ru.privateserver.ksl.script.KSLAuthoringAnalyzer
+
 import java.io.File
 
 // Dry run: use the production compiler and sandbox checks, but never evaluate script code.

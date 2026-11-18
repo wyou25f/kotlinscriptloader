@@ -1,5 +1,4 @@
-package ru.privateserver.ksl
-
+package ru.privateserver.ksl.script
 /**
  * Conservative source-level checks for patterns that commonly stall the Paper main thread
  * or leave resources outside KSL's script lifecycle. These are warnings, never compile errors.
