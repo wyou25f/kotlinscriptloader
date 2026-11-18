@@ -2,6 +2,8 @@
 
 ## 1.2.2 — development (not published)
 
+- SQLite-to-remote database migration now commits both KSL storage tables as one transaction; any later-table or batch failure rolls back the whole migration instead of leaving earlier batches committed.
+
 - Database row mappers reject JDBC handles and row-bound streams instead of returning already-closed resources; `queryOne` closes its statement even when a JDBC driver rejects the one-row limit.
 
 - Added per-script generation identities and isolated runtime scopes for each initialized version.

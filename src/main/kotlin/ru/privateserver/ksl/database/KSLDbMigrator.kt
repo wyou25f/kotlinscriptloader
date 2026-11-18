@@ -29,10 +29,11 @@ class KSLDbMigrator(private val plugin: KotlinScriptLoaderPlugin) {
         check(sourceFile.exists()) { "Файл ${sourceFile.name} не найден" }
         return openSource().use { source ->
             plugin.database.connection.use { target ->
-                target.autoCommit = false
-                val persist = copy(source, target, "ksl_persist", listOf("script_name", "key", "value"), 2)
-                val table = copy(source, target, "ksl_table", listOf("table_name", "row_key", "column_key", "value"), 3)
-                Counts(persist, table)
+                KSLDatabaseTransactions.inTransaction(target) {
+                    val persist = copy(source, target, "ksl_persist", listOf("script_name", "key", "value"), 2)
+                    val table = copy(source, target, "ksl_table", listOf("table_name", "row_key", "column_key", "value"), 3)
+                    Counts(persist, table)
+                }
             }
         }
     }
@@ -54,7 +55,7 @@ class KSLDbMigrator(private val plugin: KotlinScriptLoaderPlugin) {
         return source.createStatement().use { st -> st.executeQuery("SELECT COUNT(*) FROM $table").use { rs -> if (rs.next()) rs.getInt(1) else 0 } }
     }
 
-    // The first keyCount columns form the primary key. Committed per batch; a rerun overwrites the same rows.
+    // The first keyCount columns form the primary key. Batches are sent to the current transaction; migrate() commits only after both tables succeed.
     private fun copy(source: Connection, target: Connection, table: String, columns: List<String>, keyCount: Int): Int {
         if (!tableExists(source, table)) return 0
         val dialect = plugin.dialect
@@ -78,13 +79,11 @@ class KSLDbMigrator(private val plugin: KotlinScriptLoaderPlugin) {
                         copied++
                         if (++pending == BATCH) {
                             ps.executeBatch()
-                            target.commit()
                             pending = 0
                         }
                     }
                     if (pending > 0) {
                         ps.executeBatch()
-                        target.commit()
                     }
                 }
             }
