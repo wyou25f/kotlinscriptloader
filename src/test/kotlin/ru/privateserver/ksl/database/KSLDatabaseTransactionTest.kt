@@ -78,4 +78,51 @@ class KSLDatabaseTransactionTest {
             it.rollback()
         }
     }
+
+    @Test
+    fun `does not switch auto commit on after rollback fails`() {
+        val autoCommit = java.util.concurrent.atomic.AtomicBoolean(true)
+        val autoCommitRestores = java.util.concurrent.atomic.AtomicInteger()
+        val rollbackCalls = java.util.concurrent.atomic.AtomicInteger()
+        val abortCalls = java.util.concurrent.atomic.AtomicInteger()
+        val connection = java.lang.reflect.Proxy.newProxyInstance(
+            java.sql.Connection::class.java.classLoader,
+            arrayOf(java.sql.Connection::class.java)
+        ) { _, method, args ->
+            when (method.name) {
+                "getAutoCommit" -> autoCommit.get()
+                "setAutoCommit" -> {
+                    val next = args!![0] as Boolean
+                    if (next) autoCommitRestores.incrementAndGet()
+                    autoCommit.set(next)
+                    null
+                }
+                "rollback" -> {
+                    rollbackCalls.incrementAndGet()
+                    throw java.sql.SQLException("rollback failed")
+                }
+                "abort" -> {
+                    abortCalls.incrementAndGet()
+                    throw java.sql.SQLException("abort unsupported")
+                }
+                else -> null
+            }
+        } as java.sql.Connection
+
+        val failure = assertThrows(IllegalStateException::class.java) {
+            KSLDatabaseTransactions.inTransaction(connection) {
+                error("work failed")
+            }
+        }
+
+        assertEquals("work failed", failure.message)
+        assertEquals(1, rollbackCalls.get())
+        assertEquals(1, abortCalls.get())
+        assertEquals(0, autoCommitRestores.get())
+        assertFalse(autoCommit.get())
+        assertEquals(2, failure.suppressed.size)
+        assertEquals("rollback failed", failure.suppressed[0].message)
+        assertEquals("abort unsupported", failure.suppressed[1].message)
+    }
+
 }
