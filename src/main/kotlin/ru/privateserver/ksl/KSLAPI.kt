@@ -7,6 +7,8 @@ import org.bukkit.plugin.java.JavaPlugin
 import ru.privateserver.ksl.api.KSLLogger
 import ru.privateserver.ksl.api.KSLLoggerConfig
 import ru.privateserver.ksl.api.library.KSLStandardLibraryModule
+import ru.privateserver.ksl.accounts.KSLAccountStore
+import javax.sql.DataSource
 
 interface KSLAPI {
     val kslPlugin: JavaPlugin
@@ -24,6 +26,17 @@ interface KSLAPI {
         name: String = ownerId,
         config: KSLLoggerConfig = KSLLoggerConfig()
     ): KSLLogger = KSLLogger.forJavaLogger(kslPlugin.logger, "addon:$ownerId", name, config)
+
+    /**
+     * Creates an account store with a stable, addon-specific SQL table namespace.
+     * The caller owns [dataSource] and must call initialize() during addon startup.
+     */
+    fun createAccountStore(owner: JavaPlugin, dataSource: DataSource): KSLAccountStore =
+        KSLAccountStore(dataSource, tablePrefix = KSLAccountStore.tablePrefixFor(owner.name))
+
+    /** Creates an account store using an explicitly selected SQL table namespace. */
+    fun createAccountStore(owner: JavaPlugin, dataSource: DataSource, tablePrefix: String): KSLAccountStore =
+        KSLAccountStore(dataSource, tablePrefix = tablePrefix)
 
     fun registerAddon(addon: KSLAddon)
     fun unregisterAddon(addonId: String)

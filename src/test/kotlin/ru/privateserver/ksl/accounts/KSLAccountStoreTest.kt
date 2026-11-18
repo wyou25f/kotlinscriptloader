@@ -15,11 +15,12 @@ import java.util.UUID
 class KSLAccountStoreTest {
     private lateinit var keeper: Connection
     private lateinit var store: KSLAccountStore
+    private lateinit var source: SQLiteDataSource
     private lateinit var clock: MutableClock
 
     @BeforeEach
     fun setUp() {
-        val source = SQLiteDataSource().apply {
+        source = SQLiteDataSource().apply {
             url = "jdbc:sqlite:file:ksl-${UUID.randomUUID()}?mode=memory&cache=shared"
         }
         keeper = source.connection
@@ -74,6 +75,41 @@ class KSLAccountStoreTest {
         assertThrows(IllegalArgumentException::class.java) {
             store.register(oversized, "correct horse battery".toCharArray())
         }
+    }
+
+    @Test
+    fun tableNamespacesIsolateAccountsAndSessionsInOneDatabase() {
+        val secondStore = KSLAccountStore(
+            source,
+            clock,
+            passwordIterations = 100_000,
+            tablePrefix = "addon_two"
+        )
+        secondStore.initialize()
+
+        val firstAccount = store.register("shared_name", "first account password".toCharArray())
+        val secondAccount = secondStore.register("shared_name", "second account password".toCharArray())
+        assertNotEquals(firstAccount.id, secondAccount.id)
+        assertEquals(firstAccount, store.findSession(store.authenticate(
+            firstAccount.username, "first account password".toCharArray()
+        )!!.token))
+        assertNull(secondStore.authenticate(firstAccount.username, "first account password".toCharArray()))
+        assertNull(store.authenticate(secondAccount.username, "second account password".toCharArray()))
+    }
+
+    @Test
+    fun tablePrefixMustBeAConservativeSqlIdentifier() {
+        assertThrows(IllegalArgumentException::class.java) {
+            KSLAccountStore(source, tablePrefix = "addon; DROP TABLE users")
+        }
+        assertEquals(
+            KSLAccountStore.tablePrefixFor("Example Addon"),
+            KSLAccountStore.tablePrefixFor("Example Addon")
+        )
+        assertNotEquals(
+            KSLAccountStore.tablePrefixFor("Example-Addon"),
+            KSLAccountStore.tablePrefixFor("Example Addon")
+        )
     }
 
     @Test

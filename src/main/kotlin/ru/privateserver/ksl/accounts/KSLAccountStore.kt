@@ -6,6 +6,9 @@ import java.sql.ResultSet
 import java.sql.SQLException
 import java.time.Clock
 import java.util.UUID
+import java.util.Locale
+import java.security.MessageDigest
+import java.nio.charset.StandardCharsets
 import javax.sql.DataSource
 
 /** Public account profile. Password hashes and session credentials are deliberately excluded. */
@@ -39,11 +42,18 @@ class KSLAccountAlreadyExistsException(username: String) :
 class KSLAccountStore @JvmOverloads constructor(
     private val dataSource: DataSource,
     private val clock: Clock = Clock.systemUTC(),
-    private val passwordIterations: Int = 210_000
+    private val passwordIterations: Int = 210_000,
+    val tablePrefix: String = "ksl"
 ) {
+    private val accountsTable = "${tablePrefix}_accounts"
+    private val sessionsTable = "${tablePrefix}_account_sessions"
+
     init {
         require(passwordIterations in 100_000..2_000_000) {
             "passwordIterations must be between 100000 and 2000000"
+        }
+        require(TABLE_PREFIX.matches(tablePrefix)) {
+            "tablePrefix must be a safe SQL identifier prefix (1-48 lowercase letters, digits or underscores)"
         }
     }
 
@@ -52,7 +62,7 @@ class KSLAccountStore @JvmOverloads constructor(
         dataSource.connection.use { connection ->
             connection.createStatement().use { statement ->
                 statement.executeUpdate(
-                    """CREATE TABLE IF NOT EXISTS ksl_accounts (
+                    """CREATE TABLE IF NOT EXISTS ${accountsTable} (
                         id VARCHAR(36) NOT NULL PRIMARY KEY,
                         username VARCHAR(32) NOT NULL UNIQUE,
                         password_hash VARCHAR(256) NOT NULL,
@@ -61,12 +71,12 @@ class KSLAccountStore @JvmOverloads constructor(
                     )"""
                 )
                 statement.executeUpdate(
-                    """CREATE TABLE IF NOT EXISTS ksl_account_sessions (
+                    """CREATE TABLE IF NOT EXISTS ${sessionsTable} (
                         token_hash VARCHAR(64) NOT NULL PRIMARY KEY,
                         account_id VARCHAR(36) NOT NULL,
                         created_at BIGINT NOT NULL,
                         expires_at BIGINT NOT NULL,
-                        FOREIGN KEY (account_id) REFERENCES ksl_accounts(id) ON DELETE CASCADE
+                        FOREIGN KEY (account_id) REFERENCES ${accountsTable}(id) ON DELETE CASCADE
                     )"""
                 )
             }
@@ -88,7 +98,7 @@ class KSLAccountStore @JvmOverloads constructor(
             dataSource.connection.use { connection ->
                 KSLDatabaseTransactions.inTransaction(connection) {
                     connection.prepareStatement(
-                        "INSERT INTO ksl_accounts(id, username, password_hash, created_at, enabled) VALUES(?, ?, ?, ?, ?)"
+                        "INSERT INTO ${accountsTable}(id, username, password_hash, created_at, enabled) VALUES(?, ?, ?, ?, ?)"
                     ).use { statement ->
                         statement.setString(1, account.id)
                         statement.setString(2, account.username)
@@ -124,7 +134,7 @@ class KSLAccountStore @JvmOverloads constructor(
 
         val row = dataSource.connection.use { connection ->
             connection.prepareStatement(
-                "SELECT id, username, password_hash, created_at, enabled FROM ksl_accounts WHERE username = ?"
+                "SELECT id, username, password_hash, created_at, enabled FROM ${accountsTable} WHERE username = ?"
             ).use { statement ->
                 statement.setString(1, normalized)
                 statement.executeQuery().use { result ->
@@ -156,7 +166,7 @@ class KSLAccountStore @JvmOverloads constructor(
                         copy.fill('\u0000')
                     }
                     connection.prepareStatement(
-                        "UPDATE ksl_accounts SET password_hash = ? WHERE id = ? AND password_hash = ?"
+                        "UPDATE ${accountsTable} SET password_hash = ? WHERE id = ? AND password_hash = ?"
                     ).use { statement ->
                         statement.setString(1, upgraded)
                         statement.setString(2, row.id)
@@ -165,7 +175,7 @@ class KSLAccountStore @JvmOverloads constructor(
                     }
                 }
                 connection.prepareStatement(
-                    "INSERT INTO ksl_account_sessions(token_hash, account_id, created_at, expires_at) VALUES(?, ?, ?, ?)"
+                    "INSERT INTO ${sessionsTable}(token_hash, account_id, created_at, expires_at) VALUES(?, ?, ?, ?)"
                 ).use { statement ->
                     statement.setString(1, tokenHash)
                     statement.setString(2, row.id)
@@ -185,8 +195,8 @@ class KSLAccountStore @JvmOverloads constructor(
         return dataSource.connection.use { connection ->
             connection.prepareStatement(
                 """SELECT a.id, a.username, a.created_at
-                   FROM ksl_account_sessions s
-                   JOIN ksl_accounts a ON a.id = s.account_id
+                   FROM ${sessionsTable} s
+                   JOIN ${accountsTable} a ON a.id = s.account_id
                    WHERE s.token_hash = ? AND s.expires_at > ? AND a.enabled = ?"""
             ).use { statement ->
                 statement.setString(1, tokenHash)
@@ -203,7 +213,7 @@ class KSLAccountStore @JvmOverloads constructor(
     fun revokeSession(token: String): Boolean {
         if (token.length !in 32..128) return false
         return dataSource.connection.use { connection ->
-            connection.prepareStatement("DELETE FROM ksl_account_sessions WHERE token_hash = ?").use { statement ->
+            connection.prepareStatement("DELETE FROM ${sessionsTable} WHERE token_hash = ?").use { statement ->
                 statement.setString(1, KSLSecurity.sha256(token))
                 statement.executeUpdate() > 0
             }
@@ -213,7 +223,7 @@ class KSLAccountStore @JvmOverloads constructor(
     /** Revokes all active sessions for an account. */
     fun revokeAllSessions(accountId: String): Int =
         dataSource.connection.use { connection ->
-            connection.prepareStatement("DELETE FROM ksl_account_sessions WHERE account_id = ?").use { statement ->
+            connection.prepareStatement("DELETE FROM ${sessionsTable} WHERE account_id = ?").use { statement ->
                 statement.setString(1, accountId)
                 statement.executeUpdate()
             }
@@ -257,6 +267,29 @@ class KSLAccountStore @JvmOverloads constructor(
             errorCode == 19
 
     companion object {
+        private val TABLE_PREFIX = Regex("[a-z][a-z0-9_]{0,47}")
+
+        /**
+         * Builds a stable, SQL-safe prefix for a Bukkit plugin/addon name.
+         * A short digest prevents collisions after slug normalization/truncation.
+         */
+        @JvmStatic
+        fun tablePrefixFor(ownerId: String): String {
+            require(ownerId.isNotBlank()) { "ownerId must not be blank" }
+            val normalized = ownerId.trim().lowercase(Locale.ROOT)
+            val slug = normalized
+                .replace(Regex("[^a-z0-9]+"), "_")
+                .trim('_')
+                .take(28)
+                .ifEmpty { "addon" }
+                .let { if (it.first().isLetter()) it else "addon_$it" }
+            val digest = MessageDigest.getInstance("SHA-256")
+                .digest(normalized.toByteArray(StandardCharsets.UTF_8))
+                .take(6)
+                .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+            return "ksl_${slug}_$digest"
+        }
+
         const val DEFAULT_SESSION_TTL_MILLIS: Long = 7L * 24 * 60 * 60 * 1000
         const val MIN_SESSION_TTL_MILLIS: Long = 60_000
         const val MAX_SESSION_TTL_MILLIS: Long = 30L * 24 * 60 * 60 * 1000

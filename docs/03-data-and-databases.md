@@ -1048,17 +1048,17 @@ KSL предоставляет необязательный JDBC-модуль `K
 
 ### 21.1 Подключение
 
-Класс доступен напрямую из `ru.privateserver.ksl.accounts` и через `ru.privateserver.ksl.api.*`. Передайте ему свой `javax.sql.DataSource`. Владелец DataSource отвечает за пул соединений и его закрытие.
+Класс доступен напрямую из `ru.privateserver.ksl.accounts` и через `ru.privateserver.ksl.api.*`. Удобная фабрика `KSLAPI.createAccountStore(owner, dataSource)` автоматически назначает стабильный SQL-префикс на основе имени Bukkit-плагина. Можно передать собственный префикс третьим аргументом или создать `KSLAccountStore(dataSource, tablePrefix = "my_addon")` напрямую. Владелец DataSource отвечает за пул соединений и его закрытие.
 
 ```kotlin
 import ru.privateserver.ksl.api.*
 import com.zaxxer.hikari.HikariDataSource
 
-val accountStore = KSLAccountStore(dataSource)
+val accountStore = api.createAccountStore(this, dataSource)
 accountStore.initialize()
 ```
 
-`initialize()` безопасно создавать таблицы при запуске. Хранилище использует таблицы `ksl_accounts` и `ksl_account_sessions`; не меняйте их структуру вручную.
+`initialize()` безопасно создавать таблицы при запуске. Хранилище использует таблицы с префиксом. Конструктор по умолчанию сохраняет прежние имена `ksl_accounts` и `ksl_account_sessions`; для разных аддонов задавайте отдельный префикс. Не меняйте структуру таблиц вручную.
 
 ### 21.2 Регистрация и вход
 
@@ -1093,6 +1093,6 @@ if (session != null) {
 
 PBKDF2 требует заметной вычислительной работы. Не вызывайте `register` и `authenticate` на главном потоке Bukkit. Используйте собственный executor/задачу аддона и возвращайте только необходимые игровые изменения на главный поток.
 
-Хранилище не владеет переданным `DataSource`: закройте его при выгрузке аддона. Для SQLite, PostgreSQL и MySQL используйте отдельную базу/схему и отдельные таблицы аддона; не подключайте KSL под root. Для production настройте резервное копирование и ограниченные права SQL-пользователя.
+Хранилище не владеет переданным `DataSource`: закройте его при выгрузке аддона. Для SQLite, PostgreSQL и MySQL можно использовать общий DataSource, но каждому аддону требуется собственный tablePrefix. Фабрика KSLAPI назначает его автоматически; при прямом создании хранилища задайте префикс явно. Не подключайте KSL под root. Для production настройте резервное копирование и ограниченные права SQL-пользователя.
 
 Это базовый слой аккаунтов, а не готовая система восстановления паролей, MFA, CAPTCHA, rate limiting или управления ролями. Такие функции должны быть добавлены отдельно с учётом модели угроз вашего сервера.
