@@ -2,7 +2,7 @@
 
 ## 1.2.2 — development (not published)
 
-- Added a real-Paper 1.21.1 integration runner for binary NBT read/write; MockBukkit remains the fast unit-test environment.
+- Added a real-Paper 1.21.1 integration runner for binary NBT read/write; MockBukkit remains the fast unit-test environment. The test server uses the supported self-contained JAR mode; the normal build artifact remains thin.
 
 - Aligned addon starter guidance, API v15 documentation and database diagnostics/locale hints with the supported PostgreSQL backend.
 

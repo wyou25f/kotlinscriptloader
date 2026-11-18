@@ -66,6 +66,9 @@ jobs:
         shell: bash
         run: ./build.sh -Task Package -NoDaemon
 
+      - name: Build self-contained JAR for live Paper integration
+        run: bash ./gradlew --no-daemon -PfatJar=true shadowJar verifyShadowJar
+
       - name: Build real-Paper NBT integration test plugin
         run: bash ./gradlew --no-daemon paperIntegrationPluginJar
 
@@ -76,7 +79,9 @@ jobs:
           PLUGIN_DIR="$GITHUB_WORKSPACE/build/paper-integration/plugins"
           RESULT_FILE="$PLUGIN_DIR/KSLNBTIntegration/result.txt"
           mkdir -p "$PLUGIN_DIR"
-          cp build/libs/KotlinScriptLoader-1.2.2.jar "$PLUGIN_DIR/KotlinScriptLoader.jar"
+          FAT_JAR="$(find build/libs -maxdepth 1 -type f -name '*-fat.jar' -print -quit)"
+          test -n "$FAT_JAR"
+          cp "$FAT_JAR" "$PLUGIN_DIR/KotlinScriptLoader.jar"
           cp build/paper-integration/artifacts/KSLNBTIntegration.jar "$PLUGIN_DIR/KSLNBTIntegration.jar"
           chmod 0777 "$PLUGIN_DIR"
 

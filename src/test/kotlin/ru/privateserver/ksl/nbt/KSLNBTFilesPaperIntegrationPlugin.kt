@@ -22,6 +22,11 @@ class KSLNBTFilesPaperIntegrationPlugin : JavaPlugin() {
 
     private fun runIntegrationChecks() {
         try {
+            val kslPlugin = requireNotNull(Bukkit.getPluginManager().getPlugin("KotlinScriptLoader")) {
+                "KotlinScriptLoader dependency was not loaded"
+            }
+            check(kslPlugin.isEnabled) { "KotlinScriptLoader did not enable successfully" }
+
             val directory = Files.createTempDirectory(dataFolder.toPath(), "nbt-binary-").toFile()
             try {
                 val file = File(directory, "roundtrip.nbt")
