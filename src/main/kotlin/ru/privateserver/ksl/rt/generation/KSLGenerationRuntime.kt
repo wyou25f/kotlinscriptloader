@@ -1,4 +1,4 @@
-package ru.privateserver.ksl
+package ru.privateserver.ksl.rt.generation
 
 import ru.privateserver.ksl.rt.KSLRT
 import ru.privateserver.ksl.rt.KSLRuntimeScope

@@ -1,4 +1,4 @@
-package ru.privateserver.ksl
+package ru.privateserver.ksl.rt.generation
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse

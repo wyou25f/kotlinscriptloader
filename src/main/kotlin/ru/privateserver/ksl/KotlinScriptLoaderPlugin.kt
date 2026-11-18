@@ -23,6 +23,8 @@ import ru.privateserver.ksl.kslshu.KSLTaskSchedulerEnvironment
 import ru.privateserver.ksl.kslshu.KSLTaskSchedulerFactory
 import ru.privateserver.ksl.kslshu.KSLTaskSchedulerRegistry
 import ru.privateserver.ksl.kslshu.KSLTaskScope
+import ru.privateserver.ksl.rt.generation.KSLGenerationManager
+import ru.privateserver.ksl.rt.generation.KSLGenerationSnapshot
 
 internal fun isTaskOwnedBy(scriptName: String, taskId: Int, tasksByScript: Map<String, Set<Int>>): Boolean =
     tasksByScript[scriptName]?.contains(taskId) == true
