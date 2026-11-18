@@ -1,5 +1,7 @@
 package ru.privateserver.ksl
 
+import ru.privateserver.ksl.script.KSLCompileCacheStats
+
 import ru.privateserver.ksl.database.KSLDatabaseExecutionPolicy
 import ru.privateserver.ksl.script.KSLSourceFingerprint
 

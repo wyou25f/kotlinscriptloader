@@ -1,5 +1,7 @@
 package ru.privateserver.ksl
 
+import ru.privateserver.ksl.script.KSLCompileCacheStats
+
 import java.io.File
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.atomic.LongAdder
