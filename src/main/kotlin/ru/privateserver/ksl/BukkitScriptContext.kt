@@ -50,6 +50,7 @@ import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.buildJsonObject
 import ru.privateserver.ksl.std.toml.KSLTomlCodec
 import ru.privateserver.ksl.kslshu.KSLTaskScope
+import ru.privateserver.ksl.rt.tasks.KSLTaskFailurePolicy
 
 open class BukkitScriptContext(
     plugin: KotlinScriptLoaderPlugin,

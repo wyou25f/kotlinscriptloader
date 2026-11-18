@@ -1,4 +1,4 @@
-package ru.privateserver.ksl
+package ru.privateserver.ksl.rt.tasks
 
 import java.util.concurrent.atomic.AtomicInteger
 

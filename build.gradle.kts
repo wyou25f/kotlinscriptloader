@@ -194,6 +194,7 @@ val verifyShadowJar by tasks.registering {
                 "ru/privateserver/ksl/rt/generation/KSLScriptGeneration.class",
                 "ru/privateserver/ksl/rt/generation/KSLGenerationState.class",
                 "ru/privateserver/ksl/rt/generation/KSLGenerationSnapshot.class",
+                "ru/privateserver/ksl/rt/tasks/KSLTaskFailurePolicy.class",
                 "ru/privateserver/ksl/rt/monitoring/KSLQueuePressureMonitor.class",
                 "ru/privateserver/ksl/KSLDatabaseSettings.class",
                 "org/postgresql/Driver.class",
