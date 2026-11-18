@@ -1,6 +1,6 @@
 # Структурированное логирование KSL
 
-Руководство относится к линии KotlinScriptLoader 1.2.1. Оно описывает работу структурированного логирования и не объявляет выпуск новой версии.
+Руководство относится к development-линии KotlinScriptLoader 1.2.2. Оно описывает работу структурированного логирования и не объявляет выпуск новой версии.
 
 ## Что даёт KSL logger
 
@@ -113,7 +113,7 @@ KSL IntelliJ plugin дополняет completion для `scriptLogger`, `kslLog
 ## Совместимость
 
 - KSL development build version: 1.2.2.
-- Public KSL API contract: version 14.
+- Public KSL API contract: version 15.
 - IDEA plugin version: 1.2.1.
 - Последний публичный стабильный релиз KSL: 1.2.1.
 - Этот документ не создаёт GitHub Release или release tag.

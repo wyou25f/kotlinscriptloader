@@ -166,7 +166,7 @@ error-codes:
       hint: "Some script resources (tasks, listeners, commands) may remain. If this repeats, restart the server."
     '7924b':
       title: "The database connection failed"
-      hint: "Check database.* in config.yml, that MySQL/MariaDB is running, the database exists, and the user has permissions. See docs/Database-Guide.md."
+      hint: "Check database.* in config.yml, availability of the selected backend (MySQL, MariaDB, or PostgreSQL), database existence, and user permissions."
     '4180b':
       title: "Some records were not saved during shutdown"
       hint: "The database write queue did not drain in time. Do not forcibly kill the server; let it shut down normally."
@@ -184,13 +184,13 @@ error-codes:
       hint: "Store only String, Int, Long, Double, Boolean, or null. Serialize lists and objects to strings yourself."
     '5064b':
       title: "A SQL query from a script failed"
-      hint: "Check the query text. It should be portable across SQLite and MySQL/MariaDB (avoid PRAGMA and AUTOINCREMENT)."
+      hint: "For portability across SQLite, MySQL, MariaDB, and PostgreSQL, avoid PRAGMA, AUTOINCREMENT, and other dialect-specific constructs."
     '1321b':
       title: "KSL service tables are unavailable"
       hint: "Migrations were not applied. Check whether the database user can CREATE TABLE, then restart the server."
     '7377b':
       title: "A key is longer than 190 characters"
-      hint: "MySQL/MariaDB cannot store keys this long. Shorten the key in ksl.db and retry /ksl dbmigrate confirm."
+      hint: "KSL remote SQL backends limit key columns to 190 characters. Shorten the key in ksl.db and retry /ksl dbmigrate confirm."
     '3634b':
       title: "increment() failed"
       hint: "The key contains a non-numeric value or the database is unavailable. Check the value and /ksl doctor."
@@ -445,7 +445,7 @@ error-codes:
       hint: "Check database availability, network connectivity, and pool size."
     '8877b':
       title: "The database connection was lost"
-      hint: "Check the MySQL/MariaDB or SQLite log and network interruptions."
+      hint: "Check the selected backend log (SQLite, MySQL, MariaDB, or PostgreSQL) and network interruptions."
     '3713b':
       title: "The database rejected authentication"
       hint: "Check the username, password, and permissions for the selected database."
@@ -850,7 +850,7 @@ error-codes:
       hint: "Check changed KSL methods and update the script calls."
     '7657b':
       title: "The database is read-only"
-      hint: "Check SQLite file mode or MySQL/MariaDB user permissions."
+      hint: "Check SQLite file mode or the remote database user's permissions (MySQL, MariaDB, or PostgreSQL)."
     '7974b':
       title: "There is not enough disk space for the database"
       hint: "Free disk space and check the filesystem."
@@ -962,7 +962,7 @@ doctor:
   attention: "§e§l{count} item(s) need attention — see details above."
 
 dbmigrate:
-  sqlite: "§eKSL: SQLite is already in use; there is nothing to migrate. Set database.type to mysql or mariadb in config.yml and restart the server."
+  sqlite: "§eKSL: SQLite is already in use; there is nothing to migrate. Set database.type to mysql, mariadb, or postgresql in config.yml and restart the server."
   read: "§7Reading ksl.db..."
   not-found: "§eKSL: ksl.db was not found in the plugin directory; nothing to migrate."
   found: "§aFound in ksl.db: §fpersist {persist}§a, §ftable {table}§a record(s)."
@@ -1000,7 +1000,7 @@ help:
   error: "look up an error code, for example {code}"
   doctor: "diagnostics (compiler, database, hooks)"
   validate: "validate scripts without loading them"
-  dbmigrate: "migrate ksl.db to MySQL/MariaDB"
+  dbmigrate: "migrate ksl.db to MySQL/MariaDB/PostgreSQL"
   language: "show or change the KSL language"
 
 script-command:

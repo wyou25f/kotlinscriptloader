@@ -2,6 +2,8 @@
 
 ## 1.2.2 — development (not published)
 
+- Aligned addon starter guidance, API v15 documentation and database diagnostics/locale hints with the supported PostgreSQL backend.
+
 - KSLAddonScope now releases one-shot Bukkit task registrations after completion, preventing long-lived addons from retaining every completed task until unload.
 
 - Binary NBT save preflight now uses the document's configured limits, so documents intentionally created with larger SNBT limits are not rejected by the default 1 Mi-character cap.

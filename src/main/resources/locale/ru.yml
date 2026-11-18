@@ -166,7 +166,7 @@ error-codes:
       hint: "Часть ресурсов скрипта (задачи, слушатели, команды) могла остаться. Если повторяется, перезапусти сервер."
     '7924b':
       title: "Не удалось подключиться к базе данных"
-      hint: "Проверь database.* в config.yml, что сервер MySQL/MariaDB запущен, база создана и у пользователя есть права. См. docs/Database-Guide.md."
+      hint: "Проверь database.* в config.yml, доступность выбранного backend-а (MySQL, MariaDB или PostgreSQL), наличие базы и права пользователя."
     '4180b':
       title: "Часть записей не сохранилась при остановке"
       hint: "Очередь записи в БД не успела опустеть. Не убивай сервер принудительно, дай ему остановиться штатно."
@@ -184,13 +184,13 @@ error-codes:
       hint: "Сохраняй только String, Int, Long, Double, Boolean или null. Списки и объекты сериализуй в строку сам."
     '5064b':
       title: "SQL-запрос из скрипта не удался"
-      hint: "Проверь текст запроса: он должен быть переносимым между SQLite и MySQL/MariaDB (без PRAGMA и AUTOINCREMENT)."
+      hint: "Для переносимости между SQLite, MySQL, MariaDB и PostgreSQL избегай PRAGMA, AUTOINCREMENT и других dialect-specific конструкций."
     '1321b':
       title: "Служебные таблицы KSL недоступны"
       hint: "Миграции не применились. Проверь права пользователя БД на CREATE TABLE и перезапусти сервер."
     '7377b':
       title: "Ключ длиннее 190 символов"
-      hint: "MySQL/MariaDB не принимает такие ключи. Сократи ключ в ksl.db и повтори /ksl dbmigrate confirm."
+      hint: "Удалённые SQL-backend-ы KSL ограничивают ключевые колонки 190 символами. Сократи ключ в ksl.db и повтори /ksl dbmigrate confirm."
     '3634b':
       title: "increment() не удался"
       hint: "По указанному ключу лежит не число или БД недоступна. Проверь значение и /ksl doctor."
@@ -445,7 +445,7 @@ error-codes:
       hint: "Проверь доступность сервера БД, сеть и размер пула."
     '8877b':
       title: "Соединение с БД потеряно"
-      hint: "Проверь журнал MySQL/MariaDB или SQLite и сетевые разрывы."
+      hint: "Проверь журнал выбранного backend-а (SQLite, MySQL, MariaDB или PostgreSQL) и сетевые разрывы."
     '3713b':
       title: "БД отклонила авторизацию"
       hint: "Проверь имя пользователя, пароль и права на выбранную базу."
@@ -850,7 +850,7 @@ error-codes:
       hint: "Проверь изменённые методы KSL и обнови вызовы в скрипте."
     '7657b':
       title: "База данных доступна только для чтения"
-      hint: "Проверь режим файла SQLite или права пользователя MySQL/MariaDB."
+      hint: "Проверь режим файла SQLite или права пользователя удалённой БД (MySQL, MariaDB или PostgreSQL)."
     '7974b':
       title: "На диске закончилось место для БД"
       hint: "Освободи место и проверь состояние файловой системы."
@@ -962,7 +962,7 @@ doctor:
   attention: "§e§l{count} пункт(ов) требуют внимания — см. подробности выше."
 
 dbmigrate:
-  sqlite: "§eKSL: уже используется SQLite, переносить нечего. Укажи database.type: mysql или mariadb в config.yml и перезапусти сервер."
+  sqlite: "§eKSL: уже используется SQLite, переносить нечего. Укажи database.type: mysql, mariadb или postgresql в config.yml и перезапусти сервер."
   read: "§7Читаю ksl.db..."
   not-found: "§eKSL: файл ksl.db не найден в папке плагина — переносить нечего."
   found: "§aВ ksl.db найдено: §fpersist {persist}§a, §ftable {table}§a записей."
@@ -1000,7 +1000,7 @@ help:
   error: "расшифровка кода ошибки, например {code}"
   doctor: "диагностика (компилятор, БД, хуки)"
   validate: "проверить скрипты без загрузки"
-  dbmigrate: "перенести ksl.db в MySQL/MariaDB"
+  dbmigrate: "перенести ksl.db в MySQL/MariaDB/PostgreSQL"
   language: "показать или изменить язык KSL"
 
 script-command:
