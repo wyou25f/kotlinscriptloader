@@ -49,6 +49,48 @@ class SecurityExtensionsTest {
         assertNull(KSLSecurity.base64Decode(invalidUtf8))
     }
 
+
+    @Test
+    fun sha512SupportsTextAndStreamingFiles() {
+        assertEquals(
+            "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a" +
+                "2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f",
+            KSLSecurity.sha512("abc")
+        )
+        assertTrue(KSLSecurity.verifySha512("abc", KSLSecurity.sha512("abc")))
+        assertFalse(KSLSecurity.verifySha512("abd", KSLSecurity.sha512("abc")))
+        assertFalse(KSLSecurity.verifySha512("abc", KSLSecurity.sha256("abc")))
+        val file = File.createTempFile("ksl-security-sha512-", ".txt")
+        try {
+            file.writeText("abc")
+            assertEquals(KSLSecurity.sha512("abc"), KSLSecurity.sha512File(file))
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
+    fun hmacVerificationAndPasswordRehashPolicyAreSafe() {
+        val signature = KSLSecurity.hmacSha256("payload", "secret")
+        assertTrue(KSLSecurity.verifyHmacSha256("payload", "secret", signature))
+        assertFalse(KSLSecurity.verifyHmacSha256("changed", "secret", signature))
+        assertFalse(KSLSecurity.verifyHmacSha256("payload", "wrong", signature))
+        assertFalse(KSLSecurity.verifyHmacSha256("payload", "secret", "invalid"))
+
+        val oldHash = KSLSecurity.hashPassword("password", 100_000)
+        assertTrue(KSLSecurity.needsPasswordRehash(oldHash, 200_000))
+        assertFalse(KSLSecurity.needsPasswordRehash(oldHash, 100_000))
+        assertTrue(KSLSecurity.needsPasswordRehash("malformed"))
+        assertThrows(IllegalArgumentException::class.java) {
+            KSLSecurity.needsPasswordRehash(oldHash, 10)
+        }
+    }
+
+    @Test
+    fun passwordVerifierRejectsOversizedEncodedInput() {
+        assertFalse(KSLSecurity.verifyPassword("password", "x".repeat(100_000)))
+    }
+
     @Test
     fun secureTokensAreUrlSafeAndValidateLength() {
         val token = KSLSecurity.randomToken(32)

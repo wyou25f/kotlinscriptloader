@@ -2,6 +2,7 @@
 
 ## 1.2.2 — development (not published)
 
+- Expanded KSL security helpers with SHA-512 text/file digests, constant-time SHA-512 verification, HMAC-SHA256 verification and password-hash upgrade checks. Password verification now rejects oversized encoded input before parsing.
 - Added a real-Paper 1.21.1 integration runner for binary NBT read/write; MockBukkit remains the fast unit-test environment. The test server uses the supported self-contained JAR mode; the normal build artifact remains thin. Gradle now tracks the selected thin/fat mode when generating plugin.yml.
 
 - Aligned addon starter guidance, API v15 documentation and database diagnostics/locale hints with the supported PostgreSQL backend.

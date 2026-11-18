@@ -990,3 +990,50 @@ database:
 Для пароля рекомендуется переменная окружения `KSL_DB_PASSWORD`. По умолчанию PostgreSQL JDBC driver проверяет сертификат и имя сервера через `verify-full`. Режимы `disable`, `allow`, `prefer` и `require` не проверяют серверную идентичность и требуют явного `allow-insecure-transport: true`.
 
 Если `database.port: 0`, KSL выбирает стандартный порт backend: 3306 для MySQL/MariaDB и 5432 для PostgreSQL. Если в старом конфиге уже записан `3306`, при переходе на PostgreSQL укажи `5432` или `0`. Схема `ksl_*` и `ksl_meta` создаются автоматически; SQLite → PostgreSQL перенос сохраняет исходный `ksl.db`.
+
+
+## Безопасность паролей и криптографические функции
+
+KSL предоставляет KSLSecurity и функции стандартной библиотеки для контрольных сумм, HMAC, токенов и проверки паролей.
+
+### Контрольные суммы
+
+~~~kotlin
+val sha256 = KSLSecurity.sha256("payload")
+val sha512 = KSLSecurity.sha512("payload")
+val fileHash = KSLSecurity.sha256File(file)
+val fileHash512 = KSLSecurity.sha512File(file)
+
+check(KSLSecurity.verifySha256("payload", sha256))
+check(KSLSecurity.verifySha512("payload", sha512))
+~~~
+
+SHA-256 и SHA-512 подходят для контрольных сумм и идентификации содержимого, но не для хранения паролей.
+
+### Пароли
+
+~~~kotlin
+val encodedHash = KSLSecurity.hashPassword(password)
+val valid = KSLSecurity.verifyPassword(candidate, encodedHash)
+
+if (valid && KSLSecurity.needsPasswordRehash(encodedHash)) {
+    val upgradedHash = KSLSecurity.hashPassword(candidate)
+    // Сохрани upgradedHash вместо старого значения в своей таблице.
+}
+~~~
+
+Текущая реализация использует PBKDF2-HMAC-SHA256 с уникальной случайной солью и ограниченным диапазоном work factor. Формат содержит алгоритм, число итераций, соль и результат. Исходный пароль восстановить из него нельзя. Хеширование и проверку выполняйте асинхронно, не на основном потоке Paper.
+
+Храните только encoded hash. Не записывайте пароль или токены в логи. При успешной проверке старого хеша можно обновить его до текущего work factor.
+
+### HMAC и токены
+
+~~~kotlin
+val signature = KSLSecurity.hmacSha256(payload, secret)
+val authentic = KSLSecurity.verifyHmacSha256(payload, secret, signature)
+val token = KSLSecurity.randomToken(32)
+~~~
+
+HMAC предназначен для проверки подлинности сообщения при наличии общего секрета. Сам секрет должен храниться отдельно и не попадать в исходники или логи.
+
+Base64 — только кодирование, а XOR — обратимая побитовая операция. Ни Base64, ни XOR не обеспечивают конфиденциальность или защиту паролей. Для паролей используйте только password hashing API.
