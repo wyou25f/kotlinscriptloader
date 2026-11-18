@@ -126,4 +126,40 @@ class KSLDatabaseExecutionPolicyTest {
         }
     }
 
+
+    @Test
+    fun queryOneClosesThePreparedStatementWhenTheDriverRejectsMaxRows() {
+        val statementClosed = java.util.concurrent.atomic.AtomicBoolean(false)
+        val statement = java.lang.reflect.Proxy.newProxyInstance(
+            java.sql.PreparedStatement::class.java.classLoader,
+            arrayOf(java.sql.PreparedStatement::class.java)
+        ) { _, method, _ ->
+            when (method.name) {
+                "setQueryTimeout" -> null
+                "setMaxRows" -> throw java.sql.SQLException("maxRows unsupported")
+                "close" -> {
+                    statementClosed.set(true)
+                    null
+                }
+                else -> null
+            }
+        } as java.sql.PreparedStatement
+        val connection = java.lang.reflect.Proxy.newProxyInstance(
+            java.sql.Connection::class.java.classLoader,
+            arrayOf(java.sql.Connection::class.java)
+        ) { _, method, _ ->
+            when (method.name) {
+                "prepareStatement" -> statement
+                else -> null
+            }
+        } as java.sql.Connection
+
+        val failure = assertThrows(java.sql.SQLException::class.java) {
+            KSLDatabaseSession(connection, KSLDatabaseExecutionPolicy()).queryOne("SELECT 1") { 1 }
+        }
+
+        assertEquals("maxRows unsupported", failure.message)
+        assertTrue(statementClosed.get())
+    }
+
 }

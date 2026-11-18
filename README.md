@@ -72,7 +72,7 @@ KSL's user documentation is organized as four large books instead of dozens of s
 |---|---|
 | [Book I — Script Development](docs/01-scripts.md) | Kotlin basics, .kts structure, events, commands, scheduler, lifecycle, STD and runtime |
 | [Book II — Plugins, Addons and Libraries](docs/02-addons.md) | Gradle setup, KSLAPI, services, imports, classloaders, hooks, modules and KSLAddonScope |
-| [Book III — Data and Databases](docs/03-data-and-databases.md) | SQLite, MySQL, MariaDB, phpMyAdmin, SQL, persist/table, YAML, TOML and JSON |
+| [Book III — Data and Databases](docs/03-data-and-databases.md) | SQLite, MySQL, MariaDB, PostgreSQL, phpMyAdmin, SQL, persist/table, YAML, TOML and JSON |
 | [Book IV — Cookbook](docs/04-cookbook.md) | Practical recipes for commands, events, inventory, databases, caching and integrations |
 
 **Supplemental API references:** [NBT API](docs/05-nbt-api.md) covers custom item/entity/block data and vanilla item components; [items and enchantments](docs/06-items-and-enchantments.md) covers item builders and custom enchants; [STD, messages and KSL Mixins](docs/08-standard-library-mixins-and-messages.md) documents the newer script APIs.

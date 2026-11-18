@@ -2,6 +2,8 @@
 
 ## 1.2.2 — development (not published)
 
+- Database row mappers reject JDBC handles and row-bound streams instead of returning already-closed resources; `queryOne` closes its statement even when a JDBC driver rejects the one-row limit.
+
 - Added per-script generation identities and isolated runtime scopes for each initialized version.
 - A failed runtime initialization now cleans partial registrations and attempts to re-evaluate the last successfully compiled artifact in a fresh generation.
 - Script registry reports the recovered script as DEGRADED when the latest update failed but the previous version was restored.
