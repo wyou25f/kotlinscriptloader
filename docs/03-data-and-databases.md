@@ -1357,7 +1357,7 @@ Accessors include `getString`, `getInt`, `requireInt`, `getLong`, `requireLong`,
 
 ## Public API and addons
 
-`ru.privateserver.ksl.std.csv.*` is available to KSL scripts by default. Addons can import `ru.privateserver.ksl.api.*` and use `KSLCSVTable`, `KSLCSVRow`, `KSLCSVOptions`, plus the `KSLAPI.csvTable/parseCsv/readCsv/writeCsv` extensions. API compatibility is 15.
+`ru.privateserver.ksl.std.csv.*` is available to KSL scripts by default. Addons can import `ru.privateserver.ksl.api.*` and use `KSLCSVTable`, `KSLCSVRow`, `KSLCSVOptions`, plus the `KSLAPI.csvTable/parseCsv/readCsv/writeCsv` extensions. The CSV exports were introduced in API v15; the current development API is v17.
 
 
 ## Typed schemas and normalization

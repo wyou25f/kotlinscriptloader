@@ -1548,7 +1548,7 @@ onHit работает для прямого удара игрока и снар
 
 KSL Custom Enchantments не появятся в списке ванильных зачарований на столе зачарования и не будут автоматически поддерживаться сторонними плагинами, ожидающими Bukkit Enchantment. Для стандартных зачарований используй enchant(Enchantment, level).
 
-Система не подменяет NBT/PDC API: customEnchant предназначен для игровых эффектов, а modifyNBT, modifyPersistentNBT и modifyComponents — для низкоуровневых данных и компонентов предметов. См. также NBT API (05-nbt-api.md).
+Система не подменяет NBT/PDC API: customEnchant предназначен для игровых эффектов, а modifyNBT, modifyPersistentNBT и modifyComponents — для низкоуровневых данных и компонентов предметов. См. также [NBT, SNBT и бинарные файлы](03-data-and-databases.md).
 
 
 ---
@@ -1668,7 +1668,7 @@ KSL IntelliJ plugin дополняет completion для `scriptLogger`, `kslLog
 ## Совместимость
 
 - KSL development build version: 1.2.2.
-- Public KSL API contract: version 15.
+- Historical API baseline: v15. The current development API is v17; use KSL_API_VERSION and api.apiVersion as the runtime authority.
 - IDEA plugin version: 1.2.1.
 - Последний публичный стабильный релиз KSL: 1.2.1.
 - Этот документ не создаёт GitHub Release или release tag.

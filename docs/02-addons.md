@@ -1185,7 +1185,7 @@ code should use its task scopes rather than create unbounded thread pools.
 
 ## Structured logging API (v12)
 
-Public API version 12 adds an admin-aware logger for scripts and addons. KSL scripts use `scriptLogger(name) { ... }`; addons use `api.logger(ownerId, name) { ... }` or `api.createLogger(...)`. The logger provides TRACE, DEBUG, INFO, WARN, ERROR, OFF, child categories and structured key/value fields.
+API v12 originally introduced the admin-aware logger for scripts and addons. KSL scripts use `scriptLogger(name) { ... }`; addons use `api.logger(ownerId, name) { ... }` or `api.createLogger(...)`. The logger provides TRACE, DEBUG, INFO, WARN, ERROR, OFF, child categories and structured key/value fields.
 
 The server administrator controls `logging.default-level`, optional `logging.owner-levels` entries and `logging.max-message-length` in config.yml. The effective threshold is the stricter of the logger requested level and the administrator minimum. A logger cannot lower the server minimum.
 
@@ -1206,7 +1206,7 @@ val engine = scope.automation(actions)
 engine.reload(configText, KSLAutomationFormat.YAML)
 ```
 
-The engine supports one-shot and repeating schedules, validates the full configuration before replacement, and is owned by `KSLAddonScope`. Callbacks execute on KSL worker threads, not Bukkit's main thread. Configuration cannot contain executable source; it only references registered handler IDs. Public API version is 16.
+The engine supports one-shot and repeating schedules, validates the full configuration before replacement, and is owned by `KSLAddonScope`. Callbacks execute on KSL worker threads, not Bukkit's main thread. Configuration cannot contain executable source; it only references registered handler IDs. This automation integration was introduced with API v16; the current development API is v17.
 
 
 ---
@@ -1277,7 +1277,7 @@ api.reloadScriptAsync("events/join") { result ->
 
 `reloadScript` is synchronous and blocks the caller until compilation and swap finish. Keep it for controlled tooling where blocking is intentional; prefer `reloadScriptAsync` for normal addon integrations.
 
-The public KSL API contract is version 12. Version 12 includes the structured logger for scripts and addons; see [Structured logging](01-scripts.md). Addons should compare `minApiVersion` with the installed `api.apiVersion` rather than hard-code a value.
+Structured logging was introduced in API v12; the current development API is v17. Addons should compare minApiVersion with the installed api.apiVersion rather than hard-code a value. See [Structured logging](01-scripts.md). Addons should compare `minApiVersion` with the installed `api.apiVersion` rather than hard-code a value.
 
 ## IntelliJ preflight
 
