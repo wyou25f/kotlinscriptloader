@@ -53,7 +53,7 @@ class KSLAccountStore @JvmOverloads constructor(
             "passwordIterations must be between 100000 and 2000000"
         }
         require(TABLE_PREFIX.matches(tablePrefix)) {
-            "tablePrefix must be a safe SQL identifier prefix (1-48 lowercase letters, digits or underscores)"
+            "tablePrefix must be a safe SQL identifier prefix (1-46 lowercase letters, digits or underscores)"
         }
     }
 
@@ -267,7 +267,7 @@ class KSLAccountStore @JvmOverloads constructor(
             errorCode == 19
 
     companion object {
-        private val TABLE_PREFIX = Regex("[a-z][a-z0-9_]{0,47}")
+        private val TABLE_PREFIX = Regex("[a-z][a-z0-9_]{0,45}")
 
         /**
          * Builds a stable, SQL-safe prefix for a Bukkit plugin/addon name.

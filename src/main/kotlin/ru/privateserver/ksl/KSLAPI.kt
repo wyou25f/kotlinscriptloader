@@ -34,10 +34,6 @@ interface KSLAPI {
     fun createAccountStore(owner: JavaPlugin, dataSource: DataSource): KSLAccountStore =
         KSLAccountStore(dataSource, tablePrefix = KSLAccountStore.tablePrefixFor(owner.name))
 
-    /** Creates an account store using an explicitly selected SQL table namespace. */
-    fun createAccountStore(owner: JavaPlugin, dataSource: DataSource, tablePrefix: String): KSLAccountStore =
-        KSLAccountStore(dataSource, tablePrefix = tablePrefix)
-
     fun registerAddon(addon: KSLAddon)
     fun unregisterAddon(addonId: String)
     fun registerService(key: String, instance: Any)

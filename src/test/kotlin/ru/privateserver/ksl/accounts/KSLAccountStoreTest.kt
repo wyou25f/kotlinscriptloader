@@ -102,6 +102,9 @@ class KSLAccountStoreTest {
         assertThrows(IllegalArgumentException::class.java) {
             KSLAccountStore(source, tablePrefix = "addon; DROP TABLE users")
         }
+        assertThrows(IllegalArgumentException::class.java) {
+            KSLAccountStore(source, tablePrefix = "a".repeat(47))
+        }
         assertEquals(
             KSLAccountStore.tablePrefixFor("Example Addon"),
             KSLAccountStore.tablePrefixFor("Example Addon")

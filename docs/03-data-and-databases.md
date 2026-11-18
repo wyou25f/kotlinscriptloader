@@ -1048,7 +1048,7 @@ KSL предоставляет необязательный JDBC-модуль `K
 
 ### 21.1 Подключение
 
-Класс доступен напрямую из `ru.privateserver.ksl.accounts` и через `ru.privateserver.ksl.api.*`. Удобная фабрика `KSLAPI.createAccountStore(owner, dataSource)` автоматически назначает стабильный SQL-префикс на основе имени Bukkit-плагина. Можно передать собственный префикс третьим аргументом или создать `KSLAccountStore(dataSource, tablePrefix = "my_addon")` напрямую. Владелец DataSource отвечает за пул соединений и его закрытие.
+Класс доступен напрямую из `ru.privateserver.ksl.accounts` и через `ru.privateserver.ksl.api.*`. Удобная фабрика `KSLAPI.createAccountStore(owner, dataSource)` автоматически назначает стабильный SQL-префикс на основе имени Bukkit-плагина. Для собственного префикса создайте `KSLAccountStore(dataSource, tablePrefix = "my_addon")` напрямую. Владелец DataSource отвечает за пул соединений и его закрытие.
 
 ```kotlin
 import ru.privateserver.ksl.api.*
