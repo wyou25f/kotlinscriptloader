@@ -97,4 +97,33 @@ class KSLDatabaseExecutionPolicyTest {
             }
         }
     }
+
+    @Test
+    fun queryMappersCannotReturnResourcesThatCloseWithTheResultSet() {
+        val connection = org.sqlite.JDBC().connect("jdbc:sqlite::memory:", Properties())!!
+        connection.use {
+            val session = KSLDatabaseSession(it, KSLDatabaseExecutionPolicy())
+
+            lateinit var escapedOne: java.sql.ResultSet
+            val oneFailure = assertThrows(IllegalStateException::class.java) {
+                session.queryOne("SELECT 1") {
+                    escapedOne = this
+                    this
+                }
+            }
+            assertTrue(oneFailure.message!!.contains("detached"))
+            assertTrue(escapedOne.isClosed)
+
+            lateinit var escapedList: java.sql.ResultSet
+            val listFailure = assertThrows(IllegalStateException::class.java) {
+                session.queryList("SELECT 1") {
+                    escapedList = this
+                    this
+                }
+            }
+            assertTrue(listFailure.message!!.contains("detached"))
+            assertTrue(escapedList.isClosed)
+        }
+    }
+
 }

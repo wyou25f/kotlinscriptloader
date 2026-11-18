@@ -36,13 +36,14 @@ class KSLDatabaseSession internal constructor(
         mapper: ResultSet.() -> T
     ): T? {
         checkActive()
-        val statement = policy.prepare(connection, sql, parameters, query = true)
-        statement.maxRows = 1
-        return statement.use { ps ->
+        return policy.prepare(connection, sql, parameters, query = true).use { statement ->
+            // Keep the driver-specific maxRows update inside use: even if a driver
+            // rejects it, the prepared statement is still closed deterministically.
+            statement.maxRows = 1
             checkActive()
-            ps.executeQuery().use { rows ->
+            statement.executeQuery().use { rows ->
                 checkActive()
-                if (rows.next()) mapper(rows) else null
+                if (rows.next()) requireDetached(mapper(rows)) else null
             }
         }
     }
@@ -63,11 +64,33 @@ class KSLDatabaseSession internal constructor(
                 val result = ArrayList<T>()
                 while (rows.next()) {
                     checkActive()
-                    result.add(mapper(rows))
+                    result.add(requireDetached(mapper(rows)))
                 }
                 result
             }
         }
+    }
+
+    /**
+     * JDBC cursors, statements, connections and row-bound streams become invalid
+     * when the mapper's ResultSet closes. Reject them instead of silently returning
+     * an unusable handle; callers must copy the needed bytes/text into detached data.
+     */
+    private fun <T> requireDetached(value: T): T {
+        val isJdbcResource = value is ResultSet ||
+            value is java.sql.Statement ||
+            value is Connection ||
+            value is java.sql.Blob ||
+            value is java.sql.Clob ||
+            value is java.sql.SQLXML ||
+            value is java.sql.Array ||
+            value is java.sql.Ref ||
+            value is java.io.InputStream ||
+            value is java.io.Reader
+        check(!isJdbcResource) {
+            "Database row mappers must return detached values, not JDBC resources or row-bound streams"
+        }
+        return value
     }
 
     /**
