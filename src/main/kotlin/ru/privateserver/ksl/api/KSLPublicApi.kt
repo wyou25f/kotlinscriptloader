@@ -3,6 +3,10 @@
 package ru.privateserver.ksl.api
 
 import ru.privateserver.ksl.BukkitScriptContext as CoreBukkitScriptContext
+import ru.privateserver.ksl.accounts.KSLAccount as CoreKSLAccount
+import ru.privateserver.ksl.accounts.KSLAccountSession as CoreKSLAccountSession
+import ru.privateserver.ksl.accounts.KSLAccountStore as CoreKSLAccountStore
+import ru.privateserver.ksl.accounts.KSLAccountAlreadyExistsException as CoreKSLAccountAlreadyExistsException
 import ru.privateserver.ksl.KotlinScriptLoaderPlugin
 import ru.privateserver.ksl.KSL as CoreKSL
 import ru.privateserver.ksl.KSLAddonConfig as CoreKSLAddonConfig
@@ -83,6 +87,11 @@ import ru.privateserver.ksl.kslshu.KSLOfficialTaskScheduler as CoreKSLOfficialTa
  * `import ru.privateserver.ksl.api.*`
  */
 typealias KSLAPI = CoreKSLAPI
+/** JDBC-backed account store; the caller owns and supplies its DataSource. */
+typealias KSLAccountStore = CoreKSLAccountStore
+typealias KSLAccount = CoreKSLAccount
+typealias KSLAccountSession = CoreKSLAccountSession
+typealias KSLAccountAlreadyExistsException = CoreKSLAccountAlreadyExistsException
 /** YAML configuration wrapper returned by [KSLAPI.createConfig]. */
 typealias KSLAddonConfig = CoreKSLAddonConfig
 /** Short Kotlin-friendly name for the public addon API. */
