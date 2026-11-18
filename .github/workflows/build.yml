@@ -62,10 +62,6 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Assemble and verify plugin JAR
-        shell: bash
-        run: ./build.sh -Task Package -NoDaemon
-
       - name: Build self-contained JAR for live Paper integration
         run: bash ./gradlew --no-daemon -PfatJar=true shadowJar verifyShadowJar
 
@@ -128,6 +124,10 @@ jobs:
           fi
           cat "$RESULT_FILE"
           grep -qx "PASS" "$RESULT_FILE"
+
+      - name: Assemble and verify distributable thin JAR
+        shell: bash
+        run: ./build.sh -Task Package -NoDaemon
 
       - name: Inspect plugin JAR contents
         shell: bash
