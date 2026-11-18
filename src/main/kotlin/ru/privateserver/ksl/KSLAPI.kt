@@ -8,6 +8,7 @@ import ru.privateserver.ksl.api.KSLLogger
 import ru.privateserver.ksl.api.KSLLoggerConfig
 import ru.privateserver.ksl.api.library.KSLStandardLibraryModule
 import ru.privateserver.ksl.accounts.KSLAccountStore
+import ru.privateserver.ksl.database.postember.KSLPostemberClient
 import javax.sql.DataSource
 
 interface KSLAPI {
@@ -33,6 +34,22 @@ interface KSLAPI {
      */
     fun createAccountStore(owner: JavaPlugin, dataSource: DataSource): KSLAccountStore =
         KSLAccountStore(dataSource, tablePrefix = KSLAccountStore.tablePrefixFor(owner.name))
+
+    /**
+     * Creates an experimental loopback-only client for the PostemberDB development server.
+     * PostemberDB is currently memory-only and unauthenticated; do not use it for production data.
+     */
+    fun createPostemberClient(
+        host: String = "127.0.0.1",
+        port: Int = 7432,
+        connectTimeoutMillis: Int = 2_000,
+        readTimeoutMillis: Int = 5_000
+    ): KSLPostemberClient = KSLPostemberClient(
+        host = host,
+        port = port,
+        connectTimeoutMillis = connectTimeoutMillis,
+        readTimeoutMillis = readTimeoutMillis
+    )
 
     fun registerAddon(addon: KSLAddon)
     fun unregisterAddon(addonId: String)

@@ -13,6 +13,9 @@ import ru.privateserver.ksl.automation.KSLAutomationContext as CoreKSLAutomation
 import ru.privateserver.ksl.automation.KSLAutomationEngine as CoreKSLAutomationEngine
 import ru.privateserver.ksl.automation.KSLAutomationFormat as CoreKSLAutomationFormat
 import ru.privateserver.ksl.automation.KSLAutomationReloadResult as CoreKSLAutomationReloadResult
+import ru.privateserver.ksl.database.postember.KSLPostemberClient as CoreKSLPostemberClient
+import ru.privateserver.ksl.database.postember.KSLPostemberResult as CoreKSLPostemberResult
+import ru.privateserver.ksl.database.postember.KSLPostemberException as CoreKSLPostemberException
 import ru.privateserver.ksl.KotlinScriptLoaderPlugin
 import ru.privateserver.ksl.KSL as CoreKSL
 import ru.privateserver.ksl.KSLAddonConfig as CoreKSLAddonConfig
@@ -93,6 +96,10 @@ import ru.privateserver.ksl.kslshu.KSLOfficialTaskScheduler as CoreKSLOfficialTa
  * `import ru.privateserver.ksl.api.*`
  */
 typealias KSLAPI = CoreKSLAPI
+/** Experimental loopback-only client for the PostemberDB development server. */
+typealias KSLPostemberClient = CoreKSLPostemberClient
+typealias KSLPostemberResult = CoreKSLPostemberResult
+typealias KSLPostemberException = CoreKSLPostemberException
 /** JDBC-backed account store; the caller owns and supplies its DataSource. */
 typealias KSLAccountStore = CoreKSLAccountStore
 typealias KSLAccount = CoreKSLAccount

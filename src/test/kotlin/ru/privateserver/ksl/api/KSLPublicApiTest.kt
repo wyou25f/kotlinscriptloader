@@ -87,8 +87,16 @@ class KSLPublicApiTest {
     @Test
     fun `structured logger is part of the public addon api`() {
         assertTrue(KSLAPI::class.java.methods.any { it.name == "createLogger" })
-        assertEquals(16, ru.privateserver.ksl.KSL.API_VERSION)
+        assertEquals(17, ru.privateserver.ksl.KSL.API_VERSION)
         assertEquals("DEBUG", KSLLogLevel.DEBUG.name)
+    }
+
+    @Test
+    fun `PostemberDB client and result types are exported from the public API`() {
+        assertEquals("ru.privateserver.ksl.database.postember.KSLPostemberClient", KSLPostemberClient::class.java.name)
+        assertEquals("ru.privateserver.ksl.database.postember.KSLPostemberResult", KSLPostemberResult::class.java.name)
+        assertEquals("ru.privateserver.ksl.database.postember.KSLPostemberException", KSLPostemberException::class.java.name)
+        assertTrue(KSLAPI::class.java.methods.any { it.name == "createPostemberClient" })
     }
 
     @Test
