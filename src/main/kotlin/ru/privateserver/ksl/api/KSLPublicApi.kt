@@ -7,6 +7,12 @@ import ru.privateserver.ksl.accounts.KSLAccount as CoreKSLAccount
 import ru.privateserver.ksl.accounts.KSLAccountSession as CoreKSLAccountSession
 import ru.privateserver.ksl.accounts.KSLAccountStore as CoreKSLAccountStore
 import ru.privateserver.ksl.accounts.KSLAccountAlreadyExistsException as CoreKSLAccountAlreadyExistsException
+import ru.privateserver.ksl.automation.KSLAutomationAction as CoreKSLAutomationAction
+import ru.privateserver.ksl.automation.KSLAutomationActionRegistry as CoreKSLAutomationActionRegistry
+import ru.privateserver.ksl.automation.KSLAutomationContext as CoreKSLAutomationContext
+import ru.privateserver.ksl.automation.KSLAutomationEngine as CoreKSLAutomationEngine
+import ru.privateserver.ksl.automation.KSLAutomationFormat as CoreKSLAutomationFormat
+import ru.privateserver.ksl.automation.KSLAutomationReloadResult as CoreKSLAutomationReloadResult
 import ru.privateserver.ksl.KotlinScriptLoaderPlugin
 import ru.privateserver.ksl.KSL as CoreKSL
 import ru.privateserver.ksl.KSLAddonConfig as CoreKSLAddonConfig
@@ -389,3 +395,10 @@ fun KSLAPI.availableTaskSchedulers(): Set<String> {
         ?: throw IllegalStateException("Custom KSL schedulers require the official KotlinScriptLoader plugin")
     return plugin.availableTaskSchedulers()
 }
+
+typealias KSLAutomationAction = CoreKSLAutomationAction
+typealias KSLAutomationActionRegistry = CoreKSLAutomationActionRegistry
+typealias KSLAutomationContext = CoreKSLAutomationContext
+typealias KSLAutomationEngine = CoreKSLAutomationEngine
+typealias KSLAutomationFormat = CoreKSLAutomationFormat
+typealias KSLAutomationReloadResult = CoreKSLAutomationReloadResult

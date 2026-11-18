@@ -219,6 +219,13 @@ val verifyShadowJar by tasks.registering {
                 "ru/privateserver/ksl/kslshu/KSLOfficialTaskScheduler.class",
                 "ru/privateserver/ksl/kslshu/KSLTaskScope.class",
                 "ru/privateserver/ksl/kslshu/KSLTaskSpec.class",
+                "ru/privateserver/ksl/automation/KSLAutomationAction.class",
+                "ru/privateserver/ksl/automation/KSLAutomationActionRegistry.class",
+                "ru/privateserver/ksl/automation/KSLAutomationContext.class",
+                "ru/privateserver/ksl/automation/KSLAutomationEngine.class",
+                "ru/privateserver/ksl/automation/KSLAutomationFormat.class",
+                "ru/privateserver/ksl/automation/KSLAutomationReloadResult.class",
+                "ru/privateserver/ksl/automation/KSLAutomationConfigParser.class",
                 "ru/privateserver/ksl/rt/kslrt.class"
             )
             val missing = requiredClasses.filter { jar.getEntry(it) == null }

@@ -10,6 +10,8 @@ import org.bukkit.plugin.Plugin
 import org.bukkit.scheduler.BukkitTask
 import ru.privateserver.ksl.KSLError
 import ru.privateserver.ksl.KotlinScriptLoaderPlugin
+import ru.privateserver.ksl.automation.KSLAutomationActionRegistry
+import ru.privateserver.ksl.automation.KSLAutomationEngine
 import ru.privateserver.ksl.kslshu.KSLTaskContext
 import ru.privateserver.ksl.kslshu.KSLTaskHandle
 import ru.privateserver.ksl.kslshu.KSLTaskRepeatMode
@@ -109,6 +111,10 @@ class KSLAddonScope internal constructor(
         val scheduler = taskScope ?: error("KSL scheduler is unavailable for this addon scope")
         return ownTask(scheduler.repeat(interval, initialDelay, mode, priority, action))
     }
+
+    /** Creates an automation engine and binds it to this addon's resource lifecycle. */
+    fun automation(actions: KSLAutomationActionRegistry): KSLAutomationEngine =
+        own(KSLAutomationEngine(this, actions))
 
     /** Adopts an existing task handle and cancels it when this scope closes. */
     fun ownTask(handle: KSLTaskHandle): KSLTaskHandle {

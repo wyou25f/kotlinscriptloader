@@ -7,7 +7,7 @@
 | № | Книга | Содержание |
 |---|---|---|
 | I | [Разработка скриптов](01-scripts.md) | Kotlin, .kts, события, команды, потоки, жизненный цикл, YAML, STD и Runtime |
-| II | [Плагины, аддоны и библиотеки](02-addons.md) | Gradle, KSLAPI, сервисы, imports, classloader, hooks, modules, KSLAddonScope и Java |
+| II | [Плагины, аддоны и библиотеки](02-addons.md) | Gradle, KSLAPI, сервисы, imports, classloader, hooks, modules, KSLAddonScope, Automation и Java |
 | III | [Данные и базы данных](03-data-and-databases.md) | persist/table, SQL, SQLite, MySQL, MariaDB, phpMyAdmin, миграции, YAML, TOML и JSON |
 | IV | [Практические рецепты](04-cookbook.md) | Примеры команд, игровых механик, инвентаря, БД, кэша и интеграций |
 

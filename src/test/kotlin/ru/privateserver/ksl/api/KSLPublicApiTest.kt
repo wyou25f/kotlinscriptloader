@@ -87,7 +87,7 @@ class KSLPublicApiTest {
     @Test
     fun `structured logger is part of the public addon api`() {
         assertTrue(KSLAPI::class.java.methods.any { it.name == "createLogger" })
-        assertEquals(15, ru.privateserver.ksl.KSL.API_VERSION)
+        assertEquals(16, ru.privateserver.ksl.KSL.API_VERSION)
         assertEquals("DEBUG", KSLLogLevel.DEBUG.name)
     }
 
@@ -173,6 +173,15 @@ class KSLPublicApiTest {
         assertEquals("ru.privateserver.ksl.nbt.KSLNBTCompound", KSLNBTCompound::class.java.name)
         assertEquals("ru.privateserver.ksl.nbt.KSLNBTFiles", KSLNBTFiles::class.java.name)
         assertEquals("ru.privateserver.ksl.schem.KSLClipboard", KSLClipboard::class.java.name)
+    }
+
+    @Test
+    fun `automation types are exported from the public api package`() {
+        assertEquals("ru.privateserver.ksl.automation.KSLAutomationAction", KSLAutomationAction::class.java.name)
+        assertEquals("ru.privateserver.ksl.automation.KSLAutomationActionRegistry", KSLAutomationActionRegistry::class.java.name)
+        assertEquals("ru.privateserver.ksl.automation.KSLAutomationContext", KSLAutomationContext::class.java.name)
+        assertEquals("ru.privateserver.ksl.automation.KSLAutomationEngine", KSLAutomationEngine::class.java.name)
+        assertEquals("ru.privateserver.ksl.automation.KSLAutomationFormat", KSLAutomationFormat::class.java.name)
     }
 
     @Test

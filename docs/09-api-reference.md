@@ -237,3 +237,20 @@ Public API version 12 adds an admin-aware logger for scripts and addons. KSL scr
 The server administrator controls `logging.default-level`, optional `logging.owner-levels` entries and `logging.max-message-length` in config.yml. The effective threshold is the stricter of the logger requested level and the administrator minimum. A logger cannot lower the server minimum.
 
 See [Structured logging](13-structured-logging.md) for complete examples, config and operational guidance.
+
+
+## Declarative automation
+
+Addon authors can register a finite set of trusted handlers and select them from YAML/TOML:
+
+```kotlin
+val actions = KSLAutomationActionRegistry()
+scope.own(actions)
+actions.register("stats.flush") { context ->
+    stats.flush(context.arguments)
+}
+val engine = scope.automation(actions)
+engine.reload(configText, KSLAutomationFormat.YAML)
+```
+
+The engine supports one-shot and repeating schedules, validates the full configuration before replacement, and is owned by `KSLAddonScope`. Callbacks execute on KSL worker threads, not Bukkit's main thread. Configuration cannot contain executable source; it only references registered handler IDs. Public API version is 16.

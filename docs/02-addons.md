@@ -30,6 +30,7 @@
 20. Тестирование и публикация
 21. Частые ошибки
 22. Release checklist
+23. Declarative automation
 
 ---
 
@@ -896,3 +897,48 @@ Use `api.availableTaskSchedulers()` to inspect registered engine IDs and
 `KSLAddonScope.create(api, schedulerId = "...")` for addons: it owns the created
 scheduler, cancels its tasks first, and closes the engine last. The default
 `schedulerId = "ksl"` selects the official KSL engine.
+
+
+## Глава 23. Declarative automation
+
+KSL addons can schedule repeatable operational work from YAML or TOML without embedding executable code in configuration. Create an action registry, register trusted Kotlin handlers, then bind an engine to the addon scope:
+
+```kotlin
+val actions = KSLAutomationActionRegistry()
+scope.own(actions)
+
+actions.register("cache.refresh") { context ->
+    val source = context.arguments["source"] as? String ?: "all"
+    cache.refresh(source)
+}
+
+val automation = scope.automation(actions)
+automation.reload(
+    File(dataFolder, "automation.yml").readText(),
+    KSLAutomationFormat.YAML
+)
+```
+
+Example YAML:
+
+```yaml
+version: 1
+automations:
+  - id: cache.refresh
+    enabled: true
+    schedule:
+      type: every
+      interval-ms: 60000
+      initial-delay-ms: 5000
+      mode: fixed-delay
+    action:
+      handler: cache.refresh
+      args:
+        source: players
+```
+
+The TOML format uses the same model with `[[automations]]`, `[automations.schedule]` and `[automations.action]` tables. Schedule types are `once` (with `delay-ms`) and `every` (with `interval-ms`, optional `initial-delay-ms`, and `fixed-delay` or `fixed-rate` mode).
+
+Reload parses and validates the complete document and resolves every enabled handler before replacing the active task set. A parse, validation or unknown-handler error leaves the previous set running. Task scheduling failures cancel the new candidates. One-shot jobs leave the active index when complete; addon-scope close cancels remaining jobs.
+
+**Security and threads:** configuration can only select a registered handler ID. It cannot execute Kotlin, Java, reflection or shell commands. Handlers run on KSL's worker thread; switch explicitly to the Bukkit main thread before touching worlds, players, entities or inventories. The parser caps input at 1 Mi-character, entries at 256, nested argument depth at 8, and scheduling delays at 30 days. This first version supports delayed and periodic triggers; event-driven triggers are intentionally not inferred from arbitrary config text.
