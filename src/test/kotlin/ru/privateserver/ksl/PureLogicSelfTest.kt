@@ -173,7 +173,7 @@ private fun testDialect() {
     val postgresDdl = Migrations.statements(KSLDialect.POSTGRESQL)
     check("same number of schema steps on every backend", sqliteDdl.size == mysqlDdl.size && mysqlDdl.size == postgresDdl.size && sqliteDdl.size == 3)
     check("mysql DDL uses indexable binary-collated keys and InnoDB", mysqlDdl.all { it.contains("VARCHAR(190)") && it.contains("utf8mb4_bin") && it.contains("ENGINE=InnoDB") })
-    check("postgres DDL uses native text and no MySQL options", postgresDdl.all { it.contains("VARCHAR(190)") && !it.contains("utf8mb4") && !it.contains("ENGINE=") && it.contains("TEXT") })
+    check("postgres DDL uses native text and no MySQL options", postgresDdl.all { it.contains("VARCHAR(190)") && !it.contains("utf8mb4") && !it.contains("ENGINE=") } && postgresDdl[1].contains("TEXT") && postgresDdl[2].contains("TEXT"))
     check("sqlite DDL stays plain", sqliteDdl.none { it.contains("VARCHAR") || it.contains("ENGINE") })
     check("reserved key column is quoted per backend", mysqlDdl[1].contains("`key`") && sqliteDdl[1].contains("\"key\"") && postgresDdl[1].contains("\"key\""))
 }

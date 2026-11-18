@@ -1,14 +1,27 @@
 package ru.privateserver.ksl.nbt
 
+import be.seeseemelk.mockbukkit.MockBukkit
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.io.File
 import java.nio.file.Files
 
 class KSLNBTFilesTest {
+
+    @BeforeEach
+    fun startMockServer() {
+        MockBukkit.mock()
+    }
+
+    @AfterEach
+    fun stopMockServer() {
+        MockBukkit.unmock()
+    }
 
     @Test
     fun binaryFileRoundTripsDetachedDocument() {

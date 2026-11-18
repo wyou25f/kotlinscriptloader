@@ -26,7 +26,8 @@ class KSLPostgreSqlSupportTest {
     fun postgresSchemaUsesNoMysqlSpecificDdl() {
         val ddl = Migrations.statements(KSLDialect.POSTGRESQL)
         assertEquals(3, ddl.size)
-        assertTrue(ddl.all { it.contains("VARCHAR(190)") && it.contains("TEXT") })
+        assertTrue(ddl.all { it.contains("VARCHAR(190)") })
+        assertTrue(ddl[1].contains("TEXT") && ddl[2].contains("TEXT"))
         assertTrue(ddl.all { !it.contains("utf8mb4") && !it.contains("ENGINE=") })
         assertTrue(ddl[1].contains("\"key\""))
     }

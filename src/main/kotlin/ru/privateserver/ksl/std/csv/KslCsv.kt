@@ -405,9 +405,12 @@ object KslCsvCodec {
                     index += newlineLength(index)
                 }
                 ch == options.quote -> {
-                    require(field.isEmpty()) {
+                    val onlyPaddingBeforeQuote = options.trimUnquoted &&
+                        field.all { it == ' ' || it == '\t' }
+                    require(field.isEmpty() || onlyPaddingBeforeQuote) {
                         "Unexpected quote inside an unquoted CSV field at index $index"
                     }
+                    if (onlyPaddingBeforeQuote) field.setLength(0)
                     inQuotes = true
                     fieldQuoted = true
                     recordTouched = true

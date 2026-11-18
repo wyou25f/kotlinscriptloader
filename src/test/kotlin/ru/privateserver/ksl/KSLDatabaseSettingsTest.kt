@@ -66,7 +66,8 @@ class KSLDatabaseSettingsTest {
             type = "postgresql",
             host = "db.example.test",
             name = "ksl_prod",
-            user = "ksl"
+            user = "ksl",
+            password = "test-secret"
         )
         assertEquals(5432, settings.port)
         assertEquals("jdbc:postgresql://db.example.test:5432/ksl_prod?sslmode=verify-full", settings.jdbcUrl())
