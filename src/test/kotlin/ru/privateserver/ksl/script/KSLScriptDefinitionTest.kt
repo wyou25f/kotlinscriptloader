@@ -186,6 +186,8 @@ class KSLScriptDefinitionTest {
         assertEquals(BukkitScriptContext::class.java.name, KSL_SCRIPT_CONTEXT_CLASS)
         assertTrue("ru.privateserver.ksl.dsl.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("ru.privateserver.ksl.nbt.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
+        assertTrue("ru.privateserver.ksl.schem.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
+        assertTrue("ru.privateserver.ksl.std.csv.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("ru.privateserver.ksl.api.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("org.bukkit.entity.*" in KSL_SCRIPT_DEFAULT_IMPORTS)
         assertTrue("org.bukkit.Sound" in KSL_SCRIPT_DEFAULT_IMPORTS)

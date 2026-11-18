@@ -37,6 +37,12 @@ class KSLNBTFilesTest {
         val directory = Files.createTempDirectory("ksl-nbt-limits").toFile()
         try {
             assertNull(KSLNBTFiles.load(File(directory, "missing.nbt")))
+            assertThrows(IllegalArgumentException::class.java) {
+                KSLNBTFiles.load(File(directory, "missing-invalid-limit.nbt"), maxFileBytes = 0)
+            }
+            assertThrows(IllegalArgumentException::class.java) {
+                KSLNBTFiles.load(directory)
+            }
             val oversized = File(directory, "oversized.nbt")
             oversized.writeBytes(ByteArray(32))
             assertThrows(IllegalArgumentException::class.java) {

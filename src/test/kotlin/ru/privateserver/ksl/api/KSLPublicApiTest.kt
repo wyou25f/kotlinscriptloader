@@ -154,6 +154,16 @@ class KSLPublicApiTest {
             text("name", trim = true)
         }
         assertTrue(schema.validate(parsed).isValid)
+
+        val directory = java.nio.file.Files.createTempDirectory("ksl-public-csv").toFile()
+        try {
+            val file = java.io.File(directory, "records.csv")
+            installed.writeCsv(file, table)
+            val roundTrip = installed.readCsv(file)
+            assertEquals("Alice", roundTrip?.row(0)?.getString("name"))
+        } finally {
+            directory.deleteRecursively()
+        }
     }
 
     @Test
@@ -161,6 +171,8 @@ class KSLPublicApiTest {
         assertEquals("ru.privateserver.ksl.nbt.KSLNBTDocument", KSLNBTDocument::class.java.name)
         assertEquals("ru.privateserver.ksl.nbt.KSLNBTLimits", KSLNBTLimits::class.java.name)
         assertEquals("ru.privateserver.ksl.nbt.KSLNBTCompound", KSLNBTCompound::class.java.name)
+        assertEquals("ru.privateserver.ksl.nbt.KSLNBTFiles", KSLNBTFiles::class.java.name)
+        assertEquals("ru.privateserver.ksl.schem.KSLClipboard", KSLClipboard::class.java.name)
     }
 
     @Test
