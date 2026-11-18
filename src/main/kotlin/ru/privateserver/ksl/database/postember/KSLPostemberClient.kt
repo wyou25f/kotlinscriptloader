@@ -92,8 +92,10 @@ class KSLPostemberClient(
             if (!response.startsWith("OK ")) throw IOException("Malformed PostemberDB response")
 
             val message = response.removePrefix("OK ")
-            val rowCount = ROW_COUNT.matchEntire(message)?.groupValues?.get(1)?.toIntOrNull()
-            if (rowCount != null) {
+            val rowCountText = ROW_COUNT.matchEntire(message)?.groupValues?.get(1)
+            if (rowCountText != null) {
+                val rowCount = rowCountText.toIntOrNull()
+                    ?: throw IOException("PostemberDB row count exceeds the supported integer range")
                 if (rowCount > maxRows) {
                     throw IOException("PostemberDB returned $rowCount rows; configured limit is $maxRows")
                 }
@@ -110,7 +112,16 @@ class KSLPostemberClient(
                 return KSLPostemberResult(message, columns, rows, 0)
             }
 
-            val affected = INSERT_COUNT.matchEntire(message)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            val insertedText = INSERT_COUNT.matchEntire(message)?.groupValues?.get(1)
+            val affected = if (insertedText != null) {
+                insertedText.toIntOrNull()
+                    ?: throw IOException("PostemberDB affected-row count exceeds the supported integer range")
+            } else {
+                if (message.endsWith(" row(s)") || message.endsWith(" row inserted")) {
+                    throw IOException("Malformed PostemberDB row count")
+                }
+                0
+            }
             return KSLPostemberResult(message, emptyList(), emptyList(), affected)
         }
     }

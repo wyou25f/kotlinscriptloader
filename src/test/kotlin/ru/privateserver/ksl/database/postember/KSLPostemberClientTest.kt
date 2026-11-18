@@ -113,6 +113,26 @@ class KSLPostemberClientTest {
     }
 
     @Test
+    fun `client rejects malformed and overflowing row counts`() {
+        val malformedResponses = listOf(
+            "OK -1 row(s)",
+            "OK 999999999999999999999 row(s)",
+            "OK 999999999999999999999 row inserted"
+        )
+        malformedResponses.forEach { response ->
+            withServer(
+                response = { listOf(response) }
+            ) { port, _ ->
+                KSLPostemberClient(port = port).use { client ->
+                    assertThrows(java.io.IOException::class.java) {
+                        client.execute("SELECT * FROM users")
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     fun `closed client rejects further requests`() {
         val client = KSLPostemberClient()
         client.close()
