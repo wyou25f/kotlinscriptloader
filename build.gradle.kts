@@ -90,6 +90,9 @@ val librariesYaml = kotlinLibraries.joinToString(", ", "[", "]") { "\"$it\"" }
     .let { if (fatJar) "[]" else it }
 
 tasks.processResources {
+    // The generated plugin descriptor differs between thin and fat JARs.
+    // Treat the mode as a task input so switching -PfatJar always regenerates plugin.yml.
+    inputs.property("fatJarMode", fatJar)
     filesMatching("plugin.yml") {
         expand("version" to project.version, "libraries" to librariesYaml)
     }
