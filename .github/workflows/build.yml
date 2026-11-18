@@ -78,6 +78,7 @@ jobs:
           mkdir -p "$PLUGIN_DIR"
           cp build/libs/KotlinScriptLoader-1.2.2.jar "$PLUGIN_DIR/KotlinScriptLoader.jar"
           cp build/paper-integration/artifacts/KSLNBTIntegration.jar "$PLUGIN_DIR/KSLNBTIntegration.jar"
+          chmod 0777 "$PLUGIN_DIR"
 
           docker run -d --name ksl-paper-nbt-integration \
             -e EULA=TRUE \
