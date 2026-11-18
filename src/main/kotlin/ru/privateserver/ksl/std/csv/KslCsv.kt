@@ -9,6 +9,7 @@ import java.math.BigDecimal
 import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.time.LocalDate
+import java.util.Locale
 import java.util.UUID
 
 /** Parser, writer and resource limits for an RFC 4180-style CSV document. */
@@ -85,14 +86,14 @@ class KslCsvRow internal constructor(
             ?: throw IllegalArgumentException("CSV column '$column' is not a finite Double")
 
     fun getBoolean(column: String, default: Boolean = false): Boolean =
-        when (get(column).trim().lowercase()) {
+        when (get(column).trim().lowercase(Locale.ROOT)) {
             "true", "1", "yes", "on" -> true
             "false", "0", "no", "off" -> false
             else -> default
         }
 
     fun requireBoolean(column: String): Boolean =
-        when (get(column).trim().lowercase()) {
+        when (get(column).trim().lowercase(Locale.ROOT)) {
             "true", "1", "yes", "on" -> true
             "false", "0", "no", "off" -> false
             else -> throw IllegalArgumentException("CSV column '$column' is not a valid Boolean")

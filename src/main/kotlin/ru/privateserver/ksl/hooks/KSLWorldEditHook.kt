@@ -45,10 +45,10 @@ open class KSLWorldEditHook : KSLHook {
 
     fun selectionVolume(player: Player): Long? = KSLErrors.hookSafe("WorldEdit", null) {
         val (min, max) = selection(player) ?: return@hookSafe null
-        val dx = (max.blockX - min.blockX + 1).toLong()
-        val dy = (max.blockY - min.blockY + 1).toLong()
-        val dz = (max.blockZ - min.blockZ + 1).toLong()
-        dx * dy * dz
+        val dx = max.blockX.toLong() - min.blockX.toLong() + 1L
+        val dy = max.blockY.toLong() - min.blockY.toLong() + 1L
+        val dz = max.blockZ.toLong() - min.blockZ.toLong() + 1L
+        Math.multiplyExact(Math.multiplyExact(dx, dy), dz)
     }
 
     fun fillSelection(player: Player, material: Material): Int? = KSLErrors.hookSafe("WorldEdit", null) {

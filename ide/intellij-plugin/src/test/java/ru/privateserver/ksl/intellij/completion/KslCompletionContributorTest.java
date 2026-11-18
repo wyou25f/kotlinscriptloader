@@ -11,6 +11,8 @@ class KslCompletionContributorTest {
         assertTrue(suggestions.stream().anyMatch(item -> item.lookup().equals("loadSchematic(fileName)")));
         assertTrue(suggestions.stream().anyMatch(item -> item.lookup().equals("csvTable(\"id\", \"name\")")));
         assertTrue(suggestions.stream().anyMatch(item -> item.lookup().equals("editCsv(fileName, columns) { }")));
+        assertTrue(suggestions.stream().anyMatch(item -> item.lookup().equals("csvSchema { ... }")));
+        assertTrue(suggestions.stream().anyMatch(item -> item.lookup().equals("table.upsertBy(\"id\", values)")));
     }
 
     @Test

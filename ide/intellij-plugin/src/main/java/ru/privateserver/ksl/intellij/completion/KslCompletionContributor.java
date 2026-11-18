@@ -79,7 +79,10 @@ public final class KslCompletionContributor extends CompletionContributor {
         new Suggestion("editCsv(fileName, columns) { }", "CSV files", "Edit and atomically save a CSV table"),
         new Suggestion("KslCsvOptions(...)", "CSV format", "Configure delimiter, quoting, headers and parser limits"),
         new Suggestion("table.filterRows { }", "CSV tables", "Create a new table using a row predicate"),
-        new Suggestion("table.select(\"id\", \"name\")", "CSV tables", "Project a table onto selected columns")
+        new Suggestion("table.select(\"id\", \"name\")", "CSV tables", "Project a table onto selected columns"),
+        new Suggestion("csvSchema { ... }", "CSV schemas", "Declare typed columns and validate or normalize a CSV table"),
+        new Suggestion("table.upsertBy(\"id\", values)", "CSV tables", "Insert or update a row using a key column"),
+        new Suggestion("table.groupRowsBy(\"status\")", "CSV tables", "Group rows by a column value"),
         new Suggestion("onlinePlayers()", "Bukkit convenience", "Get a snapshot of online players"),
         new Suggestion("findOnlinePlayer", "Bukkit convenience", "Find an online player by name or UUID"),
         new Suggestion("broadcastRich", "Bukkit convenience", "Broadcast MiniMessage-formatted text"),
