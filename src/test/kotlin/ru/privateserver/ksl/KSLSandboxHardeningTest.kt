@@ -1,6 +1,7 @@
 package ru.privateserver.ksl
 
 import ru.privateserver.ksl.script.KSLScriptPathPolicy
+import ru.privateserver.ksl.api.library.discoverLocalLibrarySources
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
