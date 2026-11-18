@@ -453,6 +453,7 @@ jobs:
               page.write_text(source, encoding="utf-8")
           PY
           node --check website/assets/app.js
+          node --check docs/site/app.js
       - name: Validate website
         shell: bash
         run: |

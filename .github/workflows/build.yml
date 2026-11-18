@@ -36,6 +36,39 @@ jobs:
           ./scripts/diagnose-environment.sh --help
           ./scripts/inspect-jar.sh --help
 
+      - name: Validate documentation and website assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check website/assets/app.js
+          node --check docs/site/app.js
+          python - <<'PY'
+          import json
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          prefix = "window.KSL_BOOKS = "
+          source = Path("docs/site/books-data.js").read_text(encoding="utf-8")
+          assert source.startswith(prefix) and source.rstrip().endswith(";"), "Invalid offline book data wrapper"
+          books = json.loads(source[len(prefix):].strip()[:-1])
+          expected = [
+              ("scripts", "docs/01-scripts.md"),
+              ("addons", "docs/02-addons.md"),
+              ("data", "docs/03-data-and-databases.md"),
+              ("cookbook", "docs/04-cookbook.md"),
+          ]
+          assert [(book["id"], book["file"]) for book in books] == expected, "Offline reader must contain exactly the four canonical books"
+          for book in books:
+              markdown = Path(book["file"]).read_text(encoding="utf-8")
+              assert book["content"] == markdown, f"Offline reader is stale for {book['file']}"
+              assert len(markdown) > 15000, f"Book unexpectedly short: {book['file']}"
+          svgs = list(Path("website/assets").glob("*.svg")) + list(Path("docs/site/assets").glob("*.svg"))
+          assert svgs, "No SVG assets found"
+          for svg in svgs:
+              ET.parse(svg)
+          print(f"Validated {len(books)} books and {len(svgs)} SVG assets.")
+          PY
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
