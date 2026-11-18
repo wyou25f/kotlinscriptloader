@@ -1,5 +1,4 @@
-package ru.privateserver.ksl
-
+package ru.privateserver.ksl.rt.monitoring
 /** Pure helpers for comparing watchdog snapshots without depending on Bukkit or JVM state. */
 internal object KSLWatchdogAnalysis {
     /** Returns frames that are identical at the top of two stack snapshots. */

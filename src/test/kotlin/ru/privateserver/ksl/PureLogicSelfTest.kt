@@ -1,5 +1,7 @@
 package ru.privateserver.ksl
 
+import ru.privateserver.ksl.database.KSLYamlSqlQueryCache
+
 import ru.privateserver.ksl.dsl.mins
 import ru.privateserver.ksl.dsl.sec
 import java.io.File

@@ -1,6 +1,4 @@
-package ru.privateserver.ksl
-
-import ru.privateserver.ksl.storage.KSLPersistMemoryCache
+package ru.privateserver.ksl.storage
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull

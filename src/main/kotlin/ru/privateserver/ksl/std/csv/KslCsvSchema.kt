@@ -17,7 +17,7 @@ enum class KslCsvType {
         DECIMAL -> value.toBigDecimalOrNull() != null
         DOUBLE -> value.toDoubleOrNull()?.isFinite() == true
         BOOLEAN -> value.trim().lowercase(Locale.ROOT) in setOf("true", "false", "1", "0", "yes", "no", "on", "off")
-        UUID -> runCatching { UUID.fromString(value) }.isSuccess
+        UUID -> runCatching { java.util.UUID.fromString(value) }.isSuccess
         DATE -> runCatching { LocalDate.parse(value) }.isSuccess
         INSTANT -> runCatching { Instant.parse(value) }.isSuccess
     }

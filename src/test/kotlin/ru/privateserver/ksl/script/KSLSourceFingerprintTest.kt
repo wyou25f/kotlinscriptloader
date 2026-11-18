@@ -1,6 +1,4 @@
-package ru.privateserver.ksl
-
-import ru.privateserver.ksl.script.KSLSourceFingerprint
+package ru.privateserver.ksl.script
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals

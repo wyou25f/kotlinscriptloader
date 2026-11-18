@@ -1,5 +1,7 @@
 package ru.privateserver.ksl
 
+import ru.privateserver.ksl.rt.monitoring.KSLWatchdogAnalysis
+
 import java.io.File
 import java.lang.management.ManagementFactory
 import java.lang.management.ThreadInfo

@@ -1,6 +1,4 @@
-package ru.privateserver.ksl
-
-import ru.privateserver.ksl.database.KSLDatabaseExecutionPolicy
+package ru.privateserver.ksl.database
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows

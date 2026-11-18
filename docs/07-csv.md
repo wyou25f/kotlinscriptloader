@@ -77,4 +77,33 @@ Accessors include `getString`, `getInt`, `requireInt`, `getLong`, `requireLong`,
 
 ## Public API and addons
 
-`ru.privateserver.ksl.std.csv.*` is available to KSL scripts by default. Addons can import `ru.privateserver.ksl.api.*` and use `KSLCSVTable`, `KSLCSVRow`, `KSLCSVOptions`, plus the `KSLAPI.csvTable/parseCsv/readCsv/writeCsv` extensions. API compatibility is 14.
+`ru.privateserver.ksl.std.csv.*` is available to KSL scripts by default. Addons can import `ru.privateserver.ksl.api.*` and use `KSLCSVTable`, `KSLCSVRow`, `KSLCSVOptions`, plus the `KSLAPI.csvTable/parseCsv/readCsv/writeCsv` extensions. API compatibility is 15.
+
+
+## Typed schemas and normalization
+
+A CSV file stores text cells, so define the expected columns and types with a schema. Validation reports structural and value errors; normalization returns a new table with schema columns ordered first, configured defaults applied, and optional trimming.
+
+```kotlin
+val schema = csvSchema {
+    int("id", required = true)
+    text("name", required = true, trim = true)
+    decimal("balance", defaultValue = BigDecimal.ZERO)
+    bool("active", defaultValue = true)
+    uuid("owner")
+    date("joined")
+    instant("updatedAt")
+}
+val result = schema.normalize(loadCsv("data/users.csv") ?: csvTable())
+if (!result.isValid) {
+    result.validation.issues.forEach { issue ->
+        scriptLogger("csv").warn("CSV row " + (issue.rowNumber?.toString() ?: "-") +
+            ", column " + issue.column + ": " + issue.message)
+    }
+}
+val normalized = result.table
+```
+
+Supported schema types are `TEXT`, `INT`, `LONG`, `DECIMAL`, `DOUBLE`, `BOOLEAN`, `UUID`, `DATE` and `INSTANT`. Required values, defaults, trimming, allowed values, and a bounded issue count are supported. Addons can also call `KSLAPI.csvSchema { ... }`.
+
+Additional table operations include `upsertBy`, `distinctBy`, `groupRowsBy`, `findAll`, `updateRows`, `renameColumn`, `takeRows`, `dropRows` and `sortedBy`. Typed row access now includes Decimal, UUID, LocalDate and Instant getters.

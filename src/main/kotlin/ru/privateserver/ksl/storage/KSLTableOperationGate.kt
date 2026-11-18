@@ -1,5 +1,4 @@
-package ru.privateserver.ksl
-
+package ru.privateserver.ksl.storage
 /**
  * Keeps a table operation's ordering marker and database-queue submission indivisible
  * with respect to other operations on the same table.

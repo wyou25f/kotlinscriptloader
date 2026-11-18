@@ -670,32 +670,3 @@ fun String.parseCsv(options: KslCsvOptions = KslCsvOptions()): KslCsvTable =
 /** Encodes this table to CSV text. */
 fun KslCsvTable.toCsv(options: KslCsvOptions = KslCsvOptions()): String =
     KslCsvCodec.encode(this, options)
-
-
-## Typed schemas and normalization
-
-A CSV file does not store cell types. Define a schema once, then validate or normalize each loaded table:
-
-```kotlin
-val schema = csvSchema {
-    int("id", required = true)
-    text("name", required = true, trim = true)
-    decimal("balance", defaultValue = BigDecimal.ZERO)
-    bool("active", defaultValue = true)
-    uuid("owner")
-    date("joined")
-    instant("updatedAt")
-}
-val result = schema.normalize(loadCsv("data/users.csv") ?: csvTable())
-if (!result.isValid) {
-    result.validation.issues.forEach { issue ->
-        scriptLogger("csv").warn("CSV row " + (issue.rowNumber?.toString() ?: "-") +
-            ", column " + issue.column + ": " + issue.message)
-    }
-}
-val normalized = result.table
-```
-
-Types: `TEXT`, `INT`, `LONG`, `DECIMAL`, `DOUBLE`, `BOOLEAN`, `UUID`, `DATE`, `INSTANT`. Required fields, defaults, trimming and allowed values are supported. `normalize()` returns a new table, adds missing schema columns, fills configured defaults in blank cells and orders schema columns first. Validation reports missing/unexpected columns, required values and invalid types. Issue collection is bounded by `maxIssues`.
-
-Table helpers now also include `upsertBy`, `distinctBy`, `groupRowsBy`, `findAll`, `updateRows`, `renameColumn`, `takeRows`, `dropRows` and `sortedBy`. Typed row reads include Decimal, UUID, LocalDate and Instant. Addons can use schema aliases and `KSLAPI.csvSchema { ... }`; API compatibility is 15.

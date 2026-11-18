@@ -1,5 +1,7 @@
 package ru.privateserver.ksl
 
+import ru.privateserver.ksl.database.KSLYamlSqlQueryCache
+
 import com.zaxxer.hikari.HikariDataSource
 import de.tr7zw.changeme.nbtapi.NBT
 import net.kyori.adventure.text.Component

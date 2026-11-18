@@ -1,8 +1,4 @@
-package ru.privateserver.ksl
-
-import ru.privateserver.ksl.script.KSLCompileCacheKey
-import ru.privateserver.ksl.script.KSLCompileCacheStats
-import ru.privateserver.ksl.script.KSLCompiledScriptCache
+package ru.privateserver.ksl.script
 
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test

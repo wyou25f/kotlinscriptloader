@@ -1,5 +1,4 @@
-package ru.privateserver.ksl
-
+package ru.privateserver.ksl.database
 /**
  * Immutable-snapshot cache for named SQL queries loaded from a script YAML file.
  * Replacing the snapshot is atomic, so DB worker threads never observe a half-refresh.
