@@ -1161,3 +1161,266 @@ PBKDF2 требует заметной вычислительной работы
 Хранилище не владеет переданным `DataSource`: закройте его при выгрузке аддона. Для SQLite, PostgreSQL и MySQL можно использовать общий DataSource, но каждому аддону требуется собственный tablePrefix. Фабрика KSLAPI назначает его автоматически; при прямом создании хранилища задайте префикс явно. Не подключайте KSL под root. Для production настройте резервное копирование и ограниченные права SQL-пользователя.
 
 Это базовый слой аккаунтов, а не готовая система восстановления паролей, MFA, CAPTCHA, rate limiting или управления ролями. Такие функции должны быть добавлены отдельно с учётом модели угроз вашего сервера.
+
+
+## Карта данных и хранилищ
+
+Книга объединяет SQL и JDBC, SQLite, MySQL/MariaDB, PostgreSQL, PostEmberDB integration client, Accounts, транзакции, миграции, YAML/TOML/JSON, CSV, NBT и schematic-файлы. События и игровые DSL находятся в [Книге I](01-scripts.md), создание аддонов — в [Книге II](02-addons.md).
+
+
+---
+
+# Дополнительная глава: NBT, vanilla components и бинарные .nbt-файлы
+
+KSL bundles and relocates Item-NBT-API, so a separate NBTAPI server plugin is not required.
+
+## Custom item data
+
+```kotlin
+val item = ItemStack(Material.DIAMOND_SWORD)
+item.modifyNBT {
+    setString("owner", player.uniqueId.toString())
+    setInt("level", 3)
+    getOrCreateCompound("stats").setDouble("damage", 12.5)
+}
+item.readNBT {
+    val owner = string("owner")
+    val level = int("level") ?: 0
+}
+```
+
+On Minecraft 1.20.5+, item `modifyNBT/readNBT` access the `custom_data` component, not vanilla item components. Avoid re-applying an `ItemMeta` snapshot captured before the NBT edit: that older snapshot can overwrite the newer item data. Make NBT edits before obtaining/editing ItemMeta, or perform the item-meta work first and then the NBT edit.
+
+## Vanilla item components
+
+```kotlin
+item.modifyComponents {
+    setString("minecraft:custom_name", """{"text":"Example"}""")
+}
+item.readComponents {
+    val customName = string("minecraft:custom_name")
+}
+```
+
+Component values must use the format expected by the corresponding Minecraft component. Component editing is a low-level operation: malformed data can make the item invalid or produce unexpected in-game behavior, so validate values against the target Minecraft version.
+
+## Entities and block entities
+
+```kotlin
+entity.modifyNBT { setBoolean("Silent", true) }
+entity.modifyPersistentNBT { setString("owner", player.uniqueId.toString()) }
+
+val state = block.state
+if (state is TileState) {
+    state.modifyNBT { setBoolean("Lock", true) }
+}
+```
+
+Entity `modifyNBT/readNBT` work with vanilla entity NBT. `PersistentNBT` methods work with the persistent custom-data compound. Vanilla block NBT exists only on block entities (chests, furnaces, signs, etc.), not ordinary blocks.
+
+## Compound operations
+
+Supported values: string, byte, short, int, long, float, double, boolean, byte/int/long arrays, nested compounds, key enumeration, existence checks, removal, SNBT parsing, and compound merging.
+
+NBT operations must run on the server primary thread. Use `runSync { ... }` when calling them from asynchronous work.
+
+The legacy `ItemStack.setTag/getTag/hasTag` and typed PDC tag APIs remain unchanged.
+
+## Detached NBT document engine
+
+Для подготовки и преобразования SNBT без изменения живого предмета, сущности или блока используйте detached-документ. Он хранит собственный снимок NBT и публикует изменения только после успешного завершения edit-блока.
+
+```kotlin
+val document = KSLNBTEngine.parse("""{owner:"Alex",stats:{level:3}}""")
+
+document.edit {
+    setStringAt("owner", "Riley")
+    setIntAt("stats.level", 4)
+}
+
+val level = document.read { intAt("stats.level") }
+val snbt = document.snbt()
+val backup = document.copy()
+```
+
+`KSLNBTEngine.empty()` создаёт пустой документ. `parse()` проверяет размер SNBT, глубину контейнеров и число элементов до передачи текста парсеру Item-NBT-API. Стандартные лимиты — 1 MiB текста, 64 уровня вложенности и 65 536 элементов; их можно настроить через `KSLNBTLimits`.
+
+`edit { ... }` работает с временной копией. Если блок выбрасывает исключение или итоговый SNBT не проходит проверку, исходный документ остаётся неизменным. Значения, возвращённые из `read { ... }`, следует считать снимком; callback получает только read-only view.
+
+Detached engine не привязан к Bukkit и не изменяет live-объекты. Применение результата к ItemStack, Entity или TileState по-прежнему выполняйте через соответствующие `modifyNBT` методы на главном потоке сервера. Самостоятельная проверка SNBT не гарантирует, что произвольные поля допустимы для конкретной версии Minecraft.
+
+
+## Бинарные файлы .nbt
+
+Для бинарных NBT-файлов в папке `scripts/` используйте `loadNBT`, `saveNBT` и `editNBT`. Это не SNBT-текстовый файл: KSL читает и пишет настоящий бинарный NBT через встроенный Item-NBT-API.
+
+```kotlin
+val document = loadNBT("data/player.nbt")
+    ?: KSLNBTEngine.empty()
+
+document.edit {
+    setString("owner", player.uniqueId.toString())
+    setIntAt("stats.level", 12)
+}
+
+check(saveNBT("data/player.nbt", document))
+```
+
+`loadNBT` возвращает `null`, если файла ещё нет. `editNBT` сам создаёт пустой документ, если файла нет, а затем атомарно сохраняет его. Путь остаётся внутри `scripts/`, расширение должно быть `.nbt`. Стандартный лимит входного файла — 16 MiB; лимиты SNBT по умолчанию остаются 1 MiB текста, 64 уровня и 65 536 элементов. Ошибка записи не заменяет ранее существующий файл.
+
+
+## Реальные Paper-интеграционные проверки
+
+Бинарные load/save используют внутренний NBT runtime Minecraft и поэтому не проверяются через MockBukkit. Для них в CI запускается отдельный тестовый плагин внутри настоящего Paper 1.21.1. Он проверяет бинарный round-trip, повторное сохранение, независимость detached-документа и сохранность существующего файла при отклонённой записи.
+
+MockBukkit остаётся основной средой быстрых unit-тестов; реальный Paper используется только для интеграционной проверки NMS-зависимого пути.
+
+
+---
+
+# Дополнительная глава: CSV: таблицы, парсер, схемы и нормализация
+
+KSL 1.2.2 includes a bounded CSV parser/writer and an editable table model. Script files live inside `scripts/`; the standalone `KslCsvFiles` API also accepts a Java `File` for addons.
+
+## Build a table in memory
+
+```kotlin
+val users = csvTable("id", "name", "coins", "active") {
+    addRow(1, "Alice", 120, true)
+    addRow(2, "Bob", 75, false)
+    addRow(
+        "id" to 3,
+        "name" to "Riley",
+        "coins" to 90,
+        "active" to true
+    )
+}
+
+users.addColumn("rank", "new")
+users[0]["coins"] = 150
+users.sortBy("coins", descending = true)
+
+val activeUsers = users.filterRows { getBoolean("active") }
+val publicView = activeUsers.select("id", "name", "rank")
+```
+
+## Parse and encode text
+
+```kotlin
+val table = csvText.parseCsv()
+val encoded = table.toCsv()
+
+val semicolon = csvText.parseCsv(
+    KslCsvOptions(
+        delimiter = ';',
+        hasHeader = true,
+        trimUnquoted = true
+    )
+)
+```
+
+The parser follows the common RFC 4180 quoting rules: delimiters, quotes and line breaks inside quoted fields are preserved; embedded quotes are escaped by doubling them. It accepts CRLF and LF records and a UTF-8 BOM. It rejects malformed quotes, duplicate/blank headers and rows wider than the header. Short rows are padded with empty cells.
+
+## Read, write and edit script files
+
+Files are stored under `scripts/`. Paths are canonicalized so a script cannot escape that directory through `../` or a symbolic link.
+
+```kotlin
+val rows = loadCsv("data/users.csv")
+    ?: csvTable("id", "name", "active")
+
+val updated = editCsv("data/users.csv", listOf("id", "name", "active")) {
+    addRow(42, "Example", true)
+    val index = column("id").indexOf("42")
+    if (index >= 0) this[index]["active"] = false
+}
+
+check(saveCsv("data/users.csv", updated))
+```
+
+## Typed row access
+
+```kotlin
+val user = rows.first()
+val id = user.requireInt("id")
+val name = user.getString("name", default = "Unknown")
+val active = user.getBoolean("active")
+val score = user.getDouble("score", default = 0.0)
+val record: Map<String, String> = user.asMap()
+```
+
+Accessors include `getString`, `getInt`, `requireInt`, `getLong`, `requireLong`, `getDouble`, `requireDouble`, `getBoolean` and `requireBoolean`. Table helpers include `append`, `addRow`, `insertRow`, `removeRow`, `addColumn`, `removeColumn`, `column`, `findFirst`, `filterRows`, `select`, `mapRows`, `sortBy`, `toMaps` and `copy`.
+
+## Limits and options
+
+`KslCsvOptions` defaults to comma delimiter, double-quote escaping, a header row, CRLF output and skipping physically empty lines. Default safety limits are 100,000 data rows, 256 columns, 1 MiB per field and 16 Mi characters total input/output. Script file reads are limited to 32 MiB. Limits can be lowered or raised explicitly within the hard caps.
+
+## Public API and addons
+
+`ru.privateserver.ksl.std.csv.*` is available to KSL scripts by default. Addons can import `ru.privateserver.ksl.api.*` and use `KSLCSVTable`, `KSLCSVRow`, `KSLCSVOptions`, plus the `KSLAPI.csvTable/parseCsv/readCsv/writeCsv` extensions. API compatibility is 15.
+
+
+## Typed schemas and normalization
+
+A CSV file stores text cells, so define the expected columns and types with a schema. Validation reports structural and value errors; normalization returns a new table with schema columns ordered first, configured defaults applied, and optional trimming.
+
+```kotlin
+val schema = csvSchema {
+    int("id", required = true)
+    text("name", required = true, trim = true)
+    decimal("balance", defaultValue = BigDecimal.ZERO)
+    bool("active", defaultValue = true)
+    uuid("owner")
+    date("joined")
+    instant("updatedAt")
+}
+val result = schema.normalize(loadCsv("data/users.csv") ?: csvTable())
+if (!result.isValid) {
+    result.validation.issues.forEach { issue ->
+        scriptLogger("csv").warn("CSV row " + (issue.rowNumber?.toString() ?: "-") +
+            ", column " + issue.column + ": " + issue.message)
+    }
+}
+val normalized = result.table
+```
+
+Supported schema types are `TEXT`, `INT`, `LONG`, `DECIMAL`, `DOUBLE`, `BOOLEAN`, `UUID`, `DATE` and `INSTANT`. Required values, defaults, trimming, allowed values, and a bounded issue count are supported. Addons can also call `KSLAPI.csvSchema { ... }`.
+
+Additional table operations include `upsertBy`, `distinctBy`, `groupRowsBy`, `findAll`, `updateRows`, `renameColumn`, `takeRows`, `dropRows` and `sortedBy`. Typed row access now includes Decimal, UUID, LocalDate and Instant getters.
+
+
+---
+
+# Дополнительная глава: Schematic clipboard и файлы .schem
+
+KSL 1.2.2 exposes optional WorldEdit clipboard support. WorldEdit must be installed and enabled for schematic operations; the rest of KSL continues to work without it.
+
+Files are stored under `plugins/KotlinScriptLoader/schematics/`. Only `.schem` files are accepted. File paths are canonicalized and cannot leave that directory. Loaded/captured clipboards are limited to 2,000,000 blocks and input files to 32 MiB.
+
+```kotlin
+// Copy the current WorldEdit selection and store it as Sponge schematic.
+val clipboard = copySchematicSelection(player)
+if (clipboard != null) {
+    logger.info("Captured ${clipboard.width}x${clipboard.height}x${clipboard.length}")
+    saveSchematic("buildings/spawn.schem", clipboard)
+}
+
+// Load a saved schematic and paste it at a location.
+val saved = loadSchematic("buildings/spawn.schem")
+if (saved != null) {
+    pasteSchematic(player, saved, player.location, ignoreAirBlocks = true)
+}
+
+// One-call convenience function.
+saveSchematicSelection(player, "backups/selection.schem")
+```
+
+Available operations:
+
+- `copySchematicSelection(player)` — capture a WorldEdit selection into `KSLClipboard`.
+- `loadSchematic(fileName)` — read a Sponge `.schem`; missing files return `null`.
+- `saveSchematic(fileName, clipboard)` — atomically write the clipboard.
+- `saveSchematicSelection(player, fileName)` — capture and save in one call.
+- `pasteSchematic(player, clipboard, location, ignoreAirBlocks)` — paste and record the operation in WorldEdit undo history.
+
+The API uses WorldEdit's public clipboard readers/writers and paste operations. Schematic operations must run on the Bukkit primary thread. Clipboard blocks are copied; entity copying is not enabled by this first version.

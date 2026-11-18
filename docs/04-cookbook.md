@@ -702,3 +702,93 @@ val total = taxCalculator(100.0)
 `@requires` задаёт порядок загрузки скриптов, а MesLib2 проверяет тип и точную метку версии экспорта. При выгрузке поставщика его экспорт удаляется; потребитель должен обрабатывать отсутствие сервиса и не сохранять полученную функцию дольше жизненного цикла поставщика.
 
 **Конец книги IV.** Четыре книги вместе образуют основную документацию KSL.
+
+
+---
+
+# Рецепт 33. Declarative Automation на YAML
+
+Automation вызывает только заранее зарегистрированные обработчики. Конфигурация не исполняет Kotlin-код и не может объявить произвольный класс или метод.
+
+```yaml
+version: 1
+automations:
+  - id: cache-refresh
+    enabled: true
+    schedule:
+      type: every
+      interval-ms: 60000
+      initial-delay-ms: 5000
+      mode: fixed-delay
+    action:
+      handler: cache.refresh
+      args:
+        region: global
+        max-items: 500
+  - id: daily-report
+    schedule:
+      type: once
+      delay-ms: 3600000
+    action:
+      handler: report.daily
+```
+
+TOML использует ту же модель version 1. Корневые ключи: `version` и `automations`. У записи допустимы `id`, `enabled`, `schedule`, `action`; у action — `handler` и необязательный `args`. Для расписания `once` требуется `delay-ms`; для `every` — `interval-ms`, необязательные `initial-delay-ms` и `mode` (`fixed-delay` или `fixed-rate`).
+
+Обработчики регистрируются кодом аддона в `KSLAutomationActionRegistry`, затем engine создаётся через addon scope. При reload сначала полностью разбирается и проверяется конфигурация, затем проверяется наличие обработчиков. Новые callbacks не выполняются до фиксации замены; если проверка не проходит, прежний набор остаётся активным. Engine закрывается вместе с addon scope.
+
+Ограничения версии 1: не более 256 автоматизаций, 1 Mi символов исходника, задержка до 30 дней, вложенность аргументов до 8 уровней. Для игровых Bukkit API переходи на главный поток через addon scope; worker callback не делает Bukkit API потокобезопасным.
+
+# Рецепт 34. JDBC Accounts через KSLAPI
+
+```kotlin
+val accounts = api.createAccountStore(this, dataSource)
+accounts.initialize()
+
+val account = accounts.register("ExampleUser", "a-long-password".toCharArray())
+
+val session = accounts.authenticate(
+    "exampleuser",
+    "a-long-password".toCharArray()
+)
+
+if (session != null) {
+    // Показывается один раз: сохрани токен на стороне клиента безопасным способом.
+    val rawToken = session.token
+    val profile = accounts.findSession(rawToken)
+}
+```
+
+`createAccountStore(owner, dataSource)` назначает аддону отдельный безопасный SQL table prefix. Напрямую созданный `KSLAccountStore` по умолчанию использует совместимые таблицы `ksl_accounts` и `ksl_account_sessions`; для изоляции передай `tablePrefix`. DataSource принадлежит вызывающему коду и не закрывается store автоматически.
+
+Пароль хранится как salted PBKDF2-HMAC-SHA256 hash; bearer token выдаётся один раз, а в БД хранится только SHA-256 digest. Сессия ограничена TTL от одной минуты до 30 дней. Вызывай register/authenticate в worker-потоке: вычисление password hash CPU-интенсивно. Это базовый account/session store, а не готовая система ролей, MFA, password reset или защиты от brute force.
+
+# Рецепт 35. Экспериментальный PostEmberDB client
+
+```kotlin
+KSLPostemberClient(
+    host = "127.0.0.1",
+    port = 7432,
+    connectTimeoutMillis = 2_000,
+    readTimeoutMillis = 5_000
+).use { db ->
+    db.execute("CREATE TABLE notes (id INTEGER NOT NULL, body TEXT)")
+    db.execute("INSERT INTO notes VALUES (1, 'hello')")
+    val result = db.query("SELECT * FROM notes")
+}
+```
+
+На текущем upstream PostEmberDB сервер in-memory, без аутентификации, транзакций и долговременного хранения; протокол поддерживает ограниченный набор SQL. Клиент KSL поэтому разрешает только loopback, ограничивает размер ответа и количество строк и задаёт connect/read timeout. Это экспериментальная интеграция для разработки, не production database и не замена SQLite/PostgreSQL/MySQL. Сам репозиторий PostEmberDB остаётся независимым.
+
+# Рецепт 36. Production checklist перед включением функции
+
+1. Проверить входные данные и ограничить размер строк, списков и файлов.
+2. Не конкатенировать пользовательские данные в SQL — использовать bind parameters.
+3. Выполнять файловый, сетевой и password-hash I/O вне Bukkit main thread.
+4. Возвращаться на главный поток перед изменением мира, игрока, инвентаря или сущности.
+5. Назначить владельца каждой задаче, listener, connection и внешнему клиенту.
+6. Закрывать scope и ресурсы в addon/script unload.
+7. Проверить rollback, timeout, повторный запуск и ошибку частичной конфигурации.
+8. Прогнать `/ksl validate`, unit tests и Paper smoke test на staging.
+9. Сделать резервную копию БД и plugin data перед заменой JAR.
+10. Не считать sandbox или отсутствие предупреждений гарантией безопасности произвольного кода.

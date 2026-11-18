@@ -942,3 +942,664 @@ The TOML format uses the same model with `[[automations]]`, `[automations.schedu
 Reload parses and validates the complete document and resolves every enabled handler before replacing the active task set. Candidate callbacks remain gated until the new set is committed, so they cannot run during a partial replacement. A parse, validation or unknown-handler error leaves the previous set running. Task scheduling failures cancel the new candidates. One-shot jobs leave the active index when complete; addon-scope close cancels remaining jobs.
 
 **Security and threads:** configuration can only select a registered handler ID. It cannot execute Kotlin, Java, reflection or shell commands. Handlers run on KSL's worker thread; switch explicitly to the Bukkit main thread before touching worlds, players, entities or inventories. The parser caps input at 1 Mi-character, entries at 256, nested argument depth at 8, and scheduling delays at 30 days. This first version supports delayed and periodic triggers; event-driven triggers are intentionally not inferred from arbitrary config text.
+
+
+## Навигация по книге
+
+Эта книга объединяет разработку Kotlin/Java-аддонов, Public API, сервисы, hooks, context extensions, KSLAddonScope, Java interop, IDE-инструменты, безопасный lifecycle и совместимость. Скриптовый runtime описан в [Книге I](01-scripts.md), хранилища и транзакции — в [Книге III](03-data-and-databases.md).
+
+
+---
+
+# Дополнительная глава: Public API Reference и контракты KSL
+
+Справочник публичных точек входа KSL для авторов Kotlin/Java-аддонов и .kts-скриптов. Он дополняет KDoc в исходниках и подробные книги, а не заменяет их. Проверяй API установленной версии JAR: внутренние классы могут меняться быстрее публичных контрактов.
+
+## Быстрая навигация
+
+| Нужно сделать | Основная точка входа |
+|---|---|
+| Получить API из аддона | **KSL.api**, **KSLApiProvider** |
+| Зарегистрировать аддон | **KSLAddon**, **KSLAPI.registerAddon** |
+| Обмениваться сервисами | **registerService**, **service<T>()**, **requireService<T>()** |
+| Расширить контекст .kts | **KSLContextExtension**, **registerContextExtension** |
+| Добавить импорты | **addDefaultImports**, **addImports** |
+| Связать аддоны событиями | **subscribe**, **publish**, **KSLTopics** |
+| Интегрироваться с другим плагином | **KSLHook**, **hook<T>()**, **requireHook<T>()** |
+| Читать состояние скриптов | **scripts**, **reloadScript**, **reloadScriptAsync**, **reloadScriptsAsync** |
+| Управлять ресурсами аддона | **KSLAddonScope** |
+| Реализовать собственный scheduler | **KSLTaskScheduler**, **KSLTaskSchedulerFactory**, **KSLTaskSpec** |
+
+## Публичный Kotlin API
+
+Для aliases и extension-функций подключай:
+
+~~~kotlin
+import ru.privateserver.ksl.api.*
+~~~
+
+Основные контракты объявлены в ru.privateserver.ksl.KSLAPI и ru.privateserver.ksl.KSLAddon. Пакет ru.privateserver.ksl.api предоставляет Kotlin-friendly aliases, provider и дополнительные extension-функции.
+
+### Получение API
+
+~~~kotlin
+import ru.privateserver.ksl.KSL
+import ru.privateserver.ksl.api.KSLApiProvider
+
+val maybeApi = KSL.apiOrNull
+if (KSLApiProvider.isAvailable) {
+    val api = KSLApiProvider.requireApi()
+    println("KSL API version: " + api.apiVersion)
+}
+~~~
+
+- **KSL.isAvailable** и **KSLApiProvider.isAvailable** — доступность API.
+- **KSL.apiOrNull** и **kslOrNull** — безопасный nullable-доступ.
+- **KSL.api** и **ksl** — обязательный доступ; до инициализации бросает ошибку.
+- **KSL_API_VERSION** — API version константа, **api.apiVersion** — версия установленного экземпляра.
+
+### Сервисы и расширение скриптов
+
+~~~kotlin
+api.registerService("economy", economyService)
+val economy = api.service<EconomyService>("economy")
+val required = api.requireService<EconomyService>("economy")
+
+api.registerContextExtension(EconomyContextExtension(economyService))
+api.addDefaultImports("example.economy.dsl.*")
+~~~
+
+Сервисы связывают аддоны без жёсткой зависимости на реализацию. Используй стабильные ключи и nullable lookup, если сервис может отсутствовать. Context extensions добавляют возможности в receiver скрипта; default imports сокращают количество повторяющихся import. Import сам по себе не загружает JAR и не добавляет классы в classloader.
+
+### События KSL
+
+~~~kotlin
+val subscription = api.subscribe(KSLTopics.SCRIPT_LOADED) { payload ->
+    val event = payload as? KSLScriptEvent ?: return@subscribe
+    // Обработать событие загрузки
+}
+api.publish("example.cache.refresh", "manual")
+~~~
+
+Встроенные темы: ksl.script.loaded, ksl.script.failed, ksl.script.unloaded. Подписчики вызываются синхронно на потоке publisher-а. Если callback меняет состояние Bukkit, переключайся на главный поток. Освобождай внешние подписки при выгрузке.
+
+### Hooks и необязательные интеграции
+
+Основные операции: **registerHook**, **unregisterHook**, **getHook**, **hooks**, **isPluginEnabled**. Kotlin extensions: **hook<T>()**, **requireHook<T>()**, **hasHook()**. Hooks позволяют проверять интеграцию без жёсткой compile-time зависимости от необязательного плагина.
+
+### Информация о скриптах и reload
+
+~~~kotlin
+val loadedScripts = api.scripts().filter { it.loaded }
+val success = api.reloadScript("events/join")
+api.reloadScriptAsync("events/join") { result ->
+    // true: загружен; false: ошибка; null: другой reload уже выполняется
+}
+api.reloadScriptsAsync { result ->
+    // null: запрос не принят, потому что reload уже выполняется
+}
+~~~
+
+**reloadScript** и **reloadScripts** выполняются с главного потока сервера и могут задержать тик при больших скриптах. Для addon callbacks предпочитай **reloadScriptAsync** и **reloadScriptsAsync**: компиляция выполняется в фоне, а применение результата — на главном потоке. Для одиночной перезагрузки callback получает true/false, а null означает, что запрос не принят.
+
+## Жизненный цикл KSLAddon
+
+Аддон реализует **KSLAddon**: свойства addonId, addonVersion, addonDescription, dependsOn, minApiVersion, а также методы onLoad(api) и onUnload().
+
+~~~kotlin
+class ExampleAddon : JavaPlugin(), KSLAddon {
+    override val addonId = "example-addon"
+    override val addonVersion = "1.0.0"
+    override val minApiVersion = 1
+
+    override fun onEnable() {
+        if (!KSL.isAvailable) {
+            server.pluginManager.disablePlugin(this)
+            return
+        }
+        KSL.api.registerAddon(this)
+    }
+
+    override fun onLoad(api: KSLAPI) {
+        api.registerService("example.greeting", GreetingService())
+    }
+
+    override fun onUnload() {
+        // Закрыть собственные ресурсы.
+    }
+
+    override fun onDisable() {
+        if (KSL.isAvailable) KSL.api.unregisterAddon(addonId)
+    }
+}
+~~~
+
+Полный готовый Gradle-проект находится в [Addon Starter Kit](../ide/templates/addon-starter/). Он включает plugin.yml, реализацию аддона, пример DSL extension, .kts-скрипт и адаптер scheduler.
+
+## KSLAddonScope
+
+Создавай scope в onLoad, закрывай в onUnload. Он владеет зарегистрированными ресурсами и освобождает их в обратном порядке:
+
+~~~kotlin
+private var scope: KSLAddonScope? = null
+
+override fun onLoad(api: KSLAPI) {
+    scope = KSLAddonScope.create(api)
+    scope?.listen<PlayerJoinEvent> { event ->
+        event.player.sendMessage("Welcome")
+    }
+    scope?.repeat(Duration.ofSeconds(30)) { task ->
+        // Callback работает в worker thread.
+        scope?.runSync {
+            Bukkit.broadcastMessage("Heartbeat #" + task.execution)
+        }
+    }
+}
+
+override fun onUnload() {
+    scope?.close()
+    scope = null
+}
+~~~
+
+Scope также предоставляет own, release, ownTask, subscribe, registerEvents, listen, runSync, runAsync, отложенные и повторяющиеся Bukkit tasks. Scope не является JVM sandbox и не делает Bukkit API потокобезопасным.
+
+## kslshu: Scheduler SPI
+
+Публичный пакет экспортирует следующие типы:
+
+- **KSLTaskScheduler** — контракт движка: schedule, cancel, cancelOwner, snapshot, close.
+- **KSLTaskSchedulerFactory** и **KSLTaskSchedulerEnvironment** — фабрика и среда создания движка.
+- **KSLTaskSpec** — owner, delay, interval, repeat mode, priority и action.
+- **KSLTaskContext** — owner, номер выполнения, время отправки.
+- **KSLTaskHandle** и **KSLTaskResult** — отмена и результат.
+- **KSLTaskSchedulerRegistry** — регистрация и создание scheduler-ов.
+- **KSLTaskScope** — фасад, принудительно назначающий owner текущего scope.
+
+~~~kotlin
+val registration = api.registerTaskSchedulerFactory("example-addon.engine") { environment ->
+    ExampleScheduler(environment)
+}
+val scheduler = api.createTaskScheduler("example-addon.engine")
+try {
+    val handle = scheduler.schedule(
+        KSLTaskSpec(owner = "example-addon", delay = Duration.ofSeconds(2)) {
+            println("Task executed")
+        }
+    )
+} finally {
+    scheduler.close()
+    registration.close()
+}
+~~~
+
+Реализация должна ограничивать очередь и конкуренцию, корректно обрабатывать отмену и закрывать только ресурсы, которыми действительно владеет. Не обращайся к Bukkit world/entity/inventory из worker threads. Официальный scheduler ksl использует общий пул KSL; его lifecycle принадлежит плагину.
+
+## Диагностика
+
+- **/ksl doctor** — проверка окружения и конфигурации.
+- **/ksl errors** — последние ошибки скриптов.
+- **/ksl runtime** — состояние runtime и worker pool.
+- **/ksl validate [script-id]** — проверка скриптов без выполнения кода; полный отчёт сохраняется в reports/.
+- **/ksl reload <script-id>** — точечная перезагрузка.
+
+Метрики KSL относятся к операциям и callbacks, которые KSL действительно оборачивает. Это не универсальный profiler произвольных Kotlin-выражений, Bukkit tasks и сторонних executors.
+
+## IntelliJ IDEA workflow
+
+1. Открой папку ide/ как Gradle project.
+2. Используй JDK 21 и JAR той же версии, что установлена на сервере.
+3. Передай -PkslJar=/path/to/KotlinScriptLoader-1.2.2.jar.
+4. Передай -PkslScriptsDir=/path/to/plugins/KotlinScriptLoader/scripts, чтобы IDE индексировала живые скрипты.
+5. Выполни verifyKslIdeSetup. Эта задача проверяет классы шаблона/API и компилирует Addon Starter Kit.
+6. Открой ide/samples/ide-completion-smoke-test.kts и проверь completion, KDoc и navigation. Ошибочный sample предназначен только для проверки диагностики.
+
+Проверка Gradle не может автоматически подтвердить работу интерфейса конкретной версии IntelliJ/Kotlin plugin. Она подтверждает classpath, наличие классов и компиляцию стартового аддона. Для IDE UI нужен ручной smoke test.
+
+## Совместимость
+
+- Сверяй minApiVersion аддона с api.apiVersion.
+- Компилируй против JAR той ветки KSL, которую поддерживаешь.
+- Предпочитай публичные aliases из ru.privateserver.ksl.api; внутренние пакеты не являются стабильным контрактом.
+- Успешная сборка не заменяет тестирование на реальном Paper-сервере.
+
+
+## Runtime telemetry
+
+KSL exposes read-only JVM telemetry to addon authors. These helpers report the
+resources visible to the running Java process; they do not reserve CPU cores,
+resize the heap, or allocate memory on behalf of the JVM.
+
+```kotlin
+val stats = api.runtimeStats() // alias: api.runtime()
+logger.info("Heap: ${stats.heapUsedBytes} / ${stats.heapMaxBytes} bytes")
+logger.info("Visible processors: ${api.availableProcessors()}")
+logger.info("Current heap usage: ${api.heapUsedBytes()} bytes")
+```
+
+The heap limit is configured with Java launch options (for example `-Xms`
+and `-Xmx`) and may also be constrained by the container or hosting panel.
+KSL's worker scheduler is bounded and configured by the server runtime; addon
+code should use its task scopes rather than create unbounded thread pools.
+
+
+## Structured logging API (v12)
+
+Public API version 12 adds an admin-aware logger for scripts and addons. KSL scripts use `scriptLogger(name) { ... }`; addons use `api.logger(ownerId, name) { ... }` or `api.createLogger(...)`. The logger provides TRACE, DEBUG, INFO, WARN, ERROR, OFF, child categories and structured key/value fields.
+
+The server administrator controls `logging.default-level`, optional `logging.owner-levels` entries and `logging.max-message-length` in config.yml. The effective threshold is the stricter of the logger requested level and the administrator minimum. A logger cannot lower the server minimum.
+
+See [Structured logging](01-scripts.md) for complete examples, config and operational guidance.
+
+
+## Declarative automation
+
+Addon authors can register a finite set of trusted handlers and select them from YAML/TOML:
+
+```kotlin
+val actions = KSLAutomationActionRegistry()
+scope.own(actions)
+actions.register("stats.flush") { context ->
+    stats.flush(context.arguments)
+}
+val engine = scope.automation(actions)
+engine.reload(configText, KSLAutomationFormat.YAML)
+```
+
+The engine supports one-shot and repeating schedules, validates the full configuration before replacement, and is owned by `KSLAddonScope`. Callbacks execute on KSL worker threads, not Bukkit's main thread. Configuration cannot contain executable source; it only references registered handler IDs. Public API version is 16.
+
+
+---
+
+# Дополнительная глава: Надёжная разработка скриптов и аддонов
+
+This guide describes the safe development loop for large KSL scripts and Paper addons. The checks are intentionally conservative: a warning points to a risky pattern, but the absence of warnings is not a proof that arbitrary Kotlin code cannot stall the server.
+
+## Recommended script workflow
+
+1. Keep each independent feature in its own `.kts` file instead of building one giant script.
+2. Use KSL-owned events, commands, tasks, worker APIs and lifecycle resources.
+3. Run `/ksl validate` before loading a whole project, or `/ksl validate events/join` for one file.
+4. Review compiler errors and authoring warnings. Validation compiles the source but does not evaluate its top-level code.
+5. Reload only after validation is clean. If compilation fails, KSL keeps the previous working version where possible.
+
+## Large diagnostic sets
+
+`/ksl validate` keeps chat output short: it shows a summary and a small sample of failing files. The complete report is written to:
+
+```text
+plugins/KotlinScriptLoader/reports/validation-*.txt
+```
+
+Reports include compiler errors, compiler warnings, authoring warnings, script IDs, failure codes and compile durations. Reports are capped at 2 MB and the newest ten are retained. This keeps a script with 50 or more diagnostics from flooding the server console while preserving a readable report.
+
+## Watchdog-aware authoring
+
+Compilation is the expensive part of loading and should happen on KSL's compile workers. Do not use `Thread.sleep`, `runBlocking`, unconditional loops, or manual thread pools in script top-level code or synchronous event callbacks.
+
+Prefer KSL-owned scheduling and worker APIs:
+
+```kotlin
+after(20L) {
+    // Runs as a scheduled KSL callback.
+}
+
+repeat(ticks = 20L) {
+    // Repeating work is owned by this script and cleaned up on unload.
+}
+
+async {
+    // Worker thread: do not access Bukkit world/player/inventory state here.
+    val result = calculateOrReadRemoteData()
+    sync {
+        // Apply Bukkit state on the server thread.
+    }
+}
+```
+
+Direct Bukkit scheduler registrations and raw threads may outlive a script reload unless explicitly cancelled. Prefer KSL APIs or register an explicit cleanup action.
+
+The Paper watchdog must remain enabled. KSL diagnostics can identify a long-running operation and capture thread snapshots, but KSL cannot safely terminate arbitrary Kotlin code already executing inside the JVM.
+
+## Addon reload APIs
+
+Addon code should use asynchronous reload APIs from lifecycle callbacks, command handlers or other server-thread code:
+
+```kotlin
+api.reloadScriptAsync("events/join") { result ->
+    when (result) {
+        true -> logger.info("Script reloaded")
+        false -> logger.warning("Script failed to compile or load")
+        null -> logger.info("Another reload is already running or KSL is shutting down")
+    }
+}
+```
+
+`reloadScript` is synchronous and blocks the caller until compilation and swap finish. Keep it for controlled tooling where blocking is intentional; prefer `reloadScriptAsync` for normal addon integrations.
+
+The public KSL API contract is version 12. Version 12 includes the structured logger for scripts and addons; see [Structured logging](01-scripts.md). Addons should compare `minApiVersion` with the installed `api.apiVersion` rather than hard-code a value.
+
+## IntelliJ preflight
+
+The IntelliJ companion provides local heuristic checks for:
+- blocking sleeps and `runBlocking`;
+- unconditional `while (true)` loops;
+- manually created threads/executors;
+- synchronous addon reload calls;
+- missing Paper/PlaceholderAPI/LuckPerms dependencies and common API typos.
+
+It analyzes `.kts` scripts and Kotlin `.kt` sources in KSL addon projects. It does not execute code, download dependencies, or replace Gradle compilation and tests.
+
+## Reliability checklist
+
+- Use `val` by default and split large files by responsibility.
+- Give every task, listener, subscription and external client a clear owner.
+- Do not access Bukkit world/entity/inventory APIs from worker threads.
+- Do not block the main thread waiting for futures or network I/O.
+- Keep the Paper watchdog enabled.
+- Run validation, addon tests and a real server smoke test before deployment.
+- Back up scripts and plugin data before replacing production JARs.
+
+
+---
+
+# Дополнительная глава: Рабочий процесс, starter kit и IntelliJ IDEA
+
+Это руководство описывает рабочий процесс проекта KSL 1.2.2. Оно не меняет номер версии и не объявляет новый релиз.
+
+## 1. Начать с готового аддона
+
+Скопируй ide/templates/addon-starter в отдельный Gradle-проект. Открой его в IntelliJ IDEA с JDK 21 и укажи JAR именно той сборки KSL, которая установлена на тестовом сервере:
+
+    ./gradlew -PkslJar=/absolute/path/to/KotlinScriptLoader-1.2.2.jar compileKotlin
+
+Не используй JAR другой версии: он может содержать другой публичный API.
+
+## 2. Публичный API
+
+Используй публичный пакет ru.privateserver.ksl.api.* и типизированные сервисы вместо поиска классов через reflection:
+
+    import ru.privateserver.ksl.KSL
+    import ru.privateserver.ksl.KSLAPI
+    import ru.privateserver.ksl.KSLAddon
+    import ru.privateserver.ksl.api.*
+
+    class ExampleAddon : JavaPlugin(), KSLAddon {
+        override val addonId = "example-addon"
+        override val addonVersion = "1.0.0"
+
+        override fun onEnable() {
+            if (!KSL.isAvailable) {
+                server.pluginManager.disablePlugin(this)
+                return
+            }
+            KSL.api.registerAddon(this)
+        }
+
+        override fun onLoad(api: KSLAPI) {
+            api.registerService("example.greetings", GreetingService())
+        }
+
+        override fun onUnload() {
+            // Close addon-owned resources.
+        }
+
+        override fun onDisable() {
+            if (KSL.isAvailable) KSL.api.unregisterAddon(addonId)
+        }
+    }
+
+Для optional-интеграций используй service<T>() и обрабатывай null. Для обязательной зависимости — requireService<T>(), чтобы получить понятную ошибку при отсутствии сервиса.
+
+## 3. Один scope на жизненный цикл
+
+KSLAddonScope владеет listeners, KSL subscriptions и задачами. Закрывай его в onUnload:
+
+    private var scope: KSLAddonScope? = null
+
+    override fun onLoad(api: KSLAPI) {
+        val owned = KSLAddonScope.create(api, schedulerId = "example-addon")
+        scope = owned
+
+        owned.listen<PlayerJoinEvent> { event ->
+            event.player.sendMessage("Welcome!")
+        }
+
+        owned.repeat(Duration.ofSeconds(30)) {
+            // Worker thread: do not access Bukkit world/player/inventory here.
+            val count = api.onlinePlayerCount()
+            owned.runSync {
+                logger.fine("Online snapshot: $count")
+            }
+        }
+    }
+
+    override fun onUnload() {
+        scope?.close()
+        scope = null
+    }
+
+Не передавай Bukkit Player/World/Inventory между потоками как будто они thread-safe. Получай необходимые immutable данные на server thread, выполняй вычисления в фоне, затем возвращайся на server thread для Bukkit-изменений.
+
+## 4. Расширять KTS без копирования кода
+
+Если несколько скриптов повторяют одинаковые функции, вынеси их в Kotlin-аддон как extension/context API и зарегистрируй пакет:
+
+    // addon module
+    fun Player.sendWelcomeCard() {
+        sendMessage(Component.text("Welcome!"))
+    }
+
+    // addon onLoad
+    api.addDefaultImports("example.addon.dsl.*")
+
+После регистрации импорт автоматически доступен KSL script compiler. Он не добавляет произвольные внешние JAR в classloader: зависимости должны быть доступны самому KSL/серверу.
+
+## 5. Безопасная перезагрузка
+
+Не вызывай синхронный reload из event callback, если компиляция может быть долгой:
+
+    api.reloadScriptAsync("events/join") { result ->
+        when (result) {
+            true -> logger.info("Script reloaded")
+            false -> logger.warning("Script reload failed")
+            null -> logger.fine("Another reload is already running")
+        }
+    }
+
+reloadScript остаётся синхронным для совместимости. Предпочитай async API в обычной addon-интеграции.
+
+## 6. IDE и подсказки
+
+В IntelliJ IDEA:
+
+1. Открой ide/ как Gradle-проект.
+2. Используй JDK 21.
+3. Передай -PkslJar=/path/to/KotlinScriptLoader-1.2.2.jar.
+4. Для live scripts добавь -PkslScriptsDir=/path/to/plugins/KotlinScriptLoader/scripts.
+5. Запусти verifyKslIdeSetup.
+6. Установи собранный KSL IntelliJ plugin и открой ide/samples/ide-completion-smoke-test.kts.
+
+KSL completion contributor подсказывает публичные точки входа, scope/lifecycle, сервисы, typed script events, async reload, scheduler SPI и testing DSL. Для .kt подсказки включаются в файлах, где уже виден KSL API/import или контракт KSLAddon; посторонние Kotlin-проекты не засоряются.
+
+Семантические типы, переход к определению и стандартное Kotlin completion обеспечивает Kotlin plugin IntelliJ. KSL contributor добавляет доменные подсказки, а не заменяет Kotlin compiler.
+
+## 7. Проверка до запуска
+
+- /ksl validate — компиляционная проверка всех скриптов без выполнения top-level кода.
+- /ksl validate <script-id> — проверка одного скрипта.
+- /ksl doctor — диагностика окружения.
+- ./gradlew test — тесты runtime/API.
+- ./gradlew verifyKslIdeSetup — classpath и starter kit.
+- ./gradlew test в ide/intellij-plugin — тесты IDE diagnostics/completion.
+
+IDE warnings и preflight — эвристики. Они помогают находить частые проблемы, но не доказывают корректность произвольного Kotlin-кода. Перед production тестируй аддон и скрипты на staging Paper-сервере.
+
+## 8. Типичные проблемы
+
+| Симптом | Что проверить |
+|---|---|
+| Unresolved reference: KSLAPI | KSL JAR подключён как compileOnly(files(...)), путь верный |
+| Нет completion для KSL в .kt | В файле есть import ru.privateserver.ksl... или ссылка на KSLAddon |
+| Не виден addon DSL в скрипте | Пакет зарегистрирован через addDefaultImports, JAR аддона доступен серверному classloader |
+| Reload задерживает тик | Используй reloadScriptAsync / reloadScriptsAsync |
+| Bukkit API вызывается из worker | Перенеси Bukkit-операции в scope.runSync { ... } |
+| Listener остался после unload | Регистрируй его через KSLAddonScope и закрывай scope |
+
+## Статус
+
+- Runtime build version: 1.2.2 (development, not published).
+- Последний опубликованный стабильный релиз: 1.2.1.
+- Этот документ не публикует 1.2.2 и не создаёт release tag.
+- Compatibility branches не изменяются этим руководством.
+
+
+## 9. Реальные Paper-интеграционные тесты NBT
+
+Обычные тесты продолжают выполняться на JUnit + MockBukkit. Для бинарного .nbt I/O в CI дополнительно запускается настоящий Paper 1.21.1 в Docker: интеграционный тестовый плагин зависит от KotlinScriptLoader, вызывает его публичный NBT API и записывает результат проверки в result.txt.
+
+Собрать тестовый плагин отдельно:
+
+    ./gradlew --no-daemon paperIntegrationPluginJar
+
+Артефакт появится в build/paper-integration/artifacts/KSLNBTIntegration.jar. Для ручной проверки помести его и собранный KotlinScriptLoader-1.2.2.jar в каталог plugins/ тестового Paper 1.21.1. После старта тестовый плагин выполнит проверки и штатно остановит сервер. MockBukkit при этом не удаляется и не заменяется.
+
+
+---
+
+# Дополнительная глава: Java/Kotlin interop и strict sandbox
+
+Это руководство относится к development-линии KSL 1.2.2 и не объявляет выпуск новой версии.
+
+## Главное
+
+KSL выполняет настоящий Kotlin/JVM Script. Поэтому в скриптах можно вызывать обычные публичные методы Java и Kotlin-классов, которые присутствуют в classpath скрипта. Не нужно создавать отдельный KSL-wrapper для каждого метода.
+
+Работает привычный Kotlin-синтаксис:
+
+- статические методы Java вызываются через имя класса;
+- методы объектов и библиотек вызываются обычным способом;
+- Java getters/setters отображаются как Kotlin properties, где это поддерживает Kotlin interop;
+- Java SAM-интерфейсы принимают Kotlin lambdas;
+- generic-типы Java доступны с обычной проверкой компилятора;
+- Kotlin collections, sequences, text, math и extension-функции остаются доступны.
+
+Это не означает, что абсолютно любой класс из всей JVM всегда должен быть доступен. Компилятор видит зависимости текущего KSL runtime и подключённые библиотеки, а strict sandbox специально отсекает опасные классы.
+
+## Больше JDK API без ручных imports
+
+В KSL добавлены стандартные imports для часто используемых Java API:
+
+| Пакет | Для чего |
+|---|---|
+| `java.math.*` | BigDecimal, BigInteger и точная арифметика |
+| `java.text.*` | Форматирование чисел и текста |
+| `java.util.*` | Коллекции, UUID, Locale, Optional и утилиты |
+| `java.util.regex.*` | Pattern и Matcher |
+| `java.time.*` | Instant, Duration, LocalDate и другие типы времени |
+| `java.time.format.*` | DateTimeFormatter |
+| `java.time.temporal.*` | ChronoUnit и temporal fields |
+| `java.util.function.*` | Function, Predicate, Consumer и Java SAM API |
+| `kotlin.math.*` | sqrt, abs, roundToInt и математические функции |
+
+Основные Kotlin-пакеты уже входят в стандартные импорты самого Kotlin scripting host. Для сторонних пакетов по-прежнему можно писать обычный `import`.
+
+## Пример: стандартные Java и Kotlin методы
+
+```kotlin
+val price = BigDecimal("12.50")
+    .add(BigDecimal("2.00"))
+    .multiply(BigDecimal("1.20"))
+
+val formatted = DecimalFormat(
+    "0.00",
+    DecimalFormatSymbols(Locale.US)
+).format(price)
+
+val pattern = Pattern.compile("[A-Z]+")
+val isKsl = pattern.matcher("KSL").matches()
+
+val started = Instant.parse("2026-11-16T12:00:00Z")
+val finished = started.plusSeconds(30)
+val elapsedSeconds = ChronoUnit.SECONDS.between(started, finished)
+
+val byName = HashMap<String, Int>().apply {
+    put("answer", 42)
+}
+
+val distance = sqrt(3.0 * 3.0 + 4.0 * 4.0)
+val rounded = distance.roundToInt()
+```
+
+Это обычные вызовы JDK/Kotlin API. Они не требуют отдельной регистрации в KSL.
+
+## Подключённые библиотеки и API других плагинов
+
+Доступность метода определяется не только языком, но и тем, находится ли нужный класс в classpath.
+
+Для Kotlin/Java addon подключай API используемого плагина как Gradle dependency (обычно `compileOnly`), а на сервере проверяй наличие соответствующего плагина. Не упаковывай внутрь аддона копию Bukkit/Paper API или чужой plugin API.
+
+Для KTS-скрипта сторонний API должен быть реально доступен через classloader сервера или загруженный KSL addon. Если аддон публикует удобный DSL, добавь его пакет через `api.addDefaultImports("example.addon.dsl.*")`. Import сам по себе не добавляет JAR в classpath и не включает отсутствующий плагин.
+
+Предпочитай публичные API интеграций и KSL hooks, а не reflection и поиск внутренних классов по имени.
+
+## Включение strict sandbox
+
+По умолчанию верхнеуровневый параметр `sandbox` в `plugins/KotlinScriptLoader/config.yml` выключен. Поэтому source preflight и classloader deny-list не применяются к обычным скриптам, пока sandbox явно не включён.
+
+Для включения строгого режима в конфигурации KSL:
+
+```yaml
+sandbox: true
+
+security:
+  sandbox-level: strict
+  sandbox-trusted: []
+```
+
+Это включает sandbox для всех скриптов, кроме ID, явно внесённых в `security.sandbox-trusted`. Перед включением проверь существующие скрипты: обращения к файлам, сети, reflection и raw threads могут перестать работать. Режим `security.sandbox-level: text` оставляет только source-фильтр и не включает classloader deny-list; для строгих ограничений оставляй `strict`.
+
+После изменения конфигурации проверь сервер через `/ksl doctor`. Не добавляй опасные классы в `security.class-deny-allowed` для обхода отказов.
+
+## Что ограничивает strict sandbox
+
+Strict sandbox оставляет нормальную работу с безопасными значениями и стандартными библиотеками, но блокирует опасные возможности, в том числе:
+
+- запуск процессов и команд ОС через ProcessBuilder/Runtime;
+- прямой доступ к системным свойствам и environment через System;
+- создание raw Thread/Timer и собственных Executors;
+- reflection, MethodHandles и ClassLoader manipulation;
+- прямой файловый доступ через java.io / java.nio.file;
+- низкоуровневые сетевые классы java.net;
+- динамическую компиляцию, загрузку bytecode и внутренние API JDK.
+
+Теперь очевидные обращения к этим API отклоняются уже на source preflight до запуска, а strict classloader остаётся дополнительной проверкой во время загрузки классов. Некоторые классы нужны самим JVM и внутренним API KSL; их наличие внутри процесса не означает, что sandboxed script получает к ним прямой доступ.
+
+Если нужна работа с файлами, SQL или сетью, используй специально предоставленные KSL API и проверяй права/пути/таймауты. Не снимай запреты на целые пакеты ради одного метода.
+
+## Важная граница безопасности
+
+KSL и Paper работают в одной JVM. Sandbox — это дополнительная защита от ошибочного или ограниченного скрипта, а не полноценная изоляция недоверенного кода от сервера. Доступный Bukkit API, сторонние плагины, уже выданные объекты и тяжёлые вычисления всё ещё могут иметь побочные эффекты.
+
+Поэтому:
+
+1. Не запускай скрипты от неизвестных авторов на production-сервере.
+2. Не считай отсутствие предупреждений доказательством безопасности.
+3. Не добавляй опасные классы в `security.class-deny-allowed` и не отключай strict sandbox, если не доверяешь каждому скрипту.
+4. Длительные вычисления переноси в KSL worker API, Bukkit-операции возвращай на главный поток.
+5. Тестируй обновления на отдельном Paper staging-сервере и держи Paper watchdog включённым.
+
+## Проверка
+
+- `/ksl validate` компилирует скрипты и выполняет source preflight, но не исполняет top-level код.
+- `/ksl doctor` проверяет конфигурацию и доступность sandbox.
+- Runtime classloader проверяет запрещённые классы при загрузке.
+- Автоматические тесты компиляции проверяют обычные Java/Kotlin API и ранний отказ для ограниченных пакетов.
+
+Эти проверки повышают предсказуемость, но не превращают in-process Kotlin в изолированную среду выполнения.
+
+## Статус версии
+
+- Development build version: 1.2.2.
+- Последний публичный стабильный релиз: 1.2.1.
+- Это руководство не создаёт новый релиз или release tag; последний публичный стабильный релиз остаётся 1.2.1.

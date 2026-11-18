@@ -70,12 +70,10 @@ KSL's user documentation is organized as four large books instead of dozens of s
 
 | Book | Contents |
 |---|---|
-| [Book I — Script Development](docs/01-scripts.md) | Kotlin basics, .kts structure, events, commands, scheduler, lifecycle, STD and runtime |
-| [Book II — Plugins, Addons and Libraries](docs/02-addons.md) | Gradle setup, KSLAPI, services, imports, classloaders, hooks, modules and KSLAddonScope |
-| [Book III — Data and Databases](docs/03-data-and-databases.md) | SQLite, MySQL, MariaDB, PostgreSQL, phpMyAdmin, SQL, persist/table, YAML, TOML and JSON |
-| [Book IV — Cookbook](docs/04-cookbook.md) | Practical recipes for commands, events, inventory, databases, caching and integrations |
-
-**Supplemental API references:** [NBT API](docs/05-nbt-api.md) covers custom item/entity/block data and vanilla item components; [items and enchantments](docs/06-items-and-enchantments.md) covers item builders and custom enchants; [STD, messages and KSL Mixins](docs/08-standard-library-mixins-and-messages.md) documents the newer script APIs.
+| [Book I — Script Development](docs/01-scripts.md) | Kotlin, .kts, events, commands, lifecycle, STD, GUI, items, sound, particles, mobs and runtime |
+| [Book II — Addons & Libraries](docs/02-addons.md) | KSLAPI, addon lifecycle, services, hooks, context extensions, Java/Kotlin, IDE and reliability |
+| [Book III — Data & Databases](docs/03-data-and-databases.md) | JDBC, SQLite, MySQL/MariaDB, PostgreSQL, experimental PostEmberDB client, Accounts, migrations, YAML/TOML/JSON, CSV, NBT and schematics |
+| [Book IV — Cookbook](docs/04-cookbook.md) | End-to-end recipes for scripts, addons, databases, accounts, automation and operations |
 
 **Offline reading:** download the complete [docs/site folder](docs/site/) and open `index.html` on your PC. The reader includes all four primary books, search, chapter navigation, code copy buttons and print layout. It does not require a server or an internet connection.
 

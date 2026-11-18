@@ -1230,3 +1230,445 @@ Restart Paper after changing the environment variable or MCP settings. Check the
 - KSL uses a local bearer token, not a full OAuth 2.1 authorization server. For remote administration, use a separately secured private tunnel and keep the KSL listener bound to loopback.
 
 The implementation follows the stateless Streamable HTTP transport in MCP protocol version `2026-07-28`: each POST carries protocol/client metadata, and the server validates the `MCP-Protocol-Version`, `Mcp-Method` and (for tool calls) `Mcp-Name` headers.
+
+
+## Карта расширенных возможностей
+
+В этой книге собраны основы `.kts`, игровые DSL, STD, цветные сообщения, предметы, звук, частицы, сущности, миксины, логирование и безопасная работа с runtime. Подробные API аддонов описаны в [Книге II](02-addons.md), хранилища и форматы данных — в [Книге III](03-data-and-databases.md), готовые сценарии — в [Книге IV](04-cookbook.md).
+
+
+---
+
+# Дополнительная глава: Звук, частицы и управляемые сущности
+
+KSL объединяет игровые эффекты в короткие DSL-вызовы. Звуки, повторяющиеся эффекты и массовый спавн используют задачи владельца-скрипта: при перезагрузке или выгрузке KSL удалит связанные задачи.
+
+## Звуковой движок
+
+Создай переиспользуемое описание звука один раз. Громкость, высота тона и категория задаются цепочкой или функциями builder:
+
+```kotlin
+val click = sound(Sound.UI_BUTTON_CLICK) {
+    volume(0.7)
+    pitchRange(0.95, 1.05)
+    category(SoundCategory.PLAYERS)
+}
+
+click.playTo(player)
+click.playAt(player.location)
+click.playNearby(player.location, radius = 24.0)
+```
+
+Вместо enum можно использовать строковый ключ: `sound("entity.player.levelup")`. Если namespace не указан, автоматически добавляется `minecraft:`. Для пользовательских ресурс-паков указывай свой namespace. Функция `music(...)` создаёт такой же preset, но по умолчанию использует категорию `SoundCategory.MUSIC` (её можно переопределить внутри builder).
+
+- `playAt(location)` — слышат игроки в мире в пределах обычной дистанции Minecraft.
+- `playTo(player, at)` — звук слышит только указанный игрок, но позиция по-прежнему влияет на затухание.
+- `playNearby(location, radius)` — проигрывает звук игрокам в заданном радиусе.
+- `repeatAt`, `repeatTo`, `repeatNearby` — повторяют звук. `times = -1` означает бесконечный повтор; вернувшийся ID можно отменить через `cancelTask(id)`.
+- `pitchRange(min, max)` — выбирает случайную высоту тона для каждого воспроизведения.
+
+Все значения проверяются: громкость 0..16, pitch 0..2, радиус неотрицательный. Методы воспроизведения вызывай в главном потоке сервера; для событий из async-потока используй `runSync { ... }`.
+
+### Последовательности
+
+Последовательность задаёт звуки относительно начала таймлайна. `at` использует абсолютный тик, `after` — задержку от предыдущего звука, `then` — следующий тик:
+
+```kotlin
+val intro = soundSequence {
+    at(0L, Sound.BLOCK_NOTE_BLOCK_HARP) {
+        volume(0.8)
+        pitch(1.0)
+    }
+    after(4L, Sound.BLOCK_NOTE_BLOCK_PLING) {
+        pitch(1.2)
+    }
+    then("ui.button.click")
+}
+
+intro.playTo(player)
+intro.playAt(player.location, repeats = 3, gapTicks = 20L)
+```
+
+Вся последовательность работает как одна отменяемая KSL-задача. Количество повторов ограничено 1..1000, чтобы случайная конфигурация не создавала бесконечный цикл.
+
+## Движок частиц
+
+Существующий `playEffect` поддерживает формы и пользовательские shape-фабрики. Новые короткие алиасы — `particle` и `particles`:
+
+```kotlin
+val effectId = player.location.particles(Particle.DUST) {
+    durationTicks = 100L
+    every(2L)
+    amount(3)
+    ring(radius = 1.4, points = 32)
+    color("#55CCFF", size = 1.2f)
+    origin(y = 1.0)
+    spin(3.0)
+    onEnd { player.msg("<gray>Эффект завершён") }
+}
+
+// У сущности: follow=true переносит форму вместе с ней.
+// entity.particle(Particle.FLAME, follow = true) { helix(0.8, 2.0, 2.5) }
+```
+
+Формы: `point`, `circle`, `ring`, `arc`, `square`, `box`, `cube`, `sphere`, `cylinder`, `cone`, `heart`, `helix` и `spiral`. Можно задать `origin`, статическое вращение `rotate` и вращение по тикам `spin`. Для частиц с дополнительными данными есть `color`/`dust`, `transition`, `block`, `item` и `particleData`.
+
+KSL сохраняет ограничения на число точек, количество частиц на эффект и общий бюджет эмиссии за тик. Числа координат и смещения проверяются на конечность, а формы, возвращающие слишком много точек, останавливаются с ошибкой скрипта. ID эффекта можно передать в `stopEffect(id)`, `stopParticles(id)` или `cancelTask(id)`.
+
+## Мобы и сущности
+
+Можно передать строковый шаблон, как раньше, или тип Bukkit напрямую:
+
+```kotlin
+val boss = mob(location, EntityType.ZOMBIE) {
+    name("<dark_red><bold>Страж")
+    maxHealth(120.0)
+    damage(12.0)
+    speed(1.25)
+    armor(8.0)
+    target(player)
+    mainHand(item(Material.NETHERITE_SWORD))
+    helmet(item(Material.NETHERITE_HELMET))
+    potion(PotionEffectType.FIRE_RESISTANCE, seconds = -1)
+    glow()
+    persistent()
+    drops(item(Material.GOLD_INGOT, amount = 3), exp = 25)
+}
+
+boss.behavior {
+    onTick(period = 20L) { mob ->
+        if (mob.health < 40.0) mob.isGlowing = true
+    }
+    onDeath { mob, killer ->
+        killer?.msg("<gold>Страж повержен")
+    }
+}
+```
+
+Доступные инструменты builder: MiniMessage-имя, текущее/максимальное здоровье, лечение, цель и сброс цели, постоянство, гравитация, коллизия, подбор предметов, огонь, скорость/вектор, телепортация, все слоты экипировки с шансом выпадения, эффекты зелий в секундах или тиках, а также исходные настройки AI и навигации Paper Pathfinder.
+
+- `mob(location, EntityType, ...)` и `spawnMob(...)` создают одну сущность.
+- `mobs(location, EntityType, amount, perTick, intervalTicks, ...)` и `spawnMobs(...)` создают группу постепенно, не спавня весь массив за один тик.
+- Старые overloads с шаблонами `"TYPE:ZOMBIE;HP:40;AI:true"` остаются доступными.
+- `behavior { onTick; onDeath; onDamaged; onAttack }` управляет событиями конкретной сущности.
+
+Мобы и их обработчики привязаны к скрипту. По умолчанию созданные KSL-сущности удаляются при выгрузке скрипта; флаг `removeOnReload = false` сохраняет саму сущность, но зарегистрированные обработчики скрипта всё равно очищаются. Управление сущностями, путь и воспроизведение частиц/звука выполняй на основном потоке сервера.
+
+
+---
+
+# Дополнительная глава: STD, цветные сообщения и KSL Mixins
+
+Это дополнение к основным книгам KSL: здесь собраны новые цветные методы, сокращения, KSL Mixins, обновление скриптового движка и защитные custom enchantments.
+
+## Цветные сообщения
+
+KSL принимает MiniMessage и legacy-коды Bukkit/Spigot. Поддерживаются `&a`, `§l`, `&#55CCFF` и шестизначная форма `&x&5&5&C&C&F&F`. Обычные амперсанды, которые не образуют код цвета, остаются текстом.
+
+```kotlin
+onEvent<PlayerJoinEvent> {
+    player.msg("<gradient:#55CCFF:#AA55FF>Добро пожаловать, </gradient><white>" + player.name)
+    player.ab("<gray>Приятной игры")
+}
+
+registerCommand("notice") { sender, _ ->
+    sender.msg("&#55CCFFЦветное сообщение <bold>с MiniMessage</bold>")
+}
+```
+
+Новые короткие методы:
+
+| Метод | Назначение |
+|---|---|
+| `sender.msg(text)` | Отправить MiniMessage/legacy текст игроку, командному отправителю или консоли |
+| `sender.sendMM(text)` | Альтернативное имя `msg` |
+| `player.ab(text)` | ActionBar |
+| `player.actionBar(text)` | Полное имя ActionBar |
+| `player.t(title, subtitle)` | Короткий Title |
+| `player.title(title, subtitle)` | Полное имя Title |
+| `mm(text)` / `text.mm()` | Строка в Adventure Component |
+| `broadcastRich(text)` | Форматированная рассылка |
+| `text.colors()` | Legacy-коды в `§`-формат |
+| `text.mmMarkup()` | Legacy-коды в MiniMessage-теги |
+
+Доступны и расширенные методы: `parseMM`, `sendRichMessage`, `sendActionBarMessage`, `showRichTitle`, `broadcastMM`, `toMiniMessageComponent`, `toMiniMessageMarkup`, `colorizeLegacy` и `stripLegacyColors`. Старые методы сохранены. Для пользовательского текста, в котором markup не нужно интерпретировать, используй `toTextComponent()`.
+
+## KSL Mixins
+
+KSL Mixins — это скриптовая композиция поведения. Они позволяют собрать несколько событий, периодических действий и одноразовых задач в один именованный объект, а затем установить его в текущий скрипт. Все обработчики и задачи принадлежат этому скрипту и снимаются при reload/unload.
+
+```kotlin
+val joinBehavior = mixin("join-behavior") {
+    description("Общие реакции на вход игрока")
+
+    on<PlayerJoinEvent> {
+        player.msg("<green>С возвращением, " + player.name + "!")
+    }
+
+    every(periodTicks = 20L) {
+        broadcastRich("<gray>Скрипт активен")
+    }
+
+    after(delayTicks = 5L) {
+        // Инициализация после применения поведения.
+    }
+}
+
+val installed = useMixin(joinBehavior)
+```
+
+Builder поддерживает `description(text)`, `on<Event> { ... }`, `every(periodTicks, initialDelayTicks) { ... }`, `after(delayTicks) { ... }` и `install { ... }`. `applyMixin(mixin)` — полное имя `useMixin`. Повторное применение одного объекта к тому же контексту возвращает `false`. Миксин нельзя установить в контекст другого скрипта.
+
+**Важно:** это KSL Mixins — композиция событий и задач уровня скриптов, а не Sponge Mixin. Это не подмена байткода Minecraft и не `@Inject`/`@Overwrite`; такие bytecode-инъекции нельзя безопасно гарантировать из обычного hot-reload Bukkit/Paper-плагина.
+
+## Обновление движка скриптов
+
+`/ksl reload changed` сравнивает SHA-256 содержимого `.kts` файлов, а не только время изменения и размер. Это помогает не пропустить изменение, когда timestamp и размер остались прежними. Проверка sandbox и компиляция используют один снимок исходника. Успешная сборка запоминает fingerprint именно скомпилированного снимка; если файл меняется во время компиляции, следующий reload заметит новую версию.
+
+## Защитные зачарования брони
+
+Для KSL Custom Enchantments добавлен `onDamageTaken`. Он вызывается для каждой надетой части брони с этим зачарованием, когда игрок получает урон от сущности. Контекст включает `player`, `attacker`, `item`, `slot`, `level` и исходный `event`.
+
+```kotlin
+val ward = customEnchant("ward") {
+    name("<aqua>Защита стража")
+    maxLevel(3)
+    targets(Material.IRON_HELMET, Material.IRON_CHESTPLATE)
+
+    onDamageTaken {
+        event.damage = (event.damage - level * 0.5).coerceAtLeast(0.0)
+    }
+}
+
+val helmet = item(Material.IRON_HELMET) {
+    customEnchant(ward, 2)
+}
+```
+
+`slot` указывает `FEET`, `LEGS`, `CHEST` или `HEAD`. Здесь изменяется текущий `EntityDamageByEntityEvent`; обычные `onHit`, `onUse`, `onBreak` и `onKill` работают как раньше.
+
+## Совместимость и версия API
+
+Существующие имена методов не удалялись. Новые сокращения добавлены поверх прежних вызовов. Публичная версия KSL API повышена до 9.
+
+
+---
+
+# Дополнительная глава: Предметы, NBT-совместимые метаданные и собственные зачарования
+
+KSL предоставляет компактный DSL для сборки предметов и отдельную систему KSL Custom Enchantments.
+
+## Быстрый конструктор предметов
+
+Пример:
+
+    val sword = item(Material.DIAMOND_SWORD) {
+        name("<aqua><bold>Ледяной клинок")
+        lore("<gray>Оружие древнего мага", "<dark_aqua>Особое зачарование: Мороз")
+        enchant(Enchantment.SHARPNESS, 5, unsafe = true)
+        unbreakable()
+        hideAttributes()
+    }
+
+Старый вызов item(material, name, lore, amount) остаётся доступен. Builder также поддерживает plainName, addLore, modelData, amount, flags, hideEnchants, hideUnbreakable, hideAll и customEnchant.
+
+Большинство методов ItemStack возвращают клон предмета, поэтому исходный объект не меняется:
+
+    val upgraded = item
+        .withName("<gold>Сокровище")
+        .withAddedLore("Найдено в подземелье")
+        .enchant(Enchantment.UNBREAKING, 3)
+
+Доступны короткие алиасы amount, enchant, unenchant, isOf, isSimilarTo, withFlags и withoutFlags.
+
+## KSL Custom Enchantments
+
+Это зачарования KSL, а не записи реестра ванильных org.bukkit.enchantments.Enchantment. Они хранят уровень в PersistentDataContainer предмета и запускают обработчики событий KSL.
+
+Пример:
+
+    import org.bukkit.Sound
+
+    val frost = customEnchant("frost") {
+        name("<aqua>Мороз")
+        maxLevel(3)
+        targets(Material.DIAMOND_SWORD, Material.NETHERITE_SWORD)
+        conflicts("flame")
+
+        onHit {
+            if (target is LivingEntity) {
+                target.addPotionEffect(PotionEffect(PotionEffectType.SLOW, 40 * level, 0))
+            }
+            attacker.world.playSound(target.location, Sound.BLOCK_GLASS_BREAK, 0.8f, 1.4f)
+        }
+
+        onKill {
+            player.health = (player.health + 1.0 * level).coerceAtMost(player.maxHealth)
+        }
+    }
+
+    val sword = item(Material.DIAMOND_SWORD) {
+        name("<aqua><bold>Ледяной клинок")
+        lore("<gray>Клинок, сковывающий врагов")
+        customEnchant(frost, 2)
+    }
+
+### Триггеры
+
+| Обработчик | Контекст |
+|---|---|
+| onHit | attacker, target, victim, item, level, event |
+| onUse | player, item, level, action, clickedBlock, event |
+| onBreak | player, block, item, level, event |
+| onKill | player, target, item, level, event |
+
+onHit работает для прямого удара игрока и снаряда, у которого игрок является владельцем. В onBreak и onKill проверяется предмет в главной руке. Обработчики выполняются на основном потоке Bukkit; тяжёлые вычисления не следует выполнять прямо в событии.
+
+Зачарования скрипта автоматически снимаются из реестра при reload/unload. Уже созданные предметы сохраняют ключ и уровень; если скрипт снова зарегистрирует зачарование с тем же id, оно продолжит распознаваться. Если скрипт выгружен и не загружен обратно, данные сохраняются, но обработчики не вызываются.
+
+Уровень ограничен диапазоном 1–255, предметы проверяются по targets, несовместимые ключи задаются через conflicts. По умолчанию зачарование разрешено на любом материале. Id локален для скрипта; для зачарования другого скрипта указывай полное имя script-name:id.
+
+### Операции с предметом
+
+    val stronger = sword
+        .withCustomEnchant(frost, 3)
+        .withEnchantment(Enchantment.UNBREAKING, 3)
+
+    val level = stronger.customEnchantLevel(frost)
+    val hasFrost = stronger.hasCustomEnchant(frost)
+    val plain = stronger.withoutCustomEnchant(frost)
+
+Методы withCustomEnchant, withoutCustomEnchant, withEnchantment и другие with... возвращают копию. Для изменения текущего предмета присвой результат обратно переменной.
+
+Собственные зачарования отображаются в lore. Если требуется нестандартный текст уровня или визуальный формат, lore можно настроить после вызова builder.
+
+Для зачарований брони доступен дополнительный обработчик `onDamageTaken`. Он вызывается при получении игроком урона от сущности для каждой подходящей надетой части брони; контекст содержит `player`, `attacker`, `item`, `slot`, `level` и `event`. Через `event.damage` можно изменить текущий урон. Пример с `onDamageTaken` приведён в [справочнике STD и миксинов](01-scripts.md).
+
+## Границы совместимости
+
+KSL Custom Enchantments не появятся в списке ванильных зачарований на столе зачарования и не будут автоматически поддерживаться сторонними плагинами, ожидающими Bukkit Enchantment. Для стандартных зачарований используй enchant(Enchantment, level).
+
+Система не подменяет NBT/PDC API: customEnchant предназначен для игровых эффектов, а modifyNBT, modifyPersistentNBT и modifyComponents — для низкоуровневых данных и компонентов предметов. См. также NBT API (05-nbt-api.md).
+
+
+---
+
+# Дополнительная глава: Структурированное логирование
+
+Руководство относится к development-линии KotlinScriptLoader 1.2.2. Оно описывает работу структурированного логирования и не объявляет выпуск новой версии.
+
+## Что даёт KSL logger
+
+Встроенный logger связывает сообщения с владельцем (скрипт или аддон), именем категории и уровнем важности. Это помогает фильтровать шумный debug-вывод и оставлять полезные события в серверной консоли.
+
+| Уровень | Назначение |
+|---|---|
+| `TRACE` | Очень подробные внутренние детали |
+| `DEBUG` | Отладочные сообщения |
+| `INFO` | Обычные события и состояния |
+| `WARN` | Неожиданные, но обрабатываемые ситуации |
+| `ERROR` | Ошибки, требующие внимания |
+| `OFF` | Запретить вывод через этот экземпляр logger |
+
+Видимость всегда ограничена настройкой администратора. Уровень, указанный в коде, не может ослабить серверный минимум.
+
+## В `.kts` скриптах
+
+Создай отдельный logger и переиспользуй его:
+
+```kotlin
+val shopLog = scriptLogger("economy.shop") {
+    level = KSLLogLevel.DEBUG
+    prefix = "SHOP"
+}
+
+shopLog.info("Shop script loaded", "items" to 24)
+shopLog.debug("Price cache refreshed", "entries" to 140)
+shopLog.warn("Price fallback used", "material" to "DIAMOND")
+shopLog.error("Could not load shop data", cause)
+
+val sqlLog = shopLog.child("database")
+sqlLog.info("Connection pool ready")
+```
+
+`scriptLogger()` использует ID текущего скрипта как имя по умолчанию. `kslLogger()` — короткий alias. Старые методы `log(message)`, `logWarn(message)` и `logError(message)` сохранены и отправляют сообщения через новый logger.
+
+Поля передаются как пары `"key" to value`. Они ограничены по количеству и длине, а переводы строк нормализуются, чтобы одна запись не разрасталась в много строк консоли.
+
+## В Kotlin/Java аддонах
+
+Kotlin DSL:
+
+```kotlin
+val storageLog = api.logger("example-addon", "storage") {
+    level = KSLLogLevel.DEBUG
+    prefix = "STORAGE"
+    includeOwner = true
+}
+
+storageLog.info("Storage initialized", "backend" to "sqlite")
+storageLog.child("cache").debug("Cache warmed", "entries" to 320)
+```
+
+Низкоуровневый API:
+
+```kotlin
+val logger = api.createLogger(
+    ownerId = "example-addon",
+    name = "storage",
+    config = KSLLoggerConfig().apply {
+        level = KSLLogLevel.INFO
+        prefix = "STORAGE"
+    }
+)
+
+logger.info("Addon ready")
+```
+
+Для Java доступны обычные методы `createLogger`, `info`, `warn`, `error`, а также `KSLLogLevel` и `KSLLoggerConfig`. Точные сигнатуры смотри в public API установленного KSL JAR.
+
+## Настройки сервера
+
+Минимальный уровень по умолчанию — INFO. Администратор может отдельно разрешить более подробные сообщения отдельному скрипту или аддону:
+
+```yaml
+logging:
+  default-level: INFO
+  owner-levels:
+    "script:economy/shop": DEBUG
+    "addon:example-addon": TRACE
+  max-message-length: 4096
+  script-errors-as-warnings: true
+```
+
+Ключи владельцев имеют префикс `script:` или `addon:`. Для обычного script ID используй путь без расширения `.kts`. Например, `script:economy/shop`.
+
+Примеры:
+- Глобальный INFO подавляет TRACE и DEBUG для всех владельцев.
+- Override DEBUG для одного владельца позволяет его DEBUG и уровни выше, но не TRACE.
+- Override TRACE включает все уровни этому владельцу.
+- Если logger в коде установлен на WARN, даже администраторский TRACE не заставит его писать INFO/DEBUG: более строгий из двух уровней побеждает.
+
+Изменения применяются при перечитывании конфигурации, например через `/ksl reload`. Администраторская политика хранится на стороне плагина; скрипт не может изменить её из logger config.
+
+## IntelliJ IDEA
+
+KSL IntelliJ plugin дополняет completion для `scriptLogger`, `kslLogger`, `KSLLoggerConfig`, `KSLLogLevel`, методов `trace/debug/info/warn/error`, дочерних категорий, `api.createLogger` и `api.logger`.
+
+Локальный preflight также предупреждает о голых `print/println` в KSL исходниках: такие сообщения не получают owner, категорию и управляемый уровень. Для `.kts` есть quick fix, заменяющий имя функции на `scriptLogger().info`; аргументы вызова остаются на месте. Это эвристика IDE, а не Kotlin formatter или полноценный PSI refactoring.
+
+## Ограничения и рекомендации
+
+- Логирование направляется в logger самого плагина KSL и использует серверную консольную конфигурацию; отдельный rolling-file appender не создаётся.
+- Не записывай пароли, ключи, токены, webhook URL и персональные данные в сообщения.
+- Не включай TRACE/DEBUG глобально на production надолго: подробные записи могут увеличить объём логов.
+- Не выполняй тяжёлые вычисления внутри выражений формирования сообщения до вызова logger; проверка уровня не отменяет вычисления аргументов Kotlin.
+- Logger не заменяет обработку исключений, метрики или аудит действий администратора.
+
+## Совместимость
+
+- KSL development build version: 1.2.2.
+- Public KSL API contract: version 15.
+- IDEA plugin version: 1.2.1.
+- Последний публичный стабильный релиз KSL: 1.2.1.
+- Этот документ не создаёт GitHub Release или release tag.

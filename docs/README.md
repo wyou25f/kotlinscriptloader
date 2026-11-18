@@ -1,53 +1,34 @@
 # Библиотека документации KSL
 
-Основная пользовательская документация KSL объединена в четыре большие книги. Каждая книга оформлена главами и рассчитана на чтение подряд или по отдельным разделам.
+Пользовательская документация KSL собрана в **четыре полные книги**. Все тематические руководства, которые раньше лежали отдельными файлами, перенесены в соответствующие книги как самостоятельные главы. Отдельных пользовательских книг и разрозненных справочников больше нет.
 
 ## Четыре книги
 
-| № | Книга | Содержание |
+| Книга | Для кого | Содержание |
 |---|---|---|
-| I | [Разработка скриптов](01-scripts.md) | Kotlin, .kts, события, команды, потоки, жизненный цикл, YAML, STD и Runtime |
-| II | [Плагины, аддоны и библиотеки](02-addons.md) | Gradle, KSLAPI, сервисы, imports, classloader, hooks, modules, KSLAddonScope, Automation и Java |
-| III | [Данные и базы данных](03-data-and-databases.md) | persist/table, SQL, SQLite, MySQL, MariaDB, phpMyAdmin, миграции, YAML, TOML и JSON |
-| IV | [Практические рецепты](04-cookbook.md) | Примеры команд, игровых механик, инвентаря, БД, кэша и интеграций |
+| [I. Разработка скриптов](01-scripts.md) | Авторы .kts | Kotlin, контекст, события, команды, scheduler, потоки, lifecycle, STD, GUI, предметы, NBT на уровне скриптов, звук, частицы, мобы, миксины, диагностика, логирование |
+| [II. Аддоны и библиотеки](02-addons.md) | Kotlin/Java-разработчики | Gradle, KSLAPI, addon lifecycle, KSLAddonScope, сервисы, hooks, context extensions, Java interop, sandbox, IntelliJ, диагностика и надёжность |
+| [III. Данные и базы данных](03-data-and-databases.md) | Авторы хранилищ | JDBC, SQLite, MySQL/MariaDB, PostgreSQL, экспериментальный PostEmberDB client, Accounts, транзакции, миграции, YAML/TOML/JSON, CSV, NBT, schematics |
+| [IV. Практикум](04-cookbook.md) | Все пользователи | Сквозные рецепты, игровые функции, SQL, Accounts, Automation, PostEmberDB, диагностика, production checklist |
 
-## Дополнительные справочники
+## Как пользоваться
 
-- [NBT API](05-nbt-api.md) — пользовательские NBT-данные предметов, сущностей и блоков, а также ванильные компоненты предметов.
-- [Предметы и зачарования](06-items-and-enchantments.md) — item-builder, короткие алиасы и KSL Custom Enchantments.
-- [Звук, частицы и мобы](07-sound-particles-and-mobs.md) — звуковые последовательности, повтор, формы частиц, конструктор мобов и поведение сущностей.
-- [STD, сообщения и миксины](08-standard-library-mixins-and-messages.md) — цветные сообщения, короткие методы, KSL Mixins, обновление движка и защитные зачарования.
-- [API Reference и Developer Guide](09-api-reference.md) — публичные контракты, lifecycle аддонов, сервисы, hooks, kslshu и IDE workflow.
-- [Надёжная разработка скриптов и аддонов](10-authoring-reliability.md) — validation, 50+ диагностик, watchdog-aware подходы и безопасный async reload.
-- [Удобная разработка скриптов и аддонов](11-developer-workflow.md) — starter kit, API patterns, addon scope, IDE completion и workflow 1.2.2.
-- [Java и Kotlin API без лишней рутины](12-java-kotlin-interop.md) — стандартные JDK imports, вызовы Java/Kotlin методов и строгие sandbox-ограничения.
-- [Структурированное логирование KSL](13-structured-logging.md) — logger DSL для .kts и аддонов, уровни и серверные overrides.
+1. Начни с книги I, если пишешь скрипт.
+2. Перейди к книге II, если создаёшь отдельный аддон или библиотеку.
+3. Используй книгу III для выбора хранилища и работы с форматами.
+4. Книга IV содержит готовые решения и пояснения к адаптации.
 
-## Офлайн-сайт
+Каждая книга имеет оглавление, примеры кода и ссылки на смежные главы. Сигнатуры API сверяй с исходниками и JAR той версии KSL, которая установлена на сервере: development API может меняться до публикации релиза.
 
-Можно читать книги не через GitHub, а в локальной читалке:
+## Офлайн-читалка
 
-1. Скачайте папку [site](site/) целиком.
-2. Сохраните все файлы внутри папки.
-3. Откройте `index.html` на компьютере.
+Папка [site/](site/) — автономная библиотека с поиском по всем четырём книгам, навигацией по главам, оглавлением текущей главы, копированием кода, печатью и адаптивной версткой. Скачай папку целиком и открой `index.html`; Node.js и интернет не нужны.
 
-Читалка работает без интернета и сервера. В ней есть верхняя панель, выбор книг и глав, поиск по всему тексту, оглавление главы, кнопки копирования кода и печать.
+## Проект и разработка
 
-Основные файлы сайта:
-- `site/index.html` — страница читателя;
-- `site/style.css` — бумажное оформление;
-- `site/app.js` — навигация, поиск и Markdown renderer;
-- `site/books-data.js` — тексты всех четырёх книг;
-- `site/README.txt` — инструкция по запуску.
-
-## Для контрибьюторов и AI coding agents
-
-Служебные инструкции остаются отдельно: [AI Assistant Guide](AI-ASSISTANT-GUIDE.md) и [AGENTS.md](../AGENTS.md). Они не являются пятой пользовательской книгой.
-
-## Проект
-
-- [GitHub repository](https://github.com/wyou25f/kotlinscriptloader)
 - [Корневой README](../README.md)
+- [GitHub repository](https://github.com/wyou25f/kotlinscriptloader)
 - [Примеры](../examples/)
 - [IntelliJ IDEA integration](../ide/README.md)
 - [CHANGELOG](../CHANGELOG.md)
+- [AI coding guide](AI-ASSISTANT-GUIDE.md) — служебный документ, не пользовательская книга.
