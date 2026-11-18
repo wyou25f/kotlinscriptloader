@@ -1,8 +1,15 @@
 name: Deploy KSL website to GitHub Pages
 
-# Publishing is intentionally manual while the 1.2.2 development line is in progress.
-# Do not restore push, release or workflow_run triggers until the maintainer explicitly asks to deploy.
+# Publish the current development website when its content or canonical documentation changes.
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'website/**'
+      - 'docs/site/**'
+      - 'docs/0*.md'
+      - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 permissions:
