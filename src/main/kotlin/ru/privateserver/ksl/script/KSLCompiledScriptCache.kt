@@ -1,5 +1,4 @@
-package ru.privateserver.ksl
-
+package ru.privateserver.ksl.script
 import java.util.LinkedHashMap
 import kotlin.script.experimental.api.CompiledScript
 

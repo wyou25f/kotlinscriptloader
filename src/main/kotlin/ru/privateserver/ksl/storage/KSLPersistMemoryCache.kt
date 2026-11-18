@@ -1,5 +1,4 @@
-package ru.privateserver.ksl
-
+package ru.privateserver.ksl.storage
 import java.util.concurrent.ConcurrentHashMap
 
 /**

@@ -1,5 +1,4 @@
-package ru.privateserver.ksl
-
+package ru.privateserver.ksl.script
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 

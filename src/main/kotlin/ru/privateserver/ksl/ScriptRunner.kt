@@ -1,5 +1,9 @@
 package ru.privateserver.ksl
 
+import ru.privateserver.ksl.script.KSLCompileCacheKey
+import ru.privateserver.ksl.script.KSLCompiledScriptCache
+import ru.privateserver.ksl.script.KSLSourceFingerprint
+
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import kotlin.script.experimental.api.ResultValue

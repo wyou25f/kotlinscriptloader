@@ -1,5 +1,7 @@
 package ru.privateserver.ksl
 
+import ru.privateserver.ksl.storage.KSLPersistMemoryCache
+
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test

@@ -1,5 +1,8 @@
 package ru.privateserver.ksl
 
+import ru.privateserver.ksl.database.KSLDatabaseExecutionPolicy
+import ru.privateserver.ksl.script.KSLSourceFingerprint
+
 import com.zaxxer.hikari.HikariConfig
 import de.tr7zw.changeme.nbtapi.NBT
 import com.zaxxer.hikari.HikariDataSource

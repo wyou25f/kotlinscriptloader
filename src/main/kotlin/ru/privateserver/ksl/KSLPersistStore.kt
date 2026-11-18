@@ -1,5 +1,7 @@
 package ru.privateserver.ksl
 
+import ru.privateserver.ksl.storage.KSLPersistMemoryCache
+
 import java.sql.Connection
 import java.util.concurrent.RejectedExecutionException
 import kotlin.reflect.KProperty

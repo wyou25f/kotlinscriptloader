@@ -1,5 +1,4 @@
-package ru.privateserver.ksl
-
+package ru.privateserver.ksl.database
 import java.sql.Connection
 import java.sql.PreparedStatement
 
