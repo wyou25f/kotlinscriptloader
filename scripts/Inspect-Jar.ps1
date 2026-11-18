@@ -68,6 +68,13 @@ try {
         "ru/privateserver/ksl/std/csv/KslCsvTable.class",
         "ru/privateserver/ksl/std/csv/KslCsvCodec.class",
         "ru/privateserver/ksl/std/csv/KslCsvFiles.class",
+        "ru/privateserver/ksl/std/csv/KslCsvSchema.class",
+        "ru/privateserver/ksl/std/csv/KslCsvSchemaBuilder.class",
+        "ru/privateserver/ksl/std/csv/KslCsvColumn.class",
+        "ru/privateserver/ksl/std/csv/KslCsvType.class",
+        "ru/privateserver/ksl/std/csv/KslCsvIssue.class",
+        "ru/privateserver/ksl/std/csv/KslCsvValidationResult.class",
+        "ru/privateserver/ksl/std/csv/KslCsvNormalizationResult.class",
         "ru/privateserver/ksl/std/csv/KslCsvKt.class",
     )
     foreach ($Entry in $Required) {

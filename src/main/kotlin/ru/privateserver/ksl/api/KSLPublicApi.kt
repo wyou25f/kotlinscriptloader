@@ -29,6 +29,13 @@ import ru.privateserver.ksl.std.csv.KslCsvRow as CoreKslCsvRow
 import ru.privateserver.ksl.std.csv.KslCsvTable as CoreKslCsvTable
 import ru.privateserver.ksl.std.csv.KslCsvCodec as CoreKslCsvCodec
 import ru.privateserver.ksl.std.csv.KslCsvFiles as CoreKslCsvFiles
+import ru.privateserver.ksl.std.csv.KslCsvSchema as CoreKslCsvSchema
+import ru.privateserver.ksl.std.csv.KslCsvSchemaBuilder as CoreKslCsvSchemaBuilder
+import ru.privateserver.ksl.std.csv.KslCsvColumn as CoreKslCsvColumn
+import ru.privateserver.ksl.std.csv.KslCsvType as CoreKslCsvType
+import ru.privateserver.ksl.std.csv.KslCsvIssue as CoreKslCsvIssue
+import ru.privateserver.ksl.std.csv.KslCsvValidationResult as CoreKslCsvValidationResult
+import ru.privateserver.ksl.std.csv.KslCsvNormalizationResult as CoreKslCsvNormalizationResult
 import java.io.File
 import ru.privateserver.ksl.nbt.KSLNBTDocument as CoreKSLNBTDocument
 import ru.privateserver.ksl.nbt.KSLNBTLimits as CoreKSLNBTLimits
@@ -118,6 +125,13 @@ typealias KSLClipboard = CoreKSLClipboard
 typealias KSLCSVTable = CoreKslCsvTable
 typealias KSLCSVRow = CoreKslCsvRow
 typealias KSLCSVOptions = CoreKslCsvOptions
+typealias KSLCSVSchema = CoreKslCsvSchema
+typealias KSLCSVSchemaBuilder = CoreKslCsvSchemaBuilder
+typealias KSLCSVColumn = CoreKslCsvColumn
+typealias KSLCSVType = CoreKslCsvType
+typealias KSLCSVIssue = CoreKslCsvIssue
+typealias KSLCSVValidationResult = CoreKslCsvValidationResult
+typealias KSLCSVNormalizationResult = CoreKslCsvNormalizationResult
 /** Detached NBT document and its bounded parser/codec. */
 typealias KSLNBTDocument = CoreKSLNBTDocument
 typealias KSLNBTLimits = CoreKSLNBTLimits
@@ -165,6 +179,13 @@ typealias KSLOfficialTaskScheduler = CoreKSLOfficialTaskScheduler
 /** Creates a CSV table through the stable addon API. */
 fun KSLAPI.csvTable(vararg columns: String): KSLCSVTable =
     CoreKslCsvTable(columns.toList())
+
+/** Creates a reusable CSV schema for validation and normalization. */
+fun KSLAPI.csvSchema(
+    allowAdditionalColumns: Boolean = false,
+    maxIssues: Int = 1_000,
+    block: KSLCSVSchemaBuilder.() -> Unit
+): KSLCSVSchema = KSLCSVSchemaBuilder(allowAdditionalColumns, maxIssues).apply(block).build()
 
 /** Parses CSV source text through the stable addon API. */
 @JvmOverloads
