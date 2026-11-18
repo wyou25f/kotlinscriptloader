@@ -320,8 +320,8 @@ fun base64Decode(value: String): String? = KSLSecurity.base64Decode(value)
     private fun ByteArray.toHex(): String =
         joinToString("") { "%02x".format(it.toInt() and 0xff) }
 
-    private fun String.hexToBytesOrNull(): ByteArray? {
-        if (length != 64 || length % 2 != 0 || any { it.digitToIntOrNull(16) == null }) return null
+    private fun String.hexToBytesOrNull(expectedLength: Int = 64): ByteArray? {
+        if (length != expectedLength || length % 2 != 0 || any { it.digitToIntOrNull(16) == null }) return null
         return runCatching { chunked(2).map { it.toInt(16).toByte() }.toByteArray() }.getOrNull()
     }
 
@@ -332,12 +332,19 @@ fun base64Decode(value: String): String? = KSLSecurity.base64Decode(value)
 
 /** Concise top-level aliases for common KSL script use. */
 fun String.sha256(): String = KSLSecurity.sha256(this)
+fun String.sha512(): String = KSLSecurity.sha512(this)
 fun File.sha256(): String = KSLSecurity.sha256File(this)
+fun File.sha512(): String = KSLSecurity.sha512File(this)
 fun String.sha256Matches(expectedHex: String): Boolean = KSLSecurity.verifySha256(this, expectedHex)
+fun String.sha512Matches(expectedHex: String): Boolean = KSLSecurity.verifySha512(this, expectedHex)
 fun hashPassword(password: String): String = KSLSecurity.hashPassword(password)
 fun verifyPassword(password: String, encodedHash: String): Boolean =
     KSLSecurity.verifyPassword(password, encodedHash)
 fun hmacSha256(message: String, secret: String): String = KSLSecurity.hmacSha256(message, secret)
+fun verifyHmacSha256(message: String, secret: String, expectedHex: String): Boolean =
+    KSLSecurity.verifyHmacSha256(message, secret, expectedHex)
+fun needsPasswordRehash(encodedHash: String, targetIterations: Int = 210_000): Boolean =
+    KSLSecurity.needsPasswordRehash(encodedHash, targetIterations)
 fun secureToken(byteCount: Int = 32): String = KSLSecurity.randomToken(byteCount)
 fun base64Encode(value: String): String = KSLSecurity.base64Encode(value)
 fun base64Decode(value: String): String? = KSLSecurity.base64Decode(value)
