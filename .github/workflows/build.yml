@@ -67,7 +67,7 @@ jobs:
         run: ./build.sh -Task Package -NoDaemon
 
       - name: Build real-Paper NBT integration test plugin
-        run: ./gradlew --no-daemon paperIntegrationPluginJar
+        run: bash ./gradlew --no-daemon paperIntegrationPluginJar
 
       - name: Run binary NBT integration tests on Paper 1.21.1
         shell: bash
