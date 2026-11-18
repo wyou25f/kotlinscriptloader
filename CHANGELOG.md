@@ -2,6 +2,8 @@
 
 ## 1.2.2 — development (not published)
 
+- Added a real-Paper 1.21.1 integration runner for binary NBT read/write; MockBukkit remains the fast unit-test environment.
+
 - Aligned addon starter guidance, API v15 documentation and database diagnostics/locale hints with the supported PostgreSQL backend.
 
 - KSLAddonScope now releases one-shot Bukkit task registrations after completion, preventing long-lived addons from retaining every completed task until unload.

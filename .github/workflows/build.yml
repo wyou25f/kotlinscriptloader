@@ -95,6 +95,7 @@ jobs:
           }
           trap cleanup EXIT
 
+          server_ready_attempt=""
           for attempt in $(seq 1 120); do
             if [[ -f "$RESULT_FILE" ]]; then
               break
@@ -103,6 +104,15 @@ jobs:
             if [[ "$running" != "true" ]]; then
               echo "Paper exited before the NBT integration plugin wrote its result."
               exit 1
+            fi
+            server_logs="$(docker logs ksl-paper-nbt-integration 2>&1 || true)"
+            if grep -q "Done (" <<< "$server_logs"; then
+              if [[ -z "$server_ready_attempt" ]]; then
+                server_ready_attempt="$attempt"
+              elif (( attempt - server_ready_attempt >= 6 )); then
+                echo "Paper became ready, but the NBT integration plugin did not write a result."
+                exit 1
+              fi
             fi
             sleep 5
           done
