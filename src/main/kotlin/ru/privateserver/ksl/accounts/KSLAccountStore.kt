@@ -81,7 +81,7 @@ class KSLAccountStore @JvmOverloads constructor(
         val encodedHash = try {
             KSLSecurity.hashPassword(passwordCopy, passwordIterations)
         } finally {
-            passwordCopy.fill('\\u0000')
+            passwordCopy.fill('\u0000')
         }
         val account = KSLAccount(UUID.randomUUID().toString(), normalized, clock.millis())
         try {
@@ -138,7 +138,7 @@ class KSLAccountStore @JvmOverloads constructor(
         val verified = try {
             KSLSecurity.verifyPassword(passwordCopy, row.passwordHash)
         } finally {
-            passwordCopy.fill('\\u0000')
+            passwordCopy.fill('\u0000')
         }
         if (!verified) return null
 
@@ -153,7 +153,7 @@ class KSLAccountStore @JvmOverloads constructor(
                     val upgraded = try {
                         KSLSecurity.hashPassword(copy, passwordIterations)
                     } finally {
-                        copy.fill('\\u0000')
+                        copy.fill('\u0000')
                     }
                     connection.prepareStatement(
                         "UPDATE ksl_accounts SET password_hash = ? WHERE id = ? AND password_hash = ?"
