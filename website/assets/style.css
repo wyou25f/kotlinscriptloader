@@ -408,3 +408,11 @@
 .docs-footer-panel .actions{flex-wrap:wrap}
 @media(max-width:900px){.docs-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.home-quickstart{grid-template-columns:1fr}.about-faq-grid{grid-template-columns:1fr}.docs-overview{grid-template-columns:1fr}.docs-overview-count{grid-template-columns:auto auto;justify-content:start;align-items:center;gap:10px;border-left:0;border-top:1px solid #ffffff18;padding:12px 0 0}.docs-overview-count small{grid-column:1/-1;text-align:left;margin:0}.docs-grid{grid-template-columns:1fr}.docs-footer-panel{align-items:flex-start;flex-direction:column}}
+
+.home-hero{position:relative;isolation:isolate;background-image:url("./assets/hero-orbit.svg");background-repeat:no-repeat;background-size:min(58%,640px) auto;background-position:96% 42%}
+.home-hero-copy{position:relative;z-index:1}
+.home-hero .terminal{backdrop-filter:blur(10px);background:linear-gradient(145deg,#111a2bdc,#101420e8)}
+.home-feature-grid .card{min-height:176px}.home-feature-grid .feature-icon{width:31px;height:31px}
+.home-bottom-cta{border:1px solid #3b4c69;border-radius:20px;padding:28px;background:linear-gradient(115deg,#18263c,#18172f)}
+@media(max-width:900px){.home-hero{background-size:65% auto;background-position:100% 10%}}
+@media(max-width:650px){.home-hero{background-size:100% auto;background-position:100% 0%}}

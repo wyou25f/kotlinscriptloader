@@ -429,6 +429,18 @@ jobs:
               json.dumps(data, ensure_ascii=False, separators=(",", ":")),
               encoding="utf-8",
           )
+      - name: Include the four-book offline documentation reader
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p website/library
+          cp -R docs/site/. website/library/
+          test -s website/library/index.html
+          test -s website/library/books-data.js
+          test -s website/library/assets/book-scripts.svg
+          test -s website/library/assets/book-addons.svg
+          test -s website/library/assets/book-data.svg
+          test -s website/library/assets/book-cookbook.svg
       - name: Refresh website assets
         shell: bash
         run: |
@@ -454,6 +466,10 @@ jobs:
           test -s website/changelog.html
           test -s website/assets/style.css
           test -s website/assets/app.js
+          test -s website/assets/hero-orbit.svg
+          test -s website/assets/ksl-mark.svg
+          test -s website/library/index.html
+          test -s website/library/books-data.js
           test -s website/data.json
           test -s website/history.json
           test -s website/source-tree.json

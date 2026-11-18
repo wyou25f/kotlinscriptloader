@@ -37,3 +37,33 @@
 .tok-builtin{color:#426e8b}
 .tok-operator{color:#a05d73}
 .tok-punctuation{color:#7d7668}
+
+/* Four-book visual identity */
+:root{--paper:#0a1020;--light:#111b2e;--deep:#0e1728;--ink:#eaf0ff;--soft:#a7b4ca;--faint:#7d8ba5;--line:#263650;--line-dark:#344967;--olive:#7f8dff;--olive-dark:#9aabff;--rust:#68d9d2;--code:#101a2c;--shadow:rgba(0,0,0,.24);--serif:Georgia,"Times New Roman",serif;--sans:Inter,Arial,sans-serif}
+body{background:radial-gradient(ellipse at 12% 0%,#24365b55,transparent 38%),radial-gradient(ellipse at 88% 4%,#49306a44,transparent 32%),var(--paper);color:var(--ink)}
+.topbar{background:rgba(10,16,32,.94);border-color:var(--line);box-shadow:0 8px 28px #0003;backdrop-filter:blur(16px)}
+.brand-mark{border-radius:11px;background:linear-gradient(135deg,#65d8d2,#8b7bff);color:#0a1020;border:0;box-shadow:none}
+.sidebar{background:#0d1729;border-color:var(--line)}
+.eyebrow{color:var(--rust)}
+.book-number{border-radius:7px;background:#1b2b45;color:#b9c7e2}
+.book-nav.active .book-number{background:linear-gradient(135deg,#6bd9d3,#8b7bff);color:#08111f}
+.book-nav.active{border-color:#50618a;background:#14213a;border-radius:10px}
+.chapter-link.active{background:#172640;color:#dce6ff;border-left-color:#68d9d2;border-radius:0 8px 8px 0}
+.welcome h1{color:#eef3ff}.welcome h1 em{color:#9b91ff}
+.welcome-lead,.welcome-note{color:#aebbd1}
+.welcome-card{position:relative;overflow:hidden;background:linear-gradient(145deg,#17243a,#101a2b);border:1px solid #334866;border-radius:16px;box-shadow:0 12px 28px #0002;color:var(--ink)}
+.welcome-card:hover{border-color:#7286b7;box-shadow:0 18px 36px #0004}
+.book-card-art{float:right;width:78px;height:68px;display:grid;place-items:center}
+.book-card-art img{display:block;width:100%;height:100%;object-fit:contain}
+.welcome-card .card-index{color:#7edbd5}.welcome-card strong{color:#edf2ff}.welcome-card small{color:#a7b4ca}
+.book-page{background:#101a2b;border:1px solid #2b3c56;border-radius:16px;box-shadow:0 20px 60px #0003;color:#e7edfb}
+.book-page h1,.book-page h2,.book-page h3{color:#f0f4ff}.book-page a{color:#80dcd7}
+.book-page pre{background:#0a1120;border:1px solid #2b3d59;border-radius:12px}
+.book-page code{background:#1b2940;color:#d5e2ff}
+.book-page blockquote{border-left-color:#8f83ff;background:#18243a}
+.table-wrap table{background:#111c30}.table-wrap th{background:#1b2b45;color:#dce6ff}
+.table-wrap td,.table-wrap th{border-color:#30435f}
+.rightbar-box,.rightbar-quote{background:#101a2b;border-color:#2a3c56;color:#dce5f5}
+.search-panel{background:#111c30;border-color:#3b4e6d}
+.search-result{background:#17243a;border-color:#30435f;color:#eaf0ff}
+@media(max-width:900px){.sidebar{background:#0d1729}.reading-area{padding-left:20px;padding-right:20px}}
