@@ -1,5 +1,4 @@
-package ru.privateserver.ksl
-
+package ru.privateserver.ksl.addon
 import java.net.URL
 import java.util.Collections
 import java.util.Enumeration

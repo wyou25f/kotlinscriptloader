@@ -1,5 +1,7 @@
-package ru.privateserver.ksl
+package ru.privateserver.ksl.script
 
+import ru.privateserver.ksl.CompiledUnit
+import ru.privateserver.ksl.KSLError
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.io.File

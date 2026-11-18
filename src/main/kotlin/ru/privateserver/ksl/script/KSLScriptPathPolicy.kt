@@ -1,5 +1,4 @@
-package ru.privateserver.ksl
-
+package ru.privateserver.ksl.script
 import java.io.File
 import java.nio.file.Files
 

@@ -1,5 +1,7 @@
-package ru.privateserver.ksl
+package ru.privateserver.ksl.locale
 
+import ru.privateserver.ksl.KSLError
+import ru.privateserver.ksl.KSLErrorCategory
 import org.bukkit.configuration.file.YamlConfiguration
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull

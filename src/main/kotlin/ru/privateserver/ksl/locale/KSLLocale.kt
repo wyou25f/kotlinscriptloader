@@ -1,5 +1,6 @@
-package ru.privateserver.ksl
+package ru.privateserver.ksl.locale
 
+import ru.privateserver.ksl.KotlinScriptLoaderPlugin
 import org.bukkit.configuration.file.YamlConfiguration
 import java.io.File
 import java.io.InputStreamReader

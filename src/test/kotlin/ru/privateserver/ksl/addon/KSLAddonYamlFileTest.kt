@@ -1,5 +1,4 @@
-package ru.privateserver.ksl
-
+package ru.privateserver.ksl.addon
 import org.bukkit.configuration.file.YamlConfiguration
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull

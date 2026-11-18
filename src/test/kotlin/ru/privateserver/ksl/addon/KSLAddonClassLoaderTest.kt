@@ -1,5 +1,4 @@
-package ru.privateserver.ksl
-
+package ru.privateserver.ksl.addon
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Test

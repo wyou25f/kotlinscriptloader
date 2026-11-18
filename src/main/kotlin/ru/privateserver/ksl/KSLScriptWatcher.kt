@@ -1,5 +1,7 @@
 package ru.privateserver.ksl
 
+import ru.privateserver.ksl.script.KSLScriptPathPolicy
+
 import org.bukkit.Bukkit
 import org.bukkit.scheduler.BukkitTask
 import java.io.File

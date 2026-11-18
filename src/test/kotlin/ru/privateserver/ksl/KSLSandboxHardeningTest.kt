@@ -1,5 +1,7 @@
 package ru.privateserver.ksl
 
+import ru.privateserver.ksl.script.KSLScriptPathPolicy
+
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertSame

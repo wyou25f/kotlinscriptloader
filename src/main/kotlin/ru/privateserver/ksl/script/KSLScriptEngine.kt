@@ -1,6 +1,6 @@
-package ru.privateserver.ksl
+package ru.privateserver.ksl.script
 
-import ru.privateserver.ksl.script.KSLCompileCacheStats
+import ru.privateserver.ksl.CompiledUnit
 
 import java.io.File
 import java.util.concurrent.atomic.AtomicReference

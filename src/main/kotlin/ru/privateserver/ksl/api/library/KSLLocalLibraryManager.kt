@@ -1,5 +1,7 @@
-package ru.privateserver.ksl
+package ru.privateserver.ksl.api.library
 
+import ru.privateserver.ksl.KotlinScriptLoaderPlugin
+import ru.privateserver.ksl.script.KSLScriptPathPolicy
 import org.jetbrains.kotlin.cli.common.arguments.K2JVMCompilerArguments
 import org.jetbrains.kotlin.cli.common.messages.MessageRenderer
 import org.jetbrains.kotlin.cli.common.messages.PrintingMessageCollector

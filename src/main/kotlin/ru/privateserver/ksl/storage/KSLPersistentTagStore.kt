@@ -1,5 +1,4 @@
-package ru.privateserver.ksl
-
+package ru.privateserver.ksl.storage
 import org.bukkit.NamespacedKey
 import org.bukkit.plugin.Plugin
 import org.bukkit.persistence.PersistentDataContainer
