@@ -29,6 +29,7 @@
 19. Production checklist
 20. PostgreSQL
 21. Аккаунты аддонов (KSL Accounts)
+22. PostemberDB — экспериментальная интеграция
 
 ---
 

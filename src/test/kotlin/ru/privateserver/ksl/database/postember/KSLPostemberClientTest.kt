@@ -52,7 +52,7 @@ class KSLPostemberClientTest {
         withServer(
             response = {
                 assertEquals("SELECT * FROM users", it)
-                listOf("OK 2 row(s)", "id\tname", "1\tAda", "2\tLinus")
+                listOf("OK 2 row(s)", "id\tname\t", "1\tAda\t", "2\tLinus\t")
             }
         ) { port, received ->
             KSLPostemberClient(port = port).use { client ->
@@ -104,7 +104,7 @@ class KSLPostemberClientTest {
     @Test
     fun `client enforces response row limit`() {
         withServer(
-            response = { listOf("OK 2 row(s)", "id", "1", "2") }
+            response = { listOf("OK 2 row(s)", "id\t", "1\t", "2\t") }
         ) { port, _ ->
             assertThrows(java.io.IOException::class.java) {
                 KSLPostemberClient(port = port, maxRows = 1).query("SELECT * FROM users")

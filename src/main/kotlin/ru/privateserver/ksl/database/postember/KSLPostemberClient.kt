@@ -97,11 +97,11 @@ class KSLPostemberClient(
                 if (rowCount > maxRows) {
                     throw IOException("PostemberDB returned $rowCount rows; configured limit is $maxRows")
                 }
-                val columns = reader.readLine().split('\t')
+                val columns = protocolFields(reader.readLine())
                 if (columns.any { it.isEmpty() }) throw IOException("PostemberDB returned an invalid column header")
                 val rows = ArrayList<List<String>>(rowCount)
                 repeat(rowCount) {
-                    val fields = reader.readLine().split('\t')
+                    val fields = protocolFields(reader.readLine())
                     if (fields.size != columns.size) {
                         throw IOException("PostemberDB row has ${fields.size} fields; expected ${columns.size}")
                     }
@@ -113,6 +113,12 @@ class KSLPostemberClient(
             val affected = INSERT_COUNT.matchEntire(message)?.groupValues?.get(1)?.toIntOrNull() ?: 0
             return KSLPostemberResult(message, emptyList(), emptyList(), affected)
         }
+    }
+
+    private fun protocolFields(line: String): List<String> {
+        val fields = line.split('\t')
+        // The upstream Rust server currently appends a tab after every field, including the last one.
+        return if (fields.lastOrNull() == "") fields.dropLast(1) else fields
     }
 
     override fun close() {
