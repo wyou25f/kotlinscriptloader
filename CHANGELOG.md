@@ -2,7 +2,7 @@
 
 ## 1.2.2 — development (not published)
 
-- Added an opt-in JDBC account store for addon authors: normalized unique usernames, PBKDF2 password verification and hash upgrades, hashed bearer-session storage, expiry checks and session revocation. The caller retains ownership of the supplied DataSource; password work must run off the Bukkit main thread.
+- Added an opt-in JDBC account store for addon authors: normalized unique usernames, PBKDF2 password verification and hash upgrades, hashed bearer-session storage, expiry checks and session revocation. Username normalization now rejects oversized input before allocating normalized copies, with tests for oversized names and exact session-expiry boundaries. The caller retains ownership of the supplied DataSource; password work must run off the Bukkit main thread.
 
 - Expanded KSL security helpers with SHA-512 text/file digests, constant-time SHA-512 verification, HMAC-SHA256 verification and password-hash upgrade checks. Password verification now rejects oversized encoded input before parsing.
 - Added a real-Paper 1.21.1 integration runner for binary NBT read/write; MockBukkit remains the fast unit-test environment. The test server uses the supported self-contained JAR mode; the normal build artifact remains thin. Gradle now tracks the selected thin/fat mode when generating plugin.yml.

@@ -242,8 +242,13 @@ class KSLAccountStore @JvmOverloads constructor(
             ?: throw IllegalArgumentException("Username must be 3..32 ASCII letters, digits, dots, underscores or hyphens")
 
     private fun normalizeUsernameOrNull(username: String): String? {
-        val normalized = username.trim().lowercase(java.util.Locale.ROOT)
-        return normalized.takeIf { it.length in 3..32 && USERNAME.matches(it) }
+        // Bound work before trim/lowercase so hostile oversized input cannot trigger
+        // another full-size allocation during authentication or registration.
+        if (username.length !in 3..64) return null
+        val trimmed = username.trim()
+        if (trimmed.length !in 3..32) return null
+        val normalized = trimmed.lowercase(java.util.Locale.ROOT)
+        return normalized.takeIf { USERNAME.matches(it) }
     }
 
     private fun SQLException.isConstraintViolation(): Boolean =

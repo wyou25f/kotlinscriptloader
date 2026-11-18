@@ -28,6 +28,7 @@
 18. Частые ошибки
 19. Production checklist
 20. PostgreSQL
+21. Аккаунты аддонов (KSL Accounts)
 
 ---
 

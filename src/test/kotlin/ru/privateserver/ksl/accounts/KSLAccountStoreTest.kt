@@ -8,12 +8,14 @@ import org.sqlite.SQLiteDataSource
 import java.sql.Connection
 import java.time.Clock
 import java.time.Instant
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.UUID
 
 class KSLAccountStoreTest {
     private lateinit var keeper: Connection
     private lateinit var store: KSLAccountStore
+    private lateinit var clock: MutableClock
 
     @BeforeEach
     fun setUp() {
@@ -21,9 +23,10 @@ class KSLAccountStoreTest {
             url = "jdbc:sqlite:file:ksl-${UUID.randomUUID()}?mode=memory&cache=shared"
         }
         keeper = source.connection
+        clock = MutableClock(Instant.parse("2026-01-01T00:00:00Z"))
         store = KSLAccountStore(
             source,
-            Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC),
+            clock,
             passwordIterations = 100_000
         )
         store.initialize()
@@ -55,6 +58,25 @@ class KSLAccountStoreTest {
     }
 
     @Test
+    fun expiredSessionsAreRejectedAtTheExpiryBoundary() {
+        val account = store.register("expiry_user", "correct horse battery".toCharArray())
+        val session = store.authenticate(account.username, "correct horse battery".toCharArray(), 60_000)!!
+
+        assertEquals(account, store.findSession(session.token))
+        clock.advanceMillis(60_000)
+        assertNull(store.findSession(session.token))
+    }
+
+    @Test
+    fun oversizedUsernamesAreRejectedBeforeNormalization() {
+        val oversized = "a".repeat(100_000)
+        assertNull(store.authenticate(oversized, "correct horse battery".toCharArray()))
+        assertThrows(IllegalArgumentException::class.java) {
+            store.register(oversized, "correct horse battery".toCharArray())
+        }
+    }
+
+    @Test
     fun invalidNamesPasswordsAndTokensAreRejected() {
         assertThrows(IllegalArgumentException::class.java) {
             store.register("ab", "long enough password".toCharArray())
@@ -66,6 +88,18 @@ class KSLAccountStoreTest {
         assertFalse(store.revokeSession("bad"))
         assertThrows(IllegalArgumentException::class.java) {
             store.authenticate("valid_name", "long enough password".toCharArray(), 1)
+        }
+    }
+
+    private class MutableClock(
+        private var current: Instant
+    ) : Clock() {
+        override fun getZone(): ZoneId = ZoneOffset.UTC
+        override fun withZone(zone: ZoneId): Clock = Clock.fixed(current, zone)
+        override fun instant(): Instant = current
+
+        fun advanceMillis(millis: Long) {
+            current = current.plusMillis(millis)
         }
     }
 }
