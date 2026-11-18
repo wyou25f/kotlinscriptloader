@@ -1,5 +1,4 @@
-package ru.privateserver.ksl
-
+package ru.privateserver.ksl.addon
 /**
  * Runs teardown callbacks in reverse registration order.
  * A failed callback is reported and does not prevent later resources from being released.

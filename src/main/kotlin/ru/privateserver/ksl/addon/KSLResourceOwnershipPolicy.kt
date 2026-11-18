@@ -1,5 +1,4 @@
-package ru.privateserver.ksl
-
+package ru.privateserver.ksl.addon
 /**
  * Addons may remove only resources they registered.
  * Calls made outside an addon's lifecycle context remain trusted host operations.

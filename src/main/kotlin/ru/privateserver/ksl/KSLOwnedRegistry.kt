@@ -1,5 +1,7 @@
 package ru.privateserver.ksl
 
+import ru.privateserver.ksl.addon.KSLResourceOwnershipPolicy
+
 // Name -> value map whose entries may belong to an owner (an addon) and are dropped together with it.
 class KSLOwnedRegistry<T : Any> {
 

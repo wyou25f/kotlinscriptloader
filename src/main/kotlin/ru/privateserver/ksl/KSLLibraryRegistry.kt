@@ -1,5 +1,7 @@
 package ru.privateserver.ksl
 
+import ru.privateserver.ksl.api.library.KSLExportStore
+
 class KSLLibraryRegistry(private val plugin: KotlinScriptLoaderPlugin) {
 
     private val store = KSLExportStore { key, previousOwner, newOwner ->

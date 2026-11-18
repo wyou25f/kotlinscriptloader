@@ -1,5 +1,8 @@
 package ru.privateserver.ksl
 
+import ru.privateserver.ksl.addon.KSLResourceOwnershipPolicy
+import ru.privateserver.ksl.addon.KSLReverseLifecycle
+
 import org.bukkit.Bukkit
 import org.bukkit.OfflinePlayer
 import org.bukkit.entity.LivingEntity

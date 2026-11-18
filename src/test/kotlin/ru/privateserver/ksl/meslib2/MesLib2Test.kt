@@ -3,7 +3,7 @@ package ru.privateserver.ksl.meslib2
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.util.Locale
-import ru.privateserver.ksl.KSLExportStore
+import ru.privateserver.ksl.api.library.KSLExportStore
 
 class MesLib2Test {
     private fun facade(owner: String = "provider", store: KSLExportStore = KSLExportStore()): MesLib2 =

@@ -1,5 +1,4 @@
-package ru.privateserver.ksl
-
+package ru.privateserver.ksl.api.library
 /**
  * Thread-safe script export storage.
  *

@@ -1,5 +1,7 @@
 package ru.privateserver.ksl.database
 
+import ru.privateserver.ksl.KSLDatabaseSession
+
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
