@@ -41,10 +41,13 @@ object KSLNBTFiles {
         }
     }
 
+    /** Returns validated SNBT using the document's own configured limits. */
+    internal fun contentForSave(document: KSLNBTDocument): String =
+        document.snbt().also { KSLNBTSnbtPolicy.validate(it, document.limits) }
+
     /** Writes the detached document as a binary NBT file. Existing target survives a failed write. */
     fun save(file: File, document: KSLNBTDocument) {
-        val snbt = document.snbt()
-        KSLNBTSnbtPolicy.validate(snbt)
+        val snbt = contentForSave(document)
         try {
             KSLAtomicFileWriter.writeFile(file) { temporary ->
                 NBT.writeFile(temporary, NBT.parseNBT(snbt))

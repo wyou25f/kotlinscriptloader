@@ -112,7 +112,7 @@ internal object KSLNBTPathPolicy {
  */
 class KSLNBTDocument private constructor(
     private var sourceSnbt: String,
-    private val limits: KSLNBTLimits
+    internal val limits: KSLNBTLimits
 ) {
     @Synchronized
     fun snbt(): String = sourceSnbt

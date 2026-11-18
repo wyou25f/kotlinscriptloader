@@ -201,15 +201,15 @@ class KslCsvTest {
 
     @Test
     fun csvEncoderEnforcesFieldAndTotalCharacterLimitsBeforeAppendingOversizedCells() {
-        val table = csvTable("value") { addRow("too-long") }
+        val table = csvTable("v") { addRow("too-long") }
 
         assertThrows(IllegalArgumentException::class.java) {
             KslCsvCodec.encode(table, KslCsvOptions(maxFieldCharacters = 3))
         }
         assertThrows(IllegalArgumentException::class.java) {
             KslCsvCodec.encode(
-                csvTable("value") { addRow("abc") },
-                KslCsvOptions(maxTotalCharacters = 3)
+                csvTable("v") { addRow("abc") },
+                KslCsvOptions(maxTotalCharacters = 5)
             )
         }
     }

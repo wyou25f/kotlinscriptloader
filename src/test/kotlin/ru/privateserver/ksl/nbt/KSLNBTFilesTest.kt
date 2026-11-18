@@ -76,4 +76,18 @@ class KSLNBTFilesTest {
             directory.deleteRecursively()
         }
     }
+
+    @Test
+    fun savePreflightHonorsCustomDocumentLimitsLargerThanTheDefault() {
+        val payload = "x".repeat(KSLNBTLimits.DEFAULT.maxSnbtCharacters + 32)
+        val snbt = """{payload:"$payload"}"""
+        val limits = KSLNBTLimits(maxSnbtCharacters = snbt.length + 8)
+        val document = KSLNBTDocument.fromCanonical(snbt, limits)
+
+        assertThrows(IllegalArgumentException::class.java) {
+            KSLNBTSnbtPolicy.validate(snbt)
+        }
+        assertEquals(snbt, KSLNBTFiles.contentForSave(document))
+    }
+
 }
