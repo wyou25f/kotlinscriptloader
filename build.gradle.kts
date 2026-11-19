@@ -68,7 +68,7 @@ dependencies {
     implementation("de.tr7zw:item-nbt-api:2.16.1")
 
     testImplementation("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
-    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    testImplementation("org.junit.jupiter:junit-jupiter:6.1.3")
     testImplementation("com.github.seeseemelk:MockBukkit-v1.21:3.133.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
     // The production artifact relies on Paper libraries; tests need Kotlin and scripting APIs
