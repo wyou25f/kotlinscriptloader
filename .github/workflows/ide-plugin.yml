@@ -44,7 +44,7 @@ jobs:
         run: bash ./gradlew --no-daemon -p ide/intellij-plugin buildPlugin
 
       - name: Upload IntelliJ plugin
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: KSL-IntelliJ-Plugin-${{ github.run_number }}-${{ github.sha }}
           path: ide/intellij-plugin/build/distributions/*.zip
