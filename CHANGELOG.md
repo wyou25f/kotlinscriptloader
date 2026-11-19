@@ -2,6 +2,15 @@
 
 ## 1.2.2 — development (not published)
 
+### Public API expansion — API v19
+
+- Added runtime-checked KSLTopic<T> and KSLServiceKey<T> contracts with reified Kotlin factories, typed subscribe/publish and typed service registration/lookup/removal. Existing string-based APIs remain available.
+- Added hierarchical KSLAddonScope child scopes. Child resources close with the parent in reverse registration order; typed event subscriptions can be owned by a scope.
+- Added KSLReloadOutcome and CompletableFuture-based reloadScriptFuture()/reloadScriptsFuture(), making the legacy nullable busy signal explicit while preserving callback APIs.
+- Added focused tests for contract validation, typed event delivery, typed service lookup, child-scope cleanup and asynchronous reload outcomes.
+- Public API compatibility level is now v19. KSL remains on the unpublished 1.2.2 development line.
+
+
 ### Security hardening
 
 - Added a public, bounded `KSLAuthAttemptLimiter` (API v18) with atomic attempt consumption, timed lockouts, hashed keys, expiry cleanup and a fixed memory ceiling. It is process-local; multi-server deployments still need shared enforcement.

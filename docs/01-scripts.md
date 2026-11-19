@@ -1668,7 +1668,7 @@ KSL IntelliJ plugin дополняет completion для `scriptLogger`, `kslLog
 ## Совместимость
 
 - KSL development build version: 1.2.2.
-- Historical API baseline: v15. The current development API is v18; use KSL_API_VERSION and api.apiVersion as the runtime authority.
+- Historical API baseline: v15. The current development API is v19; use KSL_API_VERSION and api.apiVersion as the runtime authority.
 - IDEA plugin version: 1.2.1.
 - Последний публичный стабильный релиз KSL: 1.2.1.
 - Этот документ не создаёт GitHub Release или release tag.

@@ -31,6 +31,7 @@
 21. Частые ошибки
 22. Release checklist
 23. Declarative automation
+24. Typed contracts and asynchronous reload outcomes
 
 ---
 
@@ -1206,7 +1207,7 @@ val engine = scope.automation(actions)
 engine.reload(configText, KSLAutomationFormat.YAML)
 ```
 
-The engine supports one-shot and repeating schedules, validates the full configuration before replacement, and is owned by `KSLAddonScope`. Callbacks execute on KSL worker threads, not Bukkit's main thread. Configuration cannot contain executable source; it only references registered handler IDs. This automation integration was introduced with API v16; the current development API is v18.
+The engine supports one-shot and repeating schedules, validates the full configuration before replacement, and is owned by `KSLAddonScope`. Callbacks execute on KSL worker threads, not Bukkit's main thread. Configuration cannot contain executable source; it only references registered handler IDs. This automation integration was introduced with API v16; the current development API is v19.
 
 
 ---
@@ -1277,7 +1278,7 @@ api.reloadScriptAsync("events/join") { result ->
 
 `reloadScript` is synchronous and blocks the caller until compilation and swap finish. Keep it for controlled tooling where blocking is intentional; prefer `reloadScriptAsync` for normal addon integrations.
 
-Structured logging was introduced in API v12; the current development API is v18. Addons should compare minApiVersion with the installed api.apiVersion rather than hard-code a value. See [Structured logging](01-scripts.md). Addons should compare `minApiVersion` with the installed `api.apiVersion` rather than hard-code a value.
+Structured logging was introduced in API v12; the current development API is v19. Addons should compare minApiVersion with the installed api.apiVersion rather than hard-code a value. See [Structured logging](01-scripts.md). Addons should compare `minApiVersion` with the installed `api.apiVersion` rather than hard-code a value.
 
 ## IntelliJ preflight
 
@@ -1603,3 +1604,98 @@ KSL и Paper работают в одной JVM. Sandbox — это дополн
 - Development build version: 1.2.2.
 - Последний публичный стабильный релиз: 1.2.1.
 - Это руководство не создаёт новый релиз или release tag; последний публичный стабильный релиз остаётся 1.2.1.
+
+
+---
+
+## Глава 24. Типизированные контракты и асинхронные результаты
+
+Старые методы KSLAPI остаются доступными: строковые ключи сервисов, event bus с Any? и callback-перезагрузка. Для нового кода доступны типизированные обёртки. Они используют тот же runtime и не создают вторую шину событий или отдельный реестр сервисов.
+
+### 24.1 Типизированные темы событий
+
+~~~kotlin
+import ru.privateserver.ksl.api.*
+
+data class BalanceChanged(val playerId: java.util.UUID, val balance: Long)
+
+val balanceChanged = kslTopic<BalanceChanged>("example.economy.balance-changed")
+
+val subscription = api.subscribe(balanceChanged) { event ->
+    logger.info("Player ${event.playerId}: ${event.balance}")
+}
+
+api.publish(balanceChanged, BalanceChanged(player.uniqueId, 250L))
+
+// При выгрузке аддона:
+subscription.close()
+~~~
+
+Тема хранит имя и runtime-класс payload. Если старый код публикует в ту же строковую тему объект другого типа, typed-подписчик отклонит его через IllegalArgumentException; event bus запишет ошибку обработчика и продолжит доставку другим подписчикам. Имена тем ограничены 128 символами и набором букв, цифр, точки, подчёркивания, двоеточия и дефиса.
+
+### 24.2 Типизированные сервисные ключи
+
+~~~kotlin
+interface EconomyService {
+    fun balance(playerId: java.util.UUID): Long
+}
+
+val economyKey = kslServiceKey<EconomyService>("example.economy")
+
+// Аддон-поставщик:
+api.registerService(economyKey, economyService)
+
+// Аддон-потребитель:
+val economy: EconomyService = api.requireService(economyKey)
+val optional: EconomyService? = api.service(economyKey)
+
+// При выключении поставщика:
+api.unregisterService(economyKey)
+~~~
+
+Тип проверяется через Class из ключа до возврата сервиса. Для взаимодействия между разными плагинами всё равно используйте один общий API-класс из classloader сервера и compileOnly-зависимость на KSL. Не shade-те копии контрактов в addon JAR.
+
+### 24.3 Иерархические resource scopes
+
+~~~kotlin
+val root = api.addonScope()
+val databaseScope = root.childScope()
+
+databaseScope.subscribe(balanceChanged) { event ->
+    // Обработчик принадлежит только databaseScope.
+}
+
+databaseScope.own(databaseClient)
+root.close() // закрывает дочернюю область и все её ресурсы
+~~~
+
+Дочерняя область разделяет scheduler и event bus владельца. Ресурсы освобождаются в обратном порядке регистрации. Закрытие дочерней области вручную безопасно; повторное закрытие не выполняет освобождение повторно. Сама область не является JVM sandbox и не меняет правила потокобезопасности Bukkit.
+
+### 24.4 Futures для reload
+
+Старые callback-методы сохраняются. Новые функции возвращают CompletableFuture и заменяют nullable-сигнал занятости явным результатом:
+
+~~~kotlin
+api.reloadScriptFuture("events/join").whenComplete { outcome, failure ->
+    if (failure != null) {
+        api.kslPlugin.logger.warning("Reload request failed: ${failure.message}")
+    } else when (outcome) {
+        is KSLReloadOutcome.Script ->
+            if (outcome.reloaded) logger.info("Reloaded") else logger.warning("Reload failed")
+        KSLReloadOutcome.Busy ->
+            logger.info("Another reload is already running")
+        is KSLReloadOutcome.Batch -> Unit
+        null -> Unit
+    }
+}
+~~~
+
+Для всех скриптов используйте reloadScriptsFuture(). Результат Batch содержит количество успешно перезагруженных и неуспешных скриптов. Ошибки синхронного запуска завершают future exceptionally; ошибка компиляции представляется Script(reloaded = false). Не вызывайте get()/join() на главном потоке Bukkit: дождитесь future на worker thread, а игровые изменения перенесите в sync callback.
+
+### 24.5 Совместимость
+
+- API compatibility level текущей разработки: v19.
+- Старые строковые методы subscribe/publish и getService/registerService/unregisterService не удалены.
+- Новые типизированные API — дополнительные контракты; старые бинарные интеграции не требуют переписывания.
+- Владелец сервиса отвечает за unregisterService при выгрузке, если сервис не зарегистрирован в собственной управляемой области.
+- Для addon указывайте minApiVersion, если ему действительно необходим новый контракт.

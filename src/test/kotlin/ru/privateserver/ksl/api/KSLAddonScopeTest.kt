@@ -3,6 +3,7 @@ package ru.privateserver.ksl.api
 import org.bukkit.plugin.Plugin
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -219,4 +220,41 @@ class KSLAddonScopeTest {
         assertEquals(0, scope.resourceCount)
     }
 
+
+    @Test
+    fun childScopesCloseTheirResourcesWithTheParent() {
+        val parent = scope()
+        val child = parent.childScope()
+        val closed = mutableListOf<String>()
+        child.own(AutoCloseable { closed += "child-resource" })
+        parent.own(AutoCloseable { closed += "parent-resource" })
+
+        assertEquals(2, parent.resourceCount)
+        parent.close()
+
+        assertEquals(listOf("parent-resource", "child-resource"), closed)
+        assertTrue(child.isClosed)
+        assertEquals(0, child.resourceCount)
+    }
+
+    @Test
+    fun typedSubscriptionsAreOwnedByTheScope() {
+        var callback: ((Any?) -> Unit)? = null
+        var closed = false
+        val plugin = Proxy.newProxyInstance(
+            Plugin::class.java.classLoader,
+            arrayOf(Plugin::class.java)
+        ) { _, _, _ -> null } as Plugin
+        val scope = KSLAddonScope(plugin, { _, handler ->
+            callback = handler
+            AutoCloseable { closed = true; callback = null }
+        })
+        var received: String? = null
+        scope.subscribe(kslTopic<String>("test.typed")) { received = it }
+        callback?.invoke("payload")
+        assertEquals("payload", received)
+        scope.close()
+        assertTrue(closed)
+        assertNull(callback)
+    }
 }

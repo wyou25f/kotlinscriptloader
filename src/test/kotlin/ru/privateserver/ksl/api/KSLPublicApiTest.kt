@@ -88,7 +88,7 @@ class KSLPublicApiTest {
     @Test
     fun `structured logger is part of the public addon api`() {
         assertTrue(KSLAPI::class.java.methods.any { it.name == "createLogger" })
-        assertEquals(18, ru.privateserver.ksl.KSL.API_VERSION)
+        assertEquals(19, ru.privateserver.ksl.KSL.API_VERSION)
         assertEquals("DEBUG", KSLLogLevel.DEBUG.name)
     }
 

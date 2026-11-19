@@ -49,6 +49,12 @@ class KSLAddonScope internal constructor(
         get() = synchronized(lock) { resources.size }
 
     /**
+     * Creates a child scope whose resources are released before this scope finishes closing.
+     * The child shares the addon's scheduler and event-bus ownership boundary.
+     */
+    fun child(): KSLAddonScope = own(KSLAddonScope(owner, subscribeAction, taskScope))
+
+    /**
      * Adds an external resource to this scope.
      *
      * If the scope is already closed, the resource is closed immediately and

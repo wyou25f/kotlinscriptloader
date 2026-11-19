@@ -2,8 +2,8 @@ package ru.privateserver.ksl
 
 object KSL {
 
-    // Bump when KSLAPI gains something addons may depend on; addons can require it via KSLAddon.minApiVersion.
-    const val API_VERSION = 18
+    // Bump when the public addon contract gains new types or methods.
+    const val API_VERSION = 19
 
     @Volatile
     private var _api: KSLAPI? = null
