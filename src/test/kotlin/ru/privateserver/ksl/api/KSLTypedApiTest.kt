@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import ru.privateserver.ksl.KSLAPI
 import java.lang.reflect.Proxy
 
 class KSLTypedApiTest {

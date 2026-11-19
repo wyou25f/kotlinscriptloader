@@ -2,7 +2,6 @@
 
 package ru.privateserver.ksl.api
 
-import ru.privateserver.ksl.KSLAPI
 
 import java.util.concurrent.CompletableFuture
 

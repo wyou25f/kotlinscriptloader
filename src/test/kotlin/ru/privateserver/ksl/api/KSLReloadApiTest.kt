@@ -3,7 +3,6 @@ package ru.privateserver.ksl.api
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Test
-import ru.privateserver.ksl.KSLAPI
 import java.lang.reflect.Proxy
 
 class KSLReloadApiTest {
