@@ -35,7 +35,7 @@ jobs:
           java-version: "21"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Run IntelliJ plugin analyzer tests
         run: bash ./gradlew --no-daemon -p ide/intellij-plugin test

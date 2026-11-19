@@ -70,7 +70,7 @@ jobs:
           PY
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Diagnose build environment
         shell: bash
