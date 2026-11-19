@@ -43,7 +43,7 @@ dependencies {
     compileOnly("net.luckperms:api:5.5")
     compileOnly("net.essentialsx:EssentialsX:2.21.2")
     compileOnly("net.skinsrestorer:skinsrestorer-api:15.5.2")
-    compileOnly("com.github.MilkBowl:VaultAPI:1.7") {
+    compileOnly("com.github.MilkBowl:VaultAPI:1.7.1") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
     compileOnly("com.sk89q.worldedit:worldedit-bukkit:7.2.15") {
