@@ -7,6 +7,7 @@ import ru.privateserver.ksl.accounts.KSLAccount as CoreKSLAccount
 import ru.privateserver.ksl.accounts.KSLAccountSession as CoreKSLAccountSession
 import ru.privateserver.ksl.accounts.KSLAccountStore as CoreKSLAccountStore
 import ru.privateserver.ksl.accounts.KSLAccountAlreadyExistsException as CoreKSLAccountAlreadyExistsException
+import ru.privateserver.ksl.accounts.KSLAuthAttemptLimiter as CoreKSLAuthAttemptLimiter
 import ru.privateserver.ksl.automation.KSLAutomationAction as CoreKSLAutomationAction
 import ru.privateserver.ksl.automation.KSLAutomationActionRegistry as CoreKSLAutomationActionRegistry
 import ru.privateserver.ksl.automation.KSLAutomationContext as CoreKSLAutomationContext
@@ -105,6 +106,7 @@ typealias KSLAccountStore = CoreKSLAccountStore
 typealias KSLAccount = CoreKSLAccount
 typealias KSLAccountSession = CoreKSLAccountSession
 typealias KSLAccountAlreadyExistsException = CoreKSLAccountAlreadyExistsException
+typealias KSLAuthAttemptLimiter = CoreKSLAuthAttemptLimiter
 /** YAML configuration wrapper returned by [KSLAPI.createConfig]. */
 typealias KSLAddonConfig = CoreKSLAddonConfig
 /** Short Kotlin-friendly name for the public addon API. */

@@ -1151,10 +1151,40 @@ if (session != null) {
 - `findSession(token)` возвращает профиль только для действующей, неистёкшей сессии включённого аккаунта.
 - `revokeSession(token)` отзывает одну сессию; `revokeAllSessions(accountId)` отзывает все сессии аккаунта.
 - По умолчанию сессия действует 7 дней. Допустимый срок — от 1 минуты до 30 дней.
+- Неизвестный username проходит dummy PBKDF2-проверку с тем же work factor, что и существующая учётная запись: это уменьшает утечку существования аккаунта через время ответа.
+- `setAccountEnabled(accountId, false)` отключает аккаунт и отзывает все его сессии в одной транзакции. Повторное включение не восстанавливает старые bearer tokens.
 
 `KSLAccount` намеренно не содержит парольный хеш. Не помещайте bearer token в обычные логи, публичные метаданные или URL.
 
-### 21.4 Потоки и жизненный цикл
+### 21.4 Ограничение попыток входа
+
+Для endpoint регистрации/входа используйте `KSLAuthAttemptLimiter` до выполнения PBKDF2. Один вызов `tryAcquire(key)` расходует одну попытку; при успешной аутентификации вызовите `recordSuccess(key)`, чтобы очистить окно.
+
+```kotlin
+import java.util.Locale
+
+val accountLimiter = api.createAuthAttemptLimiter(maxAttempts = 5)
+val addressLimiter = api.createAuthAttemptLimiter(maxAttempts = 20)
+
+fun login(username: String, password: CharArray, remoteAddress: String): KSLAccountSession? {
+    val accountKey = username.trim().lowercase(Locale.ROOT)
+    if (!addressLimiter.tryAcquire(remoteAddress)) return null
+    if (!accountLimiter.tryAcquire(accountKey)) return null
+
+    val session = accounts.authenticate(username, password)
+    if (session != null) {
+        accountLimiter.recordSuccess(accountKey)
+        addressLimiter.recordSuccess(remoteAddress)
+    }
+    return session
+}
+```
+
+Передавайте в limiter только нормализованный идентификатор и адрес клиента, полученный из доверенного сетевого слоя, а не из произвольного поля запроса. При отказе из-за лимита не запускайте PBKDF2. Настройки по умолчанию: 5 попыток за 60 секунд, блокировка на 5 минут и максимум 10 000 отслеживаемых ключей. Таблица ограничена по памяти и при заполнении временно запрещает новые ключи до очистки истёкших записей.
+
+Limiter хранит в памяти SHA-256 ключей, действует только внутри одного процесса и сбрасывается при перезапуске. Для нескольких Paper-серверов или публичного сервиса добавьте общий rate limit на gateway/edge или в общем хранилище. Для защиты от перебора используйте отдельные лимитеры по аккаунту и по адресу; один составной ключ сам по себе позволяет обходить лимит сменой имени пользователя.
+
+### 21.5 Потоки и жизненный цикл
 
 PBKDF2 требует заметной вычислительной работы. Не вызывайте `register` и `authenticate` на главном потоке Bukkit. Используйте собственный executor/задачу аддона и возвращайте только необходимые игровые изменения на главный поток.
 
@@ -1357,7 +1387,7 @@ Accessors include `getString`, `getInt`, `requireInt`, `getLong`, `requireLong`,
 
 ## Public API and addons
 
-`ru.privateserver.ksl.std.csv.*` is available to KSL scripts by default. Addons can import `ru.privateserver.ksl.api.*` and use `KSLCSVTable`, `KSLCSVRow`, `KSLCSVOptions`, plus the `KSLAPI.csvTable/parseCsv/readCsv/writeCsv` extensions. The CSV exports were introduced in API v15; the current development API is v17.
+`ru.privateserver.ksl.std.csv.*` is available to KSL scripts by default. Addons can import `ru.privateserver.ksl.api.*` and use `KSLCSVTable`, `KSLCSVRow`, `KSLCSVOptions`, plus the `KSLAPI.csvTable/parseCsv/readCsv/writeCsv` extensions. The CSV exports were introduced in API v15; the current development API is v18.
 
 
 ## Typed schemas and normalization

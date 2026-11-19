@@ -78,6 +78,22 @@ class KSLAccountStoreTest {
     }
 
     @Test
+    fun unknownAccountsUseTheDummyPasswordPathAndDisabledAccountsLoseAllSessions() {
+        assertNull(store.authenticate("missing_user", "correct horse battery".toCharArray()))
+
+        val account = store.register("managed_user", "correct horse battery".toCharArray())
+        val session = store.authenticate(account.username, "correct horse battery".toCharArray())!!
+        assertEquals(account, store.findSession(session.token))
+
+        assertTrue(store.setAccountEnabled(account.id, false))
+        assertNull(store.findSession(session.token))
+        assertNull(store.authenticate(account.username, "correct horse battery".toCharArray()))
+        assertTrue(store.setAccountEnabled(account.id, true))
+        assertNotNull(store.authenticate(account.username, "correct horse battery".toCharArray()))
+        assertFalse(store.setAccountEnabled(UUID.randomUUID().toString(), false))
+    }
+
+    @Test
     fun tableNamespacesIsolateAccountsAndSessionsInOneDatabase() {
         val secondStore = KSLAccountStore(
             source,

@@ -1206,7 +1206,7 @@ val engine = scope.automation(actions)
 engine.reload(configText, KSLAutomationFormat.YAML)
 ```
 
-The engine supports one-shot and repeating schedules, validates the full configuration before replacement, and is owned by `KSLAddonScope`. Callbacks execute on KSL worker threads, not Bukkit's main thread. Configuration cannot contain executable source; it only references registered handler IDs. This automation integration was introduced with API v16; the current development API is v17.
+The engine supports one-shot and repeating schedules, validates the full configuration before replacement, and is owned by `KSLAddonScope`. Callbacks execute on KSL worker threads, not Bukkit's main thread. Configuration cannot contain executable source; it only references registered handler IDs. This automation integration was introduced with API v16; the current development API is v18.
 
 
 ---
@@ -1277,7 +1277,7 @@ api.reloadScriptAsync("events/join") { result ->
 
 `reloadScript` is synchronous and blocks the caller until compilation and swap finish. Keep it for controlled tooling where blocking is intentional; prefer `reloadScriptAsync` for normal addon integrations.
 
-Structured logging was introduced in API v12; the current development API is v17. Addons should compare minApiVersion with the installed api.apiVersion rather than hard-code a value. See [Structured logging](01-scripts.md). Addons should compare `minApiVersion` with the installed `api.apiVersion` rather than hard-code a value.
+Structured logging was introduced in API v12; the current development API is v18. Addons should compare minApiVersion with the installed api.apiVersion rather than hard-code a value. See [Structured logging](01-scripts.md). Addons should compare `minApiVersion` with the installed `api.apiVersion` rather than hard-code a value.
 
 ## IntelliJ preflight
 

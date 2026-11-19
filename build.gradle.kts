@@ -228,6 +228,7 @@ val verifyShadowJar by tasks.registering {
                 "ru/privateserver/ksl/database/postember/KSLPostemberClient.class",
                 "ru/privateserver/ksl/database/postember/KSLPostemberResult.class",
                 "ru/privateserver/ksl/database/postember/KSLPostemberException.class",
+                "ru/privateserver/ksl/accounts/KSLAuthAttemptLimiter.class",
                 "ru/privateserver/ksl/automation/KSLAutomationConfigParser.class",
                 "ru/privateserver/ksl/rt/kslrt.class"
             )

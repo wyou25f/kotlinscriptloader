@@ -48,6 +48,15 @@ class KSLAccountStore @JvmOverloads constructor(
     private val accountsTable = "${tablePrefix}_accounts"
     private val sessionsTable = "${tablePrefix}_account_sessions"
 
+    private val dummyPasswordHash: String by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        val dummy = CharArray(32) { ('a'.code + (it % 26)).toChar() }
+        try {
+            KSLSecurity.hashPassword(dummy, passwordIterations)
+        } finally {
+            dummy.fill(0.toChar())
+        }
+    }
+
     init {
         require(passwordIterations in 100_000..2_000_000) {
             "passwordIterations must be between 100000 and 2000000"
@@ -141,16 +150,18 @@ class KSLAccountStore @JvmOverloads constructor(
                     if (result.next()) result.toAccountCredential() else null
                 }
             }
-        } ?: return null
+        }
 
-        if (!row.enabled) return null
+        // Unknown accounts still pay the configured PBKDF2 work factor to reduce username
+        // enumeration through response timing. Disabled accounts verify their stored hash too.
+        val hashToVerify = row?.passwordHash ?: dummyPasswordHash
         val passwordCopy = password.copyOf()
         val verified = try {
-            KSLSecurity.verifyPassword(passwordCopy, row.passwordHash)
+            KSLSecurity.verifyPassword(passwordCopy, hashToVerify)
         } finally {
-            passwordCopy.fill('\u0000')
+            passwordCopy.fill(0.toChar())
         }
-        if (!verified) return null
+        if (row == null || !row.enabled || !verified) return null
 
         val now = clock.millis()
         val expiresAt = Math.addExact(now, sessionTtlMillis)
@@ -226,6 +237,32 @@ class KSLAccountStore @JvmOverloads constructor(
             connection.prepareStatement("DELETE FROM ${sessionsTable} WHERE account_id = ?").use { statement ->
                 statement.setString(1, accountId)
                 statement.executeUpdate()
+            }
+        }
+
+    /**
+     * Enables or disables an account. Disabling it revokes every session in the same
+     * transaction, so existing bearer tokens stop working immediately.
+     */
+    fun setAccountEnabled(accountId: String, enabled: Boolean): Boolean =
+        dataSource.connection.use { connection ->
+            KSLDatabaseTransactions.inTransaction(connection) {
+                val updated = connection.prepareStatement(
+                    "UPDATE ${accountsTable} SET enabled = ? WHERE id = ?"
+                ).use { statement ->
+                    statement.setBoolean(1, enabled)
+                    statement.setString(2, accountId)
+                    statement.executeUpdate()
+                }
+                if (updated > 0 && !enabled) {
+                    connection.prepareStatement(
+                        "DELETE FROM ${sessionsTable} WHERE account_id = ?"
+                    ).use { statement ->
+                        statement.setString(1, accountId)
+                        statement.executeUpdate()
+                    }
+                }
+                updated > 0
             }
         }
 

@@ -105,7 +105,7 @@ The plugin JAR is written to `build/libs/`. Build logs and diagnostic reports ar
 
 ## Security model
 
-KSL scripts execute inside the Minecraft server process. The sandbox can block selected JVM capabilities and catch dangerous mistakes, but it is **not** process isolation and is not a complete security boundary. Only trusted people should be allowed to write to the `scripts/` directory or use `ksl.admin`.
+KSL scripts execute inside the Minecraft server process. The sandbox can block selected JVM capabilities and catch dangerous mistakes, but it is **not** process isolation and is not a complete security boundary. Only trusted people should be allowed to write to the `scripts/` directory or use `ksl.admin`. See the [security policy](SECURITY.md) for the threat model, operational controls and vulnerability reporting.
 
 The optional MCP endpoint is disabled by default and binds only to loopback. It uses a bearer token from the Paper process environment; however, unrestricted code running inside the same JVM—including other server plugins—may also be able to read that environment. Do not treat the token as isolation from untrusted scripts or plugins. See [Book I — MCP setup and security notes](docs/01-scripts.md#ksl-mcp-server).
 

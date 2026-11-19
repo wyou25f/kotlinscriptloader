@@ -2,6 +2,14 @@
 
 ## 1.2.2 — development (not published)
 
+### Security hardening
+
+- Added a public, bounded `KSLAuthAttemptLimiter` (API v18) with atomic attempt consumption, timed lockouts, hashed keys, expiry cleanup and a fixed memory ceiling. It is process-local; multi-server deployments still need shared enforcement.
+- Account authentication now performs a dummy PBKDF2 verification for unknown usernames to reduce account-enumeration timing differences. Disabling an account can atomically revoke all existing sessions through `setAccountEnabled`.
+- Reduced the lifetime of temporary password, HMAC, digest and token byte arrays; bounded Base64 decoding to 1 MiB of decoded data.
+- Added CodeQL scanning, Gradle dependency-graph submission and weekly Dependabot updates for Gradle dependencies and GitHub Actions.
+- Added a repository security policy describing the sandbox threat model, secret handling and private vulnerability-reporting path.
+
 - Added an experimental, loopback-only PostemberDB client for the upstream Rust server protocol, exported through KSLAPI and the public API. The adapter is bounded and timeout-aware; it does not modify or vendor PostemberDB. Upstream remains memory-only and unauthenticated, so this is not a production persistence backend. Public API version is now 17.
 
 - Added addon-scoped declarative automation with a shared YAML/TOML configuration model, bounded validation, one-shot and repeating schedules, explicit trusted action-handler registration, validation-before-replacement with candidate callbacks gated until commit, and automatic task cleanup on addon unload. Public API version is now 16; existing addon and scheduler APIs remain compatible.

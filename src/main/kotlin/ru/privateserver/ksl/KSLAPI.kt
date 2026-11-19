@@ -8,6 +8,7 @@ import ru.privateserver.ksl.api.KSLLogger
 import ru.privateserver.ksl.api.KSLLoggerConfig
 import ru.privateserver.ksl.api.library.KSLStandardLibraryModule
 import ru.privateserver.ksl.accounts.KSLAccountStore
+import ru.privateserver.ksl.accounts.KSLAuthAttemptLimiter
 import ru.privateserver.ksl.database.postember.KSLPostemberClient
 import javax.sql.DataSource
 
@@ -34,6 +35,22 @@ interface KSLAPI {
      */
     fun createAccountStore(owner: JavaPlugin, dataSource: DataSource): KSLAccountStore =
         KSLAccountStore(dataSource, tablePrefix = KSLAccountStore.tablePrefixFor(owner.name))
+
+    /**
+     * Creates a bounded, in-memory login-attempt limiter. Use keys derived from trusted request
+     * context, such as normalized username + client address. Use shared infrastructure across nodes.
+     */
+    fun createAuthAttemptLimiter(
+        maxAttempts: Int = 5,
+        windowMillis: Long = 60_000,
+        lockoutMillis: Long = 300_000,
+        maxTrackedKeys: Int = 10_000
+    ): KSLAuthAttemptLimiter = KSLAuthAttemptLimiter(
+        maxAttempts = maxAttempts,
+        windowMillis = windowMillis,
+        lockoutMillis = lockoutMillis,
+        maxTrackedKeys = maxTrackedKeys
+    )
 
     /**
      * Creates an experimental loopback-only client for the PostemberDB development server.

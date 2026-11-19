@@ -92,6 +92,11 @@ class SecurityExtensionsTest {
     }
 
     @Test
+    fun base64DecoderRejectsInputsAboveItsMemoryBudget() {
+        assertNull(KSLSecurity.base64Decode("A".repeat(1_398_105)))
+    }
+
+    @Test
     fun secureTokensAreUrlSafeAndValidateLength() {
         val token = KSLSecurity.randomToken(32)
         assertTrue(token.matches(Regex("[A-Za-z0-9_-]+")))

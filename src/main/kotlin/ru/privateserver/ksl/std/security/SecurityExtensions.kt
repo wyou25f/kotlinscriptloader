@@ -27,6 +27,8 @@ object KSLSecurity {
     private const val MAX_ITERATIONS = 2_000_000
     private const val SALT_BYTES = 16
     private const val HASH_BYTES = 32
+    private const val MAX_BASE64_DECODE_BYTES = 1_048_576
+    private const val MAX_BASE64_ENCODED_CHARS = 4 * ((MAX_BASE64_DECODE_BYTES + 2) / 3)
     private val random = SecureRandom()
 
     /** SHA-256 digest of UTF-8 text, returned as lowercase hexadecimal. */
@@ -77,7 +79,12 @@ object KSLSecurity {
     fun verifySha256(value: String, expectedHex: String): Boolean {
         val expected = expectedHex.hexToBytesOrNull() ?: return false
         val actual = digest("SHA-256", value.toByteArray(Charsets.UTF_8))
-        return expected.size == actual.size && MessageDigest.isEqual(actual, expected)
+        return try {
+            expected.size == actual.size && MessageDigest.isEqual(actual, expected)
+        } finally {
+            expected.fill(0)
+            actual.fill(0)
+        }
     }
 
     /** Checks a SHA-512 hex digest using constant-time byte comparison. */
@@ -85,7 +92,12 @@ object KSLSecurity {
     fun verifySha512(value: String, expectedHex: String): Boolean {
         val expected = expectedHex.hexToBytesOrNull(128) ?: return false
         val actual = digest("SHA-512", value.toByteArray(Charsets.UTF_8))
-        return MessageDigest.isEqual(actual, expected)
+        return try {
+            MessageDigest.isEqual(actual, expected)
+        } finally {
+            expected.fill(0)
+            actual.fill(0)
+        }
     }
 
 
@@ -101,13 +113,18 @@ object KSLSecurity {
             "PBKDF2 iterations must be between $MIN_ITERATIONS and $MAX_ITERATIONS"
         }
         val salt = ByteArray(SALT_BYTES).also(random::nextBytes)
+        val encodedSalt = Base64.getEncoder().withoutPadding().encodeToString(salt)
         val derived = derivePassword(password, salt, iterations)
-        return listOf(
-            PASSWORD_FORMAT,
-            iterations.toString(),
-            Base64.getEncoder().withoutPadding().encodeToString(salt),
+        val encodedDerived = try {
             Base64.getEncoder().withoutPadding().encodeToString(derived)
-        ).joinToString("$")
+        } finally {
+            derived.fill(0)
+        }
+        return try {
+            listOf(PASSWORD_FORMAT, iterations.toString(), encodedSalt, encodedDerived).joinToString("$")
+        } finally {
+            salt.fill(0)
+        }
     }
 
     /** String convenience overload. Prefer CharArray when handling sensitive input. */
@@ -132,10 +149,30 @@ object KSLSecurity {
         val iterations = parts[1].toIntOrNull() ?: return false
         if (iterations !in MIN_ITERATIONS..MAX_ITERATIONS) return false
         val salt = decodeBase64(parts[2]) ?: return false
-        val expected = decodeBase64(parts[3]) ?: return false
-        if (salt.size !in 16..64 || expected.size != HASH_BYTES) return false
-        val actual = derivePassword(password, salt, iterations)
-        return MessageDigest.isEqual(actual, expected)
+        if (salt.size !in 16..64) {
+            salt.fill(0)
+            return false
+        }
+        val expected = decodeBase64(parts[3]) ?: run {
+            salt.fill(0)
+            return false
+        }
+        if (expected.size != HASH_BYTES) {
+            salt.fill(0)
+            expected.fill(0)
+            return false
+        }
+        return try {
+            val actual = derivePassword(password, salt, iterations)
+            try {
+                MessageDigest.isEqual(actual, expected)
+            } finally {
+                actual.fill(0)
+            }
+        } finally {
+            salt.fill(0)
+            expected.fill(0)
+        }
     }
 
     /** String convenience overload for [verifyPassword]. */
@@ -152,17 +189,37 @@ object KSLSecurity {
     /** HMAC-SHA256 for message authentication; key material must remain secret. */
     @JvmStatic
     fun hmacSha256(message: String, secret: String): String {
-        val mac = Mac.getInstance("HmacSHA256")
-        mac.init(SecretKeySpec(secret.toByteArray(Charsets.UTF_8), "HmacSHA256"))
-        return mac.doFinal(message.toByteArray(Charsets.UTF_8)).toHex()
+        val keyBytes = secret.toByteArray(Charsets.UTF_8)
+        val messageBytes = message.toByteArray(Charsets.UTF_8)
+        try {
+            val mac = Mac.getInstance("HmacSHA256")
+            mac.init(SecretKeySpec(keyBytes, "HmacSHA256"))
+            val output = mac.doFinal(messageBytes)
+            return try {
+                output.toHex()
+            } finally {
+                output.fill(0)
+            }
+        } finally {
+            keyBytes.fill(0)
+            messageBytes.fill(0)
+        }
     }
 
     /** Verifies an HMAC-SHA256 value using constant-time comparison. */
     @JvmStatic
     fun verifyHmacSha256(message: String, secret: String, expectedHex: String): Boolean {
         val expected = expectedHex.hexToBytesOrNull() ?: return false
-        val actual = hmacSha256(message, secret).hexToBytesOrNull() ?: return false
-        return MessageDigest.isEqual(actual, expected)
+        val actual = hmacSha256(message, secret).hexToBytesOrNull() ?: run {
+            expected.fill(0)
+            return false
+        }
+        return try {
+            MessageDigest.isEqual(actual, expected)
+        } finally {
+            expected.fill(0)
+            actual.fill(0)
+        }
     }
 
     /** Returns true when a stored PBKDF2 hash should be upgraded to the target work factor. */
@@ -195,17 +252,29 @@ object KSLSecurity {
 
     /** Decodes standard Base64 as valid UTF-8, or returns null for malformed Base64 or UTF-8. */
     @JvmStatic
-    fun base64Decode(value: String): String? = runCatching {
-        val bytes = Base64.getDecoder().decode(value)
-        Charsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(bytes)).toString()
-    }.getOrNull()
+    fun base64Decode(value: String): String? {
+        if (value.length > MAX_BASE64_ENCODED_CHARS) return null
+        return runCatching {
+            val bytes = Base64.getDecoder().decode(value)
+            try {
+                if (bytes.size > MAX_BASE64_DECODE_BYTES) return@runCatching null
+                Charsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(bytes)).toString()
+            } finally {
+                bytes.fill(0)
+            }
+        }.getOrNull()
+    }
 
     /** Generates cryptographically secure random bytes encoded as URL-safe Base64. */
     @JvmStatic
     fun randomToken(byteCount: Int = 32): String {
         require(byteCount in 16..256) { "Token byte count must be between 16 and 256" }
         val bytes = ByteArray(byteCount).also(random::nextBytes)
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+        return try {
+            Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+        } finally {
+            bytes.fill(0)
+        }
     }
 
     private fun derivePassword(password: CharArray, salt: ByteArray, iterations: Int): ByteArray {
