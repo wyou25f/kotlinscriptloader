@@ -481,7 +481,7 @@ jobs:
           test -s website/data.json
           test -s website/history.json
           test -s website/source-tree.json
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: website
   deploy:
