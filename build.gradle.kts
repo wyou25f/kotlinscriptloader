@@ -2,7 +2,7 @@ import java.util.zip.ZipFile
 
 plugins {
     kotlin("jvm") version "2.0.21"
-    id("com.gradleup.shadow") version "9.4.2"
+    id("com.gradleup.shadow") version "9.6.1"
     id("org.jetbrains.kotlinx.kover") version "0.9.8"
 }
 
