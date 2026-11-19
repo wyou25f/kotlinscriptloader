@@ -324,7 +324,7 @@ jobs:
           PY
       - name: Download latest main build artifact
         if: steps.generate-data.outputs.main_run_id != ''
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ steps.generate-data.outputs.main_artifact_name }}
           path: /tmp/ksl-artifacts/main
@@ -334,7 +334,7 @@ jobs:
 
       - name: Download latest Minecraft 1.16.5–1.21 artifact
         if: steps.generate-data.outputs.compat116_run_id != ''
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ steps.generate-data.outputs.compat116_artifact_name }}
           path: /tmp/ksl-artifacts/compat116
@@ -344,7 +344,7 @@ jobs:
 
       - name: Download latest Minecraft 1.18+ artifact
         if: steps.generate-data.outputs.compat118_run_id != ''
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ steps.generate-data.outputs.compat118_artifact_name }}
           path: /tmp/ksl-artifacts/compat118
@@ -354,7 +354,7 @@ jobs:
 
       - name: Download latest IntelliJ plugin artifact
         if: steps.generate-data.outputs.ide_plugin_run_id != ''
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ steps.generate-data.outputs.ide_plugin_artifact_name }}
           path: /tmp/ksl-artifacts/ide-plugin
