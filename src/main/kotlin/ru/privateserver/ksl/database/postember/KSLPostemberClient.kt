@@ -59,7 +59,7 @@ class KSLPostemberClient(
     fun execute(sql: String): KSLPostemberResult {
         check(!closed.get()) { "PostemberDB client is closed" }
         require(sql.isNotBlank()) { "SQL statement must not be blank" }
-        require('\\n' !in sql && '\\r' !in sql) { "PostemberDB protocol accepts one SQL statement per line" }
+        require('\n' !in sql && '\r' !in sql) { "PostemberDB protocol accepts one SQL statement per line" }
         require(sql.toByteArray(StandardCharsets.UTF_8).size <= MAX_SQL_BYTES) {
             "SQL statement exceeds $MAX_SQL_BYTES UTF-8 bytes"
         }
@@ -180,60 +180,6 @@ class KSLPostemberClient(
             "PostemberDB did not return a tabular result; only SELECT * is currently supported"
         }
         return result
-    }
-
-    private fun exchange(address: InetAddress, sql: String): KSLPostemberResult {
-        Socket().use { socket ->
-            socket.connect(InetSocketAddress(address, port), connectTimeoutMillis)
-            socket.soTimeout = readTimeoutMillis
-            val input = BufferedInputStream(socket.getInputStream())
-            val output = socket.getOutputStream()
-            val reader = BoundedLineReader(input, maxResponseBytes)
-
-            val greeting = reader.readLine()
-            if (!greeting.startsWith("PostemberDB/")) throw IOException("Unexpected PostemberDB greeting")
-
-            output.write(sql.toByteArray(StandardCharsets.UTF_8))
-            output.write(10)
-            output.flush()
-
-            val response = reader.readLine()
-            if (response.startsWith("ERROR ")) throw KSLPostemberException(response.removePrefix("ERROR "))
-            if (!response.startsWith("OK ")) throw IOException("Malformed PostemberDB response")
-
-            val message = response.removePrefix("OK ")
-            val rowCountText = ROW_COUNT.matchEntire(message)?.groupValues?.get(1)
-            if (rowCountText != null) {
-                val rowCount = rowCountText.toIntOrNull()
-                    ?: throw IOException("PostemberDB row count exceeds the supported integer range")
-                if (rowCount > maxRows) {
-                    throw IOException("PostemberDB returned $rowCount rows; configured limit is $maxRows")
-                }
-                val columns = protocolFields(reader.readLine())
-                if (columns.any { it.isEmpty() }) throw IOException("PostemberDB returned an invalid column header")
-                val rows = ArrayList<List<String>>(rowCount)
-                repeat(rowCount) {
-                    val fields = protocolFields(reader.readLine())
-                    if (fields.size != columns.size) {
-                        throw IOException("PostemberDB row has ${fields.size} fields; expected ${columns.size}")
-                    }
-                    rows += fields
-                }
-                return KSLPostemberResult(message, columns, rows, 0)
-            }
-
-            val insertedText = INSERT_COUNT.matchEntire(message)?.groupValues?.get(1)
-            val affected = if (insertedText != null) {
-                insertedText.toIntOrNull()
-                    ?: throw IOException("PostemberDB affected-row count exceeds the supported integer range")
-            } else {
-                if (message.endsWith(" row(s)") || message.endsWith(" row inserted")) {
-                    throw IOException("Malformed PostemberDB row count")
-                }
-                0
-            }
-            return KSLPostemberResult(message, emptyList(), emptyList(), affected)
-        }
     }
 
     private fun protocolFields(line: String): List<String> {
