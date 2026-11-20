@@ -1,7 +1,9 @@
 package ru.privateserver.ksl.rt
 
 import java.time.Duration
+import java.util.HashMap
 import java.util.LinkedHashMap
+import java.util.LinkedHashSet
 
 data class KSLCacheStats(
     val hits: Long,
@@ -20,9 +22,13 @@ class KSLCache<K : Any, V : Any> @JvmOverloads constructor(
     val expireAfterAccess: Duration = Duration.ZERO
 ) {
     private data class Entry<V>(val value: V, var writtenAtNanos: Long, var lastAccessNanos: Long)
+
     private val ttlNanos: Long
     private val accessTtlNanos: Long
-    private val entries = LinkedHashMap<K, Entry<V>>(16, 0.75f, true)
+    private val entries = HashMap<K, Entry<V>>(16, 0.75f)
+    // LinkedHashSet keeps least-to-most-recent order while retaining O(1)
+    // membership/removal. HashMap lookups do not accidentally refresh LRU order.
+    private val recency = LinkedHashSet<K>()
     private var hits = 0L
     private var misses = 0L
     private var evictions = 0L
@@ -41,10 +47,11 @@ class KSLCache<K : Any, V : Any> @JvmOverloads constructor(
         if (entry == null) { misses++; return null }
         val now = System.nanoTime()
         if (isExpired(entry, now)) {
-            entries.remove(key)
+            removeEntry(key)
             misses++
             return null
         }
+        touch(key)
         entry.lastAccessNanos = now
         hits++
         return entry.value
@@ -58,10 +65,11 @@ class KSLCache<K : Any, V : Any> @JvmOverloads constructor(
             val now = System.nanoTime()
             val existing = entries[key]
             if (existing != null && !isExpired(existing, now)) {
+                touch(key)
                 existing.lastAccessNanos = now
                 return existing.value
             }
-            if (existing != null) entries.remove(key)
+            if (existing != null) removeEntry(key)
             putLocked(key, loaded, now)
             return loaded
         }
@@ -75,11 +83,12 @@ class KSLCache<K : Any, V : Any> @JvmOverloads constructor(
         val now = System.nanoTime()
         val existing = entries[key]
         if (existing != null && !isExpired(existing, now)) {
+            touch(key)
             existing.lastAccessNanos = now
             hits++
             return existing.value
         }
-        if (existing != null) entries.remove(key)
+        if (existing != null) removeEntry(key)
         misses++
         val loaded = loader()
         putLocked(key, loaded, now)
@@ -96,16 +105,17 @@ class KSLCache<K : Any, V : Any> @JvmOverloads constructor(
         val now = System.nanoTime()
         val entry = entries[key]
         val current = if (entry != null && !isExpired(entry, now)) {
+            touch(key)
             hits++
             entry.lastAccessNanos = now
             entry.value
         } else {
-            if (entry != null) entries.remove(key)
+            if (entry != null) removeEntry(key)
             misses++
             null
         }
         val replacement = remapping(key, current)
-        if (replacement == null) entries.remove(key) else putLocked(key, replacement, now)
+        if (replacement == null) removeEntry(key) else putLocked(key, replacement, now)
         return replacement
     }
 
@@ -115,9 +125,12 @@ class KSLCache<K : Any, V : Any> @JvmOverloads constructor(
         val entry = entries[key]
         val previous = entry?.takeUnless { isExpired(it, now) }
         if (previous == null) {
-            if (entry != null) entries.remove(key)
+            if (entry != null) removeEntry(key)
             misses++
-        } else hits++
+        } else {
+            hits++
+            touch(key)
+        }
         putLocked(key, value, now)
         return previous?.value
     }
@@ -126,12 +139,12 @@ class KSLCache<K : Any, V : Any> @JvmOverloads constructor(
     fun getAndRemove(key: K): V? {
         val entry = entries[key] ?: run { misses++; return null }
         if (isExpired(entry, System.nanoTime())) {
-            entries.remove(key)
+            removeEntry(key)
             misses++
             return null
         }
         hits++
-        entries.remove(key)
+        removeEntry(key)
         return entry.value
     }
 
@@ -140,9 +153,10 @@ class KSLCache<K : Any, V : Any> @JvmOverloads constructor(
         val now = System.nanoTime()
         val entry = entries[key] ?: return false
         if (isExpired(entry, now)) {
-            entries.remove(key)
+            removeEntry(key)
             return false
         }
+        touch(key)
         entries[key] = Entry(value, now, now)
         return true
     }
@@ -153,9 +167,10 @@ class KSLCache<K : Any, V : Any> @JvmOverloads constructor(
         val now = System.nanoTime()
         val entry = entries[key] ?: return false
         if (isExpired(entry, now)) {
-            entries.remove(key)
+            removeEntry(key)
             return false
         }
+        touch(key)
         entry.writtenAtNanos = now
         entry.lastAccessNanos = now
         return true
@@ -169,10 +184,11 @@ class KSLCache<K : Any, V : Any> @JvmOverloads constructor(
         val now = System.nanoTime()
         val existing = entries[key]
         if (existing != null && !isExpired(existing, now)) {
+            touch(key)
             existing.lastAccessNanos = now
             return existing.value
         }
-        if (existing != null) entries.remove(key)
+        if (existing != null) removeEntry(key)
         putLocked(key, value, now)
         return null
     }
@@ -187,21 +203,17 @@ class KSLCache<K : Any, V : Any> @JvmOverloads constructor(
     fun getOrDefault(key: K, default: V): V = get(key) ?: default
 
     @Synchronized
-    fun invalidate(key: K): Boolean = entries.remove(key) != null
+    fun invalidate(key: K): Boolean = removeEntry(key) != null
     fun remove(key: K): Boolean = invalidate(key)
 
+    /** Membership checks validate expiry but deliberately do not refresh LRU or access TTL. */
     @Synchronized
     fun containsKey(key: K): Boolean {
-        // LinkedHashMap is configured for access-order. A direct lookup is O(1)
-        // and also promotes the entry to MRU; scanning entries would be O(n) and
-        // would silently bypass the cache's LRU policy.
         val entry = entries[key] ?: return false
-        val now = System.nanoTime()
-        if (isExpired(entry, now)) {
-            entries.remove(key)
+        if (isExpired(entry, System.nanoTime())) {
+            removeEntry(key)
             return false
         }
-        entry.lastAccessNanos = now
         return true
     }
     fun has(key: K): Boolean = containsKey(key)
@@ -225,6 +237,7 @@ class KSLCache<K : Any, V : Any> @JvmOverloads constructor(
             val entry = iterator.next()
             if (predicate(entry.key, entry.value.value)) {
                 iterator.remove()
+                recency.remove(entry.key)
                 removed++
             }
         }
@@ -232,7 +245,10 @@ class KSLCache<K : Any, V : Any> @JvmOverloads constructor(
     }
 
     @Synchronized
-    fun clear() { entries.clear() }
+    fun clear() {
+        entries.clear()
+        recency.clear()
+    }
     fun invalidateAll() = clear()
 
     @Synchronized
@@ -243,17 +259,20 @@ class KSLCache<K : Any, V : Any> @JvmOverloads constructor(
     fun cleanUp(): Int = removeExpired()
 
     @Synchronized
-    fun keysSnapshot(): List<K> { removeExpired(); return entries.keys.toList() }
+    fun keysSnapshot(): List<K> { removeExpired(); return recency.toList() }
 
     @Synchronized
-    fun valuesSnapshot(): List<V> { removeExpired(); return entries.values.map { it.value } }
+    fun valuesSnapshot(): List<V> {
+        removeExpired()
+        return recency.mapNotNull { key -> entries[key]?.value }
+    }
 
     /** Point-in-time copy preserving least-to-most-recent LRU order. */
     @Synchronized
     fun entriesSnapshot(): Map<K, V> {
         removeExpired()
         return LinkedHashMap<K, V>(entries.size).also { snapshot ->
-            entries.forEach { (key, entry) -> snapshot[key] = entry.value }
+            recency.forEach { key -> entries[key]?.let { snapshot[key] = it.value } }
         }
     }
 
@@ -270,13 +289,26 @@ class KSLCache<K : Any, V : Any> @JvmOverloads constructor(
         (ttlNanos > 0L && now - entry.writtenAtNanos >= ttlNanos) ||
             (accessTtlNanos > 0L && now - entry.lastAccessNanos >= accessTtlNanos)
 
+    private fun touch(key: K) {
+        recency.remove(key)
+        recency.add(key)
+    }
+
+    private fun removeEntry(key: K): Entry<V>? {
+        val removed = entries.remove(key)
+        if (removed != null) recency.remove(key)
+        return removed
+    }
+
     private fun putLocked(key: K, value: V, now: Long) {
         entries[key] = Entry(value, now, now)
+        touch(key)
         while (entries.size > maxSize) {
-            val iterator = entries.entries.iterator()
+            val iterator = recency.iterator()
             if (!iterator.hasNext()) break
-            iterator.next()
+            val oldestKey = iterator.next()
             iterator.remove()
+            entries.remove(oldestKey)
             evictions++
         }
     }
@@ -287,7 +319,12 @@ class KSLCache<K : Any, V : Any> @JvmOverloads constructor(
         var removed = 0
         val iterator = entries.entries.iterator()
         while (iterator.hasNext()) {
-            if (isExpired(iterator.next().value, now)) { iterator.remove(); removed++ }
+            val entry = iterator.next()
+            if (isExpired(entry.value, now)) {
+                iterator.remove()
+                recency.remove(entry.key)
+                removed++
+            }
         }
         return removed
     }
