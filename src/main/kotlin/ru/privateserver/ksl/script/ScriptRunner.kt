@@ -128,13 +128,19 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
                 plugin.withCompilePermit { runBlocking { scriptCompiler(sourceText.toScriptSource(file.absolutePath), compilationConfig) } }
             }
             val result = plugin.watchdogMonitor?.trackOperation("KSL compile '$id'", compile) ?: compile()
-            val warnings = result.reports.filter { it.severity == ScriptDiagnostic.Severity.WARNING }
-                .map { formatDiagnostic(it, file) }
+            val warnings = ArrayList<String>()
+            val errors = ArrayList<String>()
+            result.reports.forEach { diagnostic ->
+                val formatted = formatDiagnostic(diagnostic, file)
+                when {
+                    diagnostic.severity == ScriptDiagnostic.Severity.WARNING -> warnings += formatted
+                    diagnostic.severity >= ScriptDiagnostic.Severity.ERROR -> errors += formatted
+                }
+            }
             when (result) {
                 is ResultWithDiagnostics.Failure -> CompiledUnit(
-                    file, id, null,
-                    result.reports.filter { it.severity >= ScriptDiagnostic.Severity.ERROR }.map { formatDiagnostic(it, file) },
-                    warnings, KSLError.SCRIPT_COMPILE, null, elapsedMs(), sourceStamp
+                    file, id, null, errors, warnings,
+                    KSLError.SCRIPT_COMPILE, null, elapsedMs(), sourceStamp
                 )
                 is ResultWithDiagnostics.Success -> {
                     compiledCache.put(cacheKey, KSLCompileCacheValue(result.value, warnings))
