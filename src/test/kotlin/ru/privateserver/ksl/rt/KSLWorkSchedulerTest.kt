@@ -84,6 +84,39 @@ class KSLWorkSchedulerTest {
     }
 
     @Test
+    fun `owner task index scopes task listing and cancellation`() {
+        val scheduler = KSLWorkScheduler(workers = 1, queueCapacity = 4)
+        val blockerStarted = CountDownLatch(1)
+        val releaseBlocker = CountDownLatch(1)
+        val betaRan = CountDownLatch(1)
+        try {
+            scheduler.submit("blocker") {
+                blockerStarted.countDown()
+                releaseBlocker.await(2, TimeUnit.SECONDS)
+            }
+            assertTrue(blockerStarted.await(2, TimeUnit.SECONDS))
+
+            val alphaId = scheduler.submit("alpha") { error("cancelled alpha task must not run") }
+            scheduler.submit("beta") { betaRan.countDown() }
+
+            assertEquals(listOf(alphaId), scheduler.taskInfos("alpha").map { it.id })
+            assertEquals(1, scheduler.cancelOwner("alpha"))
+            assertEquals(KSLWorkState.CANCELLED, scheduler.taskInfo(alphaId)?.state)
+            assertEquals(0, scheduler.cancelOwner("alpha"), "finished owners must leave no stale task-index entries")
+
+            releaseBlocker.countDown()
+            assertTrue(betaRan.await(2, TimeUnit.SECONDS))
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
+            while (scheduler.snapshot().tracked != 0 && System.nanoTime() < deadline) Thread.yield()
+            assertEquals(0, scheduler.snapshot().tracked)
+            assertTrue(scheduler.taskInfos("alpha").isEmpty())
+        } finally {
+            releaseBlocker.countDown()
+            scheduler.close()
+        }
+    }
+
+    @Test
     fun `per owner quota admits only the configured number under contention`() {
         val quota = KSLPerOwnerQuota(limit = 3)
         val start = CountDownLatch(1)
