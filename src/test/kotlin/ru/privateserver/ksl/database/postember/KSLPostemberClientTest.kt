@@ -92,6 +92,56 @@ class KSLPostemberClientTest {
     }
 
     @Test
+    fun `client reuses one connection across requests and SQL errors`() {
+        ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { server ->
+            val acceptedConnections = java.util.concurrent.atomic.AtomicInteger()
+            val firstSql = AtomicReference<String?>()
+            val secondSql = AtomicReference<String?>()
+            val serverFailure = AtomicReference<Throwable?>()
+
+            val thread = Thread {
+                try {
+                    server.accept().use { socket ->
+                        acceptedConnections.incrementAndGet()
+                        val reader = BufferedReader(InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))
+                        val writer = PrintWriter(socket.getOutputStream(), true, StandardCharsets.UTF_8)
+                        writer.println("PostemberDB/0.1 ready; send one SQL statement per line")
+
+                        firstSql.set(reader.readLine())
+                        writer.println("ERROR SQL parse error: rejected statement")
+
+                        secondSql.set(reader.readLine())
+                        writer.println("OK 1 row inserted")
+
+                        // The client closes the one persistent socket when use{} exits.
+                        reader.readLine()
+                    }
+                } catch (error: Throwable) {
+                    serverFailure.set(error)
+                }
+            }
+            thread.start()
+
+            KSLPostemberClient(port = server.localPort).use { client ->
+                val sqlError = assertThrows(KSLPostemberException::class.java) {
+                    client.execute("INVALID SQL")
+                }
+                assertTrue(sqlError.message!!.contains("parse error"))
+
+                val result = client.execute("INSERT INTO users VALUES (1, 'Ada')")
+                assertEquals(1, result.affectedRows)
+            }
+
+            thread.join(3_000)
+            assertFalse(thread.isAlive, "fake PostemberDB server did not finish")
+            serverFailure.get()?.let { throw AssertionError("fake server failed", it) }
+            assertEquals(1, acceptedConnections.get(), "sequential queries must share one TCP connection")
+            assertEquals("INVALID SQL", firstSql.get())
+            assertEquals("INSERT INTO users VALUES (1, 'Ada')", secondSql.get())
+        }
+    }
+
+    @Test
     fun `client rejects non loopback targets and multiline SQL`() {
         assertThrows(IllegalArgumentException::class.java) {
             KSLPostemberClient(host = "192.0.2.10").execute("SELECT * FROM users")
