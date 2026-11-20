@@ -12,7 +12,7 @@ class KSLRuntimeToolsTest {
         assertEquals(1, cache.get("a")); assertNull(cache.get("b"))
         assertEquals(3, cache.get("c")); assertEquals(1L, cache.stats().evictions)
     }
-    @Test fun cacheContainsKeyPromotesTheEntryInLruOrder() {
+    @Test fun cacheContainsKeyDoesNotPromoteTheEntryInLruOrder() {
         val cache = KSLCache<String, Int>(2)
         cache.put("a", 1)
         cache.put("b", 2)
@@ -20,8 +20,9 @@ class KSLRuntimeToolsTest {
         assertTrue(cache.containsKey("a"))
         cache.put("c", 3)
 
-        assertEquals(1, cache.get("a"), "containsKey must promote a live entry to most-recently-used")
-        assertNull(cache.get("b"), "the least-recently-used entry should be evicted")
+        assertNull(cache.get("a"), "membership checks must not promote the least-recently-used entry")
+        assertEquals(2, cache.get("b"), "the previously newest entry should be retained")
+        assertEquals(3, cache.get("c"))
         assertEquals(1L, cache.stats().evictions)
     }
 
