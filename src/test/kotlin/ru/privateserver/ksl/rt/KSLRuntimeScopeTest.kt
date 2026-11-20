@@ -66,6 +66,26 @@ class KSLRuntimeScopeTest {
     }
 
     @Test
+    fun `child cleanup failure does not block parent or sibling cleanup`() {
+        val parent = KSLRuntimeScope("plugin")
+        val cleanupCalls = AtomicInteger()
+        parent.onClose { cleanupCalls.incrementAndGet() }
+
+        val child = parent.childScope("plugin/worker")
+        child.onClose { cleanupCalls.incrementAndGet() }
+        child.onClose { throw IllegalStateException("child cleanup failed") }
+
+        val failure = assertThrows(IllegalStateException::class.java) {
+            parent.close()
+        }
+
+        assertTrue(failure.message!!.contains("failed to close"))
+        assertTrue(child.isClosed)
+        assertEquals(2, cleanupCalls.get())
+        assertTrue(parent.isClosed)
+    }
+
+    @Test
     fun `closed parent rejects creation of a child scope`() {
         val parent = KSLRuntimeScope("closed-parent")
         parent.close()
