@@ -14,9 +14,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 /**
  * Experimental client for the PostemberDB development TCP protocol.
  *
- * The upstream server is currently in-memory, unauthenticated and line-oriented.
- * This client therefore only connects to loopback addresses and is not a production
- * persistence or remote-database replacement.
+ * This client currently uses the legacy plain-text development protocol, which has
+ * no authentication or TLS. It therefore only connects to loopback addresses and
+ * must not be treated as a production remote-database transport.
  */
 class KSLPostemberClient(
     val host: String = "127.0.0.1",
