@@ -92,6 +92,9 @@ class KSLWorkScheduler(
     private val capacity = AtomicInteger(workers.coerceAtLeast(1) + queueCapacity.coerceAtLeast(1))
     private val ownerQuota = KSLPerOwnerQuota(perScriptLimit)
     private val records = ConcurrentHashMap<Long, Record>()
+    // Owner-to-task index makes addon unload/cancelOwner proportional to that
+    // addon's work instead of scanning every task owned by every addon.
+    private val ownerTaskIds = ConcurrentHashMap<String, MutableSet<Long>>()
     private val history = ConcurrentLinkedDeque<KSLWorkInfo>()
     private val lifecycleLock = Any()
 
@@ -283,7 +286,12 @@ class KSLWorkScheduler(
                 rejected.incrementAndGet()
                 throw RejectedExecutionException("KSL worker capacity is full")
             }
-            return Record(ids.incrementAndGet(), owner, priority, mode, period, action).also { records[it.id] = it }
+            return Record(ids.incrementAndGet(), owner, priority, mode, period, action).also { record ->
+                records[record.id] = record
+                ownerTaskIds.compute(owner) { _, current ->
+                    (current ?: ConcurrentHashMap.newKeySet<Long>()).also { it.add(record.id) }
+                }
+            }
         }
     }
 
@@ -422,6 +430,10 @@ class KSLWorkScheduler(
             record.failureMessage = error.message?.take(500)
         }
         records.remove(record.id, record)
+        ownerTaskIds.computeIfPresent(record.owner) { _, ids ->
+            ids.remove(record.id)
+            ids.takeIf { it.isNotEmpty() }
+        }
         ownerQuota.release(record.owner)
         outstanding.decrementAndGet()
         if (state == KSLWorkState.FAILED) failed.incrementAndGet()
@@ -490,9 +502,11 @@ class KSLWorkScheduler(
     }
 
     fun cancelOwner(owner: String): Int {
-        val owned = records.values.filter { it.owner == owner }
+        val ownedIds = ownerTaskIds[owner]?.toList() ?: return 0
         var count = 0
-        owned.forEach { if (cancelRecord(it, true)) count++ }
+        ownedIds.forEach { id ->
+            records[id]?.let { if (cancelRecord(it, true)) count++ }
+        }
         return count
     }
 
@@ -516,7 +530,11 @@ class KSLWorkScheduler(
 
     fun taskInfos(owner: String? = null, limit: Int = HISTORY_LIMIT): List<KSLWorkInfo> {
         require(limit in 1..HISTORY_LIMIT) { "limit must be between 1 and $HISTORY_LIMIT" }
-        val active = records.values.filter { owner == null || it.owner == owner }.map { it.info() }
+        val active = if (owner == null) {
+            records.values.map { it.info() }
+        } else {
+            ownerTaskIds[owner]?.mapNotNull { id -> records[id]?.info() } ?: emptyList()
+        }
         val recent = history.filter { owner == null || it.owner == owner }.take(limit)
         return (active + recent).distinctBy { it.id }.sortedByDescending { it.id }.take(limit)
     }
