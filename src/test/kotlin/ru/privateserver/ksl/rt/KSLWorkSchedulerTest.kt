@@ -117,6 +117,45 @@ class KSLWorkSchedulerTest {
     }
 
     @Test
+    fun `scheduler snapshot aggregates owner state in a stable shape`() {
+        val scheduler = KSLWorkScheduler(workers = 1, queueCapacity = 4)
+        val blockerStarted = CountDownLatch(1)
+        val releaseBlocker = CountDownLatch(1)
+        try {
+            scheduler.submit("blocker") {
+                blockerStarted.countDown()
+                releaseBlocker.await(2, TimeUnit.SECONDS)
+            }
+            assertTrue(blockerStarted.await(2, TimeUnit.SECONDS))
+
+            scheduler.submit("alpha") { }
+            scheduler.schedule("alpha", 60L, TimeUnit.SECONDS) { }
+            scheduler.submit("beta") { }
+
+            val snapshot = scheduler.snapshot()
+            assertEquals(4, snapshot.tracked)
+            assertEquals(2, snapshot.queued)
+            assertEquals(1, snapshot.running)
+            assertEquals(1, snapshot.scheduled)
+            assertEquals(
+                KSLWorkOwnerSnapshot(2, 1, 0, 1, 0L, 0L),
+                snapshot.perOwner["alpha"]
+            )
+            assertEquals(
+                KSLWorkOwnerSnapshot(1, 1, 0, 0, 0L, 0L),
+                snapshot.perOwner["beta"]
+            )
+            assertEquals(
+                KSLWorkOwnerSnapshot(1, 0, 1, 0, 0L, 0L),
+                snapshot.perOwner["blocker"]
+            )
+        } finally {
+            releaseBlocker.countDown()
+            scheduler.close()
+        }
+    }
+
+    @Test
     fun `per owner quota admits only the configured number under contention`() {
         val quota = KSLPerOwnerQuota(limit = 3)
         val start = CountDownLatch(1)
