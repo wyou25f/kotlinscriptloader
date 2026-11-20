@@ -31,6 +31,21 @@ class KSLRuntimeScope(val name: String) : AutoCloseable {
     val ownedResourceCount: Int get() = synchronized(lock) { cleanups.size }
     val profilerNames: Set<String> get() = synchronized(lock) { profilers.keys.toSet() }
 
+    /**
+     * Creates a nested scope whose resources are released with this scope.
+     *
+     * Closing the child manually detaches it from the parent, so the parent does
+     * not retain a completed child or its captured resources until its own close.
+     * Nested scopes may be composed to mirror script, addon and subsystem lifetimes.
+     */
+    fun childScope(name: String): KSLRuntimeScope = synchronized(lock) {
+        check(!closed) { "Runtime scope '${this.name}' is already closed" }
+        val child = KSLRuntimeScope(name)
+        val parentRegistration = registerCleanup { child.close() }
+        child.onClose { parentRegistration.close() }
+        child
+    }
+
     /** Transfers lifecycle responsibility to this scope and returns the resource. */
     fun <T : AutoCloseable> own(resource: T): T {
         registerCleanup { resource.close() }
