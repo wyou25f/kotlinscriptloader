@@ -146,7 +146,7 @@ class KSLWorkSchedulerTest {
                 snapshot.perOwner["beta"]
             )
             assertEquals(
-                KSLWorkOwnerSnapshot(1, 0, 1, 0, 0L, 0L),
+                KSLWorkOwnerSnapshot(1, 0, 1, 0, 1L, 0L),
                 snapshot.perOwner["blocker"]
             )
         } finally {
