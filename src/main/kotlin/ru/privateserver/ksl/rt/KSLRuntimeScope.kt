@@ -59,6 +59,19 @@ class KSLRuntimeScope(val name: String) : AutoCloseable {
     fun onClose(action: () -> Unit): AutoCloseable = registerCleanup(action)
 
     /**
+     * Attaches a scheduler task to this scope's lifetime.
+     *
+     * The task is cancelled (and its running worker interrupted where possible)
+     * when the scope closes. Once the task reaches any terminal state, its
+     * ownership registration is removed automatically.
+     */
+    fun own(handle: KSLWorkHandle): KSLWorkHandle {
+        val registration = onClose { handle.cancel(true) }
+        handle.completion.whenComplete { _, _ -> registration.close() }
+        return handle
+    }
+
+    /**
      * Submits work owned by this runtime scope.
      *
      * The future is cancelled and the worker is interrupted when the scope closes.
