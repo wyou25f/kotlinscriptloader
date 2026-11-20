@@ -192,11 +192,16 @@ class KSLCache<K : Any, V : Any> @JvmOverloads constructor(
 
     @Synchronized
     fun containsKey(key: K): Boolean {
-        val entry = entries.entries.firstOrNull { it.key == key }?.value ?: return false
-        if (isExpired(entry, System.nanoTime())) {
+        // LinkedHashMap is configured for access-order. A direct lookup is O(1)
+        // and also promotes the entry to MRU; scanning entries would be O(n) and
+        // would silently bypass the cache's LRU policy.
+        val entry = entries[key] ?: return false
+        val now = System.nanoTime()
+        if (isExpired(entry, now)) {
             entries.remove(key)
             return false
         }
+        entry.lastAccessNanos = now
         return true
     }
     fun has(key: K): Boolean = containsKey(key)
