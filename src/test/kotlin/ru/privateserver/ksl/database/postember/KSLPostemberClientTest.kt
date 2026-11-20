@@ -142,6 +142,47 @@ class KSLPostemberClientTest {
     }
 
     @Test
+    fun `response byte budget resets for every query on a persistent connection`() {
+        ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { server ->
+            val serverFailure = AtomicReference<Throwable?>()
+            val thread = Thread {
+                try {
+                    server.accept().use { socket ->
+                        val reader = BufferedReader(InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))
+                        val writer = PrintWriter(socket.getOutputStream(), true, StandardCharsets.UTF_8)
+                        writer.println("PostemberDB/0.1 ready; send one SQL statement per line")
+
+                        repeat(2) {
+                            assertEquals("SELECT id, value FROM rows", reader.readLine())
+                            writer.println("OK 5 row(s)")
+                            writer.println("id\tvalue\t")
+                            repeat(5) { index ->
+                                writer.println("${index + 1}\t${"x".repeat(24)}\t")
+                            }
+                        }
+                        reader.readLine()
+                    }
+                } catch (error: Throwable) {
+                    serverFailure.set(error)
+                }
+            }
+            thread.start()
+
+            KSLPostemberClient(port = server.localPort, maxResponseBytes = 128).use { client ->
+                repeat(2) {
+                    val result = client.query("SELECT id, value FROM rows")
+                    assertEquals(5, result.rows.size)
+                    assertEquals(2, result.columns.size)
+                }
+            }
+
+            thread.join(3_000)
+            assertFalse(thread.isAlive, "fake PostemberDB server did not finish")
+            serverFailure.get()?.let { throw AssertionError("fake server failed", it) }
+        }
+    }
+
+    @Test
     fun `client rejects non loopback targets and multiline SQL`() {
         assertThrows(IllegalArgumentException::class.java) {
             KSLPostemberClient(host = "192.0.2.10").execute("SELECT * FROM users")
