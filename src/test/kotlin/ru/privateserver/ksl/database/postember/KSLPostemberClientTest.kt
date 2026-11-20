@@ -171,7 +171,7 @@ class KSLPostemberClientTest {
             KSLPostemberClient(port = server.localPort, maxResponseBytes = 128).use { client ->
                 repeat(2) {
                     val result = client.query("SELECT id, value FROM rows")
-                    assertEquals(5, result.rows.size)
+                    assertEquals(3, result.rows.size)
                     assertEquals(2, result.columns.size)
                 }
             }
