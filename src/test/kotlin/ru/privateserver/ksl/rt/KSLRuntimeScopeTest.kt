@@ -66,6 +66,35 @@ class KSLRuntimeScopeTest {
     }
 
     @Test
+    fun `closing one child cancels only that childs submitted work`() {
+        val executor = ThreadPoolExecutor(2, 2, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue())
+        val parent = KSLRuntimeScope("plugin")
+        val first = parent.childScope("plugin/first")
+        val second = parent.childScope("plugin/second")
+        val firstStarted = CountDownLatch(1)
+
+        try {
+            val firstWork = first.submit(executor) {
+                firstStarted.countDown()
+                CountDownLatch(1).await()
+                "first"
+            }
+            val secondWork = second.submit(executor) { "second" }
+
+            assertTrue(firstStarted.await(2, TimeUnit.SECONDS))
+            first.close()
+
+            assertTrue(firstWork.isCancelled)
+            assertEquals("second", secondWork.get(2, TimeUnit.SECONDS))
+            assertFalse(parent.isClosed)
+            assertFalse(second.isClosed)
+        } finally {
+            parent.close()
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
     fun `child cleanup failure does not block parent or sibling cleanup`() {
         val parent = KSLRuntimeScope("plugin")
         val cleanupCalls = AtomicInteger()
