@@ -71,6 +71,19 @@ class KSLWorkHandle internal constructor(
  * Timer callbacks only submit tasks; user code always runs on worker threads.
  * Bukkit API access belongs on the main server thread (for example through runSync()).
  */
+private class MutableOwnerWorkSnapshot {
+    var tracked = 0
+    var queued = 0
+    var running = 0
+    var scheduled = 0
+    var executions = 0L
+    var skippedExecutions = 0L
+
+    fun freeze() = KSLWorkOwnerSnapshot(
+        tracked, queued, running, scheduled, executions, skippedExecutions
+    )
+}
+
 class KSLWorkScheduler(
     workers: Int,
     private val queueCapacity: Int,
@@ -540,28 +553,57 @@ class KSLWorkScheduler(
     }
 
     fun snapshot(): KSLWorkSnapshot {
-        val current = records.values.toList()
-        val byOwner = current.groupBy { it.owner }.mapValues { (_, tasks) ->
-            KSLWorkOwnerSnapshot(
-                tasks.size, tasks.count { it.state == KSLWorkState.QUEUED },
-                tasks.count { it.state == KSLWorkState.RUNNING },
-                tasks.count { it.state == KSLWorkState.SCHEDULED },
-                tasks.sumOf { it.executions }, tasks.sumOf { it.skippedExecutions }
+        // One weakly-consistent pass avoids allocating an intermediate task list,
+        // groupBy buckets, and multiple full scans while diagnostics poll the scheduler.
+        val byOwner = HashMap<String, MutableOwnerWorkSnapshot>()
+        var queued = 0
+        var scheduled = 0
+        var running = 0
+        var oldestQueuedAt = Long.MAX_VALUE
+
+        records.values.forEach { record ->
+            val owner = byOwner.getOrPut(record.owner) { MutableOwnerWorkSnapshot() }
+            owner.tracked++
+            owner.executions += record.executions
+            owner.skippedExecutions += record.skippedExecutions
+            when (record.state) {
+                KSLWorkState.QUEUED -> {
+                    owner.queued++
+                    queued++
+                    if (record.queuedAtNanos > 0L) {
+                        oldestQueuedAt = minOf(oldestQueuedAt, record.queuedAtNanos)
+                    }
+                }
+                KSLWorkState.RUNNING -> {
+                    owner.running++
+                    running++
+                }
+                KSLWorkState.SCHEDULED -> {
+                    owner.scheduled++
+                    scheduled++
+                }
+                else -> Unit
+            }
+        }
+
+        val byOwnerSnapshot = byOwner.mapValues { (_, value) -> value.freeze() }
+        val oldestQueuedMillis = if (oldestQueuedAt == Long.MAX_VALUE) {
+            0L
+        } else {
+            TimeUnit.NANOSECONDS.toMillis(
+                (System.nanoTime() - oldestQueuedAt).coerceAtLeast(0L)
             )
         }
-        val oldest = current.filter { it.state == KSLWorkState.QUEUED && it.queuedAtNanos > 0L }
-            .minOfOrNull { it.queuedAtNanos }
-            ?.let { TimeUnit.NANOSECONDS.toMillis((System.nanoTime() - it).coerceAtLeast(0L)) } ?: 0L
         val max = capacity.get()
         val used = outstanding.get()
         return KSLWorkSnapshot(
             executor.corePoolSize, executor.activeCount,
-            current.count { it.state == KSLWorkState.QUEUED }, current.size,
+            queued, byOwnerSnapshot.values.sumOf { it.tracked },
             completed.get(), rejected.get(),
-            current.count { it.state == KSLWorkState.SCHEDULED },
-            current.count { it.state == KSLWorkState.RUNNING },
-            failed.get(), cancelled.get(), skipped.get(), max, (max - used).coerceAtLeast(0),
-            executor.largestPoolSize, oldest, closed.get(), byOwner
+            scheduled, running,
+            failed.get(), cancelled.get(), skipped.get(), max,
+            (max - used).coerceAtLeast(0), executor.largestPoolSize,
+            oldestQueuedMillis, closed.get(), byOwnerSnapshot
         )
     }
 
