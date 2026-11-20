@@ -66,6 +66,42 @@ class KSLRuntimeScopeTest {
     }
 
     @Test
+    fun `scope cancels owned scheduler handles when closed`() {
+        val scheduler = KSLWorkScheduler(workers = 1, queueCapacity = 4)
+        val scope = KSLRuntimeScope("scheduled")
+        try {
+            val handle = scope.own(scheduler.scheduleHandle("scheduled", 60L, TimeUnit.SECONDS) { })
+            assertEquals(1, scope.ownedResourceCount)
+
+            scope.close()
+
+            assertEquals(KSLWorkState.CANCELLED, handle.await(2, TimeUnit.SECONDS).state)
+            assertEquals(0, scope.ownedResourceCount)
+        } finally {
+            scope.close()
+            scheduler.close()
+        }
+    }
+
+    @Test
+    fun `completed scheduler handle releases scope ownership automatically`() {
+        val scheduler = KSLWorkScheduler(workers = 1, queueCapacity = 4)
+        val scope = KSLRuntimeScope("completed")
+        try {
+            val handle = scope.own(scheduler.submitHandle("completed") { })
+            assertEquals(KSLWorkState.SUCCEEDED, handle.await(2, TimeUnit.SECONDS).state)
+
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
+            while (scope.ownedResourceCount != 0 && System.nanoTime() < deadline) Thread.yield()
+            assertEquals(0, scope.ownedResourceCount)
+            assertFalse(scope.isClosed)
+        } finally {
+            scope.close()
+            scheduler.close()
+        }
+    }
+
+    @Test
     fun `closing one child cancels only that childs submitted work`() {
         val executor = ThreadPoolExecutor(2, 2, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue())
         val parent = KSLRuntimeScope("plugin")
