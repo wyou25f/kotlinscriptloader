@@ -109,7 +109,7 @@ class KSLWorkSchedulerTest {
             val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
             while (scheduler.snapshot().tracked != 0 && System.nanoTime() < deadline) Thread.yield()
             assertEquals(0, scheduler.snapshot().tracked)
-            assertTrue(scheduler.taskInfos("alpha").isEmpty())
+            assertEquals(KSLWorkState.CANCELLED, scheduler.taskInfos("alpha").single().state)
         } finally {
             releaseBlocker.countDown()
             scheduler.close()
