@@ -154,9 +154,9 @@ class KSLPostemberClientTest {
 
                         repeat(2) {
                             assertEquals("SELECT id, value FROM rows", reader.readLine())
-                            writer.println("OK 5 row(s)")
+                            writer.println("OK 3 row(s)")
                             writer.println("id\tvalue\t")
-                            repeat(5) { index ->
+                            repeat(3) { index ->
                                 writer.println("${index + 1}\t${"x".repeat(24)}\t")
                             }
                         }
