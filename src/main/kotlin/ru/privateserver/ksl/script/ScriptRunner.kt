@@ -131,10 +131,11 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
             val warnings = ArrayList<String>()
             val errors = ArrayList<String>()
             result.reports.forEach { diagnostic ->
-                val formatted = formatDiagnostic(diagnostic, file)
                 when {
-                    diagnostic.severity == ScriptDiagnostic.Severity.WARNING -> warnings += formatted
-                    diagnostic.severity >= ScriptDiagnostic.Severity.ERROR -> errors += formatted
+                    diagnostic.severity == ScriptDiagnostic.Severity.WARNING ->
+                        warnings += formatDiagnostic(diagnostic, file)
+                    diagnostic.severity >= ScriptDiagnostic.Severity.ERROR ->
+                        errors += formatDiagnostic(diagnostic, file)
                 }
             }
             when (result) {
