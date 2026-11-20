@@ -29,6 +29,54 @@ class KSLRuntimeScopeTest {
     }
 
     @Test
+    fun `parent scope closes nested scopes in reverse ownership order`() {
+        val parent = KSLRuntimeScope("plugin")
+        val events = mutableListOf<String>()
+        parent.onClose { events += "parent-resource" }
+
+        val child = parent.childScope("plugin/database")
+        child.onClose { events += "child-first" }
+        child.onClose { events += "child-second" }
+
+        parent.close()
+
+        assertEquals(
+            listOf("child-second", "child-first", "parent-resource"),
+            events
+        )
+        assertTrue(child.isClosed)
+        assertTrue(parent.isClosed)
+        assertEquals(0, parent.ownedResourceCount)
+    }
+
+    @Test
+    fun `manually closed child detaches from its parent`() {
+        val parent = KSLRuntimeScope("plugin")
+        val parentCleanupCalls = AtomicInteger()
+        parent.onClose { parentCleanupCalls.incrementAndGet() }
+        val child = parent.childScope("plugin/cache")
+
+        assertEquals(2, parent.ownedResourceCount)
+        child.close()
+        child.close()
+
+        assertEquals(1, parent.ownedResourceCount)
+        parent.close()
+        assertEquals(1, parentCleanupCalls.get())
+    }
+
+    @Test
+    fun `closed parent rejects creation of a child scope`() {
+        val parent = KSLRuntimeScope("closed-parent")
+        parent.close()
+
+        assertThrows(IllegalStateException::class.java) {
+            parent.childScope("orphan")
+        }
+        assertEquals(0, parent.ownedResourceCount)
+    }
+
+    @Test
     fun `scope owns caches and scoped profilers`() {
         val scope = KSLRuntimeScope("shop")
         val cache = scope.lru<String, Int>(4)
