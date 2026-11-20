@@ -43,6 +43,17 @@ class KSLCompiledScriptCacheTest {
     }
 
     @Test
+    fun evictionRemovesTheScriptReverseIndex() {
+        val cache = KSLCompiledScriptCache<String>(1)
+        cache.put(KSLCompileCacheKey("one", "a"), "1")
+        cache.put(KSLCompileCacheKey("two", "b"), "2")
+
+        assertEquals(0, cache.invalidateScript("one"), "evicted scripts must not leave stale reverse-index entries")
+        assertEquals(1, cache.invalidateScript("two"))
+        assertEquals(0, cache.stats().size)
+    }
+
+    @Test
     fun invalidationAndClearReturnRemovedCounts() {
         val cache = KSLCompiledScriptCache<String>(3)
         cache.put(KSLCompileCacheKey("one", "a"), "1")
