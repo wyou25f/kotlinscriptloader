@@ -46,7 +46,7 @@ dependencies {
     compileOnly("com.github.MilkBowl:VaultAPI:1.7") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
-    compileOnly("com.sk89q.worldedit:worldedit-bukkit:7.2.15") {
+    compileOnly("com.sk89q.worldedit:worldedit-bukkit:7.4.6") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
     compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.9") {
