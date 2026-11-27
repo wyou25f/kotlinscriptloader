@@ -41,12 +41,12 @@ class KSLRetiredClassLoadersTest {
     fun `reloading one script transfers its lease to the new library generation`() {
         val firstDirectory = Files.createTempDirectory("ksl-library-old").toFile()
         val secondDirectory = Files.createTempDirectory("ksl-library-new").toFile()
+        val retired = KSLRetiredClassLoaders()
         try {
             java.io.File(firstDirectory, "generation.txt").writeText("old")
             java.io.File(secondDirectory, "generation.txt").writeText("new")
             val first = URLClassLoader(arrayOf(firstDirectory.toURI().toURL()), null)
             val second = URLClassLoader(arrayOf(secondDirectory.toURI().toURL()), null)
-            val retired = KSLRetiredClassLoaders()
 
             retired.acquire("script", first)
             retired.retire(first)
@@ -63,6 +63,7 @@ class KSLRetiredClassLoadersTest {
             assertNull(second.getResource("generation.txt"))
             assertFalse(retired.release("script"))
         } finally {
+            retired.close()
             firstDirectory.deleteRecursively()
             secondDirectory.deleteRecursively()
         }
