@@ -20,6 +20,7 @@ import ru.privateserver.ksl.rt.KSLWorkPriority
 import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
@@ -39,6 +40,8 @@ class KSLAddonScope internal constructor(
     private val lock = Any()
     private val resources = mutableListOf<AutoCloseable>()
     private var closed = false
+    private var closingThread: Thread? = null
+    private val closeFinished = CountDownLatch(1)
 
     /** True after [close] has started. */
     val isClosed: Boolean
@@ -306,26 +309,59 @@ class KSLAddonScope internal constructor(
      */
     override fun close() {
         val pending = synchronized(lock) {
-            if (closed) return
-            closed = true
-            resources.asReversed().toList().also { resources.clear() }
+            if (closed) {
+                if (closingThread === Thread.currentThread()) return
+                null
+            } else {
+                closed = true
+                closingThread = Thread.currentThread()
+                resources.asReversed().toList().also { resources.clear() }
+            }
+        }
+
+        if (pending == null) {
+            awaitCloseCompletion()
+            return
         }
 
         var failure: Throwable? = null
-        pending.forEach { resource ->
-            try {
-                resource.close()
-            } catch (closeFailure: Throwable) {
-                if (failure == null) {
-                    failure = closeFailure
-                } else {
-                    failure?.addSuppressed(closeFailure)
+        try {
+            pending.forEach { resource ->
+                try {
+                    resource.close()
+                } catch (closeFailure: Throwable) {
+                    if (failure == null) {
+                        failure = closeFailure
+                    } else {
+                        failure!!.addSuppressed(closeFailure)
+                    }
                 }
             }
+        } finally {
+            synchronized(lock) { closingThread = null }
+            closeFinished.countDown()
         }
         failure?.let {
             throw IllegalStateException("One or more KSL addon resources failed to close", it)
         }
+    }
+
+    /**
+     * Concurrent close callers wait until every owned resource has been attempted.
+     * Reentrant close from the cleanup thread is a no-op to avoid self-deadlock.
+     * Interrupted callers still wait for cleanup and have their interrupt flag restored.
+     */
+    private fun awaitCloseCompletion() {
+        var interrupted = false
+        while (true) {
+            try {
+                closeFinished.await()
+                break
+            } catch (_: InterruptedException) {
+                interrupted = true
+            }
+        }
+        if (interrupted) Thread.currentThread().interrupt()
     }
 
     companion object {
