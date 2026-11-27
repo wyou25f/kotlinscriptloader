@@ -16,7 +16,9 @@ class CompiledUnit(
     val compileMillis: Long,
     val sourceStamp: String = "",
     /** Exact local-library generation used to compile this artifact, for safe reload rollback. */
-    val libraryClassLoader: ClassLoader? = null
+    val libraryClassLoader: ClassLoader? = null,
+    /** Temporary compile-to-activation lease, transferred to the generation runtime scope. */
+    val libraryLease: AutoCloseable? = null
 ) {
     val ok: Boolean get() = compiled != null
 }
