@@ -214,4 +214,20 @@ class KslCsvTest {
         }
     }
 
+
+    @Test
+    fun fileReadEnforcesByteLimitOnTheActualStreamContents() {
+        val directory = Files.createTempDirectory("ksl-csv-size-limit").toFile()
+        val file = directory.resolve("growing.csv")
+        try {
+            file.writeBytes("a,b\\n1,2".toByteArray(Charsets.UTF_8))
+            assertThrows(IllegalArgumentException::class.java) {
+                KslCsvFiles.read(file, maxFileBytes = 4)
+            }
+            assertEquals(1, KslCsvFiles.read(file, maxFileBytes = 32)!!.rowCount)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
 }
