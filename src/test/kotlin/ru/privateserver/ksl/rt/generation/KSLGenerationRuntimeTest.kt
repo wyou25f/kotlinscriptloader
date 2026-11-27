@@ -9,6 +9,9 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import ru.privateserver.ksl.rt.KSLRuntimeScope
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 class KSLGenerationRuntimeTest {
@@ -173,4 +176,61 @@ class KSLGenerationRuntimeTest {
         assertEquals(1L, manager.snapshots().single().generation)
         manager.fail(first)
     }
+
+    @Test
+    fun `generation cannot be activated before candidate initialization has returned`() {
+        val manager = manager()
+        val candidate = manager.begin("lifecycle/race", "stamp", "compiled")
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val executor = Executors.newSingleThreadExecutor()
+
+        try {
+            val initialization = executor.submit {
+                manager.withCandidate(candidate) {
+                    entered.countDown()
+                    check(release.await(5, TimeUnit.SECONDS)) { "Timed out waiting to finish candidate initialization" }
+                }
+            }
+
+            assertTrue(entered.await(5, TimeUnit.SECONDS))
+            assertThrows(IllegalStateException::class.java) {
+                manager.activate(candidate)
+            }
+            assertNull(manager.activeGeneration("lifecycle/race"))
+            assertEquals(KSLGenerationState.INITIALIZING, candidate.state)
+
+            release.countDown()
+            initialization.get(5, TimeUnit.SECONDS)
+            manager.activate(candidate)
+
+            assertSame(candidate, manager.activeGeneration("lifecycle/race"))
+            assertEquals(KSLGenerationState.ACTIVE, candidate.state)
+        } finally {
+            release.countDown()
+            executor.shutdownNow()
+            manager.close()
+        }
+    }
+
+    @Test
+    fun `closeAll disposes candidates and active generations exactly once`() {
+        val manager = manager()
+        val active = manager.begin("lifecycle/active", "one", "compiled-one")
+        manager.withCandidate(active) { }
+        manager.activate(active)
+
+        val candidate = manager.begin("lifecycle/candidate", "two", "compiled-two")
+        manager.withCandidate(candidate) { }
+
+        manager.closeAll()
+
+        assertEquals(KSLGenerationState.DISPOSED, active.state)
+        assertEquals(KSLGenerationState.FAILED, candidate.state)
+        assertTrue(active.scope.isClosed)
+        assertTrue(candidate.scope.isClosed)
+        assertTrue(manager.snapshots().isEmpty())
+        assertNull(manager.activeGeneration("lifecycle/active"))
+    }
+
 }
