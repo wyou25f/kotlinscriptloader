@@ -56,6 +56,23 @@ internal object KSLRuntimeSizing {
         }
     }
 
+    fun recommendedCompileCacheCapacity(
+        baseCapacity: Int,
+        heapUsedBytes: Long,
+        heapMaxBytes: Long
+    ): Int {
+        require(baseCapacity > 0) { "baseCapacity must be positive" }
+        if (heapMaxBytes <= 0L) return baseCapacity
+        val pressure = heapUsedBytes.coerceAtLeast(0L).toDouble() / heapMaxBytes.toDouble()
+        val target = when {
+            pressure >= 0.90 -> maxOf(16, baseCapacity / 4)
+            pressure >= 0.82 -> maxOf(16, baseCapacity / 2)
+            pressure >= 0.72 -> maxOf(16, baseCapacity * 3 / 4)
+            else -> baseCapacity
+        }
+        return minOf(baseCapacity, target)
+    }
+
     fun recommendedCompileCacheEntries(maxHeapBytes: Long): Int =
         recommendedCompileCacheEntries(maxHeapBytes, physicalMemoryBytes = -1L)
 
