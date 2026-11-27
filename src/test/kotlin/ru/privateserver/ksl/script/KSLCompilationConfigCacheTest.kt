@@ -2,6 +2,7 @@ package ru.privateserver.ksl.script
 
 import kotlin.script.experimental.api.ScriptCompilationConfiguration
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotSame
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Test
 
