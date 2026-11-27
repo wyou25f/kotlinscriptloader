@@ -32,6 +32,21 @@ class KSLRuntimeSizingTest {
     }
 
     @Test
+    fun `smaller physical memory boundary controls automatic sizing`() {
+        assertEquals(4L * gib, KSLRuntimeSizing.effectiveMemoryLimitBytes(8L * gib, 4L * gib))
+        assertEquals(2, KSLRuntimeSizing.recommendedWorkerCount(8L * gib, 4L * gib, 16))
+        assertEquals(128, KSLRuntimeSizing.recommendedQueueCapacity(8L * gib, 4L * gib))
+        assertEquals(64, KSLRuntimeSizing.recommendedCompileCacheEntries(8L * gib, 4L * gib))
+    }
+
+    @Test
+    fun `missing physical memory information falls back to the JVM heap`() {
+        assertEquals(2, KSLRuntimeSizing.recommendedWorkerCount(4L * gib, -1L, 16))
+        assertEquals(128, KSLRuntimeSizing.recommendedQueueCapacity(4L * gib, -1L))
+        assertEquals(64, KSLRuntimeSizing.recommendedCompileCacheEntries(4L * gib, -1L))
+    }
+
+    @Test
     fun `processor count and unknown heap size never produce zero workers`() {
         assertEquals(1, KSLRuntimeSizing.recommendedWorkerCount(4L * gib, 1))
         assertEquals(1, KSLRuntimeSizing.recommendedWorkerCount(0L, 16))
