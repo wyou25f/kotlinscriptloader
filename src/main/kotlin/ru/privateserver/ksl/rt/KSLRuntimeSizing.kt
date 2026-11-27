@@ -9,28 +9,57 @@ package ru.privateserver.ksl.rt
 internal object KSLRuntimeSizing {
     private const val GIB = 1024L * 1024L * 1024L
 
-    fun recommendedWorkerCount(maxHeapBytes: Long, availableProcessors: Int): Int {
+    /**
+     * Uses the smaller known memory boundary. This protects small physical hosts even when
+     * the JVM was accidentally started with an oversized -Xmx setting.
+     */
+    fun effectiveMemoryLimitBytes(maxHeapBytes: Long, physicalMemoryBytes: Long): Long {
+        val heap = maxHeapBytes.takeIf { it > 0L }
+        val physical = physicalMemoryBytes.takeIf { it > 0L }
+        return when {
+            heap != null && physical != null -> minOf(heap, physical)
+            heap != null -> heap
+            physical != null -> physical
+            else -> 0L
+        }
+    }
+
+    fun recommendedWorkerCount(maxHeapBytes: Long, availableProcessors: Int): Int =
+        recommendedWorkerCount(maxHeapBytes, physicalMemoryBytes = -1L, availableProcessors)
+
+    fun recommendedWorkerCount(
+        maxHeapBytes: Long,
+        physicalMemoryBytes: Long,
+        availableProcessors: Int
+    ): Int {
+        val memoryBudget = effectiveMemoryLimitBytes(maxHeapBytes, physicalMemoryBytes)
         val cpuLimit = (availableProcessors.coerceAtLeast(1) - 1).coerceAtLeast(1).coerceAtMost(8)
         val memoryLimit = when {
-            maxHeapBytes <= 2L * GIB -> 1
-            maxHeapBytes <= 4L * GIB -> 2
-            maxHeapBytes <= 8L * GIB -> 4
+            memoryBudget <= 2L * GIB -> 1
+            memoryBudget <= 4L * GIB -> 2
+            memoryBudget <= 8L * GIB -> 4
             else -> 6
         }
         return minOf(cpuLimit, memoryLimit).coerceAtLeast(1)
     }
 
-    fun recommendedQueueCapacity(maxHeapBytes: Long): Int = when {
-        maxHeapBytes <= 2L * GIB -> 64
-        maxHeapBytes <= 4L * GIB -> 128
-        maxHeapBytes <= 8L * GIB -> 256
+    fun recommendedQueueCapacity(maxHeapBytes: Long): Int =
+        recommendedQueueCapacity(maxHeapBytes, physicalMemoryBytes = -1L)
+
+    fun recommendedQueueCapacity(maxHeapBytes: Long, physicalMemoryBytes: Long): Int = when {
+        effectiveMemoryLimitBytes(maxHeapBytes, physicalMemoryBytes) <= 2L * GIB -> 64
+        effectiveMemoryLimitBytes(maxHeapBytes, physicalMemoryBytes) <= 4L * GIB -> 128
+        effectiveMemoryLimitBytes(maxHeapBytes, physicalMemoryBytes) <= 8L * GIB -> 256
         else -> 512
     }
 
-    fun recommendedCompileCacheEntries(maxHeapBytes: Long): Int = when {
-        maxHeapBytes <= 2L * GIB -> 32
-        maxHeapBytes <= 4L * GIB -> 64
-        maxHeapBytes <= 8L * GIB -> 96
+    fun recommendedCompileCacheEntries(maxHeapBytes: Long): Int =
+        recommendedCompileCacheEntries(maxHeapBytes, physicalMemoryBytes = -1L)
+
+    fun recommendedCompileCacheEntries(maxHeapBytes: Long, physicalMemoryBytes: Long): Int = when {
+        effectiveMemoryLimitBytes(maxHeapBytes, physicalMemoryBytes) <= 2L * GIB -> 32
+        effectiveMemoryLimitBytes(maxHeapBytes, physicalMemoryBytes) <= 4L * GIB -> 64
+        effectiveMemoryLimitBytes(maxHeapBytes, physicalMemoryBytes) <= 8L * GIB -> 96
         else -> 128
     }
 }
