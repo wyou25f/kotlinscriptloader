@@ -370,8 +370,22 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     }
 
     private fun initRuntimeWorkers() {
-        val workers = config.getInt("runtime.cpu-threads", (Runtime.getRuntime().availableProcessors() - 1).coerceAtLeast(1)).coerceIn(1, 64)
-        val queueCapacity = config.getInt("runtime.queue-capacity", 256).coerceIn(1, 100_000)
+        val maxHeapBytes = Runtime.getRuntime().maxMemory()
+        val configuredWorkers = config.getInt("runtime.cpu-threads", 0)
+        val workers = if (configuredWorkers <= 0) {
+            ru.privateserver.ksl.rt.KSLRuntimeSizing.recommendedWorkerCount(
+                maxHeapBytes,
+                Runtime.getRuntime().availableProcessors()
+            )
+        } else {
+            configuredWorkers.coerceIn(1, 64)
+        }
+        val configuredQueueCapacity = config.getInt("runtime.queue-capacity", 0)
+        val queueCapacity = if (configuredQueueCapacity <= 0) {
+            ru.privateserver.ksl.rt.KSLRuntimeSizing.recommendedQueueCapacity(maxHeapBytes)
+        } else {
+            configuredQueueCapacity.coerceIn(1, 100_000)
+        }
         val perScriptLimit = config.getInt("runtime.max-tasks-per-script", 64).coerceIn(1, 10_000)
         if (::workScheduler.isInitialized) workScheduler.resize(workers)
         else workScheduler = ru.privateserver.ksl.rt.KSLWorkScheduler(workers, queueCapacity, perScriptLimit)
