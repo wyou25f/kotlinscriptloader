@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test
 import ru.privateserver.ksl.rt.KSLWorkScheduler
 import java.time.Duration
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 class KSLTaskSchedulerHubTest {
@@ -137,4 +138,48 @@ class KSLTaskSchedulerHubTest {
             KSLTaskSpec("test", delay = Duration.ofMillis(-1)) { }
         }
     }
+
+    @Test
+    fun `registry does not hold its lock while creating scheduler engines`() {
+        val workers = KSLWorkScheduler(1, 8)
+        val registry = KSLTaskSchedulerRegistry.withOfficial(KSLTaskSchedulerEnvironment(workers))
+        val factoryEntered = CountDownLatch(1)
+        val releaseFactory = CountDownLatch(1)
+        val executor = Executors.newFixedThreadPool(2)
+        val factoryRegistration = registry.register("blocking") { environment ->
+            factoryEntered.countDown()
+            check(releaseFactory.await(5, TimeUnit.SECONDS)) { "Timed out waiting to release test factory" }
+            KSLOfficialTaskScheduler(environment.officialWorkers)
+        }
+        var createdScheduler: KSLTaskScheduler? = null
+
+        try {
+            val creation = executor.submit<KSLTaskScheduler> {
+                registry.create("blocking")
+            }
+            assertTrue(factoryEntered.await(5, TimeUnit.SECONDS))
+
+            // Registry operations must remain available while third-party factory
+            // initialization is blocked on another thread.
+            val registration = executor.submit<AutoCloseable> {
+                registry.register("during-create") { environment ->
+                    KSLOfficialTaskScheduler(environment.officialWorkers)
+                }
+            }.get(5, TimeUnit.SECONDS)
+
+            assertTrue("during-create" in registry.available())
+            registration.close()
+            assertFalse("during-create" in registry.available())
+
+            releaseFactory.countDown()
+            createdScheduler = creation.get(5, TimeUnit.SECONDS)
+        } finally {
+            releaseFactory.countDown()
+            runCatching { createdScheduler?.close() }
+            factoryRegistration.close()
+            executor.shutdownNow()
+            workers.close()
+        }
+    }
+
 }
