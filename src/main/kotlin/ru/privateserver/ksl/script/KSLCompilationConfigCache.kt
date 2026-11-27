@@ -19,8 +19,8 @@ internal class KSLCompilationConfigCache {
 
     fun getOrBuild(
         environmentStamp: String,
-        builder: () -> ScriptCompilationConfiguration,
-        onEnvironmentChanged: () -> Unit = {}
+        onEnvironmentChanged: () -> Unit = {},
+        builder: () -> ScriptCompilationConfiguration
     ): ScriptCompilationConfiguration {
         require(environmentStamp.isNotBlank()) { "environmentStamp must not be blank" }
         entry?.let { current ->
