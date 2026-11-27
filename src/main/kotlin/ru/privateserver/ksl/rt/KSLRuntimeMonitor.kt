@@ -1,6 +1,21 @@
 package ru.privateserver.ksl.rt
 
+import java.lang.management.BufferPoolMXBean
 import java.lang.management.ManagementFactory
+
+data class KSLRuntimeMemorySnapshot(
+    val heapUsedBytes: Long,
+    val heapCommittedBytes: Long,
+    val heapMaxBytes: Long,
+    val nonHeapUsedBytes: Long,
+    val directBufferBytes: Long,
+    val mappedBufferBytes: Long,
+    val loadedClasses: Int,
+    val totalLoadedClasses: Long,
+    val unloadedClasses: Long,
+    val physicalMemoryBytes: Long,
+    val freePhysicalMemoryBytes: Long
+)
 
 data class KSLRuntimeSnapshot(
     val heapUsedBytes: Long,
@@ -25,6 +40,38 @@ data class KSLRuntimeSnapshot(
  * attempt to resize the JVM heap: those are controlled by the JVM launch flags.
  */
 object KSLRuntimeMonitor {
+    /**
+     * JVM memory details that complement heap usage with direct/mapped buffers,
+     * class-loading counters and best-effort host/container memory information.
+     * Unsupported platform measurements are reported as -1.
+     */
+    @JvmStatic
+    fun memorySnapshot(): KSLRuntimeMemorySnapshot {
+        val memory = ManagementFactory.getMemoryMXBean()
+        val heap = memory.heapMemoryUsage
+        val nonHeap = memory.nonHeapMemoryUsage
+        val pools = ManagementFactory.getPlatformMXBeans(BufferPoolMXBean::class.java)
+        fun bufferBytes(prefix: String): Long {
+            val matching = pools.filter { it.name.startsWith(prefix, ignoreCase = true) }
+            return if (matching.isEmpty()) -1L else matching.sumOf { it.memoryUsed.coerceAtLeast(0L) }
+        }
+        val classes = ManagementFactory.getClassLoadingMXBean()
+        val os = ManagementFactory.getOperatingSystemMXBean() as? com.sun.management.OperatingSystemMXBean
+        return KSLRuntimeMemorySnapshot(
+            heapUsedBytes = heap.used.coerceAtLeast(0L),
+            heapCommittedBytes = heap.committed.coerceAtLeast(0L),
+            heapMaxBytes = heap.max,
+            nonHeapUsedBytes = nonHeap.used.coerceAtLeast(0L),
+            directBufferBytes = bufferBytes("direct"),
+            mappedBufferBytes = bufferBytes("mapped"),
+            loadedClasses = classes.loadedClassCount,
+            totalLoadedClasses = classes.totalLoadedClassCount,
+            unloadedClasses = classes.unloadedClassCount,
+            physicalMemoryBytes = runCatching { os?.totalMemorySize ?: -1L }.getOrDefault(-1L),
+            freePhysicalMemoryBytes = runCatching { os?.freeMemorySize ?: -1L }.getOrDefault(-1L)
+        )
+    }
+
     @JvmStatic
     fun snapshot(): KSLRuntimeSnapshot {
         val memory = ManagementFactory.getMemoryMXBean()
