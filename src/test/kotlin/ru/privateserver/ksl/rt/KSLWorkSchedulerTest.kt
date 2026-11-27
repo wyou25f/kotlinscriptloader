@@ -427,6 +427,31 @@ class KSLWorkSchedulerTest {
     }
 
     @Test
+    fun `resizing updates per-script task limits without cancelling active work`() {
+        val scheduler = KSLWorkScheduler(workers = 1, queueCapacity = 8, perScriptLimit = 4)
+        val started = CountDownLatch(1)
+        val release = CountDownLatch(1)
+
+        try {
+            scheduler.submit("quota-owner") {
+                started.countDown()
+                release.await(3, TimeUnit.SECONDS)
+            }
+            assertTrue(started.await(2, TimeUnit.SECONDS))
+
+            scheduler.resize(workers = 1, queueCapacity = 8, perScriptLimit = 1)
+
+            assertThrows(RejectedExecutionException::class.java) {
+                scheduler.submit("quota-owner") { }
+            }
+            assertEquals(1, scheduler.snapshot().running)
+        } finally {
+            release.countDown()
+            scheduler.close()
+        }
+    }
+
+    @Test
     fun `resizing updates both worker count and bounded queue capacity`() {
         val scheduler = KSLWorkScheduler(workers = 1, queueCapacity = 8)
         try {
