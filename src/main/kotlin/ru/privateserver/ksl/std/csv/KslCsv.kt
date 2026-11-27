@@ -655,7 +655,17 @@ object KslCsvFiles {
         require(file.length() <= maxFileBytes) {
             "CSV file exceeds $maxFileBytes bytes"
         }
-        val text = file.readText(StandardCharsets.UTF_8).removePrefix("\uFEFF")
+        // The length check is a fast rejection, but it is not sufficient on its own:
+        // another process can grow or replace the file between the check and the read.
+        // Read at most maxFileBytes + 1 bytes so the configured bound is enforced on
+        // the actual data consumed, not only on an earlier filesystem metadata snapshot.
+        val bytes = file.inputStream().use { input ->
+            input.readNBytes((maxFileBytes + 1L).toInt())
+        }
+        require(bytes.size.toLong() <= maxFileBytes) {
+            "CSV file exceeds $maxFileBytes bytes"
+        }
+        val text = String(bytes, StandardCharsets.UTF_8).removePrefix("\uFEFF")
         return try {
             KslCsvCodec.parse(text, options)
         } catch (error: Exception) {
