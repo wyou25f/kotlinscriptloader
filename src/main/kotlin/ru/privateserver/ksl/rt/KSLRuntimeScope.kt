@@ -3,6 +3,7 @@ package ru.privateserver.ksl.rt
 import java.time.Duration
 import java.util.LinkedHashMap
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
 import java.util.concurrent.FutureTask
 import java.util.concurrent.ThreadPoolExecutor
@@ -17,8 +18,10 @@ class KSLRuntimeScope(val name: String) : AutoCloseable {
     private val lock = Any()
     private val cleanups = ArrayList<Cleanup>()
     private val profilers = LinkedHashMap<String, KSLProfiler>()
+    private val closeFinished = CountDownLatch(1)
 
     @Volatile private var closed = false
+    private var closingThread: Thread? = null
 
     init {
         require(name.isNotBlank()) { "Runtime scope name must not be blank" }
@@ -211,30 +214,66 @@ class KSLRuntimeScope(val name: String) : AutoCloseable {
     fun profileSnapshots(): List<KSLProfileSnapshot> =
         synchronized(lock) { profilers.values.map { it.snapshot() } }
 
+    /**
+     * Closes resources once. Concurrent callers wait for the first close operation
+     * to finish; a cleanup callback may safely call close() again on its own thread.
+     */
     override fun close() {
         val actions = synchronized(lock) {
-            if (closed) return
-            closed = true
-            profilers.clear()
-            cleanups.asReversed().mapNotNull { it.action }.also {
-                cleanups.forEach { cleanup -> cleanup.action = null }
-                cleanups.clear()
-            }
-        }
-
-        var failure: Throwable? = null
-        actions.forEach { action ->
-            try {
-                action()
-            } catch (error: Throwable) {
-                if (failure == null) {
-                    failure = IllegalStateException("One or more resources failed to close in runtime scope '$name'", error)
-                } else {
-                    failure!!.addSuppressed(error)
+            if (closed) {
+                if (closingThread === Thread.currentThread()) return
+                null
+            } else {
+                closed = true
+                closingThread = Thread.currentThread()
+                profilers.clear()
+                cleanups.asReversed().mapNotNull { it.action }.also {
+                    cleanups.forEach { cleanup -> cleanup.action = null }
+                    cleanups.clear()
                 }
             }
         }
+
+        if (actions == null) {
+            awaitCloseCompletion()
+            return
+        }
+
+        var failure: Throwable? = null
+        try {
+            actions.forEach { action ->
+                try {
+                    action()
+                } catch (error: Throwable) {
+                    if (failure == null) {
+                        failure = IllegalStateException("One or more resources failed to close in runtime scope '$name'", error)
+                    } else {
+                        failure!!.addSuppressed(error)
+                    }
+                }
+            }
+        } finally {
+            synchronized(lock) { closingThread = null }
+            closeFinished.countDown()
+        }
         failure?.let { throw it }
+    }
+
+    /**
+     * Waits without abandoning cleanup if interrupted, then restores the caller's
+     * interrupt flag so shutdown coordination remains reliable and interruption-safe.
+     */
+    private fun awaitCloseCompletion() {
+        var interrupted = false
+        while (true) {
+            try {
+                closeFinished.await()
+                break
+            } catch (_: InterruptedException) {
+                interrupted = true
+            }
+        }
+        if (interrupted) Thread.currentThread().interrupt()
     }
 
     companion object {
