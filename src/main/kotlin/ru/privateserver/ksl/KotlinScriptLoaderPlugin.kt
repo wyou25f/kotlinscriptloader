@@ -418,6 +418,9 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
     internal fun invalidateCompiledScriptCache(): Int =
         if (::scriptEngine.isInitialized) scriptEngine.clearCompileCache() else 0
 
+    internal fun invalidateCompiledScript(scriptId: String): Int =
+        if (::scriptEngine.isInitialized) scriptEngine.invalidateCompileCache(scriptId) else 0
+
     private val scriptDiagnostics = KSLScriptDiagnostics()
     private val scriptRuntimeScopes = ConcurrentHashMap<String, ru.privateserver.ksl.rt.KSLRuntimeScope>()
     private val generationManager = KSLGenerationManager<CompiledUnit>()
@@ -1640,6 +1643,10 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         if (closeGeneration) {
             runCatching { generationManager.retireActive(scriptName) }
                 .onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось закрыть generation scope: ${it.message}") }
+            // The cache can otherwise keep a removed script's compiled classloader reachable
+            // until enough unrelated scripts are compiled to evict its LRU entry.
+            runCatching { invalidateCompiledScript(scriptName) }
+                .onFailure { logger.warning("[$scriptName] Не удалось очистить кеш скомпилированного скрипта: ${it.message}") }
         }
         runCatching { closeScriptRuntimeScope(scriptName) }
             .onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось закрыть runtime-ресурсы: ${it.message}") }
