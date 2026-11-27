@@ -36,21 +36,78 @@ internal fun discoverLocalLibrarySources(sourceFolder: File): List<File> {
 }
 
 /**
- * Keeps retired library classloaders available while previously evaluated scripts can still
- * resolve classes lazily. They are closed together during orderly plugin shutdown.
+ * Tracks which live scripts may still resolve classes through a library generation.
+ *
+ * A retired URLClassLoader is closed as soon as its final script releases it. This
+ * preserves lazy class resolution for live scripts without retaining every historical
+ * library generation until the server shuts down.
  */
 internal class KSLRetiredClassLoaders : AutoCloseable {
     private val loaders = LinkedHashSet<URLClassLoader>()
+    private val retired = LinkedHashSet<URLClassLoader>()
+    private val owners = HashMap<String, URLClassLoader>()
+    private val references = HashMap<URLClassLoader, Int>()
 
     @Synchronized
-    fun retain(loader: URLClassLoader?) {
-        if (loader != null) loaders += loader
+    fun acquire(owner: String, loader: URLClassLoader?) {
+        require(owner.isNotBlank()) { "owner must not be blank" }
+        val previous = owners[owner]
+        if (previous === loader) return
+        if (previous != null) releaseLocked(owner, previous)
+        if (loader == null) return
+        check(loader !in retired) { "cannot acquire a retired classloader" }
+        loaders += loader
+        owners[owner] = loader
+        references[loader] = (references[loader] ?: 0) + 1
+    }
+
+    /** Marks a generation obsolete; it remains open only while scripts still reference it. */
+    @Synchronized
+    fun retire(loader: URLClassLoader?) {
+        if (loader == null || loader in retired) return
+        loaders += loader
+        retired += loader
+        closeIfUnused(loader)
+    }
+
+    /** Compatibility alias for callers that only need to retire a loader. */
+    fun retain(loader: URLClassLoader?) = retire(loader)
+
+    @Synchronized
+    fun release(owner: String): Boolean {
+        val loader = owners[owner] ?: return false
+        releaseLocked(owner, loader)
+        return true
+    }
+
+    @Synchronized
+    fun retainedGenerationCount(): Int = retired.size
+
+    @Synchronized
+    fun activeOwnerCount(): Int = owners.size
+
+    private fun releaseLocked(owner: String, loader: URLClassLoader) {
+        owners.remove(owner)
+        val remaining = (references[loader] ?: 1) - 1
+        if (remaining <= 0) references.remove(loader) else references[loader] = remaining
+        closeIfUnused(loader)
+    }
+
+    private fun closeIfUnused(loader: URLClassLoader) {
+        if (loader !in retired || (references[loader] ?: 0) > 0) return
+        retired.remove(loader)
+        loaders.remove(loader)
+        references.remove(loader)
+        runCatching { loader.close() }
     }
 
     @Synchronized
     override fun close() {
         val closing = loaders.toList()
         loaders.clear()
+        retired.clear()
+        owners.clear()
+        references.clear()
         closing.forEach { loader -> runCatching { loader.close() } }
     }
 }
@@ -80,6 +137,18 @@ internal class KSLLocalLibraryManager(private val plugin: KotlinScriptLoaderPlug
     @Volatile private var attemptedStamp: List<String> = emptyList()
 
     val classLoader: ClassLoader? get() = activeLoader
+
+    /** Pins the current library generation for a live script until that script unloads. */
+    @Synchronized
+    fun acquireForScript(scriptId: String): ClassLoader? {
+        val loader = activeLoader
+        retiredLoaders.acquire(scriptId, loader)
+        return loader
+    }
+
+    /** Releases the library-generation reference owned by an unloaded script. */
+    @Synchronized
+    fun releaseScript(scriptId: String): Boolean = retiredLoaders.release(scriptId)
 
     @Synchronized
     fun reloadIfChanged(): String? {
@@ -124,7 +193,7 @@ internal class KSLLocalLibraryManager(private val plugin: KotlinScriptLoaderPlug
         val nextLoader = URLClassLoader(arrayOf(output.toURI().toURL()), plugin::class.java.classLoader)
         val previous = activeLoader
         activeLoader = nextLoader
-        previous?.let(retiredLoaders::retain)
+        previous?.let(retiredLoaders::retire)
         return "Скомпилировано локальных Kotlin-библиотек: ${sources.size} файл(ов)"
     }
 
