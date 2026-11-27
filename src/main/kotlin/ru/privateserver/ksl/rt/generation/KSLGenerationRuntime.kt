@@ -30,6 +30,7 @@ internal class KSLScriptGeneration<T : Any> internal constructor(
     val scope: KSLRuntimeScope
 ) {
     private val stateLock = Any()
+    private var initializationInProgress = false
 
     @Volatile
     var state: KSLGenerationState = KSLGenerationState.CREATED
@@ -41,11 +42,33 @@ internal class KSLScriptGeneration<T : Any> internal constructor(
 
     internal fun markCompiled() = transition(KSLGenerationState.CREATED, KSLGenerationState.COMPILED)
 
-    internal fun beginInitialization() =
-        transition(KSLGenerationState.COMPILED, KSLGenerationState.INITIALIZING)
+    internal fun beginInitialization() {
+        synchronized(stateLock) {
+            check(state == KSLGenerationState.COMPILED) {
+                "Invalid generation transition for $scriptId#$number: expected ${KSLGenerationState.COMPILED}, found $state"
+            }
+            state = KSLGenerationState.INITIALIZING
+            initializationInProgress = true
+        }
+    }
 
-    internal fun markActive() =
-        transition(KSLGenerationState.INITIALIZING, KSLGenerationState.ACTIVE)
+    internal fun endInitialization() {
+        synchronized(stateLock) {
+            if (state == KSLGenerationState.INITIALIZING) initializationInProgress = false
+        }
+    }
+
+    internal fun markActive() {
+        synchronized(stateLock) {
+            check(state == KSLGenerationState.INITIALIZING) {
+                "Cannot activate generation $scriptId#$number from state $state"
+            }
+            check(!initializationInProgress) {
+                "Cannot activate generation $scriptId#$number while its initializer is still running"
+            }
+            state = KSLGenerationState.ACTIVE
+        }
+    }
 
     internal fun retire() {
         synchronized(stateLock) {
@@ -64,7 +87,7 @@ internal class KSLScriptGeneration<T : Any> internal constructor(
         }
     }
 
-    internal fun fail(error: Throwable?) {
+    internal fun markFailed(error: Throwable?) {
         synchronized(stateLock) {
             check(state == KSLGenerationState.CREATED ||
                 state == KSLGenerationState.COMPILED ||
@@ -72,13 +95,22 @@ internal class KSLScriptGeneration<T : Any> internal constructor(
                 "Cannot fail generation $scriptId#$number from state $state"
             }
             state = KSLGenerationState.FAILED
+            initializationInProgress = false
             if (error != null) failure = describeFailure(error)
         }
+    }
+
+    internal fun closeFailedScope() {
         try {
             scope.close()
         } catch (closeError: Throwable) {
             rememberFailure(closeError)
         }
+    }
+
+    internal fun fail(error: Throwable?) {
+        markFailed(error)
+        closeFailedScope()
     }
 
     private fun transition(expected: KSLGenerationState, next: KSLGenerationState) {
@@ -135,6 +167,7 @@ internal data class KSLGenerationSnapshot(
 internal class KSLGenerationManager<T : Any>(
     private val scopeFactory: (String) -> KSLRuntimeScope = { KSLRT.scope(it) }
 ) : AutoCloseable {
+    private val lifecycleLock = Any()
     private val active = ConcurrentHashMap<String, KSLScriptGeneration<T>>()
     private val candidates = ConcurrentHashMap<String, KSLScriptGeneration<T>>()
     private val counters = ConcurrentHashMap<String, AtomicLong>()
@@ -142,34 +175,35 @@ internal class KSLGenerationManager<T : Any>(
 
     fun begin(scriptId: String, sourceStamp: String, artifact: T): KSLScriptGeneration<T> {
         require(scriptId.isNotBlank()) { "scriptId must not be blank" }
-        check(!candidates.containsKey(scriptId)) { "A generation for '$scriptId' is already initializing" }
-        val number = counters.computeIfAbsent(scriptId) { AtomicLong() }.incrementAndGet()
-        val generation = KSLScriptGeneration(
-            scriptId = scriptId,
-            number = number,
-            sourceStamp = sourceStamp,
-            artifact = artifact,
-            scope = scopeFactory("script:$scriptId#generation:$number")
-        )
-        generation.markCompiled()
-        val previous = candidates.putIfAbsent(scriptId, generation)
-        if (previous != null) {
-            runCatching { generation.scope.close() }
-            error("A generation for '$scriptId' is already initializing")
+        return synchronized(lifecycleLock) {
+            check(!candidates.containsKey(scriptId)) { "A generation for '$scriptId' is already initializing" }
+            val number = counters.computeIfAbsent(scriptId) { AtomicLong() }.incrementAndGet()
+            val generation = KSLScriptGeneration(
+                scriptId = scriptId,
+                number = number,
+                sourceStamp = sourceStamp,
+                artifact = artifact,
+                scope = scopeFactory("script:$scriptId#generation:$number")
+            )
+            generation.markCompiled()
+            candidates[scriptId] = generation
+            generation
         }
-        return generation
     }
 
     fun <R> withCandidate(generation: KSLScriptGeneration<T>, block: () -> R): R {
-        check(candidates[generation.scriptId] === generation) {
-            "Generation ${generation.scriptId}#${generation.number} is not a registered candidate"
+        synchronized(lifecycleLock) {
+            check(candidates[generation.scriptId] === generation) {
+                "Generation ${generation.scriptId}#${generation.number} is not a registered candidate"
+            }
+            generation.beginInitialization()
         }
-        generation.beginInitialization()
         val previous = evaluating.get()
         evaluating.set(generation)
         return try {
             block()
         } finally {
+            generation.endInitialization()
             if (previous == null) evaluating.remove() else evaluating.set(previous)
         }
     }
@@ -179,22 +213,32 @@ internal class KSLGenerationManager<T : Any>(
      * the linearization point; cleanup of the retired scope happens afterwards.
      */
     fun activate(generation: KSLScriptGeneration<T>) {
-        check(candidates.remove(generation.scriptId, generation)) {
-            "Generation ${generation.scriptId}#${generation.number} is not a registered candidate"
+        val previous = synchronized(lifecycleLock) {
+            check(candidates[generation.scriptId] === generation) {
+                "Generation ${generation.scriptId}#${generation.number} is not a registered candidate"
+            }
+            generation.markActive()
+            check(candidates.remove(generation.scriptId, generation)) {
+                "Generation ${generation.scriptId}#${generation.number} was concurrently removed"
+            }
+            active.put(generation.scriptId, generation)
         }
-        generation.markActive()
-        val previous = active.put(generation.scriptId, generation)
         previous?.retire()
     }
 
     fun fail(generation: KSLScriptGeneration<T>, error: Throwable? = null) {
-        candidates.remove(generation.scriptId, generation)
-        generation.fail(error)
+        synchronized(lifecycleLock) {
+            check(candidates.remove(generation.scriptId, generation)) {
+                "Generation ${generation.scriptId}#${generation.number} is not a registered candidate"
+            }
+            generation.markFailed(error)
+        }
+        generation.closeFailedScope()
     }
 
     /** Removes and closes the active generation, returning its artifact for recovery. */
     fun retireActive(scriptId: String): KSLScriptGeneration<T>? {
-        val previous = active.remove(scriptId) ?: return null
+        val previous = synchronized(lifecycleLock) { active.remove(scriptId) } ?: return null
         previous.retire()
         return previous
     }
@@ -218,8 +262,19 @@ internal class KSLGenerationManager<T : Any>(
     fun scriptIds(): Set<String> = active.keys + candidates.keys
 
     fun closeAll() {
-        candidates.values.toList().forEach { fail(it, IllegalStateException("KSL is shutting down")) }
-        active.keys.toList().forEach(::retireActive)
+        val (pending, running) = synchronized(lifecycleLock) {
+            val pending = candidates.values.toList()
+            pending.forEach { generation ->
+                if (candidates.remove(generation.scriptId, generation)) {
+                    generation.markFailed(IllegalStateException("KSL is shutting down"))
+                }
+            }
+            val running = active.values.toList()
+            active.clear()
+            pending to running
+        }
+        pending.forEach { it.closeFailedScope() }
+        running.forEach { it.retire() }
     }
 
     override fun close() = closeAll()
