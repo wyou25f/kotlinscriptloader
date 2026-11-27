@@ -80,18 +80,19 @@ class KSLCache<K : Any, V : Any> @JvmOverloads constructor(
     /** Atomic variant: loader executes under the cache lock, once per missing key. */
     @Synchronized
     fun getOrComputeAtomic(key: K, loader: () -> V): V {
-        val now = System.nanoTime()
+        val lookupTime = System.nanoTime()
         val existing = entries[key]
-        if (existing != null && !isExpired(existing, now)) {
+        if (existing != null && !isExpired(existing, lookupTime)) {
             touch(key)
-            existing.lastAccessNanos = now
+            existing.lastAccessNanos = lookupTime
             hits++
             return existing.value
         }
         if (existing != null) removeEntry(key)
         misses++
         val loaded = loader()
-        putLocked(key, loaded, now)
+        // Expiration starts when the value is actually available, not before a slow loader runs.
+        putLocked(key, loaded, System.nanoTime())
         return loaded
     }
 
@@ -115,7 +116,13 @@ class KSLCache<K : Any, V : Any> @JvmOverloads constructor(
             null
         }
         val replacement = remapping(key, current)
-        if (replacement == null) removeEntry(key) else putLocked(key, replacement, now)
+        if (replacement == null) {
+            removeEntry(key)
+        } else {
+            // Remapping callbacks run under the lock and may be expensive; do not age
+            // the newly computed value while the callback is still executing.
+            putLocked(key, replacement, System.nanoTime())
+        }
         return replacement
     }
 
