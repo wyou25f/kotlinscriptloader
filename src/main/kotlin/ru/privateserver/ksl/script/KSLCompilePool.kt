@@ -78,7 +78,16 @@ internal class KSLCompilePool(
     }
 
     private fun <R> submitBackpressured(waitWhenSaturated: Boolean, action: () -> R): Future<R> {
-        val task = FutureTask(Callable { action() })
+        val task = FutureTask(Callable {
+            try {
+                action()
+            } finally {
+                // Compile callbacks may touch addon loaders; never retain them on pooled threads.
+                runCatching {
+                    Thread.currentThread().contextClassLoader = this@KSLCompilePool.javaClass.classLoader
+                }
+            }
+        })
         try {
             executor.execute(task)
             return task
