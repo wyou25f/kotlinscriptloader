@@ -305,6 +305,43 @@ class KSLWorkSchedulerTest {
     }
 
     @Test
+    fun `idle core workers retire and are recreated for later work`() {
+        val scheduler = KSLWorkScheduler(
+            workers = 1,
+            queueCapacity = 4,
+            workerIdleTimeoutMillis = 50L
+        )
+        val firstDone = CountDownLatch(1)
+        val secondDone = CountDownLatch(1)
+        val firstThread = java.util.concurrent.atomic.AtomicReference<Thread>()
+        val secondThread = java.util.concurrent.atomic.AtomicReference<Thread>()
+
+        try {
+            scheduler.submit("idle-test") {
+                firstThread.set(Thread.currentThread())
+                firstDone.countDown()
+            }
+            assertTrue(firstDone.await(2, TimeUnit.SECONDS))
+
+            val first = firstThread.get()
+            val retirementDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
+            while (first.isAlive && System.nanoTime() < retirementDeadline) {
+                Thread.sleep(10)
+            }
+            assertFalse(first.isAlive, "idle worker thread should retire after its keep-alive timeout")
+
+            scheduler.submit("idle-test") {
+                secondThread.set(Thread.currentThread())
+                secondDone.countDown()
+            }
+            assertTrue(secondDone.await(2, TimeUnit.SECONDS))
+            assertNotSame(first, secondThread.get(), "a later submission should create a replacement worker")
+        } finally {
+            scheduler.close()
+        }
+    }
+
+    @Test
     fun `worker threads use readable names`() {
         val scheduler = KSLWorkScheduler(workers = 1, queueCapacity = 4)
         val done = CountDownLatch(1)
