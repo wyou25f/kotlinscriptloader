@@ -55,8 +55,70 @@ interface KSLTaskScheduler : AutoCloseable {
 }
 
 data class KSLTaskSchedulerEnvironment(val officialWorkers: KSLWorkScheduler)
+/**
+ * Resource limits for a scheduler engine that owns its worker pool.
+ *
+ * Isolated engines are intended for addon-level workloads. Creating one per individual
+ * script is usually unnecessary; script scopes can share the addon's scheduler instance.
+ */
+data class KSLTaskSchedulerOptions(
+    val workers: Int = 1,
+    val queueCapacity: Int = 64,
+    val perOwnerLimit: Int = 64,
+    val threadNamePrefix: String = "KSL-Scheduler"
+) {
+    init {
+        require(workers in 1..8) { "isolated scheduler workers must be between 1 and 8" }
+        require(queueCapacity in 1..8_192) { "isolated scheduler queueCapacity must be between 1 and 8192" }
+        require(perOwnerLimit in 1..4_096) { "isolated scheduler perOwnerLimit must be between 1 and 4096" }
+        require(threadNamePrefix.matches(Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,31}"))) {
+            "threadNamePrefix must contain 1-32 safe ASCII characters"
+        }
+    }
+}
+
+/** A scheduler with its own bounded worker pool and timer; closing it releases both. */
+class KSLIsolatedTaskScheduler(
+    options: KSLTaskSchedulerOptions = KSLTaskSchedulerOptions()
+) : KSLTaskScheduler {
+    private val workers = KSLWorkScheduler(
+        workers = options.workers,
+        queueCapacity = options.queueCapacity,
+        perScriptLimit = options.perOwnerLimit,
+        threadNamePrefix = "${options.threadNamePrefix}-${schedulerIds.incrementAndGet()}"
+    )
+    private val delegate = KSLOfficialTaskScheduler(workers)
+
+    override fun schedule(spec: KSLTaskSpec): KSLTaskHandle = delegate.schedule(spec)
+
+    override fun cancel(owner: String, taskId: Long, mayInterruptIfRunning: Boolean): Boolean =
+        delegate.cancel(owner, taskId, mayInterruptIfRunning)
+
+    override fun cancelOwner(owner: String): Int = delegate.cancelOwner(owner)
+
+    override fun snapshot(): KSLWorkSnapshot = delegate.snapshot()
+
+    override fun close() = workers.close()
+
+    private companion object {
+        val schedulerIds = AtomicLong()
+    }
+}
+
+/** SPI for first-party and addon-provided scheduler engines. */
 fun interface KSLTaskSchedulerFactory {
     fun create(environment: KSLTaskSchedulerEnvironment): KSLTaskScheduler
+
+    companion object {
+        /**
+         * Creates a fresh, independently bounded worker engine for each scheduler instance.
+         * The owning addon scope should close the created scheduler when its lifecycle ends.
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun isolated(options: KSLTaskSchedulerOptions = KSLTaskSchedulerOptions()): KSLTaskSchedulerFactory =
+            KSLTaskSchedulerFactory { KSLIsolatedTaskScheduler(options) }
+    }
 }
 
 /** Thread-safe factory registry. IDs are stable, lowercase identifiers. */
