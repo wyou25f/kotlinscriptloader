@@ -178,4 +178,21 @@ class KSLRuntimeToolsTest {
         assertThrows(IllegalArgumentException::class.java) { KSLRT.profiler(tooLong) }
         assertThrows(IllegalArgumentException::class.java) { KSLRT.scope(tooLong) }
     }
+ 
+    @Test fun cacheTtlStartsAfterAtomicComputationCompletes() {
+        val atomicCache = KSLCache<String, Int>(2, expireAfter = Duration.ofMillis(250))
+        assertEquals(7, atomicCache.getOrComputeAtomic("slow") {
+            Thread.sleep(300)
+            7
+        })
+        assertEquals(7, atomicCache.get("slow"))
+
+        val remappingCache = KSLCache<String, Int>(2, expireAfter = Duration.ofMillis(250))
+        assertEquals(9, remappingCache.compute("slow") { _, _ ->
+            Thread.sleep(300)
+            9
+        })
+        assertEquals(9, remappingCache.get("slow"))
+    }
+
 }
