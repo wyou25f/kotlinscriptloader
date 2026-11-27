@@ -54,6 +54,26 @@ class KSLCompiledScriptCacheTest {
     }
 
     @Test
+    fun resizingShrinksLruEntriesAndKeepsReverseIndexConsistent() {
+        val cache = KSLCompiledScriptCache<String>(4)
+        val keys = (1..4).map { KSLCompileCacheKey("script-$it", "fingerprint-$it") }
+        keys.forEachIndexed { index, key -> cache.put(key, "value-$index") }
+
+        assertEquals(2, cache.resize(2))
+        assertEquals(2, cache.stats().size)
+        assertEquals(2, cache.stats().maxSize)
+        assertEquals(1, cache.stats().evictions)
+        assertEquals(0, cache.invalidateScript("script-1"))
+        assertEquals(0, cache.invalidateScript("script-2"))
+        assertEquals(1, cache.invalidateScript("script-3"))
+        assertEquals(1, cache.invalidateScript("script-4"))
+
+        cache.resize(3)
+        assertEquals(3, cache.stats().maxSize)
+        assertEquals(0, cache.stats().size)
+    }
+
+    @Test
     fun invalidationAndClearReturnRemovedCounts() {
         val cache = KSLCompiledScriptCache<String>(3)
         cache.put(KSLCompileCacheKey("one", "a"), "1")
