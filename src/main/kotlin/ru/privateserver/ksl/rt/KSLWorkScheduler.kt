@@ -86,7 +86,7 @@ private class MutableOwnerWorkSnapshot {
 
 class KSLWorkScheduler @JvmOverloads constructor(
     workers: Int,
-    private val queueCapacity: Int,
+    @Volatile private var queueCapacity: Int,
     private val perScriptLimit: Int = 64,
     private val failureHandler: ((KSLWorkFailure) -> Unit)? = null,
     private val threadNamePrefix: String = "KSL-Worker",
@@ -543,8 +543,11 @@ class KSLWorkScheduler @JvmOverloads constructor(
         return count
     }
 
-    fun resize(workers: Int) {
+    fun resize(workers: Int) = resize(workers, queueCapacity)
+
+    fun resize(workers: Int, queueCapacity: Int) {
         require(workers in 1..64) { "workers must be between 1 and 64" }
+        require(queueCapacity in 1..100_000) { "queueCapacity must be between 1 and 100000" }
         synchronized(lifecycleLock) {
             check(!closed.get()) { "KSL work scheduler is closed" }
             val current = executor.corePoolSize
@@ -555,6 +558,7 @@ class KSLWorkScheduler @JvmOverloads constructor(
                 executor.corePoolSize = workers
                 executor.maximumPoolSize = workers
             }
+            this.queueCapacity = queueCapacity
             capacity.set(workers + queueCapacity)
         }
     }
