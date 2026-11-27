@@ -4,6 +4,7 @@ import ru.privateserver.ksl.addon.KSLAddonClassLoader
 import ru.privateserver.ksl.api.library.KSLLocalLibraryManager
 import ru.privateserver.ksl.script.KSLScriptEngineBackend
 
+import ru.privateserver.ksl.script.KSLCompilationConfigCache
 import ru.privateserver.ksl.script.KSLCompileCacheStats
 import ru.privateserver.ksl.script.KSLCompileCacheValue
 
