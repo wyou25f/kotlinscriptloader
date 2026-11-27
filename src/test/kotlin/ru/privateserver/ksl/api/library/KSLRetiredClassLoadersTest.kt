@@ -38,6 +38,37 @@ class KSLRetiredClassLoadersTest {
     }
 
     @Test
+    fun `reloading one script transfers its lease to the new library generation`() {
+        val firstDirectory = Files.createTempDirectory("ksl-library-old").toFile()
+        val secondDirectory = Files.createTempDirectory("ksl-library-new").toFile()
+        try {
+            java.io.File(firstDirectory, "generation.txt").writeText("old")
+            java.io.File(secondDirectory, "generation.txt").writeText("new")
+            val first = URLClassLoader(arrayOf(firstDirectory.toURI().toURL()), null)
+            val second = URLClassLoader(arrayOf(secondDirectory.toURI().toURL()), null)
+            val retired = KSLRetiredClassLoaders()
+
+            retired.acquire("script", first)
+            retired.retire(first)
+            assertNotNull(first.getResource("generation.txt"))
+
+            retired.acquire("script", second)
+            assertNull(first.getResource("generation.txt"), "the previous generation should close after its final owner switches")
+            assertEquals(0, retired.retainedGenerationCount())
+            assertNotNull(second.getResource("generation.txt"))
+
+            retired.retire(second)
+            assertNotNull(second.getResource("generation.txt"))
+            assertTrue(retired.release("script"))
+            assertNull(second.getResource("generation.txt"))
+            assertFalse(retired.release("script"))
+        } finally {
+            firstDirectory.deleteRecursively()
+            secondDirectory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `fifty scripts release five retired library generations without accumulation`() {
         val directories = (0 until 5).map { Files.createTempDirectory("ksl-library-generation-$it").toFile() }
         val loaders = directories.mapIndexed { index, directory ->
