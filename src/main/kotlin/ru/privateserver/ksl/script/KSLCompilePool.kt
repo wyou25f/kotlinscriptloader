@@ -30,7 +30,10 @@ internal class KSLCompilePool(
         TimeUnit.MILLISECONDS,
         ArrayBlockingQueue(queueCapacity),
         ThreadFactory { task ->
-            Thread(task, "KSL-Compile-${threadNumber.incrementAndGet()}").apply { isDaemon = true }
+            Thread(task, "KSL-Compile-${threadNumber.incrementAndGet()}").apply {
+                isDaemon = true
+                contextClassLoader = this@KSLCompilePool.javaClass.classLoader
+            }
         },
         ThreadPoolExecutor.AbortPolicy()
     ).apply {
