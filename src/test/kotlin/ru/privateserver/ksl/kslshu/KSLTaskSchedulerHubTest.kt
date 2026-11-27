@@ -186,6 +186,12 @@ class KSLTaskSchedulerHubTest {
         assertThrows(IllegalArgumentException::class.java) {
             KSLTaskSchedulerOptions(threadNamePrefix = "p".repeat(25))
         }
+        assertThrows(IllegalArgumentException::class.java) {
+            KSLTaskSchedulerOptions(workerIdleTimeoutMillis = 0L)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            KSLTaskSchedulerOptions(workerIdleTimeoutMillis = 600_001L)
+        }
     }
 
     @Test
