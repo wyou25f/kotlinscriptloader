@@ -60,6 +60,7 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
     private val evaluator = BasicJvmScriptEvaluator()
     private val pluginClassLoader = plugin::class.java.classLoader
     private val localLibraries = KSLLocalLibraryManager(plugin)
+    private val compilationConfigCache = KSLCompilationConfigCache()
     private val compiledCache = KSLCompiledScriptCache<KSLCompileCacheValue>(
         plugin.config.getInt(
             "scripts.compile-cache-size",
@@ -76,6 +77,7 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
 
     override fun close() {
         compiledCache.clear()
+        compilationConfigCache.clear()
         localLibraries.close()
     }
 
@@ -105,9 +107,6 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
             // compilation environment used to build the configuration.
             val addonImports = plugin.addonManager.getExtraImports()
             val addonLoaders = plugin.addonManager.getScriptClassLoaders()
-            val compilationConfig = buildScriptCompilationConfig(
-                plugin.addonManager, localLibraries, addonImports, addonLoaders
-            )
             val localLoader = localLibraries.classLoader
             val environmentStamp = buildString {
                 append(KSL.API_VERSION).append('|')
@@ -118,6 +117,11 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
                 localLoader?.let {
                     append(it.javaClass.name).append('@').append(System.identityHashCode(it))
                 }
+            }
+            val compilationConfig = compilationConfigCache.getOrBuild(environmentStamp) {
+                buildScriptCompilationConfig(
+                    plugin.addonManager, localLibraries, addonImports, addonLoaders
+                )
             }
             val cacheKey = KSLCompileCacheKey(
                 id,
