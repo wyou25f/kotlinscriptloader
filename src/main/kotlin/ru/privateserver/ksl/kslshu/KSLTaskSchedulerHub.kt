@@ -80,13 +80,18 @@ class KSLTaskSchedulerRegistry(private val environment: KSLTaskSchedulerEnvironm
     @Synchronized
     fun available(): Set<String> = factories.keys.toSet()
 
-    @Synchronized
     fun create(id: String): KSLTaskScheduler {
         val key = normalize(id)
-        val factory = factories[key] ?: throw IllegalArgumentException(
-            "Unknown KSL scheduler '$key'. Available: ${factories.keys.sorted().joinToString().ifEmpty { "none" }}"
+        // Snapshot the factory while holding the registry lock, but never invoke
+        // addon-provided code under that lock. Factories may perform slow setup or
+        // coordinate with other threads that also need to access the registry.
+        val (factory, available) = synchronized(this) {
+            factories[key] to factories.keys.toList()
+        }
+        val selectedFactory = factory ?: throw IllegalArgumentException(
+            "Unknown KSL scheduler '$key'. Available: ${available.sorted().joinToString().ifEmpty { "none" }}"
         )
-        return factory.create(environment)
+        return selectedFactory.create(environment)
     }
 
     private fun normalize(id: String): String {
