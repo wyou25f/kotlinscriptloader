@@ -253,8 +253,11 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
         val compiled = unit.compiled ?: return false
         val id = unit.id
         return try {
-            // Transfer the compile-time lease before any user or addon callback can fail.
-            unit.libraryLease?.let { plugin.scriptRuntimeScope(id).own(it) }
+            // Transfer the compile-time lease on first activation. Transactional rollback
+            // may evaluate the same artifact again, in which case it receives a fresh lease.
+            val libraryLease = unit.takeLibraryLease()
+                ?: localLibraries.acquireForScript(id, unit.libraryClassLoader)
+            libraryLease?.let { plugin.scriptRuntimeScope(id).own(it) }
             unit.warnings.forEach { plugin.logger.warning("[$id] ${KSLError.SCRIPT_COMPILE_WARNING.tag} ⚠ $it") }
             val context = BukkitScriptContext(plugin, id)
             plugin.addonManager.notifyContextCreated(context)
