@@ -170,6 +170,25 @@ class KSLTaskSchedulerHubTest {
     }
 
     @Test
+    fun `isolated scheduler options reject unsafe resource requests`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            KSLTaskSchedulerOptions(workers = 0)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            KSLTaskSchedulerOptions(queueCapacity = 0)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            KSLTaskSchedulerOptions(perOwnerLimit = 0)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            KSLTaskSchedulerOptions(threadNamePrefix = "unsafe prefix")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            KSLTaskSchedulerOptions(threadNamePrefix = "p".repeat(25))
+        }
+    }
+
+    @Test
     fun `task spec rejects invalid intervals`() {
         assertThrows(IllegalArgumentException::class.java) {
             KSLTaskSpec("test", interval = Duration.ZERO) { }
