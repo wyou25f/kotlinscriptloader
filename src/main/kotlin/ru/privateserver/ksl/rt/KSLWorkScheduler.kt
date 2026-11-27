@@ -89,7 +89,8 @@ class KSLWorkScheduler @JvmOverloads constructor(
     private val queueCapacity: Int,
     private val perScriptLimit: Int = 64,
     private val failureHandler: ((KSLWorkFailure) -> Unit)? = null,
-    private val threadNamePrefix: String = "KSL-Worker"
+    private val threadNamePrefix: String = "KSL-Worker",
+    private val workerIdleTimeoutMillis: Long = DEFAULT_WORKER_IDLE_TIMEOUT_MILLIS
 ) : AutoCloseable {
     private enum class Mode { ONCE, DELAYED, FIXED_RATE, FIXED_DELAY }
 
@@ -113,7 +114,8 @@ class KSLWorkScheduler @JvmOverloads constructor(
     private val lifecycleLock = Any()
 
     private val executor = ThreadPoolExecutor(
-        workers.coerceIn(1, 64), workers.coerceIn(1, 64), 0L, TimeUnit.MILLISECONDS,
+        workers.coerceIn(1, 64), workers.coerceIn(1, 64),
+        workerIdleTimeoutMillis.coerceAtLeast(1L), TimeUnit.MILLISECONDS,
         PriorityBlockingQueue(),
         ThreadFactory { task ->
             Thread(task, "${threadNamePrefix}-${threadIds.incrementAndGet()}").apply {
@@ -121,7 +123,11 @@ class KSLWorkScheduler @JvmOverloads constructor(
                 contextClassLoader = this@KSLWorkScheduler.javaClass.classLoader
             }
         }
-    )
+    ).apply {
+        // KSL work is bursty. Releasing idle core workers allows JVM thread stacks to
+        // be reclaimed on quiet servers; execute() recreates workers when work returns.
+        allowCoreThreadTimeOut(true)
+    }
     private val timer = ScheduledThreadPoolExecutor(1, ThreadFactory { task ->
         Thread(task, "KSL-Worker-Timer").apply {
             isDaemon = true
@@ -177,6 +183,9 @@ class KSLWorkScheduler @JvmOverloads constructor(
         require(perScriptLimit > 0) { "perScriptLimit must be positive" }
         require(threadNamePrefix.matches(Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,47}"))) {
             "threadNamePrefix must contain 1-48 safe ASCII characters"
+        }
+        require(workerIdleTimeoutMillis in 1L..600_000L) {
+            "workerIdleTimeoutMillis must be between 1 and 600000"
         }
     }
 
@@ -649,7 +658,10 @@ class KSLWorkScheduler @JvmOverloads constructor(
         catch (_: InterruptedException) { Thread.currentThread().interrupt() }
     }
 
-    companion object { const val HISTORY_LIMIT = 256 }
+    companion object {
+        const val HISTORY_LIMIT = 256
+        const val DEFAULT_WORKER_IDLE_TIMEOUT_MILLIS = 30_000L
+    }
 }
 
 /** Atomic per-owner quota; compute() keeps acquire/release linearizable under contention. */
