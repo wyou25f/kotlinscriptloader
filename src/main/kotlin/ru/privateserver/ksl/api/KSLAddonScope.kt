@@ -375,6 +375,20 @@ class KSLAddonScope internal constructor(
             return createOwnedScope(api, plugin, scheduler, emptyList())
         }
 
+        /**
+         * Creates an addon scope with its own bounded KSL worker engine.
+         *
+         * The returned scope owns both the factory registration and the scheduler instance.
+         * Prefer one isolated scope per addon, then create child scopes for internal components.
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun createIsolated(
+            api: KSLAPI,
+            schedulerId: String,
+            options: KSLTaskSchedulerOptions = KSLTaskSchedulerOptions()
+        ): KSLAddonScope = create(api, schedulerId, KSLTaskSchedulerFactory.isolated(options))
+
         /** Registers and owns an addon-specific scheduler factory and engine instance. */
         @JvmStatic
         fun create(api: KSLAPI, schedulerId: String, factory: KSLTaskSchedulerFactory): KSLAddonScope {
