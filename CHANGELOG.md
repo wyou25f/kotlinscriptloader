@@ -6,6 +6,8 @@
 
 - Added runtime-checked KSLTopic<T> and KSLServiceKey<T> contracts with reified Kotlin factories, typed subscribe/publish and typed service registration/lookup/removal. Existing string-based APIs remain available.
 - Added hierarchical KSLAddonScope child scopes. Child resources close with the parent in reverse registration order; typed event subscriptions can be owned by a scope.
+- KSLAddonScope and KSLRuntimeScope now make concurrent close calls wait for cleanup completion while allowing safe reentrant close from a cleanup callback.
+- CSV file reads enforce the configured byte ceiling while streaming, not only through a pre-read file-size check.
 - Added KSLReloadOutcome and CompletableFuture-based reloadScriptFuture()/reloadScriptsFuture(), making the legacy nullable busy signal explicit while preserving callback APIs.
 - Added focused tests for contract validation, typed event delivery, typed service lookup, child-scope cleanup and asynchronous reload outcomes.
 - Public API compatibility level is now v19. KSL remains on the unpublished 1.2.2 development line.
@@ -16,7 +18,7 @@
 - Added a public, bounded `KSLAuthAttemptLimiter` (API v18) with atomic attempt consumption, timed lockouts, hashed keys, expiry cleanup and a fixed memory ceiling. It is process-local; multi-server deployments still need shared enforcement.
 - Account authentication now performs a dummy PBKDF2 verification for unknown usernames to reduce account-enumeration timing differences. Disabling an account can atomically revoke all existing sessions through `setAccountEnabled`.
 - Reduced the lifetime of temporary password, HMAC, digest and token byte arrays; bounded Base64 decoding to 1 MiB of decoded data.
-- Added CodeQL scanning and weekly Dependabot update checks for Gradle dependencies and GitHub Actions.
+- Retained weekly Dependabot update checks for Gradle dependencies and GitHub Actions.
 - Added a repository security policy describing the sandbox threat model, secret handling and private vulnerability-reporting path.
 
 - Added an experimental, loopback-only PostemberDB client for the upstream Rust server protocol, exported through KSLAPI and the public API. The adapter is bounded and timeout-aware; it does not modify or vendor PostemberDB. Upstream remains memory-only and unauthenticated, so this is not a production persistence backend. Public API version is now 17.
