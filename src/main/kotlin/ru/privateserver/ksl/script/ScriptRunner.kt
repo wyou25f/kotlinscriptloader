@@ -173,7 +173,7 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
             compiledCache.get(cacheKey)?.let { cached ->
                 return CompiledUnit(
                     file, id, cached.compiled, emptyList(), cached.warnings,
-                    null, null, elapsedMs(), sourceStamp
+                    null, null, elapsedMs(), sourceStamp, cached.libraryClassLoader
                 )
             }
             compiledCache.invalidateScript(id)
@@ -200,9 +200,15 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
                     // Do not repopulate the cache with artifacts from a dependency
                     // environment that was replaced while this compilation was running.
                     if (compilationConfigCacheEnvironmentMatches(environmentStamp)) {
-                        compiledCache.put(cacheKey, KSLCompileCacheValue(result.value, warnings))
+                        compiledCache.put(
+                            cacheKey,
+                            KSLCompileCacheValue(result.value, warnings, localLoader)
+                        )
                     }
-                    CompiledUnit(file, id, result.value, emptyList(), warnings, null, null, elapsedMs(), sourceStamp)
+                    CompiledUnit(
+                        file, id, result.value, emptyList(), warnings,
+                        null, null, elapsedMs(), sourceStamp, localLoader
+                    )
                 }
             }
         } catch (ex: Throwable) {
@@ -235,9 +241,9 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
             unit.warnings.forEach { plugin.logger.warning("[$id] ${KSLError.SCRIPT_COMPILE_WARNING.tag} ⚠ $it") }
             val context = BukkitScriptContext(plugin, id)
             plugin.addonManager.notifyContextCreated(context)
-            val libraryLease = localLibraries.acquireForScript(id)
+            val libraryLease = localLibraries.acquireForScript(id, unit.libraryClassLoader)
             libraryLease?.let { plugin.scriptRuntimeScope(id).own(it) }
-            val baseLoader = loaderFor(id, libraryLease?.classLoader)
+            val baseLoader = loaderFor(id, unit.libraryClassLoader)
             val evalConfig = ScriptEvaluationConfiguration {
                 implicitReceivers(context)
                 jvm { baseClassLoader(baseLoader) }
