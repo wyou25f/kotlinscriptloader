@@ -392,7 +392,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
             configuredQueueCapacity.coerceIn(1, 100_000)
         }
         val perScriptLimit = config.getInt("runtime.max-tasks-per-script", 64).coerceIn(1, 10_000)
-        if (::workScheduler.isInitialized) workScheduler.resize(workers, queueCapacity)
+        if (::workScheduler.isInitialized) workScheduler.resize(workers, queueCapacity, perScriptLimit)
         else workScheduler = ru.privateserver.ksl.rt.KSLWorkScheduler(workers, queueCapacity, perScriptLimit)
         if (!::schedulerRegistry.isInitialized) {
             schedulerRegistry = KSLTaskSchedulerRegistry.withOfficial(KSLTaskSchedulerEnvironment(workScheduler))
