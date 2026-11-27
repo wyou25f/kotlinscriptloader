@@ -306,6 +306,43 @@ class KSLWorkSchedulerTest {
     }
 
     @Test
+    fun `fifty script owners cannot grow the global work backlog past its capacity`() {
+        val scheduler = KSLWorkScheduler(workers = 1, queueCapacity = 32, perScriptLimit = 4)
+        val firstStarted = CountDownLatch(1)
+        val releaseFirst = CountDownLatch(1)
+        val accepted = AtomicInteger()
+        val rejected = AtomicInteger()
+
+        try {
+            scheduler.submit("script-0") {
+                firstStarted.countDown()
+                releaseFirst.await(5, TimeUnit.SECONDS)
+            }
+            assertTrue(firstStarted.await(2, TimeUnit.SECONDS))
+
+            for (index in 1 until 50) {
+                try {
+                    scheduler.submit("script-$index") { }
+                    accepted.incrementAndGet()
+                } catch (_: RejectedExecutionException) {
+                    rejected.incrementAndGet()
+                }
+            }
+
+            val snapshot = scheduler.snapshot()
+            assertEquals(33, snapshot.tracked, "one running task plus 32 queued tasks should be retained")
+            assertEquals(1, snapshot.running)
+            assertEquals(32, snapshot.queued)
+            assertEquals(32, accepted.get())
+            assertEquals(17, rejected.get())
+            assertEquals(17L, snapshot.rejected)
+        } finally {
+            releaseFirst.countDown()
+            scheduler.close()
+        }
+    }
+
+    @Test
     fun `idle core workers retire and are recreated for later work`() {
         val scheduler = KSLWorkScheduler(
             workers = 1,
