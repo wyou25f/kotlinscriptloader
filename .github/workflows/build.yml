@@ -96,7 +96,32 @@ jobs:
           retention-days: 14
 
       - name: Build self-contained JAR for live Paper integration
-        run: bash ./gradlew --no-daemon -PfatJar=true shadowJar verifyShadowJar
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Maven repositories can briefly return a missing-artifact response while
+          # publishing or serving an otherwise valid dependency. Gradle caches that
+          # response, so retries must refresh dependency metadata and artifacts.
+          for attempt in 1 2 3; do
+            gradle_args=(--no-daemon -PfatJar=true shadowJar verifyShadowJar)
+            if (( attempt > 1 )); then
+              gradle_args+=(--refresh-dependencies)
+            fi
+
+            if bash ./gradlew "${gradle_args[@]}"; then
+              exit 0
+            fi
+
+            if (( attempt < 3 )); then
+              delay=$((attempt * 10))
+              echo "Self-contained JAR build failed on attempt ${attempt}; retrying with refreshed dependencies in ${delay}s."
+              sleep "${delay}"
+            fi
+          done
+
+          echo "Self-contained JAR build failed after 3 attempts."
+          exit 1
 
       - name: Build real-Paper NBT integration test plugin
         run: bash ./gradlew --no-daemon paperIntegrationPluginJar
