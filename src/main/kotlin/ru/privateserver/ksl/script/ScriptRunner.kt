@@ -69,7 +69,10 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
 
     override fun compileCacheStats(): KSLCompileCacheStats = compiledCache.stats()
     override fun clearCompileCache(): Int = compiledCache.clear()
-    fun invalidateCachedScript(scriptId: String): Int = compiledCache.invalidateScript(scriptId)
+    override fun invalidateCompileCache(scriptId: String): Int = compiledCache.invalidateScript(scriptId)
+
+    /** Compatibility alias retained for internal integrations. */
+    fun invalidateCachedScript(scriptId: String): Int = invalidateCompileCache(scriptId)
 
     override fun close() {
         compiledCache.clear()
