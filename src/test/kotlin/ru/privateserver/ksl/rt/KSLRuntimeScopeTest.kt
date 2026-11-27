@@ -225,6 +225,7 @@ class KSLRuntimeScopeTest {
         assertThrows(IllegalStateException::class.java) { profiles.profiler("overflow") }
         profiles.close()
     }
+
     @Test
     fun submitCompletesAndReleasesItsOwnershipHandle() {
         val executor = ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue())
@@ -266,6 +267,48 @@ class KSLRuntimeScopeTest {
             scope.close()
             executor.shutdownNow()
         }
+    }
+
+    @Test
+    fun `concurrent close waits until all cleanup callbacks finish`() {
+        val scope = KSLRuntimeScope("concurrent-close")
+        val cleanupStarted = CountDownLatch(1)
+        val allowCleanupToFinish = CountDownLatch(1)
+        val secondCloseStarted = CountDownLatch(1)
+        val firstCloseReturned = CountDownLatch(1)
+        val secondCloseReturned = CountDownLatch(1)
+
+        scope.onClose {
+            cleanupStarted.countDown()
+            allowCleanupToFinish.await()
+        }
+
+        val firstCloser = Thread {
+            scope.close()
+            firstCloseReturned.countDown()
+        }
+        val secondCloser = Thread {
+            secondCloseStarted.countDown()
+            scope.close()
+            secondCloseReturned.countDown()
+        }
+
+        firstCloser.start()
+        try {
+            assertTrue(cleanupStarted.await(2, TimeUnit.SECONDS))
+            secondCloser.start()
+            assertTrue(secondCloseStarted.await(2, TimeUnit.SECONDS))
+            assertFalse(secondCloseReturned.await(100, TimeUnit.MILLISECONDS))
+        } finally {
+            allowCleanupToFinish.countDown()
+        }
+
+        assertTrue(firstCloseReturned.await(2, TimeUnit.SECONDS))
+        assertTrue(secondCloseReturned.await(2, TimeUnit.SECONDS))
+        firstCloser.join(2_000)
+        secondCloser.join(2_000)
+        assertFalse(firstCloser.isAlive)
+        assertFalse(secondCloser.isAlive)
     }
 
 }
