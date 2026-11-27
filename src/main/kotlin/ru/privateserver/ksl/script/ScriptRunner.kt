@@ -64,18 +64,40 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
     private val localLibraries = KSLLocalLibraryManager(plugin)
     private val compilationConfigCache = KSLCompilationConfigCache()
     @Volatile private var activeCompilationEnvironmentStamp: String? = null
+    private val automaticCompileCacheCapacity =
+        ru.privateserver.ksl.rt.KSLRuntimeSizing.recommendedCompileCacheEntries(
+            Runtime.getRuntime().maxMemory(),
+            runCatching {
+                (java.lang.management.ManagementFactory.getOperatingSystemMXBean()
+                    as? com.sun.management.OperatingSystemMXBean)?.totalMemorySize ?: -1L
+            }.getOrDefault(-1L)
+        )
     private val compiledCache = KSLCompiledScriptCache<KSLCompileCacheValue>(
-        plugin.config.getInt(
-            "scripts.compile-cache-size",
-            ru.privateserver.ksl.rt.KSLRuntimeSizing.recommendedCompileCacheEntries(
-                Runtime.getRuntime().maxMemory(),
-                runCatching {
-                    (java.lang.management.ManagementFactory.getOperatingSystemMXBean()
-                        as? com.sun.management.OperatingSystemMXBean)?.totalMemorySize ?: -1L
-                }.getOrDefault(-1L)
-            )
-        ).coerceIn(16, 2048)
+        plugin.config.getInt("scripts.compile-cache-size", 0).let { configured ->
+            if (configured <= 0) automaticCompileCacheCapacity else configured.coerceIn(16, 2048)
+        }
     )
+
+    /**
+     * Automatic mode trims only the reusable compilation cache, never active script state.
+     * Explicit positive config values always win.
+     */
+    private fun refreshCompileCacheBudget() {
+        val configured = plugin.config.getInt("scripts.compile-cache-size", 0)
+        if (configured > 0) {
+            compiledCache.resize(configured.coerceIn(16, 2048))
+            return
+        }
+        val heap = java.lang.management.ManagementFactory.getMemoryMXBean().heapMemoryUsage
+        val pressure = if (heap.max > 0L) heap.used.toDouble() / heap.max.toDouble() else 0.0
+        val target = when {
+            pressure >= 0.90 -> maxOf(16, automaticCompileCacheCapacity / 4)
+            pressure >= 0.82 -> maxOf(16, automaticCompileCacheCapacity / 2)
+            pressure >= 0.72 -> maxOf(16, automaticCompileCacheCapacity * 3 / 4)
+            else -> automaticCompileCacheCapacity
+        }
+        compiledCache.resize(target)
+    }
 
     override fun compileCacheStats(): KSLCompileCacheStats = compiledCache.stats()
     override fun clearCompileCache(): Int = compiledCache.clear()
@@ -99,6 +121,7 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
     }
 
     override fun compile(file: File): CompiledUnit {
+        refreshCompileCacheBudget()
         val id = plugin.scriptId(file)
         val startedAt = System.nanoTime()
         fun elapsedMs() = (System.nanoTime() - startedAt) / 1_000_000
