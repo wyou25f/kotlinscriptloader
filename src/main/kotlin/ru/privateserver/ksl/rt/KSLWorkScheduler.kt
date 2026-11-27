@@ -377,8 +377,15 @@ class KSLWorkScheduler @JvmOverloads constructor(
         }
 
         var error: Throwable? = null
-        try { record.action() } catch (failure: Throwable) { error = failure }
-        finally {
+        try {
+            record.action()
+        } catch (failure: Throwable) {
+            error = failure
+        } finally {
+            // A task must not leave an addon/script classloader attached to a pooled worker.
+            runCatching {
+                Thread.currentThread().contextClassLoader = this@KSLWorkScheduler.javaClass.classLoader
+            }
             var terminal: KSLWorkResult? = null
             var repeatDelay = false
             synchronized(record.lock) {
