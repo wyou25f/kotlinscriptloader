@@ -19,6 +19,7 @@ internal interface KSLScriptEngineBackend {
     fun sandboxProbe(): Pair<Boolean, String>
     fun compileCacheStats(): KSLCompileCacheStats = KSLCompileCacheStats(0, 0, 0, 0, 0)
     fun clearCompileCache(): Int = 0
+    fun invalidateCompileCache(scriptId: String): Int = 0
     fun close() {}
 }
 
@@ -111,6 +112,7 @@ internal class KSLScriptEngine(private val backend: KSLScriptEngineBackend) {
     fun selfTestCompiler(): Pair<Boolean, String> = backend.selfTestCompiler()
     fun sandboxProbe(): Pair<Boolean, String> = backend.sandboxProbe()
     fun clearCompileCache(): Int = backend.clearCompileCache()
+    fun invalidateCompileCache(scriptId: String): Int = backend.invalidateCompileCache(scriptId)
     fun close() = backend.close()
 
     fun snapshot() = KSLScriptEngineSnapshot(
