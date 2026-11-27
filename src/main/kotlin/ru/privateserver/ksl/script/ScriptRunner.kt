@@ -101,6 +101,10 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
     override fun clearCompileCache(): Int = compiledCache.clear()
     override fun invalidateCompileCache(scriptId: String): Int = compiledCache.invalidateScript(scriptId)
 
+    override fun releaseScript(scriptId: String) {
+        localLibraries.releaseScript(scriptId)
+    }
+
     /** Compatibility alias retained for internal integrations. */
     fun invalidateCachedScript(scriptId: String): Int = invalidateCompileCache(scriptId)
 
@@ -285,7 +289,11 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
     }
 
     private fun loaderFor(id: String): ClassLoader {
-        val addonAwareLoader = KSLAddonClassLoader(pluginClassLoader, plugin.addonManager.getScriptClassLoaders() + listOfNotNull(localLibraries.classLoader))
+        val libraryLoader = localLibraries.acquireForScript(id)
+        val addonAwareLoader = KSLAddonClassLoader(
+            pluginClassLoader,
+            plugin.addonManager.getScriptClassLoaders() + listOfNotNull(libraryLoader)
+        )
         if (!plugin.isSandboxed(id) || !plugin.sandboxStrict) return addonAwareLoader
         return KSLSandboxClassLoader(addonAwareLoader, plugin.sandboxDenyList, id) { denied ->
             plugin.logScriptProblem("[$id] ${KSLError.SANDBOX_CLASS_DENIED.tag} 🚫 Sandbox: скрипт обратился к запрещённому классу $denied")
@@ -380,6 +388,7 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
             false to "${ex::class.simpleName}: ${ex.message}"
         } finally {
             runCatching { plugin.closeScriptRuntimeScope("__sandbox_probe__") }
+            localLibraries.releaseScript("__sandbox_probe__")
         }
     }
 
