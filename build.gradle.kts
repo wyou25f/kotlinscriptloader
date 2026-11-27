@@ -58,10 +58,10 @@ dependencies {
         if (fatJar) implementation(coordinates) else compileOnly(coordinates)
     }
 
-    implementation("com.zaxxer:HikariCP:5.1.0")
-    implementation("org.xerial:sqlite-jdbc:3.46.1.3")
-    implementation("org.tomlj:tomlj:1.1.1")
-    implementation("org.mariadb.jdbc:mariadb-java-client:3.4.1")
+    implementation("com.zaxxer:HikariCP:7.1.0")
+    implementation("org.xerial:sqlite-jdbc:3.54.1.0")
+    implementation("org.tomlj:tomlj:2.2.0")
+    implementation("org.mariadb.jdbc:mariadb-java-client:4.0.0")
     // PostgreSQL JDBC driver; packaged into the plugin JAR.
     implementation("org.postgresql:postgresql:42.7.14")
     // Embedded and relocated: no separate NBTAPI plugin is required.
