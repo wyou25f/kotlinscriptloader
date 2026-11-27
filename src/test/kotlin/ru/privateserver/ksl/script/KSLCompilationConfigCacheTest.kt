@@ -36,6 +36,26 @@ class KSLCompilationConfigCacheTest {
     }
 
     @Test
+    fun `environment change invokes cleanup exactly once`() {
+        val cache = KSLCompilationConfigCache()
+        var cleanupCalls = 0
+
+        cache.getOrBuild("environment-a") { ScriptCompilationConfiguration { } }
+        cache.getOrBuild(
+            "environment-a",
+            builder = { error("same environment should reuse the configuration") },
+            onEnvironmentChanged = { cleanupCalls++ }
+        )
+        cache.getOrBuild(
+            "environment-b",
+            builder = { ScriptCompilationConfiguration { } },
+            onEnvironmentChanged = { cleanupCalls++ }
+        )
+
+        assertEquals(1, cleanupCalls)
+    }
+
+    @Test
     fun `clear releases the cached configuration entry`() {
         val cache = KSLCompilationConfigCache()
         val first = cache.getOrBuild("env") { ScriptCompilationConfiguration { } }
