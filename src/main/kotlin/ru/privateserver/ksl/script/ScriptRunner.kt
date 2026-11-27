@@ -124,6 +124,7 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
         val startedAt = System.nanoTime()
         fun elapsedMs() = (System.nanoTime() - startedAt) / 1_000_000
         var sourceStamp = ""
+        var pendingLibraryLease: AutoCloseable? = null
         return try {
             // Validation and compilation operate on the same immutable source snapshot.
             val sourceText = file.readText(Charsets.UTF_8)
@@ -133,7 +134,9 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
                 return CompiledUnit(file, id, null, textIssues, emptyList(), KSLError.SCRIPT_SANDBOX, null, elapsedMs(), sourceStamp)
             }
             val previousLibraryLoader = localLibraries.classLoader
-            localLibraries.reloadIfChanged()?.let { detail ->
+            val (reloadDetail, libraryLease) = localLibraries.reloadAndAcquireForScript(id)
+            pendingLibraryLease = libraryLease
+            reloadDetail?.let { detail ->
                 if (detail.isNotBlank()) plugin.logger.warning("[libs] $detail")
             }
             if (previousLibraryLoader !== localLibraries.classLoader) compiledCache.clear()
@@ -141,7 +144,7 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
             // compilation environment used to build the configuration.
             val addonImports = plugin.addonManager.getExtraImports()
             val addonLoaders = plugin.addonManager.getScriptClassLoaders()
-            val localLoader = localLibraries.classLoader
+            val localLoader = libraryLease?.classLoader
             val environmentStamp = buildString {
                 append(KSL.API_VERSION).append('|')
                 addonImports.forEach { append(it).append('\u001f') }
@@ -171,10 +174,14 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
                 KSLSourceFingerprint.of("$sourceStamp|$environmentStamp")
             )
             compiledCache.get(cacheKey)?.let { cached ->
-                return CompiledUnit(
-                    file, id, cached.compiled, emptyList(), cached.warnings,
-                    null, null, elapsedMs(), sourceStamp, cached.libraryClassLoader
-                )
+                if (cached.libraryClassLoader === localLoader) {
+                    val leaseForUnit = pendingLibraryLease
+                    pendingLibraryLease = null
+                    return CompiledUnit(
+                        file, id, cached.compiled, emptyList(), cached.warnings,
+                        null, null, elapsedMs(), sourceStamp, cached.libraryClassLoader, leaseForUnit
+                    )
+                }
             }
             compiledCache.invalidateScript(id)
             val compile = {
@@ -192,10 +199,14 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
                 }
             }
             when (result) {
-                is ResultWithDiagnostics.Failure -> CompiledUnit(
-                    file, id, null, errors, warnings,
-                    KSLError.SCRIPT_COMPILE, null, elapsedMs(), sourceStamp
-                )
+                is ResultWithDiagnostics.Failure -> {
+                    runCatching { pendingLibraryLease?.close() }
+                    pendingLibraryLease = null
+                    CompiledUnit(
+                        file, id, null, errors, warnings,
+                        KSLError.SCRIPT_COMPILE, null, elapsedMs(), sourceStamp
+                    )
+                }
                 is ResultWithDiagnostics.Success -> {
                     // Do not repopulate the cache with artifacts from a dependency
                     // environment that was replaced while this compilation was running.
@@ -205,13 +216,17 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
                             KSLCompileCacheValue(result.value, warnings, localLoader)
                         )
                     }
+                    val leaseForUnit = pendingLibraryLease
+                    pendingLibraryLease = null
                     CompiledUnit(
                         file, id, result.value, emptyList(), warnings,
-                        null, null, elapsedMs(), sourceStamp, localLoader
+                        null, null, elapsedMs(), sourceStamp, localLoader, leaseForUnit
                     )
                 }
             }
         } catch (ex: Throwable) {
+            runCatching { pendingLibraryLease?.close() }
+            pendingLibraryLease = null
             CompiledUnit(file, id, null, listOf("${file.name}: ${ex::class.simpleName}: ${ex.message}"), emptyList(), KSLError.SCRIPT_COMPILER_CRASH, ex, elapsedMs(), sourceStamp)
         }
     }
@@ -238,11 +253,11 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
         val compiled = unit.compiled ?: return false
         val id = unit.id
         return try {
+            // Transfer the compile-time lease before any user or addon callback can fail.
+            unit.libraryLease?.let { plugin.scriptRuntimeScope(id).own(it) }
             unit.warnings.forEach { plugin.logger.warning("[$id] ${KSLError.SCRIPT_COMPILE_WARNING.tag} ⚠ $it") }
             val context = BukkitScriptContext(plugin, id)
             plugin.addonManager.notifyContextCreated(context)
-            val libraryLease = localLibraries.acquireForScript(id, unit.libraryClassLoader)
-            libraryLease?.let { plugin.scriptRuntimeScope(id).own(it) }
             val baseLoader = loaderFor(id, unit.libraryClassLoader)
             val evalConfig = ScriptEvaluationConfiguration {
                 implicitReceivers(context)
