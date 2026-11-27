@@ -382,38 +382,42 @@ class KSLWorkScheduler @JvmOverloads constructor(
         } catch (failure: Throwable) {
             error = failure
         } finally {
-            // A task must not leave an addon/script classloader attached to a pooled worker.
-            runCatching {
-                Thread.currentThread().contextClassLoader = this@KSLWorkScheduler.javaClass.classLoader
-            }
-            var terminal: KSLWorkResult? = null
-            var repeatDelay = false
-            synchronized(record.lock) {
-                record.runner = null
-                record.inFlight = false
-                when {
-                    record.stop -> terminal = finishLocked(record, KSLWorkState.CANCELLED, null)
-                    error != null -> terminal = finishLocked(record, KSLWorkState.FAILED, error)
-                    else -> {
-                        completed.incrementAndGet()
-                        if (!record.repeating) {
-                            terminal = finishLocked(record, KSLWorkState.SUCCEEDED, null)
-                        } else if (closed.get()) {
-                            // A graceful shutdown may become visible before its cancellation
-                            // pass reaches this record. Never report a repeating task as
-                            // successful merely because its active invocation finished in
-                            // that small window.
-                            terminal = finishLocked(record, KSLWorkState.CANCELLED, null)
-                        } else {
-                            record.state = KSLWorkState.SCHEDULED
-                            record.nextRunAt = System.currentTimeMillis() + TimeUnit.NANOSECONDS.toMillis(record.periodNanos)
-                            repeatDelay = record.mode == Mode.FIXED_DELAY
+            try {
+                var terminal: KSLWorkResult? = null
+                var repeatDelay = false
+                synchronized(record.lock) {
+                    record.runner = null
+                    record.inFlight = false
+                    when {
+                        record.stop -> terminal = finishLocked(record, KSLWorkState.CANCELLED, null)
+                        error != null -> terminal = finishLocked(record, KSLWorkState.FAILED, error)
+                        else -> {
+                            completed.incrementAndGet()
+                            if (!record.repeating) {
+                                terminal = finishLocked(record, KSLWorkState.SUCCEEDED, null)
+                            } else if (closed.get()) {
+                                // A graceful shutdown may become visible before its cancellation
+                                // pass reaches this record. Never report a repeating task as
+                                // successful merely because its active invocation finished in
+                                // that small window.
+                                terminal = finishLocked(record, KSLWorkState.CANCELLED, null)
+                            } else {
+                                record.state = KSLWorkState.SCHEDULED
+                                record.nextRunAt = System.currentTimeMillis() + TimeUnit.NANOSECONDS.toMillis(record.periodNanos)
+                                repeatDelay = record.mode == Mode.FIXED_DELAY
+                            }
                         }
                     }
                 }
+                if (terminal != null) complete(record, terminal!!, error)
+                if (repeatDelay) armOnce(record, record.periodNanos)
+            } finally {
+                // Completion callbacks run inline and may change TCCL too. Reset only after
+                // the full task lifecycle so a pooled worker cannot pin an addon classloader.
+                runCatching {
+                    Thread.currentThread().contextClassLoader = this@KSLWorkScheduler.javaClass.classLoader
+                }
             }
-            if (terminal != null) complete(record, terminal!!, error)
-            if (repeatDelay) armOnce(record, record.periodNanos)
         }
     }
 
