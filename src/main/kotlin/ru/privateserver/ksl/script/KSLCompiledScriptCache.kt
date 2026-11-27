@@ -7,7 +7,8 @@ internal data class KSLCompileCacheKey(val scriptId: String, val fingerprint: St
 
 internal data class KSLCompileCacheValue(
     val compiled: CompiledScript,
-    val warnings: List<String>
+    val warnings: List<String>,
+    val libraryClassLoader: ClassLoader?
 )
 
 internal data class KSLCompileCacheStats(
