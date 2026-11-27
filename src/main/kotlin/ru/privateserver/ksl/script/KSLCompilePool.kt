@@ -16,21 +16,34 @@ import java.util.concurrent.atomic.AtomicInteger
  * CallerRunsPolicy: a reload initiated on the server thread could otherwise compile there
  * and stall Paper's tick loop.
  */
-internal class KSLCompilePool(threads: Int) : AutoCloseable {
+internal class KSLCompilePool(
+    threads: Int,
+    private val workerIdleTimeoutMillis: Long = DEFAULT_WORKER_IDLE_TIMEOUT_MILLIS
+) : AutoCloseable {
     private val threadNumber = AtomicInteger()
     private val parallelism = threads.coerceIn(1, 8)
     private val queueCapacity = parallelism * 4
     private val executor = ThreadPoolExecutor(
         parallelism,
         parallelism,
-        0L,
+        workerIdleTimeoutMillis.coerceAtLeast(1L),
         TimeUnit.MILLISECONDS,
         ArrayBlockingQueue(queueCapacity),
         ThreadFactory { task ->
             Thread(task, "KSL-Compile-${threadNumber.incrementAndGet()}").apply { isDaemon = true }
         },
         ThreadPoolExecutor.AbortPolicy()
-    )
+    ).apply {
+        // Compilation bursts are intermittent; idle compiler workers can release their
+        // native thread stacks and are recreated automatically for the next batch.
+        allowCoreThreadTimeOut(true)
+    }
+
+    init {
+        require(workerIdleTimeoutMillis in 1L..600_000L) {
+            "workerIdleTimeoutMillis must be between 1 and 600000"
+        }
+    }
 
     /**
      * Submit only a bounded window at a time. Background submitters wait for capacity;
@@ -101,5 +114,9 @@ internal class KSLCompilePool(threads: Int) : AutoCloseable {
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
         }
+    }
+
+    companion object {
+        const val DEFAULT_WORKER_IDLE_TIMEOUT_MILLIS = 30_000L
     }
 }
