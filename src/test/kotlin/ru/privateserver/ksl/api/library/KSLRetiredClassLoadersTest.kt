@@ -40,6 +40,33 @@ class KSLRetiredClassLoadersTest {
     }
 
     @Test
+    fun `previous generation can reacquire a retired loader during rollback`() {
+        val directory = Files.createTempDirectory("ksl-library-rollback").toFile()
+        val retired = KSLRetiredClassLoaders()
+        try {
+            java.io.File(directory, "generation.txt").writeText("available")
+            val loader = URLClassLoader(arrayOf(directory.toURI().toURL()), null)
+
+            retired.acquire("active-generation", loader)
+            retired.retire(loader)
+            retired.acquire("rollback-generation", loader)
+
+            assertEquals(1, retired.retainedGenerationCount())
+            assertEquals(2, retired.activeOwnerCount())
+            assertNotNull(loader.getResource("generation.txt"))
+
+            retired.release("active-generation")
+            assertNotNull(loader.getResource("generation.txt"))
+            retired.release("rollback-generation")
+            assertNull(loader.getResource("generation.txt"))
+            assertEquals(0, retired.retainedGenerationCount())
+        } finally {
+            retired.close()
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `reloading one script transfers its lease to the new library generation`() {
         val firstDirectory = Files.createTempDirectory("ksl-library-old").toFile()
         val secondDirectory = Files.createTempDirectory("ksl-library-new").toFile()
