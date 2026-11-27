@@ -7,6 +7,7 @@ import java.time.Duration
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.RejectedExecutionException
 
 class KSLTaskSchedulerHubTest {
     @Test
@@ -126,6 +127,45 @@ class KSLTaskSchedulerHubTest {
             assertTrue(second.cancel(secondTask.id))
         } finally {
             workers.close()
+        }
+    }
+
+    @Test
+    fun `isolated factory creates independent bounded worker engines`() {
+        val sharedWorkers = KSLWorkScheduler(1, 4)
+        val factory = KSLTaskSchedulerFactory.isolated(
+            KSLTaskSchedulerOptions(workers = 1, queueCapacity = 1, perOwnerLimit = 3)
+        )
+        val first = factory.create(KSLTaskSchedulerEnvironment(sharedWorkers))
+        val second = factory.create(KSLTaskSchedulerEnvironment(sharedWorkers))
+        val firstStarted = CountDownLatch(1)
+        val releaseFirst = CountDownLatch(1)
+        val secondRan = CountDownLatch(1)
+
+        try {
+            val firstHandle = first.schedule(KSLTaskSpec("first") {
+                firstStarted.countDown()
+                releaseFirst.await(2, TimeUnit.SECONDS)
+            })
+            assertTrue(firstStarted.await(2, TimeUnit.SECONDS))
+
+            val secondHandle = second.schedule(KSLTaskSpec("second") { secondRan.countDown() })
+            assertTrue(secondRan.await(2, TimeUnit.SECONDS))
+            assertEquals(KSLTaskState.SUCCEEDED, secondHandle.completion.get(2, TimeUnit.SECONDS).state)
+            assertEquals(1, first.snapshot().running)
+            assertEquals(0, second.snapshot().running)
+
+            val queued = first.schedule(KSLTaskSpec("first") { })
+            assertThrows(RejectedExecutionException::class.java) {
+                first.schedule(KSLTaskSpec("first") { })
+            }
+            assertFalse(queued.completion.isDone, "the bounded queue should retain one pending task")
+            assertFalse(firstHandle.completion.isDone, "the running task should remain independent")
+        } finally {
+            releaseFirst.countDown()
+            first.close()
+            second.close()
+            sharedWorkers.close()
         }
     }
 
