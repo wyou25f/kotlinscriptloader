@@ -1,6 +1,8 @@
 package ru.privateserver.ksl.api.library
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.net.URLClassLoader
 import java.nio.file.Files
@@ -83,7 +85,7 @@ class KSLRetiredClassLoadersTest {
             val loader = URLClassLoader(arrayOf(directory.toURI().toURL()), null)
             val retired = KSLRetiredClassLoaders()
 
-            assertNotNull(loader.getResource("probe.txt"))
+            retired.acquire("live-script", loader)
             retired.retain(loader)
             assertNotNull(loader.getResource("probe.txt"), "retiring a loader must not break existing scripts")
 
