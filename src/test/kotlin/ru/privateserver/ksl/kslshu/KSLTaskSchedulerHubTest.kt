@@ -68,6 +68,9 @@ class KSLTaskSchedulerHubTest {
             assertThrows(IllegalArgumentException::class.java) {
                 registry.register("../unsafe") { KSLOfficialTaskScheduler(it.officialWorkers) }
             }
+            assertThrows(IllegalArgumentException::class.java) {
+                registry.register("example-addon::tick") { KSLOfficialTaskScheduler(it.officialWorkers) }
+            }
             assertNotNull(registry.create("ksl"))
         } finally {
             workers.close()
@@ -82,7 +85,7 @@ class KSLTaskSchedulerHubTest {
         var closed = false
         try {
             val registry = KSLTaskSchedulerRegistry.withOfficial(KSLTaskSchedulerEnvironment(workers))
-            val registration = registry.register("example-addon.engine") { environment ->
+            val registration = registry.register("example-addon:engine") { environment ->
                 factoryCalls++
                 val delegate = KSLOfficialTaskScheduler(environment.officialWorkers)
                 object : KSLTaskScheduler by delegate {
