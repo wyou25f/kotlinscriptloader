@@ -96,8 +96,8 @@ class KSLTaskSchedulerHubTest {
                 }
             }
 
-            assertTrue("example-addon.engine" in registry.available())
-            val custom = registry.create("example-addon.engine")
+            assertTrue("example-addon:engine" in registry.available())
+            val custom = registry.create("example-addon:engine")
             assertEquals(1, factoryCalls)
             val latch = CountDownLatch(1)
             val result = custom.schedule(KSLTaskSpec("addon:example") { latch.countDown() })
@@ -106,9 +106,9 @@ class KSLTaskSchedulerHubTest {
             custom.close()
             assertTrue(closed)
             registration.close()
-            assertFalse("example-addon.engine" in registry.available())
+            assertFalse("example-addon:engine" in registry.available())
             assertThrows(IllegalArgumentException::class.java) {
-                registry.create("example-addon.engine")
+                registry.create("example-addon:engine")
             }
         } finally {
             workers.close()
