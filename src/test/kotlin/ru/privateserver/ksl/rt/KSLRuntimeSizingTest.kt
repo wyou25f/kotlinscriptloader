@@ -32,6 +32,16 @@ class KSLRuntimeSizingTest {
     }
 
     @Test
+    fun `compile cache capacity shrinks as heap pressure increases`() {
+        assertEquals(64, KSLRuntimeSizing.recommendedCompileCacheCapacity(64, 69, 100))
+        assertEquals(48, KSLRuntimeSizing.recommendedCompileCacheCapacity(64, 72, 100))
+        assertEquals(32, KSLRuntimeSizing.recommendedCompileCacheCapacity(64, 82, 100))
+        assertEquals(16, KSLRuntimeSizing.recommendedCompileCacheCapacity(64, 90, 100))
+        assertEquals(16, KSLRuntimeSizing.recommendedCompileCacheCapacity(32, 99, 100))
+        assertEquals(32, KSLRuntimeSizing.recommendedCompileCacheCapacity(32, 99, -1))
+    }
+
+    @Test
     fun `smaller physical memory boundary controls automatic sizing`() {
         assertEquals(4L * gib, KSLRuntimeSizing.effectiveMemoryLimitBytes(8L * gib, 4L * gib))
         assertEquals(2, KSLRuntimeSizing.recommendedWorkerCount(8L * gib, 4L * gib, 16))
