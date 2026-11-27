@@ -427,6 +427,23 @@ class KSLWorkSchedulerTest {
     }
 
     @Test
+    fun `resizing updates both worker count and bounded queue capacity`() {
+        val scheduler = KSLWorkScheduler(workers = 1, queueCapacity = 8)
+        try {
+            assertEquals(1, scheduler.snapshot().workers)
+            assertEquals(9, scheduler.snapshot().capacity)
+
+            scheduler.resize(workers = 2, queueCapacity = 3)
+
+            assertEquals(2, scheduler.snapshot().workers)
+            assertEquals(5, scheduler.snapshot().capacity)
+            assertEquals(3, scheduler.snapshot().available)
+        } finally {
+            scheduler.close()
+        }
+    }
+
+    @Test
     fun `resizes worker count within bounds`() {
         val scheduler = KSLWorkScheduler(workers = 1, queueCapacity = 4)
         try {
