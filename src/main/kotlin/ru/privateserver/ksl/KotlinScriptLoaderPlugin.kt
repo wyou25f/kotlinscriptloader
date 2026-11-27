@@ -371,10 +371,15 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
 
     private fun initRuntimeWorkers() {
         val maxHeapBytes = Runtime.getRuntime().maxMemory()
+        val physicalMemoryBytes = runCatching {
+            (java.lang.management.ManagementFactory.getOperatingSystemMXBean()
+                as? com.sun.management.OperatingSystemMXBean)?.totalMemorySize ?: -1L
+        }.getOrDefault(-1L)
         val configuredWorkers = config.getInt("runtime.cpu-threads", 0)
         val workers = if (configuredWorkers <= 0) {
             ru.privateserver.ksl.rt.KSLRuntimeSizing.recommendedWorkerCount(
                 maxHeapBytes,
+                physicalMemoryBytes,
                 Runtime.getRuntime().availableProcessors()
             )
         } else {
@@ -382,7 +387,7 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         }
         val configuredQueueCapacity = config.getInt("runtime.queue-capacity", 0)
         val queueCapacity = if (configuredQueueCapacity <= 0) {
-            ru.privateserver.ksl.rt.KSLRuntimeSizing.recommendedQueueCapacity(maxHeapBytes)
+            ru.privateserver.ksl.rt.KSLRuntimeSizing.recommendedQueueCapacity(maxHeapBytes, physicalMemoryBytes)
         } else {
             configuredQueueCapacity.coerceIn(1, 100_000)
         }
