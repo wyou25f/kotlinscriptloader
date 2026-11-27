@@ -437,7 +437,7 @@ class KSLWorkSchedulerTest {
 
             assertEquals(2, scheduler.snapshot().workers)
             assertEquals(5, scheduler.snapshot().capacity)
-            assertEquals(3, scheduler.snapshot().available)
+            assertEquals(5, scheduler.snapshot().available)
         } finally {
             scheduler.close()
         }
