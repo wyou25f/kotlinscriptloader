@@ -161,6 +161,22 @@ class KSLRuntimeToolsTest {
         assertEquals(3L, profiler.snapshot().calls)
     }
 
+    @Test
+    fun runtimeMemorySnapshotReportsJvmCountersWithoutAssumingNativeSupport() {
+        val snapshot = KSLRuntimeMonitor.memorySnapshot()
+
+        assertTrue(snapshot.heapUsedBytes >= 0L)
+        assertTrue(snapshot.heapCommittedBytes >= 0L)
+        assertTrue(snapshot.nonHeapUsedBytes >= 0L)
+        assertTrue(snapshot.directBufferBytes >= -1L)
+        assertTrue(snapshot.mappedBufferBytes >= -1L)
+        assertTrue(snapshot.loadedClasses >= 0)
+        assertTrue(snapshot.totalLoadedClasses >= snapshot.loadedClasses.toLong())
+        assertTrue(snapshot.unloadedClasses >= 0L)
+        assertTrue(snapshot.physicalMemoryBytes >= -1L)
+        assertTrue(snapshot.freePhysicalMemoryBytes >= -1L)
+    }
+
     @Test fun runtimeAliasesExposeProfilerRegistryAndCleanup() {
         val name = "kslrt-alias-test-${System.nanoTime()}"
         val profiler = kslrt.profiler(name)
