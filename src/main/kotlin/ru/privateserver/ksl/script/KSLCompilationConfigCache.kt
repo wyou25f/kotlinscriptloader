@@ -19,19 +19,20 @@ internal class KSLCompilationConfigCache {
 
     fun getOrBuild(
         environmentStamp: String,
-        builder: () -> ScriptCompilationConfiguration
+        builder: () -> ScriptCompilationConfiguration,
+        onEnvironmentChanged: () -> Unit = {}
     ): ScriptCompilationConfiguration {
         require(environmentStamp.isNotBlank()) { "environmentStamp must not be blank" }
         entry?.let { current ->
             if (current.environmentStamp == environmentStamp) return current.configuration
         }
         return synchronized(lock) {
-            entry?.let { current ->
-                if (current.environmentStamp == environmentStamp) return@synchronized current.configuration
-            }
-            builder().also { configuration ->
-                entry = Entry(environmentStamp, configuration)
-            }
+            val current = entry
+            if (current?.environmentStamp == environmentStamp) return@synchronized current.configuration
+            val configuration = builder()
+            if (current != null) onEnvironmentChanged()
+            entry = Entry(environmentStamp, configuration)
+            configuration
         }
     }
 
