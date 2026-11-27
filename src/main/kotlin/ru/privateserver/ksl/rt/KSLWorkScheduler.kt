@@ -84,7 +84,7 @@ private class MutableOwnerWorkSnapshot {
     )
 }
 
-class KSLWorkScheduler(
+class KSLWorkScheduler @JvmOverloads constructor(
     workers: Int,
     private val queueCapacity: Int,
     private val perScriptLimit: Int = 64,
