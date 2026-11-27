@@ -338,10 +338,11 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
         if (!plugin.isSandboxed("__sandbox_probe__")) {
             return true to "Sandbox выключена или probe script доверенный; проверка ограничений пропущена"
         }
+        // The probe does not activate a generation, so its classloader lease is closed below.
+        val libraryLease = localLibraries.acquireForScript("__sandbox_probe__")
         return try {
             val context = BukkitScriptContext(plugin, "__sandbox_probe__")
             // Use the exact effective policy and parent loader used by normal script evaluation.
-            val libraryLease = localLibraries.acquireForScript("__sandbox_probe__")
             val loader = loaderFor("__sandbox_probe__", libraryLease?.classLoader)
             val compilationConfig = buildScriptCompilationConfig(plugin.addonManager)
             val evalConfig = ScriptEvaluationConfiguration {
