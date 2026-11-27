@@ -36,13 +36,14 @@ internal fun buildScriptCompilationConfig(
     addonManager: KSLAddonManager,
     localLibraries: KSLLocalLibraryManager? = null,
     addonImportsSnapshot: List<String>? = null,
-    addonLoadersSnapshot: List<ClassLoader>? = null
+    addonLoadersSnapshot: List<ClassLoader>? = null,
+    localLibraryLoaderSnapshot: ClassLoader? = localLibraries?.classLoader
 ): ScriptCompilationConfiguration =
     ScriptCompilationConfiguration(KSLScriptCompilationConfiguration) {
         val addonImports = addonImportsSnapshot ?: addonManager.getExtraImports()
         if (addonImports.isNotEmpty()) defaultImports(*addonImports.toTypedArray())
         val addonClassLoaders = addonLoadersSnapshot ?: addonManager.getScriptClassLoaders()
-        val localLibraryLoader = localLibraries?.classLoader
+        val localLibraryLoader = localLibraryLoaderSnapshot
         if (addonClassLoaders.isNotEmpty() || localLibraryLoader != null) {
             jvm {
                 addonClassLoaders.forEach { classLoader ->
@@ -120,7 +121,11 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
             }
             val compilationConfig = compilationConfigCache.getOrBuild(environmentStamp) {
                 buildScriptCompilationConfig(
-                    plugin.addonManager, localLibraries, addonImports, addonLoaders
+                    plugin.addonManager,
+                    localLibraries,
+                    addonImports,
+                    addonLoaders,
+                    localLoader
                 )
             }
             val cacheKey = KSLCompileCacheKey(
