@@ -107,6 +107,23 @@ class KSLCompilePoolTest {
     }
 
     @Test
+    fun `compiler workers restore their neutral context classloader between tasks`() {
+        KSLCompilePool(1).use { pool ->
+            val first = pool.map(listOf(1)) {
+                Thread.currentThread().contextClassLoader = object : ClassLoader() {}
+                it
+            }
+            assertEquals(listOf(1), first)
+
+            val observedLoader = pool.map(listOf(2)) {
+                Thread.currentThread().contextClassLoader
+            }.single()
+
+            assertSame(KSLCompilePool::class.java.classLoader, observedLoader)
+        }
+    }
+
+    @Test
     fun `idle compiler workers retire and are recreated for a later batch`() {
         KSLCompilePool(1, workerIdleTimeoutMillis = 50L).use { pool ->
             val firstThread = java.util.concurrent.atomic.AtomicReference<Thread>()
