@@ -71,8 +71,8 @@ data class KSLTaskSchedulerOptions(
         require(workers in 1..8) { "isolated scheduler workers must be between 1 and 8" }
         require(queueCapacity in 1..8_192) { "isolated scheduler queueCapacity must be between 1 and 8192" }
         require(perOwnerLimit in 1..4_096) { "isolated scheduler perOwnerLimit must be between 1 and 4096" }
-        require(threadNamePrefix.matches(Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,31}"))) {
-            "threadNamePrefix must contain 1-32 safe ASCII characters"
+        require(threadNamePrefix.matches(Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,23}"))) {
+            "threadNamePrefix must contain 1-24 safe ASCII characters"
         }
     }
 }
