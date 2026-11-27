@@ -381,20 +381,31 @@ class KSLWorkSchedulerTest {
     }
 
     @Test
-    fun `worker context classloader is reset after task execution`() {
+    fun `worker context classloader is reset after task and completion callbacks`() {
         val scheduler = KSLWorkScheduler(workers = 1, queueCapacity = 4)
-        val changed = CountDownLatch(1)
+        val started = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val callbackRan = CountDownLatch(1)
         val checked = CountDownLatch(1)
         val worker = java.util.concurrent.atomic.AtomicReference<Thread>()
         val observedLoader = java.util.concurrent.atomic.AtomicReference<ClassLoader>()
 
         try {
-            scheduler.submit("classloader-test") {
+            val handle = scheduler.submitHandle("classloader-test") {
                 worker.set(Thread.currentThread())
                 Thread.currentThread().contextClassLoader = object : ClassLoader() {}
-                changed.countDown()
+                started.countDown()
+                release.await(2, TimeUnit.SECONDS)
             }
-            assertTrue(changed.await(2, TimeUnit.SECONDS))
+            assertTrue(started.await(2, TimeUnit.SECONDS))
+            handle.completion.whenComplete { _, _ ->
+                Thread.currentThread().contextClassLoader = object : ClassLoader() {}
+                callbackRan.countDown()
+            }
+
+            release.countDown()
+            handle.completion.get(2, TimeUnit.SECONDS)
+            assertTrue(callbackRan.await(2, TimeUnit.SECONDS))
 
             scheduler.submit("classloader-test") {
                 observedLoader.set(Thread.currentThread().contextClassLoader)
@@ -404,6 +415,7 @@ class KSLWorkSchedulerTest {
             assertSame(KSLWorkScheduler::class.java.classLoader, observedLoader.get())
             assertTrue(worker.get().isAlive, "the same worker should be reused while it is still warm")
         } finally {
+            release.countDown()
             scheduler.close()
         }
     }
