@@ -88,7 +88,8 @@ class KSLWorkScheduler(
     workers: Int,
     private val queueCapacity: Int,
     private val perScriptLimit: Int = 64,
-    private val failureHandler: ((KSLWorkFailure) -> Unit)? = null
+    private val failureHandler: ((KSLWorkFailure) -> Unit)? = null,
+    private val threadNamePrefix: String = "KSL-Worker"
 ) : AutoCloseable {
     private enum class Mode { ONCE, DELAYED, FIXED_RATE, FIXED_DELAY }
 
@@ -115,7 +116,7 @@ class KSLWorkScheduler(
         workers.coerceIn(1, 64), workers.coerceIn(1, 64), 0L, TimeUnit.MILLISECONDS,
         PriorityBlockingQueue(),
         ThreadFactory { task ->
-            Thread(task, "KSL-Worker-${threadIds.incrementAndGet()}").apply {
+            Thread(task, "${threadNamePrefix}-${threadIds.incrementAndGet()}").apply {
                 isDaemon = true
                 contextClassLoader = this@KSLWorkScheduler.javaClass.classLoader
             }
@@ -174,6 +175,9 @@ class KSLWorkScheduler(
         require(workers in 1..64) { "workers must be between 1 and 64" }
         require(queueCapacity in 1..100_000) { "queueCapacity must be between 1 and 100000" }
         require(perScriptLimit > 0) { "perScriptLimit must be positive" }
+        require(threadNamePrefix.matches(Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,47}"))) {
+            "threadNamePrefix must contain 1-48 safe ASCII characters"
+        }
     }
 
     fun submit(owner: String, priority: KSLWorkPriority = KSLWorkPriority.NORMAL, action: () -> Unit): Long {
