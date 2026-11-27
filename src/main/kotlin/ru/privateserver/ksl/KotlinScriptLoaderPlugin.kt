@@ -1655,10 +1655,6 @@ class KotlinScriptLoaderPlugin : JavaPlugin() {
         }
         runCatching { closeScriptRuntimeScope(scriptName) }
             .onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось закрыть runtime-ресурсы: ${it.message}") }
-        if (::scriptEngine.isInitialized) {
-            runCatching { scriptEngine.releaseScript(scriptName) }
-                .onFailure { logger.warning("[$scriptName] Не удалось освободить ссылки на локальные библиотеки: ${it.message}") }
-        }
         if (::persistStore.isInitialized) runCatching { persistStore.clearScript(scriptName) }
             .onFailure { logger.warning("[$scriptName] ${KSLError.SCRIPT_UNLOAD_PARTIAL.tag} Не удалось очистить кеш persist: ${it.message}") }
         if (liveScripts.remove(scriptName) && publishUnloaded) {
