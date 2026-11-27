@@ -74,6 +74,22 @@ class KSLCompiledScriptCacheTest {
     }
 
     @Test
+    fun `fifty script workload remains within the reduced cache budget`() {
+        val cache = KSLCompiledScriptCache<String>(64)
+        val keys = (1..50).map { KSLCompileCacheKey("script-$it", "fingerprint-$it") }
+        keys.forEachIndexed { index, key -> cache.put(key, "compiled-$index") }
+
+        assertEquals(50, cache.stats().size)
+        assertEquals(34, cache.resize(16))
+        assertEquals(16, cache.stats().size)
+        assertEquals(16, cache.stats().maxSize)
+
+        keys.take(34).forEach { assertEquals(0, cache.invalidateScript(it.scriptId)) }
+        keys.drop(34).forEach { assertEquals(1, cache.invalidateScript(it.scriptId)) }
+        assertEquals(0, cache.stats().size)
+    }
+
+    @Test
     fun invalidationAndClearReturnRemovedCounts() {
         val cache = KSLCompiledScriptCache<String>(3)
         cache.put(KSLCompileCacheKey("one", "a"), "1")
