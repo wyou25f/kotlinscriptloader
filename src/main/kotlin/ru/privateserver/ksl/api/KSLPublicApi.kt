@@ -84,6 +84,8 @@ import ru.privateserver.ksl.kslshu.KSLTaskResult as CoreKSLTaskResult
 import ru.privateserver.ksl.kslshu.KSLTaskScheduler as CoreKSLTaskScheduler
 import ru.privateserver.ksl.kslshu.KSLTaskSchedulerEnvironment as CoreKSLTaskSchedulerEnvironment
 import ru.privateserver.ksl.kslshu.KSLTaskSchedulerFactory as CoreKSLTaskSchedulerFactory
+import ru.privateserver.ksl.kslshu.KSLTaskSchedulerOptions as CoreKSLTaskSchedulerOptions
+import ru.privateserver.ksl.kslshu.KSLIsolatedTaskScheduler as CoreKSLIsolatedTaskScheduler
 import ru.privateserver.ksl.kslshu.KSLTaskSchedulerRegistry as CoreKSLTaskSchedulerRegistry
 import ru.privateserver.ksl.kslshu.KSLTaskScope as CoreKSLTaskScope
 import ru.privateserver.ksl.kslshu.KSLTaskSpec as CoreKSLTaskSpec
@@ -194,6 +196,8 @@ typealias KSLTaskResult = CoreKSLTaskResult
 typealias KSLTaskScheduler = CoreKSLTaskScheduler
 typealias KSLTaskSchedulerEnvironment = CoreKSLTaskSchedulerEnvironment
 typealias KSLTaskSchedulerFactory = CoreKSLTaskSchedulerFactory
+typealias KSLTaskSchedulerOptions = CoreKSLTaskSchedulerOptions
+typealias KSLIsolatedTaskScheduler = CoreKSLIsolatedTaskScheduler
 typealias KSLTaskSchedulerRegistry = CoreKSLTaskSchedulerRegistry
 typealias KSLTaskScope = CoreKSLTaskScope
 typealias KSLTaskSpec = CoreKSLTaskSpec
