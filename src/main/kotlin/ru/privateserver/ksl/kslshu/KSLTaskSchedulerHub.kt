@@ -65,7 +65,8 @@ data class KSLTaskSchedulerOptions(
     val workers: Int = 1,
     val queueCapacity: Int = 64,
     val perOwnerLimit: Int = 64,
-    val threadNamePrefix: String = "KSL-Scheduler"
+    val threadNamePrefix: String = "KSL-Scheduler",
+    val workerIdleTimeoutMillis: Long = KSLWorkScheduler.DEFAULT_WORKER_IDLE_TIMEOUT_MILLIS
 ) {
     init {
         require(workers in 1..8) { "isolated scheduler workers must be between 1 and 8" }
@@ -73,6 +74,9 @@ data class KSLTaskSchedulerOptions(
         require(perOwnerLimit in 1..4_096) { "isolated scheduler perOwnerLimit must be between 1 and 4096" }
         require(threadNamePrefix.matches(Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,23}"))) {
             "threadNamePrefix must contain 1-24 safe ASCII characters"
+        }
+        require(workerIdleTimeoutMillis in 1L..600_000L) {
+            "workerIdleTimeoutMillis must be between 1 and 600000"
         }
     }
 }
@@ -85,7 +89,8 @@ class KSLIsolatedTaskScheduler(
         workers = options.workers,
         queueCapacity = options.queueCapacity,
         perScriptLimit = options.perOwnerLimit,
-        threadNamePrefix = "${options.threadNamePrefix}-${schedulerIds.incrementAndGet()}"
+        threadNamePrefix = "${options.threadNamePrefix}-${schedulerIds.incrementAndGet()}",
+        workerIdleTimeoutMillis = options.workerIdleTimeoutMillis
     )
     private val delegate = KSLOfficialTaskScheduler(workers)
 
