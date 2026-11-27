@@ -61,7 +61,10 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
     private val pluginClassLoader = plugin::class.java.classLoader
     private val localLibraries = KSLLocalLibraryManager(plugin)
     private val compiledCache = KSLCompiledScriptCache<KSLCompileCacheValue>(
-        plugin.config.getInt("scripts.compile-cache-size", 128).coerceIn(16, 2048)
+        plugin.config.getInt(
+            "scripts.compile-cache-size",
+            ru.privateserver.ksl.rt.KSLRuntimeSizing.recommendedCompileCacheEntries(Runtime.getRuntime().maxMemory())
+        ).coerceIn(16, 2048)
     )
 
     override fun compileCacheStats(): KSLCompileCacheStats = compiledCache.stats()
