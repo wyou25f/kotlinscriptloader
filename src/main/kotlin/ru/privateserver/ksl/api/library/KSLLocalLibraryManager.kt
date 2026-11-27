@@ -160,6 +160,17 @@ internal class KSLLocalLibraryManager(private val plugin: KotlinScriptLoaderPlug
     val classLoader: ClassLoader? get() = activeLoader
 
     /**
+     * Reloads changed libraries and pins the resulting generation under one manager lock.
+     * This prevents another concurrent compile from retiring the loader between snapshot
+     * creation and lease acquisition.
+     */
+    @Synchronized
+    fun reloadAndAcquireForScript(scriptId: String): Pair<String?, KSLLocalLibraryLease?> {
+        val detail = reloadIfChanged()
+        return detail to acquireForScript(scriptId, activeLoader)
+    }
+
+    /**
      * Pins the current library generation to the caller's script generation. Candidate and
      * previous generations can coexist during a transactional reload, so every evaluation
      * receives its own lease instead of replacing a script-ID-wide reference.
