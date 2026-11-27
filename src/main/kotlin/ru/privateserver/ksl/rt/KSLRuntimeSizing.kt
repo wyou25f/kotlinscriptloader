@@ -25,7 +25,7 @@ internal object KSLRuntimeSizing {
     }
 
     fun recommendedWorkerCount(maxHeapBytes: Long, availableProcessors: Int): Int =
-        recommendedWorkerCount(maxHeapBytes, physicalMemoryBytes = -1L, availableProcessors)
+        recommendedWorkerCount(maxHeapBytes, -1L, availableProcessors)
 
     fun recommendedWorkerCount(
         maxHeapBytes: Long,
@@ -46,20 +46,26 @@ internal object KSLRuntimeSizing {
     fun recommendedQueueCapacity(maxHeapBytes: Long): Int =
         recommendedQueueCapacity(maxHeapBytes, physicalMemoryBytes = -1L)
 
-    fun recommendedQueueCapacity(maxHeapBytes: Long, physicalMemoryBytes: Long): Int = when {
-        effectiveMemoryLimitBytes(maxHeapBytes, physicalMemoryBytes) <= 2L * GIB -> 64
-        effectiveMemoryLimitBytes(maxHeapBytes, physicalMemoryBytes) <= 4L * GIB -> 128
-        effectiveMemoryLimitBytes(maxHeapBytes, physicalMemoryBytes) <= 8L * GIB -> 256
-        else -> 512
+    fun recommendedQueueCapacity(maxHeapBytes: Long, physicalMemoryBytes: Long): Int {
+        val memoryBudget = effectiveMemoryLimitBytes(maxHeapBytes, physicalMemoryBytes)
+        return when {
+            memoryBudget <= 2L * GIB -> 64
+            memoryBudget <= 4L * GIB -> 128
+            memoryBudget <= 8L * GIB -> 256
+            else -> 512
+        }
     }
 
     fun recommendedCompileCacheEntries(maxHeapBytes: Long): Int =
         recommendedCompileCacheEntries(maxHeapBytes, physicalMemoryBytes = -1L)
 
-    fun recommendedCompileCacheEntries(maxHeapBytes: Long, physicalMemoryBytes: Long): Int = when {
-        effectiveMemoryLimitBytes(maxHeapBytes, physicalMemoryBytes) <= 2L * GIB -> 32
-        effectiveMemoryLimitBytes(maxHeapBytes, physicalMemoryBytes) <= 4L * GIB -> 64
-        effectiveMemoryLimitBytes(maxHeapBytes, physicalMemoryBytes) <= 8L * GIB -> 96
-        else -> 128
+    fun recommendedCompileCacheEntries(maxHeapBytes: Long, physicalMemoryBytes: Long): Int {
+        val memoryBudget = effectiveMemoryLimitBytes(maxHeapBytes, physicalMemoryBytes)
+        return when {
+            memoryBudget <= 2L * GIB -> 32
+            memoryBudget <= 4L * GIB -> 64
+            memoryBudget <= 8L * GIB -> 96
+            else -> 128
+        }
     }
 }
