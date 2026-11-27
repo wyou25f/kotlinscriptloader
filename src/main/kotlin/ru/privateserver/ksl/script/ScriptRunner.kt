@@ -89,13 +89,11 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
             return
         }
         val heap = java.lang.management.ManagementFactory.getMemoryMXBean().heapMemoryUsage
-        val pressure = if (heap.max > 0L) heap.used.toDouble() / heap.max.toDouble() else 0.0
-        val target = when {
-            pressure >= 0.90 -> maxOf(16, automaticCompileCacheCapacity / 4)
-            pressure >= 0.82 -> maxOf(16, automaticCompileCacheCapacity / 2)
-            pressure >= 0.72 -> maxOf(16, automaticCompileCacheCapacity * 3 / 4)
-            else -> automaticCompileCacheCapacity
-        }
+        val target = ru.privateserver.ksl.rt.KSLRuntimeSizing.recommendedCompileCacheCapacity(
+            automaticCompileCacheCapacity,
+            heap.used,
+            heap.max
+        )
         compiledCache.resize(target)
     }
 
