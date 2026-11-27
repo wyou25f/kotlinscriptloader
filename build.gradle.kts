@@ -38,7 +38,7 @@ val kotlinLibraries = listOf(
 )
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:26.3.build.259-stable")
     compileOnly("me.clip:placeholderapi:2.11.6")
     compileOnly("net.luckperms:api:5.5")
     compileOnly("net.essentialsx:EssentialsX:2.21.2")
@@ -67,7 +67,7 @@ dependencies {
     // Embedded and relocated: no separate NBTAPI plugin is required.
     implementation("de.tr7zw:item-nbt-api:2.16.1")
 
-    testImplementation("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
+    testImplementation("io.papermc.paper:paper-api:26.3.build.259-stable")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testImplementation("com.github.seeseemelk:MockBukkit-v1.21:3.133.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
