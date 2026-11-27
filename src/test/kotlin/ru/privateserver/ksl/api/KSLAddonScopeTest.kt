@@ -257,4 +257,61 @@ class KSLAddonScopeTest {
         assertTrue(closed)
         assertNull(callback)
     }
+
+    @Test
+    fun concurrentCloseWaitsUntilEveryOwnedResourceHasFinishedClosing() {
+        val scope = scope()
+        val cleanupStarted = CountDownLatch(1)
+        val allowCleanupToFinish = CountDownLatch(1)
+        val secondCloseStarted = CountDownLatch(1)
+        val firstCloseReturned = CountDownLatch(1)
+        val secondCloseReturned = CountDownLatch(1)
+
+        scope.own(AutoCloseable {
+            cleanupStarted.countDown()
+            allowCleanupToFinish.await()
+        })
+
+        val firstCloser = Thread {
+            scope.close()
+            firstCloseReturned.countDown()
+        }
+        val secondCloser = Thread {
+            secondCloseStarted.countDown()
+            scope.close()
+            secondCloseReturned.countDown()
+        }
+
+        firstCloser.start()
+        try {
+            assertTrue(cleanupStarted.await(2, TimeUnit.SECONDS))
+            secondCloser.start()
+            assertTrue(secondCloseStarted.await(2, TimeUnit.SECONDS))
+            assertFalse(secondCloseReturned.await(100, TimeUnit.MILLISECONDS))
+        } finally {
+            allowCleanupToFinish.countDown()
+        }
+
+        assertTrue(firstCloseReturned.await(2, TimeUnit.SECONDS))
+        assertTrue(secondCloseReturned.await(2, TimeUnit.SECONDS))
+        firstCloser.join(2_000)
+        secondCloser.join(2_000)
+        assertFalse(firstCloser.isAlive)
+        assertFalse(secondCloser.isAlive)
+    }
+
+    @Test
+    fun reentrantCloseFromOwnedResourceDoesNotDeadlock() {
+        val scope = scope()
+        var laterResourceClosed = false
+        scope.own(AutoCloseable { scope.close() })
+        scope.own(AutoCloseable { laterResourceClosed = true })
+
+        scope.close()
+
+        assertTrue(laterResourceClosed)
+        assertTrue(scope.isClosed)
+        assertEquals(0, scope.resourceCount)
+    }
+
 }
