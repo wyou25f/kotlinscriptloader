@@ -76,6 +76,7 @@ import ru.privateserver.ksl.rt.KSLWorkSnapshot as CoreKSLWorkSnapshot
 import ru.privateserver.ksl.rt.KSLWorkFailure as CoreKSLWorkFailure
 import ru.privateserver.ksl.rt.KSLWorkOwnerSnapshot as CoreKSLWorkOwnerSnapshot
 import ru.privateserver.ksl.rt.KSLRuntimeSnapshot as CoreKSLRuntimeSnapshot
+import ru.privateserver.ksl.rt.KSLRuntimeMemorySnapshot as CoreKSLRuntimeMemorySnapshot
 import ru.privateserver.ksl.rt.KSLRuntimeMonitor
 import ru.privateserver.ksl.kslshu.KSLTaskContext as CoreKSLTaskContext
 import ru.privateserver.ksl.kslshu.KSLTaskHandle as CoreKSLTaskHandle
@@ -188,6 +189,7 @@ typealias KSLWorkSnapshot = CoreKSLWorkSnapshot
 typealias KSLWorkFailure = CoreKSLWorkFailure
 typealias KSLWorkOwnerSnapshot = CoreKSLWorkOwnerSnapshot
 typealias KSLRuntimeSnapshot = CoreKSLRuntimeSnapshot
+typealias KSLRuntimeMemorySnapshot = CoreKSLRuntimeMemorySnapshot
 /** Typed metadata supplied to a scheduler task invocation. */
 typealias KSLTaskContext = CoreKSLTaskContext
 typealias KSLTaskHandle = CoreKSLTaskHandle
@@ -239,6 +241,7 @@ val kslRuntimeStats: KSLRuntimeSnapshot
 
 /** Function-form alias for [kslRuntimeStats]. */
 fun runtimeStats(): KSLRuntimeSnapshot = KSLRuntimeMonitor.snapshot()
+fun runtimeMemoryStats(): KSLRuntimeMemorySnapshot = KSLRuntimeMonitor.memorySnapshot()
 
 /** Alternative name for integrations that expose runtime telemetry as metrics. */
 val runtimeMetrics: KSLRuntimeSnapshot
