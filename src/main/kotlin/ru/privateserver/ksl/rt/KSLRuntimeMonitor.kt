@@ -52,8 +52,14 @@ object KSLRuntimeMonitor {
         val nonHeap = memory.nonHeapMemoryUsage
         val pools = ManagementFactory.getPlatformMXBeans(BufferPoolMXBean::class.java)
         fun bufferBytes(prefix: String): Long {
-            val matching = pools.filter { it.name.startsWith(prefix, ignoreCase = true) }
-            return if (matching.isEmpty()) -1L else matching.sumOf { it.memoryUsed.coerceAtLeast(0L) }
+            val measurements = pools
+                .filter { it.name.startsWith(prefix, ignoreCase = true) }
+                .map { it.memoryUsed }
+            return when {
+                measurements.isEmpty() -> -1L
+                measurements.any { it < 0L } -> -1L
+                else -> measurements.sum()
+            }
         }
         val classes = ManagementFactory.getClassLoadingMXBean()
         val os = ManagementFactory.getOperatingSystemMXBean() as? com.sun.management.OperatingSystemMXBean
