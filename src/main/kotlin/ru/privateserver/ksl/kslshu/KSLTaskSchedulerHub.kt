@@ -163,8 +163,12 @@ class KSLTaskSchedulerRegistry(private val environment: KSLTaskSchedulerEnvironm
 
     private fun normalize(id: String): String {
         val key = id.trim().lowercase()
-        require(key.matches(Regex("[a-z0-9][a-z0-9._-]{0,63}"))) {
-            "Scheduler ID must use 1-64 lowercase letters, digits, '.', '_' or '-'"
+        val parts = key.split(':')
+        val valid = key.length in 1..64 &&
+            parts.size in 1..2 &&
+            parts.all { part -> part.matches(Regex("[a-z0-9][a-z0-9._-]{0,63}")) }
+        require(valid) {
+            "Scheduler ID must use 1-64 lowercase letters, digits, '.', '_' or '-' with at most one ':' namespace separator"
         }
         return key
     }
