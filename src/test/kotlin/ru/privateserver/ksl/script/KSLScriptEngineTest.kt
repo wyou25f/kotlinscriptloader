@@ -13,6 +13,12 @@ class KSLScriptEngineTest {
         var evaluateResult = true
         var evaluateFailure: Throwable? = null
         var reportedFailures = 0
+        var invalidatedScript: String? = null
+
+        override fun invalidateCompileCache(scriptId: String): Int {
+            invalidatedScript = scriptId
+            return 1
+        }
 
         override fun compile(file: File): CompiledUnit {
             compileFailure?.let { throw it }
@@ -83,6 +89,15 @@ class KSLScriptEngineTest {
         val engine = KSLScriptEngine(backend)
         engine.reportFailure(backend.compile(File("fixture.kts")))
         assertEquals(1, backend.reportedFailures)
+    }
+
+    @Test
+    fun perScriptCompileCacheInvalidationIsForwardedToBackend() {
+        val backend = FakeBackend()
+        val engine = KSLScriptEngine(backend)
+
+        assertEquals(1, engine.invalidateCompileCache("economy/shop"))
+        assertEquals("economy/shop", backend.invalidatedScript)
     }
 
     @Test
