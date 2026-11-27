@@ -685,22 +685,22 @@ class KSLWorkScheduler @JvmOverloads constructor(
 }
 
 /** Atomic per-owner quota; compute() keeps acquire/release linearizable under contention. */
-internal class KSLPerOwnerQuota(initialLimit: Int) {
+internal class KSLPerOwnerQuota(limit: Int) {
     private val counts = ConcurrentHashMap<String, Int>()
-    @Volatile private var limit = initialLimit
+    @Volatile private var currentLimit = limit
 
-    init { require(initialLimit > 0) { "limit must be positive" } }
+    init { require(limit > 0) { "limit must be positive" } }
 
     fun updateLimit(newLimit: Int) {
         require(newLimit > 0) { "limit must be positive" }
-        limit = newLimit
+        currentLimit = newLimit
     }
 
     fun acquire(owner: String): Boolean {
         var accepted = false
         counts.compute(owner) { _, current ->
             val used = current ?: 0
-            if (used >= limit) used else { accepted = true; used + 1 }
+            if (used >= currentLimit) used else { accepted = true; used + 1 }
         }
         return accepted
     }
