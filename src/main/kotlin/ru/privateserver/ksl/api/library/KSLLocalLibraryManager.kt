@@ -49,6 +49,7 @@ internal class KSLRetiredClassLoaders : AutoCloseable {
     private val retired = LinkedHashSet<URLClassLoader>()
     private val owners = HashMap<String, URLClassLoader>()
     private val references = HashMap<URLClassLoader, Int>()
+    private val closed = LinkedHashSet<URLClassLoader>()
 
     @Synchronized
     fun acquire(owner: String, loader: URLClassLoader?) {
@@ -57,7 +58,7 @@ internal class KSLRetiredClassLoaders : AutoCloseable {
         if (previous === loader) return
         if (previous != null) releaseLocked(owner, previous)
         if (loader == null) return
-        check(loader !in retired) { "cannot acquire a retired classloader" }
+        check(loader !in closed) { "cannot acquire a closed classloader" }
         loaders += loader
         owners[owner] = loader
         references[loader] = (references[loader] ?: 0) + 1
@@ -100,6 +101,7 @@ internal class KSLRetiredClassLoaders : AutoCloseable {
         retired.remove(loader)
         loaders.remove(loader)
         references.remove(loader)
+        closed += loader
         runCatching { loader.close() }
     }
 
@@ -110,6 +112,7 @@ internal class KSLRetiredClassLoaders : AutoCloseable {
         retired.clear()
         owners.clear()
         references.clear()
+        closed.addAll(closing)
         closing.forEach { loader -> runCatching { loader.close() } }
     }
 }
@@ -159,9 +162,12 @@ internal class KSLLocalLibraryManager(private val plugin: KotlinScriptLoaderPlug
      * receives its own lease instead of replacing a script-ID-wide reference.
      */
     @Synchronized
-    fun acquireForScript(scriptId: String): KSLLocalLibraryLease? {
+    fun acquireForScript(
+        scriptId: String,
+        generationLoader: ClassLoader? = activeLoader
+    ): KSLLocalLibraryLease? {
         require(scriptId.isNotBlank()) { "scriptId must not be blank" }
-        val loader = activeLoader ?: return null
+        val loader = generationLoader as? URLClassLoader ?: return null
         val leaseOwner = "$scriptId#${leaseSequence.incrementAndGet()}"
         retiredLoaders.acquire(leaseOwner, loader)
         return KSLLocalLibraryLease(loader) { retiredLoaders.release(leaseOwner) }
