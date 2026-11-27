@@ -12,10 +12,10 @@ class KSLRetiredClassLoadersTest {
     @Test
     fun `retired loader closes after its final script releases the generation`() {
         val directory = Files.createTempDirectory("ksl-retired-loader-lease").toFile()
+        val retired = KSLRetiredClassLoaders()
         try {
             java.io.File(directory, "probe.txt").writeText("available")
             val loader = URLClassLoader(arrayOf(directory.toURI().toURL()), null)
-            val retired = KSLRetiredClassLoaders()
 
             retired.acquire("script-a", loader)
             retired.acquire("script-b", loader)
@@ -34,6 +34,7 @@ class KSLRetiredClassLoadersTest {
             assertEquals(0, retired.retainedGenerationCount())
             assertEquals(0, retired.activeOwnerCount())
         } finally {
+            retired.close()
             directory.deleteRecursively()
         }
     }
