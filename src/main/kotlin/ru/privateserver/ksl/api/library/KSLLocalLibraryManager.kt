@@ -12,7 +12,9 @@ import java.io.File
 import java.io.PrintStream
 import java.net.URLClassLoader
 import java.security.MessageDigest
+import java.util.Collections
 import java.util.HexFormat
+import java.util.WeakHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
@@ -49,7 +51,8 @@ internal class KSLRetiredClassLoaders : AutoCloseable {
     private val retired = LinkedHashSet<URLClassLoader>()
     private val owners = HashMap<String, URLClassLoader>()
     private val references = HashMap<URLClassLoader, Int>()
-    private val closed = LinkedHashSet<URLClassLoader>()
+    // Weak keys prevent the guard itself from retaining already-closed classloaders.
+    private val closed = Collections.newSetFromMap(WeakHashMap<URLClassLoader, Boolean>())
 
     @Synchronized
     fun acquire(owner: String, loader: URLClassLoader?) {
