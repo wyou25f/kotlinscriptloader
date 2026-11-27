@@ -25,7 +25,8 @@ internal data class KSLCompileCacheStats(
  * Bounded LRU for successfully compiled scripts. Keys include the source and
  * compilation-environment fingerprint; failures are never cached.
  */
-internal class KSLCompiledScriptCache<V : Any>(private val maxSize: Int) {
+internal class KSLCompiledScriptCache<V : Any>(initialMaxSize: Int) {
+    @Volatile private var maxSize = initialMaxSize
     private val entries = LinkedHashMap<KSLCompileCacheKey, V>(16, 0.75f, true)
     // A script has at most one live fingerprint. Keep a reverse index so replacing
     // a script version and invalidating it do not scan the entire LRU.
@@ -35,7 +36,7 @@ internal class KSLCompiledScriptCache<V : Any>(private val maxSize: Int) {
     private var evictions = 0L
 
     init {
-        require(maxSize > 0) { "maxSize must be positive" }
+        require(initialMaxSize > 0) { "maxSize must be positive" }
     }
 
     @Synchronized
@@ -69,6 +70,29 @@ internal class KSLCompiledScriptCache<V : Any>(private val maxSize: Int) {
     fun invalidateScript(scriptId: String): Int {
         val key = keyByScript.remove(scriptId) ?: return 0
         return if (entries.remove(key) != null) 1 else 0
+    }
+
+    /**
+     * Changes the retained-entry budget immediately. Shrinking evicts least-recently-used
+     * entries first and keeps the script reverse index consistent.
+     */
+    @Synchronized
+    fun resize(newMaxSize: Int): Int {
+        require(newMaxSize > 0) { "maxSize must be positive" }
+        maxSize = newMaxSize
+        var removed = 0
+        while (entries.size > newMaxSize) {
+            val eldest = entries.entries.iterator()
+            if (!eldest.hasNext()) break
+            val evictedKey = eldest.next().key
+            eldest.remove()
+            if (keyByScript[evictedKey.scriptId] == evictedKey) {
+                keyByScript.remove(evictedKey.scriptId)
+            }
+            evictions++
+            removed++
+        }
+        return removed
     }
 
     @Synchronized
