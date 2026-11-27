@@ -372,7 +372,14 @@ class KSLWorkScheduler @JvmOverloads constructor(
             }
         }
         if (cancelledBeforeStart != null) {
-            complete(record, cancelledBeforeStart!!, null)
+            try {
+                complete(record, cancelledBeforeStart!!, null)
+            } finally {
+                // This path also completes callbacks on the worker thread.
+                runCatching {
+                    Thread.currentThread().contextClassLoader = this@KSLWorkScheduler.javaClass.classLoader
+                }
+            }
             return
         }
 
