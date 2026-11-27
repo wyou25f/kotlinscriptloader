@@ -3,7 +3,7 @@ import java.util.zip.ZipFile
 plugins {
     kotlin("jvm") version "2.0.21"
     id("com.gradleup.shadow") version "8.3.4"
-    id("org.jetbrains.kotlinx.kover") version "0.9.8"
+    id("org.jetbrains.kotlinx.kover") version "0.9.11"
 }
 
 group = "ru.privateserver"
@@ -19,7 +19,7 @@ repositories {
     maven("https://maven.enginehub.org/repo/")
 }
 
-val kotlinScriptingVersion = "2.0.21"
+val kotlinScriptingVersion = "2.4.21"
 
 // Paper downloads these dependencies into its library cache and exposes them to the plugin
 // classloader. Use -PfatJar for an offline/self-contained build.
@@ -33,8 +33,8 @@ val kotlinLibraries = listOf(
     "org.jetbrains.kotlin:kotlin-scripting-jvm:$kotlinScriptingVersion",
     "org.jetbrains.kotlin:kotlin-scripting-jvm-host:$kotlinScriptingVersion",
     "org.jetbrains.kotlin:kotlin-scripting-compiler-embeddable:$kotlinScriptingVersion",
-    "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.8.1",
-    "org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3"
+    "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.11.0",
+    "org.jetbrains.kotlinx:kotlinx-serialization-json:1.13.0"
 )
 
 dependencies {
