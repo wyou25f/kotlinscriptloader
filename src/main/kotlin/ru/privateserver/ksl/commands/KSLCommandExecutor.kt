@@ -111,6 +111,16 @@ class KSLCommandExecutor(private val plugin: KotlinScriptLoaderPlugin) : Command
                     sender.sendMessage(plugin.message("runtime.heap", "used" to mib(m.heapUsedBytes), "max" to mib(m.heapMaxBytes), "committed" to mib(m.heapCommittedBytes)))
                     sender.sendMessage(plugin.message("runtime.nonheap", "nonheap" to mib(m.nonHeapUsedBytes), "processors" to m.processors, "process" to percent(m.processCpuLoad), "system" to percent(m.systemCpuLoad)))
                     sender.sendMessage(plugin.message("runtime.threads", "threads" to m.liveThreads, "daemon" to m.daemonThreads, "gc" to m.gcCount, "gc-ms" to m.gcTimeMillis))
+                    val memory = ru.privateserver.ksl.rt.KSLRuntimeMonitor.memorySnapshot()
+                    sender.sendMessage(
+                        "§7Buffers: §fdirect ${mib(memory.directBufferBytes)} §8| §fmapped ${mib(memory.mappedBufferBytes)}"
+                    )
+                    sender.sendMessage(
+                        "§7Classes: §f${memory.loadedClasses} loaded §8| total loaded: §f${memory.totalLoadedClasses} §8| unloaded: §f${memory.unloadedClasses}"
+                    )
+                    sender.sendMessage(
+                        "§7Host memory: §ftotal ${mib(memory.physicalMemoryBytes)} §8| free ${mib(memory.freePhysicalMemoryBytes)}"
+                    )
                     sender.sendMessage(plugin.message("runtime.pool", "workers" to w.workers, "active" to w.active, "queued" to w.queued, "tracked" to w.tracked))
                     sender.sendMessage(plugin.message("runtime.tasks", "completed" to w.completed, "rejected" to w.rejected))
                     val cache = plugin.compileCacheSnapshot()
