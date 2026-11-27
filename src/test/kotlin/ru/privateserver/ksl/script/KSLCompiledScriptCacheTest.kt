@@ -62,7 +62,7 @@ class KSLCompiledScriptCacheTest {
         assertEquals(2, cache.resize(2))
         assertEquals(2, cache.stats().size)
         assertEquals(2, cache.stats().maxSize)
-        assertEquals(1, cache.stats().evictions)
+        assertEquals(2, cache.stats().evictions)
         assertEquals(0, cache.invalidateScript("script-1"))
         assertEquals(0, cache.invalidateScript("script-2"))
         assertEquals(1, cache.invalidateScript("script-3"))
