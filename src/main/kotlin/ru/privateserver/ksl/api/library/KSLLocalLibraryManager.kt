@@ -13,6 +13,8 @@ import java.io.PrintStream
 import java.net.URLClassLoader
 import java.security.MessageDigest
 import java.util.HexFormat
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Discover only regular Kotlin sources physically contained in scripts/libs.
@@ -119,6 +121,18 @@ internal fun localLibrarySourceFingerprint(sources: List<File>, sourceFolder: Fi
         "$relativePath:${HexFormat.of().formatHex(digest)}"
     }
 
+/** A generation-owned reference to one local-library classloader. */
+internal class KSLLocalLibraryLease(
+    val classLoader: ClassLoader,
+    private val releaseAction: () -> Unit
+) : AutoCloseable {
+    private val closed = AtomicBoolean(false)
+
+    override fun close() {
+        if (closed.compareAndSet(false, true)) releaseAction()
+    }
+}
+
 /**
  * Compiles scripts/libs/**/*.kt as one Kotlin source set. A successful output is
  * exposed to script compilation and evaluation; failed rebuilds keep the last
@@ -135,20 +149,23 @@ internal class KSLLocalLibraryManager(private val plugin: KotlinScriptLoaderPlug
     // Remember failed attempts too: unchanged broken sources should not trigger a full compiler run
     // for every script compiled during a reload.
     @Volatile private var attemptedStamp: List<String> = emptyList()
+    private val leaseSequence = AtomicLong()
 
     val classLoader: ClassLoader? get() = activeLoader
 
-    /** Pins the current library generation for a live script until that script unloads. */
+    /**
+     * Pins the current library generation to the caller's script generation. Candidate and
+     * previous generations can coexist during a transactional reload, so every evaluation
+     * receives its own lease instead of replacing a script-ID-wide reference.
+     */
     @Synchronized
-    fun acquireForScript(scriptId: String): ClassLoader? {
-        val loader = activeLoader
-        retiredLoaders.acquire(scriptId, loader)
-        return loader
+    fun acquireForScript(scriptId: String): KSLLocalLibraryLease? {
+        require(scriptId.isNotBlank()) { "scriptId must not be blank" }
+        val loader = activeLoader ?: return null
+        val leaseOwner = "$scriptId#${leaseSequence.incrementAndGet()}"
+        retiredLoaders.acquire(leaseOwner, loader)
+        return KSLLocalLibraryLease(loader) { retiredLoaders.release(leaseOwner) }
     }
-
-    /** Releases the library-generation reference owned by an unloaded script. */
-    @Synchronized
-    fun releaseScript(scriptId: String): Boolean = retiredLoaders.release(scriptId)
 
     @Synchronized
     fun reloadIfChanged(): String? {
