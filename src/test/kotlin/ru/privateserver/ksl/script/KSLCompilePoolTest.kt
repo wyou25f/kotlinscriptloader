@@ -106,6 +106,33 @@ class KSLCompilePoolTest {
     }
 
     @Test
+    fun `idle compiler workers retire and are recreated for a later batch`() {
+        KSLCompilePool(1, workerIdleTimeoutMillis = 50L).use { pool ->
+            val firstThread = java.util.concurrent.atomic.AtomicReference<Thread>()
+            val first = pool.map(listOf(1)) {
+                firstThread.set(Thread.currentThread())
+                it
+            }
+            assertEquals(listOf(1), first)
+
+            val original = firstThread.get()
+            val retirementDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
+            while (original.isAlive && System.nanoTime() < retirementDeadline) {
+                Thread.sleep(10)
+            }
+            assertFalse(original.isAlive, "idle compile worker should release its thread after timeout")
+
+            val secondThread = java.util.concurrent.atomic.AtomicReference<Thread>()
+            val second = pool.map(listOf(2)) {
+                secondThread.set(Thread.currentThread())
+                it
+            }
+            assertEquals(listOf(2), second)
+            assertNotSame(original, secondThread.get())
+        }
+    }
+
+    @Test
     fun `reuses worker threads across batches and respects configured parallelism`() {
         KSLCompilePool(2).use { pool ->
             val active = AtomicInteger()
