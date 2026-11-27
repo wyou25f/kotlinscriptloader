@@ -87,7 +87,7 @@ private class MutableOwnerWorkSnapshot {
 class KSLWorkScheduler @JvmOverloads constructor(
     workers: Int,
     @Volatile private var queueCapacity: Int,
-    private val perScriptLimit: Int = 64,
+    @Volatile private var perScriptLimit: Int = 64,
     private val failureHandler: ((KSLWorkFailure) -> Unit)? = null,
     private val threadNamePrefix: String = "KSL-Worker",
     private val workerIdleTimeoutMillis: Long = DEFAULT_WORKER_IDLE_TIMEOUT_MILLIS
@@ -543,11 +543,14 @@ class KSLWorkScheduler @JvmOverloads constructor(
         return count
     }
 
-    fun resize(workers: Int) = resize(workers, queueCapacity)
+    fun resize(workers: Int) = resize(workers, queueCapacity, perScriptLimit)
 
-    fun resize(workers: Int, queueCapacity: Int) {
+    fun resize(workers: Int, queueCapacity: Int) = resize(workers, queueCapacity, perScriptLimit)
+
+    fun resize(workers: Int, queueCapacity: Int, perScriptLimit: Int) {
         require(workers in 1..64) { "workers must be between 1 and 64" }
         require(queueCapacity in 1..100_000) { "queueCapacity must be between 1 and 100000" }
+        require(perScriptLimit > 0) { "perScriptLimit must be positive" }
         synchronized(lifecycleLock) {
             check(!closed.get()) { "KSL work scheduler is closed" }
             val current = executor.corePoolSize
@@ -559,6 +562,8 @@ class KSLWorkScheduler @JvmOverloads constructor(
                 executor.maximumPoolSize = workers
             }
             this.queueCapacity = queueCapacity
+            this.perScriptLimit = perScriptLimit
+            ownerQuota.updateLimit(perScriptLimit)
             capacity.set(workers + queueCapacity)
         }
     }
@@ -676,9 +681,17 @@ class KSLWorkScheduler @JvmOverloads constructor(
 }
 
 /** Atomic per-owner quota; compute() keeps acquire/release linearizable under contention. */
-internal class KSLPerOwnerQuota(private val limit: Int) {
+internal class KSLPerOwnerQuota(initialLimit: Int) {
     private val counts = ConcurrentHashMap<String, Int>()
-    init { require(limit > 0) { "limit must be positive" } }
+    @Volatile private var limit = initialLimit
+
+    init { require(initialLimit > 0) { "limit must be positive" } }
+
+    fun updateLimit(newLimit: Int) {
+        require(newLimit > 0) { "limit must be positive" }
+        limit = newLimit
+    }
+
     fun acquire(owner: String): Boolean {
         var accepted = false
         counts.compute(owner) { _, current ->
@@ -687,6 +700,7 @@ internal class KSLPerOwnerQuota(private val limit: Int) {
         }
         return accepted
     }
+
     fun release(owner: String) {
         counts.computeIfPresent(owner) { _, current -> if (current <= 1) null else current - 1 }
     }
