@@ -39,7 +39,7 @@ val kotlinLibraries = listOf(
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
-    compileOnly("me.clip:placeholderapi:2.11.6")
+    compileOnly("me.clip:placeholderapi:2.12.3")
     compileOnly("net.luckperms:api:5.5")
     compileOnly("net.essentialsx:EssentialsX:2.21.2")
     compileOnly("net.skinsrestorer:skinsrestorer-api:15.5.2")
