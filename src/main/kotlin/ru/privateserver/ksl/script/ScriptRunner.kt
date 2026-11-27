@@ -101,10 +101,6 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
     override fun clearCompileCache(): Int = compiledCache.clear()
     override fun invalidateCompileCache(scriptId: String): Int = compiledCache.invalidateScript(scriptId)
 
-    override fun releaseScript(scriptId: String) {
-        localLibraries.releaseScript(scriptId)
-    }
-
     /** Compatibility alias retained for internal integrations. */
     fun invalidateCachedScript(scriptId: String): Int = invalidateCompileCache(scriptId)
 
@@ -239,7 +235,9 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
             unit.warnings.forEach { plugin.logger.warning("[$id] ${KSLError.SCRIPT_COMPILE_WARNING.tag} ⚠ $it") }
             val context = BukkitScriptContext(plugin, id)
             plugin.addonManager.notifyContextCreated(context)
-            val baseLoader = loaderFor(id)
+            val libraryLease = localLibraries.acquireForScript(id)
+            libraryLease?.let { plugin.scriptRuntimeScope(id).own(it) }
+            val baseLoader = loaderFor(id, libraryLease?.classLoader)
             val evalConfig = ScriptEvaluationConfiguration {
                 implicitReceivers(context)
                 jvm { baseClassLoader(baseLoader) }
@@ -288,8 +286,7 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
         return evaluate(unit)
     }
 
-    private fun loaderFor(id: String): ClassLoader {
-        val libraryLoader = localLibraries.acquireForScript(id)
+    private fun loaderFor(id: String, libraryLoader: ClassLoader? = localLibraries.classLoader): ClassLoader {
         val addonAwareLoader = KSLAddonClassLoader(
             pluginClassLoader,
             plugin.addonManager.getScriptClassLoaders() + listOfNotNull(libraryLoader)
@@ -344,7 +341,8 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
         return try {
             val context = BukkitScriptContext(plugin, "__sandbox_probe__")
             // Use the exact effective policy and parent loader used by normal script evaluation.
-            val loader = loaderFor("__sandbox_probe__")
+            val libraryLease = localLibraries.acquireForScript("__sandbox_probe__")
+            val loader = loaderFor("__sandbox_probe__", libraryLease?.classLoader)
             val compilationConfig = buildScriptCompilationConfig(plugin.addonManager)
             val evalConfig = ScriptEvaluationConfiguration {
                 implicitReceivers(context)
@@ -388,7 +386,9 @@ internal class ScriptRunner(private val plugin: KotlinScriptLoaderPlugin) : KSLS
             false to "${ex::class.simpleName}: ${ex.message}"
         } finally {
             runCatching { plugin.closeScriptRuntimeScope("__sandbox_probe__") }
-            localLibraries.releaseScript("__sandbox_probe__")
+            // Probe scopes are short-lived and do not participate in generation activation.
+            // Release their library lease explicitly rather than retaining it until shutdown.
+            runCatching { libraryLease?.close() }
         }
     }
 
