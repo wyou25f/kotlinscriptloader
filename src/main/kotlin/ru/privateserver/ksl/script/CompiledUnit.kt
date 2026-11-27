@@ -14,7 +14,9 @@ class CompiledUnit(
     val failure: KSLError?,
     val crash: Throwable?,
     val compileMillis: Long,
-    val sourceStamp: String = ""
+    val sourceStamp: String = "",
+    /** Exact local-library generation used to compile this artifact, for safe reload rollback. */
+    val libraryClassLoader: ClassLoader? = null
 ) {
     val ok: Boolean get() = compiled != null
 }
