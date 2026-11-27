@@ -41,8 +41,11 @@ database:
 # Worker pool KSL для CPU-heavy/background задач из скриптов.
 # Число потоков ограничивает конкуренцию KSL, но не закрепляет их за физическими ядрами.
 runtime:
-  cpu-threads: 2
-  queue-capacity: 256
+  # 0 = auto: KSL selects a conservative worker count from the JVM heap and CPU count.
+  # Set 1-64 to override the automatic choice.
+  cpu-threads: 0
+  # 0 = auto: queue capacity scales with the maximum JVM heap; positive values override it.
+  queue-capacity: 0
   max-tasks-per-script: 64
   # Останавливать периодическую задачу после такого числа последовательных ошибок (1-20).
   task-failure-limit: 3
@@ -56,7 +59,8 @@ scripts:
   # Сколько скриптов компилировать одновременно при перезагрузке (1-8). 1 безопасно по умолчанию;
   # больше ускоряет перезагрузку многих скриптов, но нагружает процессор.
   compile-threads: 1
-  # Максимум успешно скомпилированных скриптов в LRU-кеше (16-2048). При отсутствии ключа используется 128.
+  # Максимум успешно скомпилированных скриптов в LRU-кеше (16-2048).
+  # Если ключ не задан, значение подбирается по максимальному heap JVM (64 для heap до 4 GiB).
   compile-cache-size: 128
   # async - скрипты загружаются в фоне сразу после старта сервера (старт не задерживается компиляцией,
   #         а аддоны уже включены и их импорты доступны скриптам); sync - загрузка до конца старта плагина.
